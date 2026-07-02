@@ -54,6 +54,28 @@ export interface HandResult {
   readonly wonByFold: boolean;
 }
 
+export interface PublicSeatState {
+  readonly seatIndex: number;
+  readonly playerId: string;
+  readonly stack: number;
+  readonly status: "active" | "folded" | "allIn";
+  readonly streetContribution: number;
+  readonly handContribution: number;
+  readonly hasActedThisStreet: boolean;
+}
+
+/** BOTやUIが意思決定・描画に必要な、ハンドの公開状態(ホールカードは含まない) */
+export interface PublicHandState {
+  readonly street: Street;
+  readonly board: readonly Card[];
+  readonly potTotal: number;
+  readonly currentBetToMatch: number;
+  readonly lastFullRaiseSize: number;
+  readonly actingSeatIndex: number | null;
+  readonly seats: readonly PublicSeatState[];
+  readonly isComplete: boolean;
+}
+
 const STREET_ORDER: readonly Street[] = ["preflop", "flop", "turn", "river"];
 
 export class HandEngine {
@@ -165,7 +187,10 @@ export class HandEngine {
     if (bb.stack === 0) bb.status = "allIn";
     this.logEvent({ type: "postAnte", seatIndex: bbSeatIndex, amount: antePost, street: this.street, potBefore: potBeforeAnte });
 
-    this.currentBetToMatch = bb.streetContribution;
+    // BBがスタック不足で規定額より少なく(ショートで)ポストした場合、SBの拠出額の方が
+    // 数値上大きくなることがある。currentBetToMatch は実際にテーブルに出ている最大拠出額にする。
+    const sbContribution = sbSeatIndex !== null ? this.seat(sbSeatIndex).streetContribution : 0;
+    this.currentBetToMatch = Math.max(sbContribution, bb.streetContribution);
   }
 
   private potTotal(): number {
@@ -286,7 +311,7 @@ export class HandEngine {
           this.lastFullRaiseSize = legality.newMinRaiseSize;
           this.incompleteRaiseAccumulator = 0;
           this.resetActedFlagsExcept(seatIndex);
-        } else {
+        } else if (legality.type === "incompleteRaise") {
           // 不完全レイズ(ショートオールイン)。単体では既アクション済みプレイヤーへの再オープンはしない。
           // ただし複数のショートオールインが積み重なり、合計増分が直近の正当なレイズ幅に達したら再オープンする。
           this.incompleteRaiseAccumulator += increment;
@@ -296,6 +321,7 @@ export class HandEngine {
             this.resetActedFlagsExcept(seatIndex);
           }
         }
+        // callShort(コールにも満たないショートオールイン)はレイズではないため、再オープン判定に影響しない。
         this.logEvent({ type: action.kind, seatIndex, toAmount, legality: legality.type, street: this.street, potBefore });
         break;
       }
@@ -466,6 +492,33 @@ export class HandEngine {
     return new Map([...this.seats.entries()].map(([idx, s]) => [idx, s.stack]));
   }
 
+  getMinRaiseToAmount(): number {
+    return this.currentBetToMatch + this.lastFullRaiseSize;
+  }
+
+  getPublicState(): PublicHandState {
+    return {
+      street: this.street,
+      board: [...this.board],
+      potTotal: this.potTotal(),
+      currentBetToMatch: this.currentBetToMatch,
+      lastFullRaiseSize: this.lastFullRaiseSize,
+      actingSeatIndex: this.actingSeatIndex,
+      isComplete: this.isHandComplete(),
+      seats: [...this.seats.values()]
+        .sort((a, b) => a.seatIndex - b.seatIndex)
+        .map((s) => ({
+          seatIndex: s.seatIndex,
+          playerId: s.playerId,
+          stack: s.stack,
+          status: s.status,
+          streetContribution: s.streetContribution,
+          handContribution: s.handContribution,
+          hasActedThisStreet: s.hasActedThisStreet,
+        })),
+    };
+  }
+
   getEvents(): readonly HandEvent[] {
     return this.events;
   }
@@ -478,5 +531,10 @@ export class HandEngine {
   getAllHoleCards(): Map<number, readonly Card[]> {
     if (!this.isHandComplete()) throw new Error("Hand is not complete yet");
     return new Map([...this.seats.entries()].map(([idx, s]) => [idx, s.holeCards]));
+  }
+
+  /** 特定の1席のホールカードを取得する。自分自身の手札はハンドの進行中でも常に見えるため、完了前でも呼び出せる。 */
+  getSeatHoleCards(seatIndex: number): readonly Card[] {
+    return this.seat(seatIndex).holeCards;
   }
 }

@@ -212,3 +212,47 @@ describe("HandEngine — incomplete raise re-opening rule (TDA Rule 47)", () => 
     expect(() => engine.applyAction(0, { kind: "raise", toAmount: 1200 })).not.toThrow();
   });
 });
+
+describe("HandEngine — short-stacked BB posts less than the SB (regression)", () => {
+  it("sets currentBetToMatch to the larger of the two actual posted amounts, not just the BB's", () => {
+    // Heads-up: BB's whole stack (300) is smaller than the SB's post (500), which can happen
+    // once blinds have escalated far beyond a short stack. currentBetToMatch must reflect the
+    // larger of what was actually posted, or the SB would illegally be allowed to "check" a bet
+    // that doesn't match their own contribution (and downstream chip accounting breaks).
+    const deck = fixedDeck();
+    const engine = new HandEngine({
+      seats: [
+        { seatIndex: 0, playerId: "SB", stack: 5000 },
+        { seatIndex: 1, playerId: "BB", stack: 300 },
+      ],
+      seatCount: 2,
+      buttonFixedPos: 0,
+      smallBlindSeat: 0,
+      bigBlindSeat: 1,
+      smallBlind: 500,
+      bigBlind: 1000,
+      bbAnte: 0,
+      deck,
+    });
+
+    const state = engine.getPublicState();
+    expect(state.currentBetToMatch).toBe(500);
+
+    const bbSeat = state.seats.find((s) => s.seatIndex === 1)!;
+    expect(bbSeat.status).toBe("allIn");
+    expect(bbSeat.streetContribution).toBe(300);
+
+    // SB already matches currentBetToMatch (500 == 500), so checking must be legal.
+    expect(engine.getActingSeatIndex()).toBe(0);
+    expect(() => engine.applyAction(0, { kind: "check" })).not.toThrow();
+
+    // BB is all-in, but SB still has chips behind, so SB must check down every remaining street.
+    while (!engine.isHandComplete()) {
+      expect(engine.getActingSeatIndex()).toBe(0);
+      engine.applyAction(0, { kind: "check" });
+    }
+
+    const stacks = engine.getStacks();
+    expect([...stacks.values()].reduce((a, b) => a + b, 0)).toBe(5300);
+  });
+});
