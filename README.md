@@ -18,6 +18,7 @@ docs/             ルール調査メモ・ソロテスト手順など
 - [`docs/POKER_RULES.md`](./docs/POKER_RULES.md) — TDAルール調査メモ(サイドポット計算、
   不完全レイズ、デッドボタン等の実装基礎)
 - [`docs/SOLO_TESTING.md`](./docs/SOLO_TESTING.md) — 1人でプレイ→DB保存確認まで行う手順
+- [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) — Vercel(Web)/ Fly.io(対戦サーバー)/ Supabase(DB)への本番デプロイ手順
 
 ## クイックスタート
 
