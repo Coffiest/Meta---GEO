@@ -80,6 +80,7 @@ export class TableSession {
     });
 
     this.starting = false;
+    this.io.emit("levelUp", { level: this.tournament.getCurrentLevel() });
     this.scheduleLevelAdvance();
     this.beginNextHand();
   }

@@ -72,6 +72,7 @@ export interface PublicHandState {
   readonly currentBetToMatch: number;
   readonly lastFullRaiseSize: number;
   readonly actingSeatIndex: number | null;
+  readonly buttonFixedPos: number;
   readonly seats: readonly PublicSeatState[];
   readonly isComplete: boolean;
 }
@@ -83,6 +84,7 @@ export class HandEngine {
   private readonly smallBlind: number;
   private readonly bigBlind: number;
   private readonly bbAnte: number;
+  private readonly buttonFixedPos: number;
   private readonly dealer: Dealer;
   private readonly postflopOrder: readonly number[];
   private readonly preflopOrder: readonly number[];
@@ -103,6 +105,7 @@ export class HandEngine {
     this.smallBlind = config.smallBlind;
     this.bigBlind = config.bigBlind;
     this.bbAnte = config.bbAnte;
+    this.buttonFixedPos = config.buttonFixedPos;
     this.lastFullRaiseSize = config.bigBlind;
     this.dealer = new Dealer(config.deck ?? createShuffledDeck());
 
@@ -504,6 +507,7 @@ export class HandEngine {
       currentBetToMatch: this.currentBetToMatch,
       lastFullRaiseSize: this.lastFullRaiseSize,
       actingSeatIndex: this.actingSeatIndex,
+      buttonFixedPos: this.buttonFixedPos,
       isComplete: this.isHandComplete(),
       seats: [...this.seats.values()]
         .sort((a, b) => a.seatIndex - b.seatIndex)

@@ -21,7 +21,10 @@ const io = new Server(httpServer, {
 const table = new TableSession(io);
 
 io.on("connection", (socket) => {
-  void table.handleConnection(socket);
+  console.log(`[server] socket connected: ${socket.id}`);
+  table.handleConnection(socket).catch((err) => {
+    console.error(`[server] handleConnection failed for ${socket.id}:`, err);
+  });
 });
 
 httpServer.listen(PORT, () => {
