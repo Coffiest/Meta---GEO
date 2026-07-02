@@ -33,6 +33,14 @@ const config: Config = {
           400: "#c76a63",
           500: "#b3554e",
         },
+        // GEO分析チャート用の検証済みカテゴリカルカラー(dataviz skillのvalidate_palette.jsで
+        // ダーク面 #0d0d10 に対して4色ともPASSした組み合わせ・順序)。
+        chart: {
+          raise: "#c98500",
+          check: "#199e70",
+          limp: "#3987e5",
+          fold: "#e66767",
+        },
       },
       fontFamily: {
         sans: [

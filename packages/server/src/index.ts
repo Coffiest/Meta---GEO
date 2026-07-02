@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { TableSession } from "./gameServer.js";
+import { handleGeoApiRequest } from "./geoApi.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -10,8 +11,12 @@ const httpServer = createServer((req, res) => {
     res.end(JSON.stringify({ ok: true }));
     return;
   }
-  res.writeHead(404);
-  res.end();
+
+  handleGeoApiRequest(req, res).then((handled) => {
+    if (handled) return;
+    res.writeHead(404);
+    res.end();
+  });
 });
 
 const io = new Server(httpServer, {

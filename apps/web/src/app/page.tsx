@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
@@ -60,7 +61,10 @@ function GameScreen({ displayName }: { displayName: string }) {
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
         <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">TEN FOUR POKER</div>
-        <div className="flex items-center gap-2 text-[11px] text-ink-400">
+        <div className="flex items-center gap-3 text-[11px] text-ink-400">
+          <Link href="/geo" className="text-ink-300 hover:text-gold-400 transition-colors">
+            GEO分析
+          </Link>
           <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-500"}`} />
           {level ? (
             <span className="tabular-nums">
