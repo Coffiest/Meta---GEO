@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
@@ -15,6 +16,35 @@ const SEAT_LAYOUT: Record<number, string> = {
   4: "top-[42%] left-[1%]",
   5: "top-[42%] right-[1%]",
 };
+
+/**
+ * `public/table/felt.png` が存在すればそれをテーブル背景として使い、無ければ現行の
+ * グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
+ * グラデーションは常にベースとして描画し、画像は読み込めた場合だけその上にフェードインする
+ * ので、読み込み中や画像が無い場合でもテーブルが崩れて見えることはない。
+ */
+function TableFelt() {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="absolute inset-x-[6%] top-[12%] bottom-[20%] rounded-[46%] bg-gradient-to-b from-felt-800 to-felt-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)] overflow-hidden">
+      {!failed && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/table/felt.png"
+          alt=""
+          draggable={false}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+          style={{ opacity: loaded ? 1 : 0 }}
+        />
+      )}
+      <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />
+    </div>
+  );
+}
 
 export function PokerTable({
   state,
@@ -34,9 +64,7 @@ export function PokerTable({
   return (
     <div className="relative w-full aspect-[3/4] max-w-md mx-auto">
       {/* felt table */}
-      <div className="absolute inset-x-[6%] top-[12%] bottom-[20%] rounded-[46%] bg-gradient-to-b from-felt-800 to-felt-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)]">
-        <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />
-      </div>
+      <TableFelt />
 
       {/* pot + board, centered on felt */}
       <div className="absolute inset-x-0 top-[32%] flex flex-col items-center gap-3">
