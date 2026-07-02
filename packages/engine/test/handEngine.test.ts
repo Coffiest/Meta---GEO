@@ -55,6 +55,12 @@ describe("HandEngine — uncontested pot via fold", () => {
 
     // チップ保存則
     expect([...stacks.values()].reduce((a, b) => a + b, 0)).toBe(15000);
+
+    // GEO記録用: ショーダウンしていなくても全員のホールカードを取得できる
+    const allHoleCards = engine.getAllHoleCards();
+    expect(allHoleCards.get(0)).toHaveLength(2);
+    expect(allHoleCards.get(1)).toHaveLength(2);
+    expect(allHoleCards.get(2)).toHaveLength(2);
   });
 });
 

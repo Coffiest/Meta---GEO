@@ -74,6 +74,7 @@ export class HandEngine {
   private incompleteRaiseAccumulator = 0;
   private actingSeatIndex: number | null = null;
   private result: HandResult | null = null;
+  private sequenceCounter = 0;
 
   constructor(config: HandEngineConfig) {
     if (config.seats.length < 2) throw new Error("A hand requires at least 2 seats");
@@ -131,30 +132,50 @@ export class HandEngine {
   private postBlindsAndAntes(sbSeatIndex: number | null, bbSeatIndex: number): void {
     if (sbSeatIndex !== null) {
       const sb = this.seat(sbSeatIndex);
+      const potBefore = this.potTotal();
       const sbPost = Math.min(this.smallBlind, sb.stack);
       sb.stack -= sbPost;
       sb.streetContribution += sbPost;
       sb.handContribution += sbPost;
       if (sb.stack === 0) sb.status = "allIn";
-      this.events.push({ type: "postBlind", seatIndex: sbSeatIndex, amount: sbPost, blind: "small" });
+      this.logEvent({ type: "postBlind", seatIndex: sbSeatIndex, amount: sbPost, blind: "small", street: this.street, potBefore });
     } else {
-      this.events.push({ type: "deadSmallBlind" });
+      this.logEvent({ type: "deadSmallBlind", street: this.street });
     }
 
     const bb = this.seat(bbSeatIndex);
+    const potBeforeBb = this.potTotal();
     const bbBlindPost = Math.min(this.bigBlind, bb.stack);
     bb.stack -= bbBlindPost;
     bb.streetContribution += bbBlindPost;
     bb.handContribution += bbBlindPost;
-    this.events.push({ type: "postBlind", seatIndex: bbSeatIndex, amount: bbBlindPost, blind: "big" });
+    this.logEvent({
+      type: "postBlind",
+      seatIndex: bbSeatIndex,
+      amount: bbBlindPost,
+      blind: "big",
+      street: this.street,
+      potBefore: potBeforeBb,
+    });
 
+    const potBeforeAnte = this.potTotal();
     const antePost = Math.min(this.bbAnte, bb.stack);
     bb.stack -= antePost;
     bb.handContribution += antePost; // アンテはポットに直行し、streetContribution(マッチ判定)には含めない
     if (bb.stack === 0) bb.status = "allIn";
-    this.events.push({ type: "postAnte", seatIndex: bbSeatIndex, amount: antePost });
+    this.logEvent({ type: "postAnte", seatIndex: bbSeatIndex, amount: antePost, street: this.street, potBefore: potBeforeAnte });
 
     this.currentBetToMatch = bb.streetContribution;
+  }
+
+  private potTotal(): number {
+    let total = 0;
+    for (const s of this.seats.values()) total += s.handContribution;
+    return total;
+  }
+
+  private logEvent(event: { type: string; [key: string]: unknown }): void {
+    this.events.push({ ...event, sequenceNumber: this.sequenceCounter++ });
   }
 
   private activeContenderSeats(): SeatState[] {
@@ -202,11 +223,13 @@ export class HandEngine {
     const seat = this.seat(seatIndex);
     if (seat.status !== "active") throw new Error(`Seat ${seatIndex} cannot act (status=${seat.status})`);
 
+    const potBefore = this.potTotal();
+
     switch (action.kind) {
       case "fold": {
         seat.status = "folded";
         seat.hasActedThisStreet = true;
-        this.events.push({ type: "fold", seatIndex });
+        this.logEvent({ type: "fold", seatIndex, street: this.street, potBefore });
         break;
       }
       case "check": {
@@ -214,7 +237,7 @@ export class HandEngine {
           throw new Error(`Seat ${seatIndex} cannot check while facing a bet`);
         }
         seat.hasActedThisStreet = true;
-        this.events.push({ type: "check", seatIndex });
+        this.logEvent({ type: "check", seatIndex, street: this.street, potBefore });
         break;
       }
       case "call": {
@@ -222,7 +245,7 @@ export class HandEngine {
         const toAmount = Math.min(this.currentBetToMatch, maxPossible);
         this.commit(seat, toAmount);
         seat.hasActedThisStreet = true;
-        this.events.push({ type: "call", seatIndex, toAmount });
+        this.logEvent({ type: "call", seatIndex, toAmount, street: this.street, potBefore });
         break;
       }
       case "bet":
@@ -273,7 +296,7 @@ export class HandEngine {
             this.resetActedFlagsExcept(seatIndex);
           }
         }
-        this.events.push({ type: action.kind, seatIndex, toAmount, legality: legality.type });
+        this.logEvent({ type: action.kind, seatIndex, toAmount, legality: legality.type, street: this.street, potBefore });
         break;
       }
     }
@@ -363,7 +386,7 @@ export class HandEngine {
     this.lastFullRaiseSize = this.bigBlind;
     this.incompleteRaiseAccumulator = 0;
     this.actingSeatIndex = this.firstEligibleInOrder(this.postflopOrder);
-    this.events.push({ type: "dealStreet", street: nextStreet, board: [...this.board] });
+    this.logEvent({ type: "dealStreet", street: nextStreet, board: [...this.board] });
   }
 
   /** 全員オールイン(=これ以上アクションできる人がいない)なら、TDA同様に残りを一括ランナウトする */
@@ -403,7 +426,7 @@ export class HandEngine {
       showdownHands: new Map(),
       wonByFold: true,
     };
-    this.events.push({ type: "handComplete", wonByFold: true, winner: winner.playerId });
+    this.logEvent({ type: "handComplete", wonByFold: true, winner: winner.playerId });
   }
 
   private showdown(): void {
@@ -436,7 +459,7 @@ export class HandEngine {
       showdownHands: handRanks,
       wonByFold: false,
     };
-    this.events.push({ type: "handComplete", wonByFold: false });
+    this.logEvent({ type: "handComplete", wonByFold: false });
   }
 
   getStacks(): Map<number, number> {
@@ -445,5 +468,15 @@ export class HandEngine {
 
   getEvents(): readonly HandEvent[] {
     return this.events;
+  }
+
+  /**
+   * 全席のホールカードを返す(フォールドして見せていないプレイヤーも含む)。
+   * Ten-Four Pokerの「ハンド終了後は全履歴公開」思想に基づき、GEO分析用の記録は
+   * ショーダウンの有無に関わらず常に全ホールカードを保存する。ハンド完了後にのみ呼び出すこと。
+   */
+  getAllHoleCards(): Map<number, readonly Card[]> {
+    if (!this.isHandComplete()) throw new Error("Hand is not complete yet");
+    return new Map([...this.seats.entries()].map(([idx, s]) => [idx, s.holeCards]));
   }
 }
