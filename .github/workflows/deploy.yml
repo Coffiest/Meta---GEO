@@ -55,8 +55,17 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Health check
         run: |
-          sleep 5
-          curl -sf https://meta---geo.fly.dev/health
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl -sf https://meta---geo.fly.dev/health; then exit 0; fi
+            echo "not up yet, retrying in 5s ($i/8)..."
+            sleep 5
+          done
+          exit 1
+      - name: Dump app logs (on failure)
+        if: failure()
+        run: timeout 15 flyctl logs --app meta---geo || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-web:
     needs: deploy-server
