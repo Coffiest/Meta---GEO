@@ -84,7 +84,7 @@ jobs:
         # (see vercel.json at the repo root) to have access to packages/engine, packages/db, the
         # workspace lockfile, etc.
         run: |
-          vercel link --token "$VERCEL_TOKEN" --yes
+          vercel link --token "$VERCEL_TOKEN" --yes --project web
           vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
           printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN"
           vercel deploy --prod --yes --token "$VERCEL_TOKEN"
