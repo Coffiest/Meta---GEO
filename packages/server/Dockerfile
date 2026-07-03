@@ -8,6 +8,11 @@
 # 「リポジトリ全体をコピーしてそのままインストールする」という最も素直で失敗しにくい構成にしている。
 
 FROM node:22-slim AS base
+# Prisma のクエリエンジンはOpenSSLに動的リンクしており、`pnpm install`(prisma generate含む)
+# より前にopensslを入れておかないと、正しいバイナリターゲット(例: debian-openssl-3.0.x)を
+# 検出できず誤ったもの(openssl-1.1.x)をダウンロードしてしまい、実行時に
+# `libssl.so.1.1: cannot open shared object file` でクラッシュする。
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /repo
 
