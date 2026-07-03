@@ -84,8 +84,6 @@ jobs:
           vercel link --token "$VERCEL_TOKEN" --yes
           vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
           printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN"
-          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-          vercel build --prod --token "$VERCEL_TOKEN"
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prod --yes --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
