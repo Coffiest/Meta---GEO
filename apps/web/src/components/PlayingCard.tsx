@@ -23,11 +23,15 @@ function cardToAssetName(card: string): string {
   return `${rankNum}${suit}`;
 }
 
-function dimsFor(size: "sm" | "md" | "lg" | "xl"): string {
+function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
   if (size === "sm") return "h-[38px] w-[27px] text-[10px]";
   if (size === "md") return "h-14 w-10 text-sm";
   if (size === "lg") return "h-20 w-14 text-lg";
-  return "h-28 w-20 text-2xl";
+  if (size === "xl") return "h-28 w-20 text-2xl";
+  // felt.png内の破線カードスロット(実測: 幅126.5px/高さ215px, 1000x1500の画像に対する比率)に
+  // 正確に重なるよう、テーブル(aspect-[3/4]の外枠)幅に対するパーセンテージで指定してある。
+  // 固定px指定だと画面幅が変わった時にスロットとずれるため、%指定 + aspect-ratioで追従させる。
+  return "w-[8.1%] aspect-[0.588] text-[9px]";
 }
 
 /**
@@ -95,7 +99,7 @@ export function PlayingCard({
   dealDelay = 0,
 }: {
   card?: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "board";
   faceDown?: boolean;
   dealDelay?: number;
 }) {

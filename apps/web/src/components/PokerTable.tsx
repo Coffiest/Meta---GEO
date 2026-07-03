@@ -171,8 +171,8 @@ export function PokerTable({
 
       {state && <DealerButton buttonFixedPos={state.buttonFixedPos} />}
 
-      {/* pot + board, centered on felt(felt.png内の破線カードスロットの位置に合わせてある) */}
-      <div className="absolute inset-x-0 top-[35%] flex flex-col items-center gap-3">
+      {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
+      <div className="absolute inset-x-0 top-[33%] flex justify-center">
         <AnimatePresence mode="popLayout">
           {state && state.potTotal > 0 && (
             <motion.div
@@ -187,15 +187,21 @@ export function PokerTable({
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="flex gap-1.5 h-14 items-center">
-          {Array.from({ length: 5 }).map((_, i) => {
-            const card = state?.board[i];
-            if (card) {
-              return <PlayingCard key={`${cardToString(card)}-${i}`} card={cardToString(card)} size="md" dealDelay={i * 0.06} />;
-            }
-            return <div key={i} className="h-14 w-10 rounded-md bg-navy-800/50 ring-1 ring-navy-600/30" />;
-          })}
-        </div>
+      </div>
+
+      {/*
+        コミュニティカード欄: felt.png内の5つの破線カードスロットの実ピクセル位置を解析して
+        合わせてある(スロット群のbbox: x=14.7-85.2%, y=43.9-58.3%(画像内)。テーブル外枠の
+        aspect-[3/4]が固定なので、%指定にしておけば画面幅が変わっても常にスロットと重なる)。
+      */}
+      <div className="absolute inset-x-0 top-[41.6%] flex justify-center gap-[1.15%]">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const card = state?.board[i];
+          if (card) {
+            return <PlayingCard key={`${cardToString(card)}-${i}`} card={cardToString(card)} size="board" dealDelay={i * 0.06} />;
+          }
+          return <div key={i} className="w-[8.1%] aspect-[0.588] rounded-md bg-navy-800/50 ring-1 ring-navy-600/30" />;
+        })}
       </div>
 
       {/* opponent seats */}
