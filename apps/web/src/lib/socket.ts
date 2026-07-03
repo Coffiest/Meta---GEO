@@ -69,10 +69,13 @@ function diffSeatActions(prev: PublicHandState, next: PublicHandState): Record<n
       result[seat.seatIndex] = { kind: "fold", toAmount: 0 };
     } else if (seat.streetContribution !== prevSeat.streetContribution) {
       const wasFacingBet = prev.currentBetToMatch > 0;
+      // プリフロップはブラインド自体が「最初のベット」に相当するため、そこへの追加アクションは
+      // 常にレイズ表記にする(ポストフロップだけ最初のアグレッションを「ベット」と呼ぶ)。
+      const isPreflop = next.street === "preflop";
       if (seat.status === "allIn") {
         result[seat.seatIndex] = { kind: "allIn", toAmount: seat.streetContribution };
       } else if (seat.streetContribution > prev.currentBetToMatch) {
-        result[seat.seatIndex] = { kind: wasFacingBet ? "raise" : "bet", toAmount: seat.streetContribution };
+        result[seat.seatIndex] = { kind: isPreflop || wasFacingBet ? "raise" : "bet", toAmount: seat.streetContribution };
       } else if (wasFacingBet) {
         result[seat.seatIndex] = { kind: "call", toAmount: seat.streetContribution };
       }

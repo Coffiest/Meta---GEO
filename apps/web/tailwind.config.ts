@@ -109,10 +109,15 @@ const config: Config = {
           "0%": { boxShadow: "0 0 0 0 rgba(201,166,104,0.55)" },
           "100%": { boxShadow: "0 0 0 10px rgba(201,166,104,0)" },
         },
+        "pulse-ring-mint": {
+          "0%": { boxShadow: "0 0 0 0 rgba(31,174,112,0.55)" },
+          "100%": { boxShadow: "0 0 0 8px rgba(31,174,112,0)" },
+        },
       },
       animation: {
         "deal-in": "deal-in 260ms cubic-bezier(0.16,1,0.3,1) both",
         "pulse-ring": "pulse-ring 1.4s cubic-bezier(0.4,0,0.6,1) infinite",
+        "pulse-ring-mint": "pulse-ring-mint 1.3s cubic-bezier(0.4,0,0.6,1) infinite",
       },
     },
   },

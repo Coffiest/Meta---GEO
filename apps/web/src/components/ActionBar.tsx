@@ -9,7 +9,11 @@ interface Preset {
   toAmount: number;
 }
 
+// ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
+const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
+
 function computePresets(params: {
+  street: string;
   toCall: number;
   minRaiseToAmount: number;
   maxRaiseToAmount: number;
@@ -17,22 +21,35 @@ function computePresets(params: {
   streetContribution: number;
   bigBlind: number;
 }): Preset[] {
-  const { toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind } = params;
+  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind } = params;
   const clamp = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
-  // 誰もまだ3ベットしていないオープンレイズ想定のスポットでは、bbの倍数プリセットを出す。
-  if (toCall <= bigBlind) {
+  // プリフロップでまだ誰もレイズしていない(オープンレイズ想定の)スポットは、bbの倍数プリセット。
+  if (street === "preflop" && toCall <= bigBlind) {
     const amounts = [...new Set([2, 2.3, 2.5, 3, 4, 5].map((mult) => clamp(Math.round(bigBlind * mult))))];
-    return amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt }));
+    return [
+      ...amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt })),
+      { label: "オールイン", toAmount: maxRaiseToAmount },
+    ];
   }
 
-  // 誰かが既にレイズしているスポットでは、ポット比率プリセットにする。
-  const amounts = [...new Set([0.5, 0.75, 1, 1.5].map((pct) => clamp(Math.round(potTotal * pct) + streetContribution)))];
-  return amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt }));
+  // それ以外(ポストフロップ全般、およびプリフロップの3ベット以降)はポット比率プリセット。
+  // ラベルは金額(bb)ではなく比率(%)で表示する(TenFourPokerに合わせてある)。
+  // 複数の比率が最小ベット額に丸め込まれて同額になった場合は、最初の比率だけを残す。
+  const byAmount = new Map<number, number>();
+  for (const pct of POT_PCT_PRESETS) {
+    const amt = clamp(Math.round(potTotal * pct) + streetContribution);
+    if (!byAmount.has(amt)) byAmount.set(amt, pct);
+  }
+  return [
+    ...[...byAmount.entries()].map(([amt, pct]) => ({ label: `${Math.round(pct * 100)}%`, toAmount: amt })),
+    { label: "オールイン", toAmount: maxRaiseToAmount },
+  ];
 }
 
 export function ActionBar({
   isYourTurn,
+  street,
   canCheck,
   toCall,
   minRaiseToAmount,
@@ -44,6 +61,7 @@ export function ActionBar({
   onAction,
 }: {
   isYourTurn: boolean;
+  street: string;
   canCheck: boolean;
   toCall: number;
   minRaiseToAmount: number;
@@ -72,9 +90,11 @@ export function ActionBar({
     );
   }
 
+  // プリフロップはブラインドが「最初のベット」に相当するため、常に「レイズ」表記にする。
+  const isRaiseLabel = street === "preflop" || toCall > 0;
   const canGoAllIn = maxRaiseToAmount > 0;
   const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
-  const presets = computePresets({ toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind });
+  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind });
   const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
   return (
@@ -84,7 +104,7 @@ export function ActionBar({
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
             {presets.map((preset) => (
               <button
-                key={preset.toAmount}
+                key={preset.label}
                 onClick={() => setRaiseTo(preset.toAmount)}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums transition-colors ${
                   raiseTo === preset.toAmount
@@ -122,7 +142,7 @@ export function ActionBar({
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
             className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 shadow-card active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
-            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${toCall > 0 ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
+            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
           </button>
           {!raiseDisabled && (
             <input

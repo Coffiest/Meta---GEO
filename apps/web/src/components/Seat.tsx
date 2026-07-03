@@ -28,6 +28,7 @@ export interface SeatViewProps {
   bigBlind: number;
   status: "active" | "folded" | "allIn" | "empty";
   isActingSeat: boolean;
+  isDimmed: boolean;
   isHero: boolean;
   holeCards: (string | null)[];
   revealCards: boolean;
@@ -43,6 +44,7 @@ export function Seat({
   bigBlind,
   status,
   isActingSeat,
+  isDimmed,
   isHero,
   holeCards,
   revealCards,
@@ -51,12 +53,18 @@ export function Seat({
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
+  // フォールドした席は手札を見せる意味がないため、伏せカードごと表示しない。
+  const showCards = !isEmpty && !folded;
 
   return (
-    <div className={`flex flex-col items-center gap-1.5 ${size === "lg" ? "w-28" : "w-20"}`}>
+    <div
+      className={`flex flex-col items-center gap-1.5 transition-opacity duration-300 ${size === "lg" ? "w-28" : "w-20"} ${
+        isDimmed ? "opacity-45" : "opacity-100"
+      }`}
+    >
       <div className="flex gap-1">
-        {holeCards.map((c, i) =>
-          isEmpty ? null : (
+        {showCards &&
+          holeCards.map((c, i) => (
             <PlayingCard
               key={i}
               card={revealCards ? c ?? undefined : undefined}
@@ -64,8 +72,7 @@ export function Seat({
               size={size === "lg" ? "xl" : "sm"}
               dealDelay={i * 0.05}
             />
-          ),
-        )}
+          ))}
       </div>
 
       <div
@@ -75,7 +82,7 @@ export function Seat({
             : folded
               ? "bg-navy-850/60 opacity-40"
               : "bg-navy-850/90 backdrop-blur ring-1 ring-navy-600/60 shadow-seat"
-        } ${isActingSeat ? "ring-2 ring-mint-500" : ""}`}
+        } ${isActingSeat ? "ring-[3px] ring-mint-400 animate-pulse-ring-mint" : ""}`}
       >
         {!isEmpty && (
           <>

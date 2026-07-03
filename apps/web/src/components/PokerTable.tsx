@@ -191,16 +191,15 @@ export function PokerTable({
 
       {/*
         コミュニティカード欄: felt.png内の5つの破線カードスロットの実ピクセル位置を解析して
-        合わせてある(スロット群のbbox: x=14.7-85.2%, y=43.9-58.3%(画像内)。テーブル外枠の
-        aspect-[3/4]が固定なので、%指定にしておけば画面幅が変わっても常にスロットと重なる)。
+        合わせてある(スロット群のbbox: x=14.7-85.2%, y=43.9-58.3%(画像内))。
       */}
-      <div className="absolute inset-x-0 top-[41.6%] flex justify-center gap-[1.15%]">
+      <div className="absolute inset-x-0 top-[41.6%] flex justify-center gap-1">
         {Array.from({ length: 5 }).map((_, i) => {
           const card = state?.board[i];
           if (card) {
             return <PlayingCard key={`${cardToString(card)}-${i}`} card={cardToString(card)} size="board" dealDelay={i * 0.06} />;
           }
-          return <div key={i} className="w-[8.1%] aspect-[0.588] rounded-md bg-navy-800/50 ring-1 ring-navy-600/30" />;
+          return <div key={i} className="h-[50px] w-[29px] rounded-md bg-navy-800/50 ring-1 ring-navy-600/30" />;
         })}
       </div>
 
@@ -220,6 +219,7 @@ export function PokerTable({
               bigBlind={bigBlind}
               status={status}
               isActingSeat={state?.actingSeatIndex === seatIndex}
+              isDimmed={Boolean(state?.actingSeatIndex !== null && state?.actingSeatIndex !== undefined && state.actingSeatIndex !== seatIndex)}
               isHero={false}
               holeCards={revealed ? revealed : [null, null]}
               revealCards={Boolean(revealed)}
@@ -247,6 +247,12 @@ export function PokerTable({
           bigBlind={bigBlind}
           status={(yourSeatIndex !== null ? seatsByIndex.get(yourSeatIndex)?.status : undefined) ?? "empty"}
           isActingSeat={yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex}
+          isDimmed={Boolean(
+            state?.actingSeatIndex !== null &&
+              state?.actingSeatIndex !== undefined &&
+              yourSeatIndex !== null &&
+              state.actingSeatIndex !== yourSeatIndex,
+          )}
           isHero
           holeCards={yourCards.length ? yourCards : [null, null]}
           revealCards

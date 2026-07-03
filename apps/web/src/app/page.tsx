@@ -212,6 +212,7 @@ function GameScreen({ displayName }: { displayName: string }) {
       {!spectating && (
         <ActionBar
           isYourTurn={Boolean(isYourTurn)}
+          street={state?.street ?? "preflop"}
           canCheck={toCall <= 0}
           toCall={toCall}
           minRaiseToAmount={minRaiseToAmount}
