@@ -79,7 +79,10 @@ jobs:
           cache: pnpm
       - run: npm install --global vercel@latest
       - name: Deploy to Vercel
-        working-directory: apps/web
+        # `vercel deploy` uploads only the files under the directory it's invoked from, so this
+        # must run from the repo root (not apps/web) for the monorepo's install/build commands
+        # (see vercel.json at the repo root) to have access to packages/engine, packages/db, the
+        # workspace lockfile, etc.
         run: |
           vercel link --token "$VERCEL_TOKEN" --yes
           vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
