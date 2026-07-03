@@ -13,23 +13,24 @@ import { formatBb, formatSignedBb } from "@/lib/format";
 import { useActingCountdown } from "@/lib/useActingCountdown";
 import type { SeatAction } from "@/lib/socket";
 
+// felt.png(縦長の楕円デザイン、幅:高さ ≈ 2:3)に合わせた座席配置。
+// seat4/5は中央のカードスロット帯(felt内 約44-56%)と重ならないよう、その下に配置してある。
 const SEAT_LAYOUT: Record<number, string> = {
   0: "bottom-0 left-1/2 -translate-x-1/2",
-  1: "top-[4%] left-1/2 -translate-x-1/2",
-  2: "top-[16%] left-[6%]",
-  3: "top-[16%] right-[6%]",
-  4: "top-[42%] left-[1%]",
-  5: "top-[42%] right-[1%]",
+  1: "top-[3%] left-1/2 -translate-x-1/2",
+  2: "top-[18%] left-[11%]",
+  3: "top-[18%] right-[11%]",
+  4: "top-[53%] left-[6%]",
+  5: "top-[53%] right-[6%]",
 };
 
-// テーブル画像が確定していない現時点での概算配置。実物のfelt.pngを適用したら微調整する。
 const DEALER_LAYOUT: Record<number, string> = {
-  0: "bottom-[21%] left-1/2 translate-x-9",
-  1: "top-[16%] left-1/2 translate-x-11",
-  2: "top-[25%] left-[21%]",
-  3: "top-[25%] right-[21%]",
-  4: "top-[46%] left-[15%]",
-  5: "top-[46%] right-[15%]",
+  0: "bottom-[22%] left-1/2 translate-x-9",
+  1: "top-[15%] left-1/2 translate-x-11",
+  2: "top-[26%] left-[26%]",
+  3: "top-[26%] right-[26%]",
+  4: "top-[56%] left-[21%]",
+  5: "top-[56%] right-[21%]",
 };
 
 /**
@@ -43,7 +44,7 @@ function TableFelt() {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className="absolute inset-x-[6%] top-[12%] bottom-[20%] rounded-[46%] bg-gradient-to-b from-navy-800 to-navy-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)] overflow-hidden">
+    <div className="absolute inset-x-[19%] top-[11%] bottom-[19%] rounded-[46%] bg-gradient-to-b from-navy-800 to-navy-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)] overflow-hidden">
       {!failed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -52,7 +53,7 @@ function TableFelt() {
           draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
           style={{ opacity: loaded ? 1 : 0 }}
         />
       )}
@@ -158,8 +159,8 @@ export function PokerTable({
 
       {state && <DealerButton buttonFixedPos={state.buttonFixedPos} />}
 
-      {/* pot + board, centered on felt */}
-      <div className="absolute inset-x-0 top-[30%] flex flex-col items-center gap-3">
+      {/* pot + board, centered on felt(felt.png内の破線カードスロットの位置に合わせてある) */}
+      <div className="absolute inset-x-0 top-[35%] flex flex-col items-center gap-3">
         <AnimatePresence mode="popLayout">
           {state && state.potTotal > 0 && (
             <motion.div
