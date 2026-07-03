@@ -1,0 +1,86 @@
+name: Deploy
+
+# このセッション(サンドボックス)からは Fly.io / Vercel / Supabase への直接アクセスが
+# ネットワークポリシーでブロックされているため、実際のデプロイは GitHub Actions のランナー上
+# (フル インターネットアクセスあり)で実行する。事前に以下のリポジトリシークレットの登録が必要:
+#   - DATABASE_URL   Supabaseの接続文字列 (Session pooler推奨、Prisma用)
+#   - FLY_API_TOKEN  Fly.ioのAPIトークン
+#   - VERCEL_TOKEN   Vercelのトークン
+# 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  migrate-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @meta-geo/db run generate
+      - run: pnpm --filter @meta-geo/db exec prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  deploy-server:
+    needs: migrate-db
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Set Fly secrets
+        run: |
+          flyctl secrets set \
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            WEB_ORIGIN="*" \
+            --app meta---geo
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Deploy to Fly.io
+        run: |
+          flyctl deploy \
+            --config packages/server/fly.toml \
+            --dockerfile packages/server/Dockerfile \
+            --app meta---geo \
+            --remote-only \
+            .
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Health check
+        run: |
+          sleep 5
+          curl -sf https://meta---geo.fly.dev/health
+
+  deploy-web:
+    needs: deploy-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: npm install --global vercel@latest
+      - name: Deploy to Vercel
+        working-directory: apps/web
+        run: |
+          vercel link --token "$VERCEL_TOKEN" --yes
+          vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
+          printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN"
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+          vercel build --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

@@ -8,14 +8,17 @@
 
 `{ランク}{スート}.png` の形式で、このフォルダ直下に置いてください。
 
-- ランク: `2` `3` `4` `5` `6` `7` `8` `9` `10` `J` `Q` `K` `A`
+- ランク: `1`(エース) `2` `3` `4` `5` `6` `7` `8` `9` `10` `11`(J) `12`(Q) `13`(K)
 - スート: `s`(スペード) `h`(ハート) `d`(ダイヤ) `c`(クラブ)
 
-例: エースのスペード → `As.png`、ハートの10 → `10h.png`、キングのダイヤ → `Kd.png`
+例: エースのスペード → `1s.png`、ハートの10 → `10h.png`、キングのダイヤ → `13d.png`
 
 裏面(伏せカード)は `back.png` という1ファイルです。
 
-## 必要なファイル一覧(全53枚)
+`PlayingCard` コンポーネント側でエンジンのランク表記(A/K/Q/J)をこの数値ファイル名に自動変換するため、
+上記さえ守ればコード変更は不要です。
+
+## 必要なファイル一覧(全53枚) — 適用済み
 
 ```
 2s.png 2h.png 2d.png 2c.png
@@ -27,10 +30,10 @@
 8s.png 8h.png 8d.png 8c.png
 9s.png 9h.png 9d.png 9c.png
 10s.png 10h.png 10d.png 10c.png
-Js.png Jh.png Jd.png Jc.png
-Qs.png Qh.png Qd.png Qc.png
-Ks.png Kh.png Kd.png Kc.png
-As.png Ah.png Ad.png Ac.png
+11s.png 11h.png 11d.png 11c.png (J)
+12s.png 12h.png 12d.png 12c.png (Q)
+13s.png 13h.png 13d.png 13c.png (K)
+1s.png 1h.png 1d.png 1c.png (A)
 back.png
 ```
 

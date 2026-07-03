@@ -4,13 +4,30 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 
 const SUIT_GLYPH: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
+// 差し込み済みカードデザインに合わせた4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)
+const SUIT_TEXT_CLASS: Record<string, string> = {
+  s: "text-ink-900",
+  h: "text-crimson-500",
+  d: "text-azure-500",
+  c: "text-mint-500",
+};
 
-function isRed(suit: string): boolean {
-  return suit === "h" || suit === "d";
+/**
+ * エンジンの表記("As" "10h" "Kd" 等、ランクはA/K/Q/J/2-10)を、差し込み済みデザイン
+ * アセットのファイル名規則(`public/cards/{1-13}{suit}.png`、1=A, 11=J, 12=Q, 13=K)に変換する。
+ */
+function cardToAssetName(card: string): string {
+  const suit = card.slice(-1);
+  const rankStr = card.slice(0, -1);
+  const rankNum = rankStr === "A" ? 1 : rankStr === "K" ? 13 : rankStr === "Q" ? 12 : rankStr === "J" ? 11 : rankStr;
+  return `${rankNum}${suit}`;
 }
 
-function dimsFor(size: "sm" | "md" | "lg"): string {
-  return size === "sm" ? "h-[38px] w-[27px] text-[10px]" : size === "lg" ? "h-20 w-14 text-lg" : "h-14 w-10 text-sm";
+function dimsFor(size: "sm" | "md" | "lg" | "xl"): string {
+  if (size === "sm") return "h-[38px] w-[27px] text-[10px]";
+  if (size === "md") return "h-14 w-10 text-sm";
+  if (size === "lg") return "h-20 w-14 text-lg";
+  return "h-28 w-20 text-2xl";
 }
 
 /**
@@ -27,7 +44,7 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- 差し込みデザインは静的最適化不要な小さな画像のため素のimgでよい
       <img
-        src={`/cards/${card}.png`}
+        src={`/cards/${cardToAssetName(card)}.png`}
         alt={card}
         draggable={false}
         onError={() => setImgFailed(true)}
@@ -36,13 +53,13 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
     );
   }
 
-  const red = isRed(suit);
+  const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-ink-900";
   return (
     <div
       className={`${dims} rounded-md bg-ink-50 shadow-card ring-1 ring-black/10 flex flex-col items-center justify-center leading-none select-none`}
     >
-      <span className={`font-semibold ${red ? "text-rose-500" : "text-ink-900"}`}>{rank}</span>
-      <span className={red ? "text-rose-500" : "text-ink-900"}>{SUIT_GLYPH[suit]}</span>
+      <span className={`font-semibold ${suitClass}`}>{rank}</span>
+      <span className={suitClass}>{SUIT_GLYPH[suit]}</span>
     </div>
   );
 }
@@ -78,7 +95,7 @@ export function PlayingCard({
   dealDelay = 0,
 }: {
   card?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   faceDown?: boolean;
   dealDelay?: number;
 }) {

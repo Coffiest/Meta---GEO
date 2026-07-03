@@ -3,11 +3,19 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket } from "@/lib/socket";
+import { usePokerSocket, type HandHistoryEntry } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
+import { formatSignedBb } from "@/lib/format";
 
 const SEAT_COUNT = 6;
+
+const SUIT_BADGE_CLASS: Record<string, string> = {
+  s: "bg-navy-500",
+  h: "bg-crimson-500",
+  d: "bg-azure-500",
+  c: "bg-mint-500",
+};
 
 function NameGate({ onEnter }: { onEnter: (name: string) => void }) {
   const [name, setName] = useState("");
@@ -39,9 +47,82 @@ function NameGate({ onEnter }: { onEnter: (name: string) => void }) {
   );
 }
 
+function HandHistoryPill({ entry, bigBlind }: { entry: HandHistoryEntry; bigBlind: number }) {
+  const deltaClass = entry.deltaChips > 0 ? "text-mint-400" : entry.deltaChips < 0 ? "text-crimson-400" : "text-navy-400";
+  return (
+    <div className="flex items-center gap-1 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 px-1.5 py-1 shrink-0">
+      {entry.cards.map((c, i) => {
+        const rank = c.slice(0, -1);
+        const suit = c.slice(-1);
+        return (
+          <span
+            key={i}
+            className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white ${SUIT_BADGE_CLASS[suit] ?? "bg-navy-500"}`}
+          >
+            {rank}
+          </span>
+        );
+      })}
+      <span className={`text-[10px] font-medium tabular-nums pr-0.5 ${deltaClass}`}>{formatSignedBb(entry.deltaChips, bigBlind)}</span>
+    </div>
+  );
+}
+
+function SettingsPopover({
+  connected,
+  level,
+  onClose,
+}: {
+  connected: boolean;
+  level: { level: number; smallBlind: number; bigBlind: number } | null;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-56 rounded-2xl bg-navy-900 ring-1 ring-navy-700 shadow-panel p-3 space-y-3">
+        <div className="flex items-center justify-between text-xs text-navy-300">
+          <span>接続状況</span>
+          <span className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-mint-400" : "bg-crimson-500"}`} />
+            {connected ? "接続中" : "切断"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-navy-300">
+          <span>レベル</span>
+          <span className="tabular-nums text-navy-100">
+            {level ? `Lv.${level.level} ${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "-"}
+          </span>
+        </div>
+        <Link
+          href="/geo"
+          className="block w-full rounded-xl bg-navy-800 text-navy-100 text-xs font-medium text-center py-2.5 ring-1 ring-navy-600/60 hover:bg-navy-700 transition-colors"
+        >
+          GEO分析を開く
+        </Link>
+      </div>
+    </>
+  );
+}
+
 function GameScreen({ displayName }: { displayName: string }) {
-  const { connected, spectating, state, yourSeatIndex, yourCards, lastHandEnded, level, tournamentOver, actionError, sendAction } =
-    usePokerSocket(displayName);
+  const {
+    connected,
+    spectating,
+    state,
+    yourSeatIndex,
+    yourCards,
+    lastHandEnded,
+    level,
+    tournamentOver,
+    actionError,
+    players,
+    handHistory,
+    lastActionBySeat,
+    lastHandDeltaBySeat,
+    sendAction,
+  } = usePokerSocket(displayName);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
@@ -52,33 +133,35 @@ function GameScreen({ displayName }: { displayName: string }) {
   const toCall = state && yourSeat ? Math.max(0, state.currentBetToMatch - yourSeat.streetContribution) : 0;
   const maxRaiseToAmount = yourSeat ? yourSeat.streetContribution + yourSeat.stack : 0;
   const minRaiseToAmount = state ? Math.min(maxRaiseToAmount, state.currentBetToMatch + state.lastFullRaiseSize) : 0;
+  const bigBlind = level?.bigBlind ?? 0;
 
   const revealedHoleCards = lastHandEnded
     ? Object.fromEntries(Object.entries(lastHandEnded.holeCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
-        <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">TEN FOUR POKER</div>
-        <div className="flex items-center gap-3 text-[11px] text-ink-400">
-          <Link href="/geo" className="text-ink-300 hover:text-gold-400 transition-colors">
-            GEO分析
-          </Link>
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-500"}`} />
-          {level ? (
-            <span className="tabular-nums">
-              Lv.{level.level} {level.smallBlind.toLocaleString()}/{level.bigBlind.toLocaleString()}
-            </span>
-          ) : (
-            <span>接続中…</span>
-          )}
+    <div className="min-h-screen flex flex-col bg-navy-950">
+      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {handHistory.map((entry, i) => (
+            <HandHistoryPill key={i} entry={entry} bigBlind={bigBlind} />
+          ))}
         </div>
+        <button
+          onClick={() => setSettingsOpen((v) => !v)}
+          className="shrink-0 h-8 w-8 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 flex items-center justify-center text-navy-300"
+          aria-label="設定"
+        >
+          ⚙
+        </button>
+        {settingsOpen && (
+          <SettingsPopover connected={connected} level={level} onClose={() => setSettingsOpen(false)} />
+        )}
       </header>
 
       <main className="flex-1 flex flex-col justify-center px-2">
         {spectating ? (
-          <div className="text-center text-ink-400 text-sm py-20">
+          <div className="text-center text-navy-400 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
           </div>
         ) : (
@@ -88,6 +171,10 @@ function GameScreen({ displayName }: { displayName: string }) {
             yourCards={yourCards}
             seatCount={SEAT_COUNT}
             revealedHoleCards={revealedHoleCards}
+            players={players}
+            bigBlind={bigBlind}
+            lastActionBySeat={lastActionBySeat}
+            lastHandDeltaBySeat={lastHandDeltaBySeat}
           />
         )}
       </main>
@@ -98,7 +185,7 @@ function GameScreen({ displayName }: { displayName: string }) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mx-auto mb-2 max-w-md rounded-full bg-rose-500/15 ring-1 ring-rose-500/40 text-rose-300 text-xs px-4 py-1.5 text-center"
+            className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/15 ring-1 ring-crimson-500/40 text-crimson-300 text-xs px-4 py-1.5 text-center"
           >
             {actionError}
           </motion.div>
@@ -110,11 +197,11 @@ function GameScreen({ displayName }: { displayName: string }) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-30 flex items-center justify-center bg-ink-950/90 backdrop-blur px-6"
+            className="fixed inset-0 z-30 flex items-center justify-center bg-navy-950/90 backdrop-blur px-6"
           >
             <div className="text-center space-y-3">
               <div className="text-gold-500 text-xs tracking-[0.3em]">TOURNAMENT COMPLETE</div>
-              <div className="text-2xl font-semibold">
+              <div className="text-2xl font-semibold text-navy-100">
                 {tournamentOver.winnerPlayerId === yourSeat?.playerId ? "優勝しました 🏆" : "トーナメント終了"}
               </div>
             </div>
@@ -132,6 +219,7 @@ function GameScreen({ displayName }: { displayName: string }) {
           potTotal={state?.potTotal ?? 0}
           streetContribution={yourSeat?.streetContribution ?? 0}
           canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
+          bigBlind={bigBlind}
           onAction={sendAction}
         />
       )}

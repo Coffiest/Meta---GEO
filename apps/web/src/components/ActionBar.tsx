@@ -2,6 +2,34 @@
 
 import { useEffect, useState } from "react";
 import type { PlayerAction } from "@meta-geo/engine";
+import { formatBb } from "@/lib/format";
+
+interface Preset {
+  label: string;
+  toAmount: number;
+}
+
+function computePresets(params: {
+  toCall: number;
+  minRaiseToAmount: number;
+  maxRaiseToAmount: number;
+  potTotal: number;
+  streetContribution: number;
+  bigBlind: number;
+}): Preset[] {
+  const { toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind } = params;
+  const clamp = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
+
+  // 誰もまだ3ベットしていないオープンレイズ想定のスポットでは、bbの倍数プリセットを出す。
+  if (toCall <= bigBlind) {
+    const amounts = [...new Set([2, 2.3, 2.5, 3, 4, 5].map((mult) => clamp(Math.round(bigBlind * mult))))];
+    return amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt }));
+  }
+
+  // 誰かが既にレイズしているスポットでは、ポット比率プリセットにする。
+  const amounts = [...new Set([0.5, 0.75, 1, 1.5].map((pct) => clamp(Math.round(potTotal * pct) + streetContribution)))];
+  return amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt }));
+}
 
 export function ActionBar({
   isYourTurn,
@@ -12,6 +40,7 @@ export function ActionBar({
   potTotal,
   streetContribution,
   canRaise,
+  bigBlind,
   onAction,
 }: {
   isYourTurn: boolean;
@@ -22,20 +51,21 @@ export function ActionBar({
   potTotal: number;
   streetContribution: number;
   canRaise: boolean;
+  bigBlind: number;
   onAction: (action: PlayerAction) => void;
 }) {
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
-  const [showRaise, setShowRaise] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
 
   useEffect(() => {
     setRaiseTo(minRaiseToAmount);
-    setShowRaise(false);
+    setShowCustom(false);
   }, [minRaiseToAmount, isYourTurn]);
 
   if (!isYourTurn) {
     return (
       <div className="safe-area-bottom px-4 pb-4 pt-3">
-        <div className="mx-auto max-w-md rounded-2xl bg-ink-900/70 ring-1 ring-ink-700/50 py-3 text-center text-xs text-ink-400 tracking-wide">
+        <div className="mx-auto max-w-md rounded-2xl bg-navy-900/70 ring-1 ring-navy-700/50 py-3 text-center text-xs text-navy-400 tracking-wide">
           相手のアクションを待っています…
         </div>
       </div>
@@ -44,78 +74,85 @@ export function ActionBar({
 
   const canGoAllIn = maxRaiseToAmount > 0;
   const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
-
-  const presetPct = (pct: number) => {
-    const target = Math.round(potTotal * pct) + streetContribution;
-    return Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, target));
-  };
+  const presets = computePresets({ toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind });
+  const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
   return (
     <div className="safe-area-bottom px-4 pb-4 pt-3">
-      <div className="mx-auto max-w-md space-y-3">
-        {showRaise && (
-          <div className="rounded-2xl bg-ink-900/90 backdrop-blur ring-1 ring-ink-700/60 p-4 shadow-panel animate-deal-in">
-            <div className="flex items-center justify-between text-xs text-ink-300 mb-2">
-              <span>レイズ額</span>
-              <span className="text-gold-400 font-semibold tabular-nums">{raiseTo.toLocaleString()}</span>
-            </div>
-            <input
-              type="range"
-              min={minRaiseToAmount}
-              max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
-              value={raiseTo}
-              onChange={(e) => setRaiseTo(Number(e.target.value))}
-              className="w-full accent-gold-500"
-            />
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {[0.5, 0.75, 1, 1.5].map((pct) => (
-                <button
-                  key={pct}
-                  onClick={() => setRaiseTo(presetPct(pct))}
-                  className="rounded-full bg-ink-800 text-ink-200 text-[11px] py-1.5 ring-1 ring-ink-600/60 hover:bg-ink-700 transition-colors"
-                >
-                  {pct === 1 ? "POT" : `${pct}x`}
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 flex gap-2">
+      <div className="mx-auto max-w-md space-y-2">
+        {!raiseDisabled && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            {presets.map((preset) => (
               <button
-                onClick={() => setShowRaise(false)}
-                className="flex-1 rounded-xl bg-ink-800 text-ink-300 text-sm py-2.5 ring-1 ring-ink-600/60"
+                key={preset.toAmount}
+                onClick={() => setRaiseTo(preset.toAmount)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums transition-colors ${
+                  raiseTo === preset.toAmount
+                    ? "bg-navy-100 text-navy-950"
+                    : "bg-navy-800 text-navy-200 ring-1 ring-navy-600/60"
+                }`}
               >
-                キャンセル
+                {preset.label}
               </button>
-              <button
-                onClick={() => onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo })}
-                className="flex-1 rounded-xl bg-gold-500 text-ink-950 text-sm font-semibold py-2.5 shadow-card active:scale-[0.98] transition-transform"
-              >
-                {raiseTo >= maxRaiseToAmount ? "オールイン" : "確定"}
-              </button>
-            </div>
+            ))}
+            <button
+              onClick={() => setShowCustom((v) => !v)}
+              className="shrink-0 rounded-full h-8 w-8 flex items-center justify-center bg-navy-800 text-navy-300 ring-1 ring-navy-600/60"
+              aria-label="カスタム額を指定"
+            >
+              {showCustom ? "︿" : "︾"}
+            </button>
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => onAction({ kind: "fold" })}
-            className="rounded-xl bg-ink-900/80 text-rose-400 text-sm font-medium py-3.5 ring-1 ring-rose-500/25 active:scale-[0.97] transition-transform"
-          >
-            フォールド
-          </button>
-          <button
-            onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-            className="rounded-xl bg-ink-800 text-ink-50 text-sm font-medium py-3.5 ring-1 ring-ink-600/60 active:scale-[0.97] transition-transform"
-          >
-            {canCheck ? "チェック" : `コール ${toCall.toLocaleString()}`}
-          </button>
+        {showCustom && !raiseDisabled && (
+          <input
+            type="range"
+            min={minRaiseToAmount}
+            max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
+            value={raiseTo}
+            onChange={(e) => setRaiseTo(Number(e.target.value))}
+            className="w-full accent-crimson-500"
+          />
+        )}
+
+        <div className="flex gap-2">
           <button
             disabled={raiseDisabled}
-            onClick={() => (canGoAllIn ? setShowRaise(true) : undefined)}
-            className="rounded-xl bg-gold-500 text-ink-950 text-sm font-semibold py-3.5 shadow-card active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
+            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 shadow-card active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
-            {toCall > 0 ? "レイズ" : "ベット"}
+            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${toCall > 0 ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
           </button>
+          {!raiseDisabled && (
+            <input
+              type="number"
+              inputMode="decimal"
+              step={0.1}
+              value={Math.round((raiseTo / (bigBlind || 1)) * 10) / 10}
+              onChange={(e) => {
+                const bb = Number(e.target.value);
+                if (Number.isNaN(bb)) return;
+                setRaiseTo(clampToRange(Math.round(bb * bigBlind)));
+              }}
+              className="w-16 rounded-xl bg-navy-800 text-navy-100 text-sm text-center tabular-nums ring-1 ring-navy-600/60 focus:outline-none focus:ring-mint-500"
+            />
+          )}
         </div>
+
+        <button
+          onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
+          className="w-full rounded-xl bg-mint-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
+        >
+          {canCheck ? "チェック" : `コール ${formatBb(toCall, bigBlind)}`}
+        </button>
+
+        <button
+          onClick={() => onAction({ kind: "fold" })}
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
+        >
+          フォールド
+        </button>
       </div>
     </div>
   );

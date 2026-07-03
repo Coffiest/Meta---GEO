@@ -34,6 +34,7 @@ export class TableSession {
     if (this.human) {
       this.spectators.add(socket);
       socket.emit("spectating", {});
+      if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
       this.sendStateTo(socket);
       socket.on("disconnect", () => this.spectators.delete(socket));
       return;
@@ -49,6 +50,18 @@ export class TableSession {
     socket.on("disconnect", () => {
       if (this.human?.socket === socket) this.human = null;
     });
+
+    if (this.tournament) {
+      // 既にトーナメントが進行中の状態への再接続(リロード/再接続等): 現在の状況を即座に送る。
+      if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
+      socket.emit("levelUp", { level: this.tournament.getCurrentLevel() });
+      this.sendStateTo(socket);
+      if (this.hand) {
+        const myCards = this.hand.getSeatHoleCards(0);
+        socket.emit("yourCards", { seatIndex: 0, cards: myCards.map(cardToString) });
+      }
+      return;
+    }
 
     await this.startTableIfNeeded(user.id, displayName);
   }
@@ -80,9 +93,14 @@ export class TableSession {
     });
 
     this.starting = false;
+    this.io.emit("players", { players: this.playersPayload() });
     this.io.emit("levelUp", { level: this.tournament.getCurrentLevel() });
     this.scheduleLevelAdvance();
     this.beginNextHand();
+  }
+
+  private playersPayload(): { seatIndex: number; displayName: string }[] {
+    return [...this.players.values()].map((p) => ({ seatIndex: p.seatIndex, displayName: p.displayName }));
   }
 
   private scheduleLevelAdvance(): void {

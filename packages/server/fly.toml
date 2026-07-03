@@ -1,8 +1,8 @@
-# fly launch で生成される内容の雛形。`app` はご自身のFlyアカウントで一意な名前に変更してください。
+# app名は Fly.io ダッシュボードで既に作成済みの "meta---geo" に合わせてある。
 # デプロイはリポジトリのルートから実行します(モノレポ全体をビルドコンテキストにする必要があるため):
 #   fly deploy --config packages/server/fly.toml --dockerfile packages/server/Dockerfile .
 
-app = "meta-geo-server"
+app = "meta---geo"
 primary_region = "nrt" # 東京
 
 [build]
