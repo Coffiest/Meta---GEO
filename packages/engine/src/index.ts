@@ -10,3 +10,5 @@ export * from "./seatOrder.js";
 export * from "./buttonRotation.js";
 export * from "./handEngine.js";
 export * from "./tournament.js";
+export * from "./tableBalancer.js";
+export * from "./multiTableTournament.js";
