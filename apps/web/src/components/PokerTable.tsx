@@ -13,38 +13,50 @@ import { formatBb, formatSignedBb } from "@/lib/format";
 import { useActingCountdown } from "@/lib/useActingCountdown";
 import type { SeatAction } from "@/lib/socket";
 
-// felt.png(縦長の楕円デザイン、幅:高さ ≈ 2:3)に合わせた座席配置。
-// seat4/5は中央のカードスロット帯(felt内 約44-56%)と重ならないよう、その下に配置してある。
+// felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
+// 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
+// 一致させることで、画像自体の形がそのままテーブルの形になり、余白や別枠のクロップが生じない。
+const FELT_BOX = "inset-x-[18%] top-[10%] bottom-[18%]";
+
+// 画像内のロゴ帯(上部 約5-31%)・破線カードスロット帯(約44-56%)・ワードマーク/下部ロゴ帯
+// (約59-78%)を実測し、それに合わせた座席配置。
 const SEAT_LAYOUT: Record<number, string> = {
   0: "bottom-0 left-1/2 -translate-x-1/2",
-  1: "top-[3%] left-1/2 -translate-x-1/2",
-  2: "top-[18%] left-[11%]",
-  3: "top-[18%] right-[11%]",
-  4: "top-[53%] left-[6%]",
-  5: "top-[53%] right-[6%]",
+  1: "top-[2%] left-1/2 -translate-x-1/2",
+  2: "top-[17%] left-[12%]",
+  3: "top-[17%] right-[12%]",
+  4: "top-[55%] left-[7%]",
+  5: "top-[55%] right-[7%]",
 };
 
 const DEALER_LAYOUT: Record<number, string> = {
-  0: "bottom-[22%] left-1/2 translate-x-9",
-  1: "top-[15%] left-1/2 translate-x-11",
-  2: "top-[26%] left-[26%]",
-  3: "top-[26%] right-[26%]",
-  4: "top-[56%] left-[21%]",
-  5: "top-[56%] right-[21%]",
+  0: "bottom-[23%] left-1/2 translate-x-9",
+  1: "top-[14%] left-1/2 translate-x-11",
+  2: "top-[25%] left-[27%]",
+  3: "top-[25%] right-[27%]",
+  4: "top-[58%] left-[22%]",
+  5: "top-[58%] right-[22%]",
 };
 
 /**
- * `public/table/felt.png` が存在すればそれをテーブル背景として使い、無ければ現行の
- * グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
- * グラデーションは常にベースとして描画し、画像は読み込めた場合だけその上にフェードインする
- * ので、読み込み中や画像が無い場合でもテーブルが崩れて見えることはない。
+ * `public/table/felt.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ現行の
+ * 楕円グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
+ * 画像が読み込めた場合は、外枠の丸み・リング・影といった「額縁」を消し、画像自体の輪郭だけが
+ * 見えるようにする(既存の楕円枠に画像をはめ込むのではなく、画像の形がそのままテーブルになる)。
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const showFrame = failed || !loaded;
 
   return (
-    <div className="absolute inset-x-[19%] top-[11%] bottom-[19%] rounded-[46%] bg-gradient-to-b from-navy-800 to-navy-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)] overflow-hidden">
+    <div
+      className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
+        showFrame
+          ? "rounded-[46%] bg-gradient-to-b from-navy-800 to-navy-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)]"
+          : ""
+      }`}
+    >
       {!failed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -57,7 +69,7 @@ function TableFelt() {
           style={{ opacity: loaded ? 1 : 0 }}
         />
       )}
-      <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />
+      {showFrame && <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />}
     </div>
   );
 }
