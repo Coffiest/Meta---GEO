@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
-import { TableSession } from "./gameServer.js";
+import { Lobby } from "./lobby.js";
 import { handleGeoApiRequest } from "./geoApi.js";
+import { handleLobbyApiRequest } from "./lobbyApi.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -12,10 +13,13 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  handleGeoApiRequest(req, res).then((handled) => {
+  handleLobbyApiRequest(req, res).then((handled) => {
     if (handled) return;
-    res.writeHead(404);
-    res.end();
+    handleGeoApiRequest(req, res).then((handled2) => {
+      if (handled2) return;
+      res.writeHead(404);
+      res.end();
+    });
   });
 });
 
@@ -23,13 +27,11 @@ const io = new Server(httpServer, {
   cors: { origin: process.env["WEB_ORIGIN"] ?? "*" },
 });
 
-const table = new TableSession(io);
+const lobby = new Lobby(io);
 
 io.on("connection", (socket) => {
   console.log(`[server] socket connected: ${socket.id}`);
-  table.handleConnection(socket).catch((err) => {
-    console.error(`[server] handleConnection failed for ${socket.id}:`, err);
-  });
+  lobby.handleConnection(socket);
 });
 
 httpServer.listen(PORT, () => {

@@ -51,6 +51,8 @@ export interface PokerSocketState {
   lastActionBySeat: Record<number, SeatAction>;
   /** 直近に終わったハンドの、座席ごとの収支(次のハンドの最初のstateが来るまで表示用に保持) */
   lastHandDeltaBySeat: Record<number, number> | null;
+  /** ゲーム参加(joinGame)が失敗した場合のエラーメッセージ */
+  joinError: string | null;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -86,7 +88,16 @@ function diffSeatActions(prev: PublicHandState, next: PublicHandState): Record<n
   return result;
 }
 
-export function usePokerSocket(displayName: string) {
+export type GameKey = "sng" | "mtt";
+
+export interface PokerSocketParams {
+  displayName: string;
+  gameKey: GameKey;
+  /** Supabase Authのアクセストークン。未ログイン(ゲストモード)ならundefined。 */
+  accessToken?: string;
+}
+
+export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
@@ -102,14 +113,24 @@ export function usePokerSocket(displayName: string) {
     handHistory: [],
     lastActionBySeat: {},
     lastHandDeltaBySeat: null,
+    joinError: null,
   });
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, { auth: { displayName }, transports: ["websocket", "polling"] });
+    const socket = io(SOCKET_URL, {
+      auth: { displayName, accessToken },
+      transports: ["websocket", "polling"],
+    });
     socketRef.current = socket;
 
-    socket.on("connect", () => setData((d) => ({ ...d, connected: true })));
+    socket.on("connect", () => {
+      setData((d) => ({ ...d, connected: true }));
+      socket.emit("joinGame", { gameKey });
+    });
     socket.on("disconnect", () => setData((d) => ({ ...d, connected: false })));
+    socket.on("joinGameError", (payload: { message: string }) =>
+      setData((d) => ({ ...d, joinError: payload.message })),
+    );
     socket.on("spectating", () => setData((d) => ({ ...d, spectating: true })));
     socket.on("state", (state: PublicHandState) =>
       setData((d) => {
@@ -166,7 +187,7 @@ export function usePokerSocket(displayName: string) {
     return () => {
       socket.disconnect();
     };
-  }, [displayName]);
+  }, [displayName, gameKey, accessToken]);
 
   const sendAction = useCallback((action: PlayerAction) => {
     socketRef.current?.emit("action", action);

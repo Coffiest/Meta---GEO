@@ -3,10 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type HandHistoryEntry } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type HandHistoryEntry } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { formatSignedBb } from "@/lib/format";
+import { useAuth } from "@/lib/useAuth";
+import { LoginScreen } from "@/components/LoginScreen";
+import { Lobby } from "@/components/Lobby";
 
 const SEAT_COUNT = 6;
 
@@ -105,7 +108,15 @@ function SettingsPopover({
   );
 }
 
-function GameScreen({ displayName }: { displayName: string }) {
+function GameScreen({
+  displayName,
+  gameKey,
+  accessToken,
+}: {
+  displayName: string;
+  gameKey: GameKey;
+  accessToken?: string;
+}) {
   const {
     connected,
     spectating,
@@ -120,8 +131,9 @@ function GameScreen({ displayName }: { displayName: string }) {
     handHistory,
     lastActionBySeat,
     lastHandDeltaBySeat,
+    joinError,
     sendAction,
-  } = usePokerSocket(displayName);
+  } = usePokerSocket({ displayName, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const yourSeat = useMemo(
@@ -180,14 +192,14 @@ function GameScreen({ displayName }: { displayName: string }) {
       </main>
 
       <AnimatePresence>
-        {actionError && (
+        {(actionError || joinError) && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/15 ring-1 ring-crimson-500/40 text-crimson-300 text-xs px-4 py-1.5 text-center"
           >
-            {actionError}
+            {actionError ?? joinError}
           </motion.div>
         )}
       </AnimatePresence>
@@ -228,8 +240,44 @@ function GameScreen({ displayName }: { displayName: string }) {
   );
 }
 
+function LoadingScreen() {
+  return <div className="min-h-screen flex items-center justify-center bg-navy-950 text-navy-400 text-sm">読み込み中…</div>;
+}
+
 export default function Page() {
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  if (!displayName) return <NameGate onEnter={setDisplayName} />;
-  return <GameScreen displayName={displayName} />;
+  const auth = useAuth();
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [gameKey, setGameKey] = useState<GameKey | null>(null);
+
+  // Supabaseが設定されている(本番想定): ログイン必須で、ロビー→プレイの流れにする。
+  if (auth.authAvailable) {
+    if (auth.loading) return <LoadingScreen />;
+    if (!auth.session) return <LoginScreen auth={auth} />;
+
+    const displayName =
+      (auth.session.user.user_metadata?.["displayName"] as string | undefined) ??
+      auth.session.user.email?.split("@")[0] ??
+      "Player";
+
+    if (!gameKey) {
+      return (
+        <Lobby
+          auth={auth}
+          displayName={displayName}
+          onJoin={setGameKey}
+          onSignOut={() => {
+            setGameKey(null);
+            void auth.signOut();
+          }}
+        />
+      );
+    }
+
+    return <GameScreen displayName={displayName} gameKey={gameKey} accessToken={auth.session.access_token} />;
+  }
+
+  // Supabase未設定のローカル開発用フォールバック: 表示名入力→ロビー(スタッツ無し)→プレイ。
+  if (!guestName) return <NameGate onEnter={setGuestName} />;
+  if (!gameKey) return <Lobby auth={auth} displayName={guestName} onJoin={setGameKey} />;
+  return <GameScreen displayName={guestName} gameKey={gameKey} />;
 }

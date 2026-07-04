@@ -1,9 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, Tournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
-import { prisma, recordHand } from "@meta-geo/db";
+import { prisma, recordHand, recordBuyIn, recordPayout, computePayoutStructure } from "@meta-geo/db";
 import { decideBotAction } from "./bot.js";
 
-const SEAT_COUNT = 6;
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3500;
 const BOT_NAMES = ["BOT-Akira", "BOT-Yuki", "BOT-Sora", "BOT-Rin", "BOT-Kai"];
@@ -15,9 +15,20 @@ interface SeatPlayer {
   readonly isBot: boolean;
 }
 
+export interface TableSessionConfig {
+  readonly io: Server;
+  readonly gameType: "sng" | "mtt";
+  readonly buyIn: number;
+  readonly seatCount: number;
+  readonly humanUserId: string;
+  readonly humanDisplayName: string;
+}
+
 /**
  * 1卓分のゲーム進行を管理する。ソロテスト用途のため、人間プレイヤーは1テーブルにつき1人までとし、
- * 残りの席は起動時にルールベースBOTで自動的に埋めて即座にトーナメントを開始する。
+ * 残りの席は起動時にルールベースBOTで自動的に埋めて即座にトーナメントを開始する
+ * (「システム側がゲームを用意し、プレイヤーが参加する」というロビーの仕組み上、マッチングは
+ * まだ実装しておらず、参加するたびに専用の卓が新しく作られる)。
  */
 export class TableSession {
   private tournament: Tournament | null = null;
@@ -26,77 +37,100 @@ export class TableSession {
   private players = new Map<number, SeatPlayer>();
   private human: { seatIndex: number; socket: Socket } | null = null;
   private spectators = new Set<Socket>();
-  private starting = false;
+  private finished = false;
 
-  constructor(private readonly io: Server) {}
+  readonly gameType: "sng" | "mtt";
+  readonly buyIn: number;
+  private readonly seatCount: number;
+  private readonly humanUserId: string;
+  private readonly humanDisplayName: string;
+  private readonly io: Server;
+  /** ロビーが複数のTableSessionを同時に扱えるよう、stateなどのbroadcastはこの卓専用のroomに限定する */
+  private readonly roomId = `table:${randomUUID()}`;
 
-  async handleConnection(socket: Socket): Promise<void> {
-    if (this.human) {
-      this.spectators.add(socket);
-      socket.emit("spectating", {});
-      if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
-      this.sendStateTo(socket);
-      socket.on("disconnect", () => this.spectators.delete(socket));
-      return;
-    }
-
-    const displayName = typeof socket.handshake.auth?.["displayName"] === "string"
-      ? (socket.handshake.auth["displayName"] as string)
-      : `Guest-${socket.id.slice(0, 6)}`;
-    const user = await prisma.user.create({ data: { displayName, isBot: false } });
-
-    this.human = { seatIndex: 0, socket };
-    socket.on("action", (action: PlayerAction) => this.handlePlayerAction(0, action));
-    socket.on("disconnect", () => {
-      if (this.human?.socket === socket) this.human = null;
-    });
-
-    if (this.tournament) {
-      // 既にトーナメントが進行中の状態への再接続(リロード/再接続等): 現在の状況を即座に送る。
-      if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
-      socket.emit("levelUp", { level: this.tournament.getCurrentLevel() });
-      this.sendStateTo(socket);
-      if (this.hand) {
-        const myCards = this.hand.getSeatHoleCards(0);
-        socket.emit("yourCards", { seatIndex: 0, cards: myCards.map(cardToString) });
-      }
-      return;
-    }
-
-    await this.startTableIfNeeded(user.id, displayName);
+  constructor(config: TableSessionConfig) {
+    this.io = config.io;
+    this.gameType = config.gameType;
+    this.buyIn = config.buyIn;
+    this.seatCount = config.seatCount;
+    this.humanUserId = config.humanUserId;
+    this.humanDisplayName = config.humanDisplayName;
   }
 
-  private async startTableIfNeeded(humanUserId: string, humanDisplayName: string): Promise<void> {
-    if (this.starting || this.tournament) return;
-    this.starting = true;
+  isFinished(): boolean {
+    return this.finished;
+  }
 
+  /** 新規参加: バイインを引いてトーナメントを作成し、BOTを着席させて即座に開始する。 */
+  async start(): Promise<void> {
     const botUsers = await Promise.all(
-      BOT_NAMES.map((name) => prisma.user.upsert({ where: { email: `${name}@bots.meta-geo.local` }, update: {}, create: { email: `${name}@bots.meta-geo.local`, displayName: name, isBot: true } })),
+      BOT_NAMES.map((name) =>
+        prisma.user.upsert({
+          where: { email: `${name}@bots.meta-geo.local` },
+          update: {},
+          create: { email: `${name}@bots.meta-geo.local`, displayName: name, isBot: true },
+        }),
+      ),
     );
 
-    this.players.set(0, { seatIndex: 0, userId: humanUserId, displayName: humanDisplayName, isBot: false });
-    botUsers.forEach((u, i) => {
+    this.players.set(0, { seatIndex: 0, userId: this.humanUserId, displayName: this.humanDisplayName, isBot: false });
+    botUsers.slice(0, this.seatCount - 1).forEach((u, i) => {
       this.players.set(i + 1, { seatIndex: i + 1, userId: u.id, displayName: u.displayName, isBot: true });
     });
 
     this.tournament = new Tournament({
-      seatCount: SEAT_COUNT,
+      seatCount: this.seatCount,
       players: [...this.players.values()].map((p) => ({ playerId: p.userId, displayName: p.displayName, seatIndex: p.seatIndex })),
     });
 
     const dbTournament = await prisma.tournament.create({
-      data: { seatCount: SEAT_COUNT, startingStack: this.tournament.getSeats()[0]!.stack, status: "running" },
+      data: {
+        seatCount: this.seatCount,
+        startingStack: this.tournament.getSeats()[0]!.stack,
+        status: "running",
+        gameType: this.gameType,
+        buyIn: this.buyIn,
+      },
     });
     this.dbTournamentId = dbTournament.id;
     await prisma.tournamentEntry.createMany({
       data: [...this.players.values()].map((p) => ({ tournamentId: dbTournament.id, userId: p.userId, seatIndex: p.seatIndex })),
     });
 
-    this.starting = false;
-    this.io.emit("players", { players: this.playersPayload() });
-    this.io.emit("levelUp", { level: this.tournament.getCurrentLevel() });
+    if (this.buyIn > 0) {
+      await recordBuyIn({ userId: this.humanUserId, tournamentId: dbTournament.id, amount: this.buyIn });
+    }
+
+    this.io.to(this.roomId).emit("levelUp", { level: this.tournament.getCurrentLevel() });
     this.scheduleLevelAdvance();
     this.beginNextHand();
+  }
+
+  /** 同じ人間プレイヤーがこのテーブルへ再接続してきた場合、現在の状況を即座に送る。 */
+  attachHuman(socket: Socket): void {
+    this.human = { seatIndex: 0, socket };
+    void socket.join(this.roomId);
+    socket.on("action", (action: PlayerAction) => this.handlePlayerAction(0, action));
+    socket.on("disconnect", () => {
+      if (this.human?.socket === socket) this.human = null;
+    });
+
+    if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
+    if (this.tournament) socket.emit("levelUp", { level: this.tournament.getCurrentLevel() });
+    this.sendStateTo(socket);
+    if (this.hand) {
+      const myCards = this.hand.getSeatHoleCards(0);
+      socket.emit("yourCards", { seatIndex: 0, cards: myCards.map(cardToString) });
+    }
+  }
+
+  attachSpectator(socket: Socket): void {
+    this.spectators.add(socket);
+    void socket.join(this.roomId);
+    socket.emit("spectating", {});
+    if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
+    this.sendStateTo(socket);
+    socket.on("disconnect", () => this.spectators.delete(socket));
   }
 
   private playersPayload(): { seatIndex: number; displayName: string }[] {
@@ -110,7 +144,7 @@ export class TableSession {
     setTimeout(() => {
       if (!this.tournament || this.tournament.isTournamentOver()) return;
       this.tournament.advanceToNextLevel();
-      this.io.emit("levelUp", { level: this.tournament.getCurrentLevel() });
+      this.io.to(this.roomId).emit("levelUp", { level: this.tournament.getCurrentLevel() });
       this.scheduleLevelAdvance();
     }, level.durationMinutes * 60_000);
   }
@@ -118,7 +152,7 @@ export class TableSession {
   private beginNextHand(): void {
     if (!this.tournament) return;
     if (this.tournament.isTournamentOver()) {
-      this.io.emit("tournamentOver", { winnerPlayerId: this.tournament.getWinnerPlayerId() });
+      void this.finishTournament();
       return;
     }
     this.hand = this.tournament.startNextHand();
@@ -226,17 +260,63 @@ export class TableSession {
     }
 
     tournament.settleFinishedHand();
-    this.io.emit("handEnded", {
+    this.io.to(this.roomId).emit("handEnded", {
       result: this.serializeResult(hand),
       holeCards: Object.fromEntries([...hand.getAllHoleCards()].map(([seat, cards]) => [seat, cards.map(cardToString)])),
     });
 
     if (tournament.isTournamentOver()) {
-      this.io.emit("tournamentOver", { winnerPlayerId: tournament.getWinnerPlayerId() });
+      void this.finishTournament();
       return;
     }
 
     setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+  }
+
+  /** トーナメント終了処理: 全席の着順を確定し、賞金配分をDB(TournamentEntry.payout)とバンクロール台帳に反映する。 */
+  private async finishTournament(): Promise<void> {
+    const tournament = this.tournament;
+    if (!tournament || !this.dbTournamentId || this.finished) return;
+    this.finished = true;
+
+    // bustedAtHandが遅い(=nullなら優勝)ほど着順が良い、として並べる。
+    const seats = [...tournament.getSeats()].sort((a, b) => {
+      const aRank = a.bustedAtHand ?? Number.POSITIVE_INFINITY;
+      const bRank = b.bustedAtHand ?? Number.POSITIVE_INFINITY;
+      return bRank - aRank;
+    });
+
+    const payoutStructure = computePayoutStructure(seats.length, this.buyIn);
+    const payoutByPlace = new Map(payoutStructure.map((p) => [p.place, p.amount]));
+
+    await Promise.all(
+      seats.map(async (seat, index) => {
+        const place = index + 1;
+        const payout = payoutByPlace.get(place) ?? 0;
+        const player = this.players.get(seat.seatIndex);
+        await prisma.tournamentEntry.updateMany({
+          where: { tournamentId: this.dbTournamentId!, seatIndex: seat.seatIndex },
+          data: { finishPosition: place, payout },
+        });
+        // BOTのバンクロールは意味を持たないため、人間プレイヤーの分だけ台帳に記帳する。
+        if (payout > 0 && player && !player.isBot) {
+          await recordPayout({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: payout });
+        }
+      }),
+    );
+
+    await prisma.tournament.update({
+      where: { id: this.dbTournamentId },
+      data: { status: "finished", finishedAt: new Date() },
+    });
+
+    const humanSeat = seats.findIndex((s) => this.players.get(s.seatIndex)?.userId === this.humanUserId);
+    const humanPlace = humanSeat === -1 ? null : humanSeat + 1;
+    this.io.to(this.roomId).emit("tournamentOver", {
+      winnerPlayerId: tournament.getWinnerPlayerId(),
+      yourFinishPosition: humanPlace,
+      yourPayout: humanPlace !== null ? (payoutByPlace.get(humanPlace) ?? 0) : 0,
+    });
   }
 
   private serializeResult(hand: HandEngine) {
@@ -252,7 +332,7 @@ export class TableSession {
   private broadcastState(): void {
     if (!this.hand) return;
     const publicState = this.hand.getPublicState();
-    this.io.emit("state", publicState);
+    this.io.to(this.roomId).emit("state", publicState);
 
     if (this.human) {
       const myCards = this.hand.getSeatHoleCards(this.human.seatIndex);
