@@ -28,7 +28,6 @@ export interface SeatViewProps {
   bigBlind: number;
   status: "active" | "folded" | "allIn" | "empty";
   isActingSeat: boolean;
-  isDimmed: boolean;
   isHero: boolean;
   holeCards: (string | null)[];
   revealCards: boolean;
@@ -44,7 +43,6 @@ export function Seat({
   bigBlind,
   status,
   isActingSeat,
-  isDimmed,
   isHero,
   holeCards,
   revealCards,
@@ -57,11 +55,8 @@ export function Seat({
   const showCards = !isEmpty && !folded;
 
   return (
-    <div
-      className={`flex flex-col items-center gap-1.5 transition-opacity duration-300 ${size === "lg" ? "w-28" : "w-20"} ${
-        isDimmed ? "opacity-45" : "opacity-100"
-      }`}
-    >
+    <div className={`flex flex-col items-center gap-1.5 ${size === "lg" ? "w-28" : "w-20"}`}>
+
       <div className="flex gap-1">
         {showCards &&
           holeCards.map((c, i) => (
@@ -104,10 +99,11 @@ export function Seat({
         {badge && !isEmpty ? (
           <motion.div
             key={`badge-${badge.tone}-${badge.text}`}
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.6 }}
-            className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold tabular-nums ${BADGE_TONE_CLASS[badge.tone]}`}
+            initial={{ opacity: 0, scale: 0.5, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            className={`rounded-full px-3 py-1 text-[13px] font-bold tabular-nums shadow-lg ring-2 ring-white/20 ${BADGE_TONE_CLASS[badge.tone]}`}
           >
             {badge.text}
           </motion.div>

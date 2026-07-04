@@ -219,7 +219,6 @@ export function PokerTable({
               bigBlind={bigBlind}
               status={status}
               isActingSeat={state?.actingSeatIndex === seatIndex}
-              isDimmed={Boolean(state?.actingSeatIndex !== null && state?.actingSeatIndex !== undefined && state.actingSeatIndex !== seatIndex)}
               isHero={false}
               holeCards={revealed ? revealed : [null, null]}
               revealCards={Boolean(revealed)}
@@ -247,12 +246,6 @@ export function PokerTable({
           bigBlind={bigBlind}
           status={(yourSeatIndex !== null ? seatsByIndex.get(yourSeatIndex)?.status : undefined) ?? "empty"}
           isActingSeat={yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex}
-          isDimmed={Boolean(
-            state?.actingSeatIndex !== null &&
-              state?.actingSeatIndex !== undefined &&
-              yourSeatIndex !== null &&
-              state.actingSeatIndex !== yourSeatIndex,
-          )}
           isHero
           holeCards={yourCards.length ? yourCards : [null, null]}
           revealCards

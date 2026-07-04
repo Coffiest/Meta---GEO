@@ -3,9 +3,15 @@ name: Deploy
 # このセッション(サンドボックス)からは Fly.io / Vercel / Supabase への直接アクセスが
 # ネットワークポリシーでブロックされているため、実際のデプロイは GitHub Actions のランナー上
 # (フル インターネットアクセスあり)で実行する。事前に以下のリポジトリシークレットの登録が必要:
-#   - DATABASE_URL   Supabaseの接続文字列 (Session pooler推奨、Prisma用)
-#   - FLY_API_TOKEN  Fly.ioのAPIトークン
-#   - VERCEL_TOKEN   Vercelのトークン
+#   - DATABASE_URL              Supabaseの接続文字列 (Session pooler推奨、Prisma用)
+#   - FLY_API_TOKEN             Fly.ioのAPIトークン
+#   - VERCEL_TOKEN              Vercelのトークン
+#   - SUPABASE_URL              SupabaseプロジェクトURL (サーバー側トークン検証用)
+#   - SUPABASE_SERVICE_ROLE_KEY Supabaseのservice roleキー (サーバー側トークン検証用)
+#   - NEXT_PUBLIC_SUPABASE_URL       同上のプロジェクトURL (ブラウザ用、公開値)
+#   - NEXT_PUBLIC_SUPABASE_ANON_KEY  Supabaseのanon(公開)キー (ブラウザ用、公開値)
+# Supabase系の4つが未設定でもデプロイ自体は失敗しない(ログイン機能が自動的に無効化され、
+# 従来のゲスト名入力フローにフォールバックする)。
 # 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
 
 on:
@@ -40,6 +46,8 @@ jobs:
           flyctl secrets set \
             DATABASE_URL="${{ secrets.DATABASE_URL }}" \
             WEB_ORIGIN="*" \
+            SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -85,8 +93,20 @@ jobs:
         # workspace lockfile, etc.
         run: |
           vercel link --token "$VERCEL_TOKEN" --yes --project web
+
           vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
           printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN"
-          vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+
+          # Supabase未設定の場合は空文字を渡す(getSupabaseClient側でundefined扱いになりログイン機能が無効化される)
+          vercel env rm NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN" --yes || true
+          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" | vercel env add NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN"
+          vercel env rm NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --yes || true
+          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN"
+
+          DEPLOY_URL=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN")
+          echo "Deployed to: $DEPLOY_URL"
+          # デプロイのたびにVercelがランダムなエイリアスを生成してURLが変わってしまうため、
+          # 固定のエイリアスを明示的に貼り直して本番URLを安定させる。
+          vercel alias set "$DEPLOY_URL" meta-geo-poker.vercel.app --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
