@@ -2,9 +2,10 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
+import { Avatar } from "./Avatar";
 import { formatBb } from "@/lib/format";
 
-export type SeatBadgeTone = "timer" | "raise" | "call" | "fold" | "win" | "lose";
+export type SeatBadgeTone = "raise" | "call" | "fold" | "win" | "lose";
 
 export interface SeatBadge {
   text: string;
@@ -12,7 +13,6 @@ export interface SeatBadge {
 }
 
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
-  timer: "bg-mint-500 text-white",
   call: "bg-mint-500 text-white",
   win: "bg-mint-500 text-white",
   raise: "bg-crimson-500 text-white",
@@ -22,6 +22,7 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
 
 export interface SeatViewProps {
   name: string;
+  avatarKey: string | null;
   position: string;
   stack: number;
   streetContribution: number;
@@ -32,11 +33,14 @@ export interface SeatViewProps {
   holeCards: (string | null)[];
   revealCards: boolean;
   badge?: SeatBadge | null;
+  /** 手番の残り時間(アバター周囲のリングで表示)。この席がアクティブなときだけ渡す。 */
+  timer?: { endsAt: number; durationMs: number } | null;
   size?: "sm" | "lg";
 }
 
 export function Seat({
   name,
+  avatarKey,
   position,
   stack,
   streetContribution,
@@ -47,6 +51,7 @@ export function Seat({
   holeCards,
   revealCards,
   badge,
+  timer,
   size = "sm",
 }: SeatViewProps) {
   const isEmpty = status === "empty";
@@ -55,8 +60,7 @@ export function Seat({
   const showCards = !isEmpty && !folded;
 
   return (
-    <div className={`flex flex-col items-center gap-1.5 ${size === "lg" ? "w-28" : "w-20"}`}>
-
+    <div className={`flex flex-col items-center gap-1 ${size === "lg" ? "w-32" : "w-24"}`}>
       <div className="flex gap-1">
         {showCards &&
           holeCards.map((c, i) => (
@@ -71,26 +75,33 @@ export function Seat({
       </div>
 
       <div
-        className={`relative rounded-xl px-3 py-1.5 min-w-[84px] text-center transition-all duration-300 ${
+        className={`relative flex items-center gap-1.5 rounded-full pr-3 pl-1 py-1 transition-all duration-300 ${
           isEmpty
             ? "bg-transparent"
             : folded
               ? "bg-navy-850/60 opacity-40"
               : "bg-navy-850/90 backdrop-blur ring-1 ring-navy-600/60 shadow-seat"
-        } ${isActingSeat ? "ring-[3px] ring-mint-400 animate-pulse-ring-mint" : ""}`}
+        } ${isActingSeat ? "ring-2 ring-mint-400" : ""}`}
       >
         {!isEmpty && (
           <>
-            <div className="text-[12px] font-medium truncate text-navy-100">{name}</div>
-            <div className="flex items-center justify-center gap-1.5 mt-0.5">
-              {position && (
-                <span className="rounded bg-mint-500 text-white text-[9px] font-bold uppercase tracking-wide px-1.5 py-[1px]">
-                  {position}
+            <Avatar avatarKey={avatarKey} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+            <div className="text-left min-w-0">
+              <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-navy-100`}>
+                {name}
+              </div>
+              <div className="flex items-center gap-1 mt-[1px]">
+                {position && (
+                  <span className="rounded bg-mint-500 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
+                    {position}
+                  </span>
+                )}
+                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} font-semibold text-navy-100 tabular-nums`}>
+                  {formatBb(stack, bigBlind)}
                 </span>
-              )}
-              <span className="text-[12px] font-semibold text-navy-100 tabular-nums">{formatBb(stack, bigBlind)}</span>
+              </div>
+              {status === "allIn" && <div className="text-[9px] text-crimson-400 font-medium">ALL IN</div>}
             </div>
-            {status === "allIn" && <div className="text-[10px] text-crimson-400 font-medium mt-0.5">ALL IN</div>}
           </>
         )}
       </div>
@@ -103,7 +114,7 @@ export function Seat({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            className={`rounded-full px-3 py-1 text-[13px] font-bold tabular-nums shadow-lg ring-2 ring-white/20 ${BADGE_TONE_CLASS[badge.tone]}`}
+            className={`rounded-full px-3 py-1 text-[12px] font-bold tabular-nums shadow-lg ring-2 ring-white/20 ${BADGE_TONE_CLASS[badge.tone]}`}
           >
             {badge.text}
           </motion.div>

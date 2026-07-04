@@ -10,8 +10,7 @@ import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabel } from "@/lib/position";
 import { formatBb, formatSignedBb } from "@/lib/format";
-import { useActingCountdown } from "@/lib/useActingCountdown";
-import type { SeatAction } from "@/lib/socket";
+import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
 
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
 // 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
@@ -19,30 +18,28 @@ import type { SeatAction } from "@/lib/socket";
 const FELT_BOX = "inset-x-[18%] top-[10%] bottom-[18%]";
 
 // 画像内のロゴ帯(上部 約5-31%)・破線カードスロット帯(約44-56%)・ワードマーク/下部ロゴ帯
-// (約59-78%)を実測し、それに合わせた座席配置。
+// (約59-78%)を実測し、それに合わせた「表示スロット」配置。スロット0=常に自分(画面下)。
 const SEAT_LAYOUT: Record<number, string> = {
   0: "bottom-0 left-1/2 -translate-x-1/2",
-  1: "top-[2%] left-1/2 -translate-x-1/2",
-  2: "top-[17%] left-[12%]",
-  3: "top-[17%] right-[12%]",
-  4: "top-[55%] left-[7%]",
-  5: "top-[55%] right-[7%]",
+  1: "top-[55%] left-[4%]",
+  2: "top-[17%] left-[7%]",
+  3: "top-[2%] left-1/2 -translate-x-1/2",
+  4: "top-[17%] right-[7%]",
+  5: "top-[55%] right-[4%]",
 };
 
 const DEALER_LAYOUT: Record<number, string> = {
   0: "bottom-[23%] left-1/2 translate-x-9",
-  1: "top-[14%] left-1/2 translate-x-11",
-  2: "top-[25%] left-[27%]",
-  3: "top-[25%] right-[27%]",
-  4: "top-[58%] left-[22%]",
+  1: "top-[58%] left-[22%]",
+  2: "top-[25%] left-[24%]",
+  3: "top-[14%] left-1/2 translate-x-11",
+  4: "top-[25%] right-[24%]",
   5: "top-[58%] right-[22%]",
 };
 
 /**
  * `public/table/felt.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ現行の
  * 楕円グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
- * 画像が読み込めた場合は、外枠の丸み・リング・影といった「額縁」を消し、画像自体の輪郭だけが
- * 見えるようにする(既存の楕円枠に画像をはめ込むのではなく、画像の形がそのままテーブルになる)。
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -74,8 +71,8 @@ function TableFelt() {
   );
 }
 
-function DealerButton({ buttonFixedPos }: { buttonFixedPos: number }) {
-  const layout = DEALER_LAYOUT[buttonFixedPos];
+function DealerButton({ displaySlot }: { displaySlot: number }) {
+  const layout = DEALER_LAYOUT[displaySlot];
   if (!layout) return null;
   return (
     <motion.div
@@ -91,13 +88,11 @@ function DealerButton({ buttonFixedPos }: { buttonFixedPos: number }) {
 function badgeForSeat(params: {
   seatIndex: number;
   seatStatus: string;
-  actingSeatIndex: number | null;
-  secondsLeft: number;
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
   bigBlind: number;
 }): SeatBadge | null {
-  const { seatIndex, seatStatus, actingSeatIndex, secondsLeft, lastActionBySeat, lastHandDeltaBySeat, bigBlind } = params;
+  const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind } = params;
 
   if (lastHandDeltaBySeat && seatStatus !== "folded" && seatStatus !== "empty") {
     const delta = lastHandDeltaBySeat[seatIndex];
@@ -106,10 +101,6 @@ function badgeForSeat(params: {
         ? { text: `Won ${formatSignedBb(delta, bigBlind)}`, tone: "win" }
         : { text: `Lost ${formatSignedBb(delta, bigBlind)}`, tone: "lose" };
     }
-  }
-
-  if (actingSeatIndex === seatIndex) {
-    return { text: String(secondsLeft), tone: "timer" };
   }
 
   const action = lastActionBySeat[seatIndex];
@@ -134,6 +125,17 @@ function badgeForSeat(params: {
   return null;
 }
 
+/*
+ * ボードのコミュニティカード欄: felt.png内の5つの破線カードスロットの実ピクセル位置を
+ * 解析して合わせてある。
+ *  - スロット群のbbox(画像内): x=14.7〜85.2%, y=43.9〜58.3%
+ *  - コンテナ換算: 帯の幅 = 70.5% × 64%(felt幅) = 45.1%、1スロット幅 = 12.65% × 64% ≒ 8.1%
+ *  - スロット間ギャップ = 1.8125% × 64% ≒ 1.16%
+ *  - 縦中心 = 10% + 51.1% × 72%(felt高) ≒ 46.8% → カード上端 ≒ 42.5%
+ */
+const BOARD_ROW_CLASS = "absolute inset-x-0 top-[42.5%] flex justify-center gap-[1.16%]";
+const BOARD_CELL_CLASS = "w-[8.1%]";
+
 export function PokerTable({
   state,
   yourSeatIndex,
@@ -144,19 +146,25 @@ export function PokerTable({
   bigBlind,
   lastActionBySeat,
   lastHandDeltaBySeat,
+  turnTimer,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
   yourCards: string[];
   seatCount: number;
   revealedHoleCards: Record<number, string[]> | null;
-  players: Record<number, string>;
+  players: Record<number, SeatPlayerInfo>;
   bigBlind: number;
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
+  turnTimer: TurnTimerInfo | null;
 }) {
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
-  const secondsLeft = useActingCountdown(state?.actingSeatIndex ?? null);
+
+  // 自分の席が常に画面下(スロット0)に来るよう、実席番号→表示スロットへ回転させる。
+  // MTTでは卓移動により自分の席番号が変わるため、この回転が必須になる。
+  const heroSeat = yourSeatIndex ?? 0;
+  const displaySlotOf = (seatIndex: number) => (((seatIndex - heroSeat) % seatCount) + seatCount) % seatCount;
 
   const activeStacks = (state?.seats ?? [])
     .filter((s) => s.status === "active" || s.status === "allIn")
@@ -166,10 +174,9 @@ export function PokerTable({
 
   return (
     <div className="relative w-full aspect-[3/4] max-w-md mx-auto">
-      {/* felt table */}
       <TableFelt />
 
-      {state && <DealerButton buttonFixedPos={state.buttonFixedPos} />}
+      {state && <DealerButton displaySlot={displaySlotOf(state.buttonFixedPos)} />}
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
       <div className="absolute inset-x-0 top-[33%] flex justify-center">
@@ -189,44 +196,52 @@ export function PokerTable({
         </AnimatePresence>
       </div>
 
-      {/*
-        コミュニティカード欄: felt.png内の5つの破線カードスロットの実ピクセル位置を解析して
-        合わせてある(スロット群のbbox: x=14.7-85.2%, y=43.9-58.3%(画像内))。
-      */}
-      <div className="absolute inset-x-0 top-[41.6%] flex justify-center gap-1">
+      {/* コミュニティカード。空きスロットはfelt.png自体に描かれた破線枠が見えるので何も描かない */}
+      <div className={BOARD_ROW_CLASS}>
         {Array.from({ length: 5 }).map((_, i) => {
           const card = state?.board[i];
-          if (card) {
-            return <PlayingCard key={`${cardToString(card)}-${i}`} card={cardToString(card)} size="board" dealDelay={i * 0.06} />;
-          }
-          return <div key={i} className="h-[50px] w-[29px] rounded-md bg-navy-800/50 ring-1 ring-navy-600/30" />;
+          return (
+            <div key={i} className={BOARD_CELL_CLASS}>
+              {card && <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} />}
+            </div>
+          );
         })}
       </div>
 
-      {/* opponent seats */}
-      {[1, 2, 3, 4, 5].map((seatIndex) => {
-        if (seatIndex >= seatCount) return null;
+      {/* 全座席(スロット0=自分が常に下) */}
+      {Array.from({ length: seatCount }).map((_, seatIndex) => {
+        const slot = displaySlotOf(seatIndex);
+        const isHero = yourSeatIndex !== null && seatIndex === yourSeatIndex;
+        if (slot === 0 && !isHero && yourSeatIndex !== null) return null;
         const seat = seatsByIndex.get(seatIndex);
-        const revealed = revealedHoleCards?.[seatIndex];
+        const player = players[seatIndex];
         const status = seat?.status ?? "empty";
+        if (!player && !seat) return null;
+        const revealed = revealedHoleCards?.[seatIndex];
+        const timerForSeat =
+          turnTimer && turnTimer.seatIndex === seatIndex && state?.actingSeatIndex === seatIndex
+            ? { endsAt: turnTimer.endsAt, durationMs: turnTimer.durationMs }
+            : null;
+
         return (
-          <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[seatIndex]}`}>
+          <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[slot]}`}>
             <Seat
-              name={players[seatIndex] ?? `BOT-${seatIndex}`}
+              name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
+              avatarKey={player?.avatarKey ?? null}
               position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
               stack={seat?.stack ?? 0}
               streetContribution={seat?.streetContribution ?? 0}
               bigBlind={bigBlind}
               status={status}
               isActingSeat={state?.actingSeatIndex === seatIndex}
-              isHero={false}
-              holeCards={revealed ? revealed : [null, null]}
-              revealCards={Boolean(revealed)}
+              isHero={isHero}
+              holeCards={isHero ? (yourCards.length ? yourCards : [null, null]) : revealed ? revealed : [null, null]}
+              revealCards={isHero || Boolean(revealed)}
+              timer={timerForSeat}
+              size={isHero ? "lg" : "sm"}
               badge={badgeForSeat({
                 seatIndex,
                 seatStatus: status,
-                actingSeatIndex: state?.actingSeatIndex ?? null,
-                secondsLeft,
                 lastActionBySeat,
                 lastHandDeltaBySeat,
                 bigBlind,
@@ -235,36 +250,6 @@ export function PokerTable({
           </div>
         );
       })}
-
-      {/* hero seat, bottom center, larger */}
-      <div className={`absolute ${SEAT_LAYOUT[0]}`}>
-        <Seat
-          name={(yourSeatIndex !== null ? players[yourSeatIndex] : undefined) ?? "YOU"}
-          position={state && yourSeatIndex !== null ? positionLabel(yourSeatIndex, state.buttonFixedPos, seatCount) : ""}
-          stack={(yourSeatIndex !== null ? seatsByIndex.get(yourSeatIndex)?.stack : undefined) ?? 0}
-          streetContribution={(yourSeatIndex !== null ? seatsByIndex.get(yourSeatIndex)?.streetContribution : undefined) ?? 0}
-          bigBlind={bigBlind}
-          status={(yourSeatIndex !== null ? seatsByIndex.get(yourSeatIndex)?.status : undefined) ?? "empty"}
-          isActingSeat={yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex}
-          isHero
-          holeCards={yourCards.length ? yourCards : [null, null]}
-          revealCards
-          size="lg"
-          badge={
-            yourSeatIndex !== null
-              ? badgeForSeat({
-                  seatIndex: yourSeatIndex,
-                  seatStatus: seatsByIndex.get(yourSeatIndex)?.status ?? "empty",
-                  actingSeatIndex: state?.actingSeatIndex ?? null,
-                  secondsLeft,
-                  lastActionBySeat,
-                  lastHandDeltaBySeat,
-                  bigBlind,
-                })
-              : null
-          }
-        />
-      </div>
     </div>
   );
 }

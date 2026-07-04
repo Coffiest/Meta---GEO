@@ -28,10 +28,10 @@ function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
   if (size === "md") return "h-14 w-10 text-sm";
   if (size === "lg") return "h-20 w-14 text-lg";
   if (size === "xl") return "h-28 w-20 text-2xl";
-  // felt.png内の破線カードスロット(実測: 幅126.5px/高さ215px)に合わせた固定サイズ。テーブル
-  // 外枠がmax-w-md(448px)で頭打ちになるため、%+aspect-ratioの可変指定にせず他のサイズ同様
-  // 固定pxにしてある。
-  return "h-[50px] w-[29px] text-[9px]";
+  // ボードカード: 親セル(felt.pngの破線スロット幅に合わせた%幅)いっぱいに、カード画像
+  // 本来の比率(744x1039)で描画する。枠の比率を画像と一致させることでobject-containの
+  // レターボックス(=カードが枠より小さく見える問題)を無くす。
+  return "w-full aspect-[744/1039] text-[9px]";
 }
 
 /**
@@ -107,6 +107,7 @@ export function PlayingCard({
 
   return (
     <motion.div
+      className={size === "board" ? "w-full" : undefined}
       initial={{ opacity: 0, y: -8, scale: 0.85 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: dealDelay, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}

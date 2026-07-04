@@ -27,7 +27,15 @@ export interface MultiTableTournamentConfig {
 }
 
 export type MultiTableEvent =
-  | { readonly type: "handStarted"; readonly tableId: number; readonly handNumber: number; readonly level: BlindLevel }
+  | {
+      readonly type: "handStarted";
+      readonly tableId: number;
+      readonly handNumber: number;
+      readonly level: BlindLevel;
+      readonly buttonFixedPos: number;
+      readonly smallBlindSeat: number | null;
+      readonly bigBlindSeat: number;
+    }
   | {
       readonly type: "handFinished";
       readonly tableId: number;
@@ -164,7 +172,15 @@ export class MultiTableTournament {
       ...(deck ? { deck } : {}),
     });
 
-    this.events.push({ type: "handStarted", tableId, handNumber: this.handNumber, level });
+    this.events.push({
+      type: "handStarted",
+      tableId,
+      handNumber: this.handNumber,
+      level,
+      buttonFixedPos: assignment.buttonFixedPos,
+      smallBlindSeat: assignment.smallBlindSeat,
+      bigBlindSeat: assignment.bigBlindSeat,
+    });
     return hand;
   }
 

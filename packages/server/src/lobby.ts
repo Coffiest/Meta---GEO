@@ -1,22 +1,19 @@
 import type { Server, Socket } from "socket.io";
-import { getOrCreateUserByAuthId, prisma, SIGNUP_BONUS } from "@meta-geo/db";
+import { getOrCreateUserByAuthId, prisma } from "@meta-geo/db";
 import { authAvailable, verifyAccessToken } from "./auth.js";
-import { TableSession } from "./gameServer.js";
+import { TableSession, type GameSession } from "./gameServer.js";
+import { MttSession } from "./mttSession.js";
 
 const SEAT_COUNT = 6;
 
 /**
  * 参加可能なゲーム種別の一覧(サーバー側の許可リスト)。クライアントはgameKeyのみを送り、
  * buyIn等はここで決まる値を必ず使う(クライアントからの金額指定は信用しない)。
- *
- * MTTは現状シングルテーブルのTournamentエンジンを流用した簡易版で、本格的な複数卓バランシング
- * (packages/engineのMultiTableTournamentクラス)はまだソケットサーバーに統合されていない。
- * バイイン/賞金構造をSnGと変えることでゲームとしての違いは出しつつ、複数卓対応は今後の課題とする。
  */
 export const GAME_CONFIGS = {
-  sng: { gameType: "sng" as const, buyIn: 1000, seatCount: SEAT_COUNT },
-  mtt: { gameType: "mtt" as const, buyIn: 2000, seatCount: SEAT_COUNT },
-} satisfies Record<string, { gameType: "sng" | "mtt"; buyIn: number; seatCount: number }>;
+  sng: { gameType: "sng" as const, buyIn: 1000, seatCount: SEAT_COUNT, fieldSize: SEAT_COUNT },
+  mtt: { gameType: "mtt" as const, buyIn: 2000, seatCount: SEAT_COUNT, fieldSize: 12 },
+} satisfies Record<string, { gameType: "sng" | "mtt"; buyIn: number; seatCount: number; fieldSize: number }>;
 
 export type GameKey = keyof typeof GAME_CONFIGS;
 
@@ -24,15 +21,21 @@ function isGameKey(key: unknown): key is GameKey {
   return typeof key === "string" && Object.prototype.hasOwnProperty.call(GAME_CONFIGS, key);
 }
 
+interface ResolvedUser {
+  userId: string;
+  displayName: string;
+  avatarKey: string | null;
+}
+
 /**
- * ソケット接続を受け取り、認証・ユーザー解決を行った上でTableSessionへ振り分けるロビー。
+ * ソケット接続を受け取り、認証・ユーザー解決を行った上でゲームセッションへ振り分けるロビー。
  * 「プレイヤーがテーブルを立てるのではなく、システムがゲームを用意し参加する」という
- * 仕組み上、参加リクエストのたびに専用の卓を新しく作成する(相席/マッチングは未実装)。
+ * 仕組み上、参加リクエストのたびに専用のゲームが新しく作成される。
  */
 export class Lobby {
   private readonly io: Server;
-  // 再接続時に同じ卓へ戻せるよう、ユーザーIDごとに進行中のセッションを保持する
-  private readonly activeSessions = new Map<string, TableSession>();
+  // 再接続時に同じゲームへ戻せるよう、ユーザーIDごとに進行中のセッションを保持する
+  private readonly activeSessions = new Map<string, GameSession>();
 
   constructor(io: Server) {
     this.io = io;
@@ -45,33 +48,40 @@ export class Lobby {
         socket.emit("joinGameError", { message: "参加処理に失敗しました" });
       });
     });
+
+    socket.on("leaveGame", () => {
+      const userId = socket.data["userId"] as string | undefined;
+      if (!userId) return;
+      const session = this.activeSessions.get(userId);
+      if (session) {
+        session.leave();
+        this.activeSessions.delete(userId);
+      }
+    });
   }
 
-  private async resolveUser(socket: Socket): Promise<{ userId: string; displayName: string } | null> {
-    const auth = socket.handshake.auth as { accessToken?: string; displayName?: string };
+  private async resolveUser(socket: Socket): Promise<ResolvedUser | null> {
+    const auth = socket.handshake.auth as { accessToken?: string; displayName?: string; avatarKey?: string };
 
     if (authAvailable()) {
       const verified = await verifyAccessToken(auth.accessToken);
       if (!verified) return null;
       const fallbackName = verified.email?.split("@")[0] ?? "Player";
-      const displayName = auth.displayName?.trim() || fallbackName;
-      const user = await getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName });
-      return { userId: user.id, displayName: user.displayName };
+      const user = await getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
+      // オンボーディング(名前+アバター設定)未完了ならゲーム参加を拒否する
+      if (!user.onboarded) return null;
+      return { userId: user.id, displayName: user.displayName, avatarKey: user.avatarKey };
     }
 
-    // Supabase未設定のローカル開発用フォールバック: ソケットごとの使い捨てゲストユーザーとして扱う。
-    // 通常のサインアップと同様にボーナスを付与しないとバイインを払えず参加できないため、
-    // 新規作成時のみ記帳する(既存ゲストの再接続では二重付与しない)。
+    // Supabase未設定のローカル開発用フォールバック: ソケットごとの使い捨てゲストユーザーとして扱う
     const displayName = auth.displayName?.trim() || `Guest-${socket.id.slice(0, 4)}`;
+    const avatarKey = typeof auth.avatarKey === "string" ? auth.avatarKey : null;
     const guestEmail = `guest-${socket.id}@guests.meta-geo.local`;
     const existing = await prisma.user.findUnique({ where: { email: guestEmail } });
     const user =
       existing ??
-      (await prisma.user.create({ data: { email: guestEmail, displayName, isBot: false } }));
-    if (!existing) {
-      await prisma.bankrollTransaction.create({ data: { userId: user.id, amount: SIGNUP_BONUS, kind: "signupBonus" } });
-    }
-    return { userId: user.id, displayName: user.displayName };
+      (await prisma.user.create({ data: { email: guestEmail, displayName, isBot: false, avatarKey, onboarded: true } }));
+    return { userId: user.id, displayName: user.displayName, avatarKey: user.avatarKey };
   }
 
   private async handleJoinGame(socket: Socket, payload: { gameKey?: string }): Promise<void> {
@@ -82,25 +92,38 @@ export class Lobby {
 
     const resolved = await this.resolveUser(socket);
     if (!resolved) {
-      socket.emit("joinGameError", { message: "認証に失敗しました。再度ログインしてください" });
+      socket.emit("joinGameError", { message: "認証またはプロフィール設定が完了していません" });
       return;
     }
+    socket.data["userId"] = resolved.userId;
 
     const existing = this.activeSessions.get(resolved.userId);
-    if (existing && !existing.isFinished()) {
+    if (existing && !existing.isFinished() && !existing.isHumanDone()) {
       existing.attachHuman(socket);
       return;
     }
 
     const config = GAME_CONFIGS[payload.gameKey];
-    const session = new TableSession({
-      io: this.io,
-      gameType: config.gameType,
-      buyIn: config.buyIn,
-      seatCount: config.seatCount,
-      humanUserId: resolved.userId,
-      humanDisplayName: resolved.displayName,
-    });
+    const session: GameSession =
+      config.gameType === "mtt"
+        ? new MttSession({
+            io: this.io,
+            buyIn: config.buyIn,
+            tableSeatCount: config.seatCount,
+            fieldSize: config.fieldSize,
+            humanUserId: resolved.userId,
+            humanDisplayName: resolved.displayName,
+            humanAvatarKey: resolved.avatarKey,
+          })
+        : new TableSession({
+            io: this.io,
+            gameType: config.gameType,
+            buyIn: config.buyIn,
+            seatCount: config.seatCount,
+            humanUserId: resolved.userId,
+            humanDisplayName: resolved.displayName,
+            humanAvatarKey: resolved.avatarKey,
+          });
     this.activeSessions.set(resolved.userId, session);
     session.attachHuman(socket);
 

@@ -1,9 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "../src/client.js";
 import {
-  SIGNUP_BONUS,
+  completeOnboarding,
   computePayoutStructure,
-  getBankrollBalance,
+  getLeaderboard,
+  getNetProfit,
   getOrCreateUserByAuthId,
   getPlayerStats,
   recordBuyIn,
@@ -31,6 +32,12 @@ describe("computePayoutStructure (pure function)", () => {
       expect(payouts[i]!.amount).toBeLessThanOrEqual(payouts[i - 1]!.amount);
     }
   });
+
+  it("pays at least 2 places for a 12-player MTT field", () => {
+    const payouts = computePayoutStructure(12, 2000);
+    expect(payouts.length).toBeGreaterThanOrEqual(2);
+    expect(payouts.reduce((sum, p) => sum + p.amount, 0)).toBe(12 * 2000);
+  });
 });
 
 describe("bankroll ledger (integration, real Postgres)", () => {
@@ -49,20 +56,24 @@ describe("bankroll ledger (integration, real Postgres)", () => {
     await prisma.$disconnect();
   });
 
-  it("grants a signup bonus on first login and reuses the same user on subsequent logins", async () => {
+  it("creates a not-yet-onboarded user on first login and reuses it afterwards", async () => {
     const authId = `auth-test-${Date.now()}`;
     const first = await getOrCreateUserByAuthId({ authId, email: null, displayName: "BankrollTester" });
     createdUserIds.push(first.id);
     expect(first.isNew).toBe(true);
-    expect(await getBankrollBalance(first.id)).toBe(SIGNUP_BONUS);
+    expect(first.onboarded).toBe(false);
+    expect(await getNetProfit(first.id)).toBe(0); // 疑似通貨ボーナスは存在しない(±方式)
 
-    const second = await getOrCreateUserByAuthId({ authId, email: null, displayName: "BankrollTester" });
+    await completeOnboarding({ userId: first.id, displayName: "改名太郎", avatarKey: "fox" });
+    const second = await getOrCreateUserByAuthId({ authId, email: null, displayName: "ignored" });
     expect(second.id).toBe(first.id);
     expect(second.isNew).toBe(false);
-    expect(await getBankrollBalance(first.id)).toBe(SIGNUP_BONUS); // 2回目はボーナスが増えない
+    expect(second.onboarded).toBe(true);
+    expect(second.displayName).toBe("改名太郎");
+    expect(second.avatarKey).toBe("fox");
   });
 
-  it("deducts a buy-in, pays out winnings, and getPlayerStats reflects both correctly", async () => {
+  it("tracks buy-ins/payouts as a ± ledger and getPlayerStats reflects both correctly", async () => {
     const authId = `auth-test-${Date.now()}-2`;
     const user = await getOrCreateUserByAuthId({ authId, email: null, displayName: "StatsTester" });
     createdUserIds.push(user.id);
@@ -78,7 +89,7 @@ describe("bankroll ledger (integration, real Postgres)", () => {
     await recordBuyIn({ userId: user.id, tournamentId: tournament.id, amount: 500 });
     await recordPayout({ userId: user.id, tournamentId: tournament.id, amount: 1000 });
 
-    expect(await getBankrollBalance(user.id)).toBe(SIGNUP_BONUS - 500 + 1000);
+    expect(await getNetProfit(user.id)).toBe(500); // -500 + 1000
 
     const stats = await getPlayerStats(user.id);
     expect(stats.tournamentsPlayed).toBe(1);
@@ -88,15 +99,25 @@ describe("bankroll ledger (integration, real Postgres)", () => {
     expect(stats.totalPayouts).toBe(1000);
     expect(stats.profit).toBe(500);
     expect(stats.roi).toBe(1); // 500/500
+
+    const leaderboard = await getLeaderboard();
+    const row = leaderboard.find((r) => r.userId === user.id);
+    expect(row).toBeDefined();
+    expect(row!.profit).toBe(500);
+    expect(row!.tournamentsPlayed).toBe(1);
   });
 
-  it("rejects a buy-in larger than the current balance", async () => {
+  it("allows a buy-in even when the running profit would go negative (± model has no balance gate)", async () => {
     const authId = `auth-test-${Date.now()}-3`;
-    const user = await getOrCreateUserByAuthId({ authId, email: null, displayName: "BrokeTester" });
+    const user = await getOrCreateUserByAuthId({ authId, email: null, displayName: "MinusTester" });
     createdUserIds.push(user.id);
 
-    await expect(
-      recordBuyIn({ userId: user.id, tournamentId: "nonexistent", amount: SIGNUP_BONUS + 1 }),
-    ).rejects.toThrow();
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 20000, buyIn: 99999, gameType: "sng", status: "running" },
+    });
+    createdTournamentIds.push(tournament.id);
+
+    await recordBuyIn({ userId: user.id, tournamentId: tournament.id, amount: 99999 });
+    expect(await getNetProfit(user.id)).toBe(-99999);
   });
 });

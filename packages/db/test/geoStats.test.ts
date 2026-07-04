@@ -23,9 +23,12 @@ describe("geoStats (integration, real Postgres)", () => {
     await prisma.$disconnect();
   });
 
-  it("counts an UTG open-raise as an RFI opportunity + raise for the UTG position", async () => {
+  it("counts a human UTG open-raise as an RFI opportunity, excluding bot seats from GEO stats", async () => {
+    // GEO統計は実ユーザーの意思決定のみを集計するため、UTG(seat3)だけを人間にする。
     const users = await Promise.all(
-      Array.from({ length: 6 }, (_, i) => prisma.user.create({ data: { displayName: `GeoStatsTest-${i}`, isBot: true } })),
+      Array.from({ length: 6 }, (_, i) =>
+        prisma.user.create({ data: { displayName: `GeoStatsTest-${i}`, isBot: i !== 3 } }),
+      ),
     );
     createdUserIds.push(...users.map((u) => u.id));
 

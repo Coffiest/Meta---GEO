@@ -30,9 +30,12 @@ export interface PositionalRfiStat {
  * 「GTO値」を表示して誤解を招くことを避ける)。実測値(母集団の傾向)のみを提供する。
  */
 export async function getPositionalRfiStats(seatCount = 6): Promise<PositionalRfiStat[]> {
+  // GEOデータベースはBOTの傾向を混ぜず、実際のユーザーの意思決定だけを集計対象にする。
   const hands = await prisma.hand.findMany({
+    where: { seats: { some: { user: { isBot: false } } } },
     select: {
       buttonFixedPos: true,
+      seats: { select: { seatIndex: true, user: { select: { isBot: true } } } },
       actions: {
         where: { street: "preflop" },
         orderBy: { sequenceNumber: "asc" },
@@ -54,6 +57,7 @@ export async function getPositionalRfiStats(seatCount = 6): Promise<PositionalRf
   for (const hand of hands) {
     let raiseHasOccurred = false;
     const seenSeats = new Set<number>();
+    const humanSeats = new Set(hand.seats.filter((s) => !s.user.isBot).map((s) => s.seatIndex));
 
     for (const action of hand.actions) {
       if (action.kind === "postBlind" || action.kind === "postAnte") continue;
@@ -61,7 +65,7 @@ export async function getPositionalRfiStats(seatCount = 6): Promise<PositionalRf
       const isFirstActionForSeat = !seenSeats.has(action.seatIndex);
       seenSeats.add(action.seatIndex);
 
-      if (isFirstActionForSeat && !raiseHasOccurred) {
+      if (isFirstActionForSeat && !raiseHasOccurred && humanSeats.has(action.seatIndex)) {
         const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
         const position = positionNameForOffset(seatCount, offset);
         const stat = ensure(position);
@@ -106,12 +110,14 @@ export interface GeoSummaryStats {
 }
 
 export async function getGeoSummaryStats(): Promise<GeoSummaryStats> {
+  // 実ユーザーが1人以上着席していたハンドだけを対象にする(BOT同士だけの卓は集計に含めない)。
+  const humanHandFilter = { seats: { some: { user: { isBot: false } } } };
   const [totalHands, totalPlayers, totalTournaments, potAgg, wonByFoldCount] = await Promise.all([
-    prisma.hand.count(),
+    prisma.hand.count({ where: humanHandFilter }),
     prisma.user.count({ where: { isBot: false } }),
     prisma.tournament.count(),
-    prisma.hand.aggregate({ _avg: { potTotal: true } }),
-    prisma.hand.count({ where: { wonByFold: true } }),
+    prisma.hand.aggregate({ _avg: { potTotal: true }, where: humanHandFilter }),
+    prisma.hand.count({ where: { ...humanHandFilter, wonByFold: true } }),
   ]);
 
   const showdownRate = totalHands > 0 ? (totalHands - wonByFoldCount) / totalHands : 0;
@@ -137,6 +143,7 @@ export interface RecentHandSummary {
 
 export async function getRecentHands(limit = 20, offset = 0): Promise<RecentHandSummary[]> {
   const hands = await prisma.hand.findMany({
+    where: { seats: { some: { user: { isBot: false } } } },
     orderBy: { createdAt: "desc" },
     take: limit,
     skip: offset,

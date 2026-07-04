@@ -6,12 +6,46 @@ import { decideBotAction } from "./bot.js";
 
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3500;
-const BOT_NAMES = ["BOT-Akira", "BOT-Yuki", "BOT-Sora", "BOT-Rin", "BOT-Kai"];
+/** 人間バスト後/離脱後にBOT同士の消化を高速化するときのディレイ */
+const FAST_BOT_DELAY_MS = 25;
+const FAST_NEXT_HAND_DELAY_MS = 50;
+/** 人間の1アクションの持ち時間。切れたら自動チェック(不可ならフォールド)。 */
+export const ACTION_CLOCK_MS = 20_000;
+
+export const BOT_PROFILES = [
+  { name: "BOT-Akira", avatarKey: "bot1" },
+  { name: "BOT-Yuki", avatarKey: "bot2" },
+  { name: "BOT-Sora", avatarKey: "bot3" },
+  { name: "BOT-Rin", avatarKey: "bot4" },
+  { name: "BOT-Kai", avatarKey: "bot5" },
+  { name: "BOT-Hana", avatarKey: "bot6" },
+  { name: "BOT-Ren", avatarKey: "bot1" },
+  { name: "BOT-Mio", avatarKey: "bot2" },
+  { name: "BOT-Gen", avatarKey: "bot3" },
+  { name: "BOT-Tsumugi", avatarKey: "bot4" },
+  { name: "BOT-Jin", avatarKey: "bot5" },
+] as const;
+
+/** BOT用のUserレコードを確保して返す(名前をキーにupsert)。 */
+export async function ensureBotUsers(count: number): Promise<{ id: string; displayName: string; avatarKey: string }[]> {
+  const profiles = BOT_PROFILES.slice(0, count);
+  return Promise.all(
+    profiles.map(async (p) => {
+      const u = await prisma.user.upsert({
+        where: { email: `${p.name}@bots.meta-geo.local` },
+        update: { avatarKey: p.avatarKey },
+        create: { email: `${p.name}@bots.meta-geo.local`, displayName: p.name, isBot: true, avatarKey: p.avatarKey },
+      });
+      return { id: u.id, displayName: u.displayName, avatarKey: p.avatarKey };
+    }),
+  );
+}
 
 interface SeatPlayer {
   readonly seatIndex: number;
   readonly userId: string;
   readonly displayName: string;
+  readonly avatarKey: string | null;
   readonly isBot: boolean;
 }
 
@@ -22,30 +56,47 @@ export interface TableSessionConfig {
   readonly seatCount: number;
   readonly humanUserId: string;
   readonly humanDisplayName: string;
+  readonly humanAvatarKey: string | null;
+}
+
+/** ロビーが扱うゲームセッションの共通インターフェース(SNG/MTT)。 */
+export interface GameSession {
+  isFinished(): boolean;
+  /** 人間側の結果が確定済みか(バスト/離脱後、BOT消化中でもtrue)。trueなら新しいゲームに参加できる。 */
+  isHumanDone(): boolean;
+  start(): Promise<void>;
+  attachHuman(socket: Socket): void;
+  /** チップを破棄してゲームから離脱する(以降は自動フォールドで消化)。 */
+  leave(): void;
 }
 
 /**
- * 1卓分のゲーム進行を管理する。ソロテスト用途のため、人間プレイヤーは1テーブルにつき1人までとし、
- * 残りの席は起動時にルールベースBOTで自動的に埋めて即座にトーナメントを開始する
- * (「システム側がゲームを用意し、プレイヤーが参加する」というロビーの仕組み上、マッチングは
- * まだ実装しておらず、参加するたびに専用の卓が新しく作られる)。
+ * 1卓分(SNG)のゲーム進行を管理する。人間プレイヤーは1テーブルにつき1人までとし、
+ * 残りの席は起動時にルールベースBOTで自動的に埋めて即座にトーナメントを開始する。
  */
-export class TableSession {
+export class TableSession implements GameSession {
   private tournament: Tournament | null = null;
   private hand: HandEngine | null = null;
   private dbTournamentId: string | null = null;
   private players = new Map<number, SeatPlayer>();
   private human: { seatIndex: number; socket: Socket } | null = null;
-  private spectators = new Set<Socket>();
   private finished = false;
+  private humanDone = false;
+  private humanLeft = false;
+  private humanResultRecorded = false;
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private levelEndsAt = 0;
+  private acceleratedHands = 0;
 
   readonly gameType: "sng" | "mtt";
   readonly buyIn: number;
   private readonly seatCount: number;
   private readonly humanUserId: string;
   private readonly humanDisplayName: string;
+  private readonly humanAvatarKey: string | null;
   private readonly io: Server;
-  /** ロビーが複数のTableSessionを同時に扱えるよう、stateなどのbroadcastはこの卓専用のroomに限定する */
+  /** ロビーが複数のTableSessionを同時に扱えるよう、broadcastはこの卓専用のroomに限定する */
   private readonly roomId = `table:${randomUUID()}`;
 
   constructor(config: TableSessionConfig) {
@@ -55,27 +106,36 @@ export class TableSession {
     this.seatCount = config.seatCount;
     this.humanUserId = config.humanUserId;
     this.humanDisplayName = config.humanDisplayName;
+    this.humanAvatarKey = config.humanAvatarKey;
   }
 
   isFinished(): boolean {
     return this.finished;
   }
 
-  /** 新規参加: バイインを引いてトーナメントを作成し、BOTを着席させて即座に開始する。 */
-  async start(): Promise<void> {
-    const botUsers = await Promise.all(
-      BOT_NAMES.map((name) =>
-        prisma.user.upsert({
-          where: { email: `${name}@bots.meta-geo.local` },
-          update: {},
-          create: { email: `${name}@bots.meta-geo.local`, displayName: name, isBot: true },
-        }),
-      ),
-    );
+  isHumanDone(): boolean {
+    return this.humanDone || this.finished;
+  }
 
-    this.players.set(0, { seatIndex: 0, userId: this.humanUserId, displayName: this.humanDisplayName, isBot: false });
-    botUsers.slice(0, this.seatCount - 1).forEach((u, i) => {
-      this.players.set(i + 1, { seatIndex: i + 1, userId: u.id, displayName: u.displayName, isBot: true });
+  /** 新規参加: バイインを記帳してトーナメントを作成し、BOTを着席させて即座に開始する。 */
+  async start(): Promise<void> {
+    const botUsers = await ensureBotUsers(this.seatCount - 1);
+
+    this.players.set(0, {
+      seatIndex: 0,
+      userId: this.humanUserId,
+      displayName: this.humanDisplayName,
+      avatarKey: this.humanAvatarKey,
+      isBot: false,
+    });
+    botUsers.forEach((u, i) => {
+      this.players.set(i + 1, {
+        seatIndex: i + 1,
+        userId: u.id,
+        displayName: u.displayName,
+        avatarKey: u.avatarKey,
+        isBot: true,
+      });
     });
 
     this.tournament = new Tournament({
@@ -101,22 +161,34 @@ export class TableSession {
       await recordBuyIn({ userId: this.humanUserId, tournamentId: dbTournament.id, amount: this.buyIn });
     }
 
-    this.io.to(this.roomId).emit("levelUp", { level: this.tournament.getCurrentLevel() });
+    // attachHuman時点ではまだ着席が確定していないため、開始時にあらためて全席情報を配信する
+    this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+    this.broadcastLevel();
     this.scheduleLevelAdvance();
     this.beginNextHand();
   }
 
-  /** 同じ人間プレイヤーがこのテーブルへ再接続してきた場合、現在の状況を即座に送る。 */
+  /** 同じ人間プレイヤーがこのテーブルへ(再)接続してきた場合、現在の状況を即座に送る。 */
   attachHuman(socket: Socket): void {
     this.human = { seatIndex: 0, socket };
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer);
+      this.disconnectTimer = null;
+    }
     void socket.join(this.roomId);
     socket.on("action", (action: PlayerAction) => this.handlePlayerAction(0, action));
     socket.on("disconnect", () => {
-      if (this.human?.socket === socket) this.human = null;
+      if (this.human?.socket !== socket) return;
+      this.human = null;
+      // 再接続されないまま60秒経ったら離脱扱いにする(20秒タイムアウトの空回りで
+      // トーナメントが延々と残り続けるのを防ぐ)
+      this.disconnectTimer = setTimeout(() => {
+        if (!this.human) this.leave();
+      }, 60_000);
     });
 
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
-    if (this.tournament) socket.emit("levelUp", { level: this.tournament.getCurrentLevel() });
+    if (this.tournament) this.broadcastLevel(socket);
     this.sendStateTo(socket);
     if (this.hand) {
       const myCards = this.hand.getSeatHoleCards(0);
@@ -124,27 +196,43 @@ export class TableSession {
     }
   }
 
-  attachSpectator(socket: Socket): void {
-    this.spectators.add(socket);
-    void socket.join(this.roomId);
-    socket.emit("spectating", {});
-    if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
-    this.sendStateTo(socket);
-    socket.on("disconnect", () => this.spectators.delete(socket));
+  leave(): void {
+    if (this.humanLeft || this.finished) return;
+    this.humanLeft = true;
+    // 現在自分の番なら即フォールドし、以降の番も自動フォールドで消化される
+    if (this.hand && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === 0) {
+      this.handlePlayerAction(0, { kind: "fold" });
+    }
   }
 
-  private playersPayload(): { seatIndex: number; displayName: string }[] {
-    return [...this.players.values()].map((p) => ({ seatIndex: p.seatIndex, displayName: p.displayName }));
+  private playersPayload(): { seatIndex: number; displayName: string; avatarKey: string | null; isBot: boolean }[] {
+    return [...this.players.values()].map((p) => ({
+      seatIndex: p.seatIndex,
+      displayName: p.displayName,
+      avatarKey: p.avatarKey,
+      isBot: p.isBot,
+    }));
+  }
+
+  private isAccelerated(): boolean {
+    return this.humanLeft || this.humanDone;
+  }
+
+  private broadcastLevel(target?: Socket): void {
+    if (!this.tournament) return;
+    const payload = { level: this.tournament.getCurrentLevel(), endsAt: this.levelEndsAt };
+    (target ?? this.io.to(this.roomId)).emit("levelUp", payload);
   }
 
   private scheduleLevelAdvance(): void {
     const tournament = this.tournament;
     if (!tournament) return;
     const level = tournament.getCurrentLevel();
+    this.levelEndsAt = Date.now() + level.durationMinutes * 60_000;
+    this.broadcastLevel();
     setTimeout(() => {
-      if (!this.tournament || this.tournament.isTournamentOver()) return;
+      if (!this.tournament || this.tournament.isTournamentOver() || this.finished) return;
       this.tournament.advanceToNextLevel();
-      this.io.to(this.roomId).emit("levelUp", { level: this.tournament.getCurrentLevel() });
       this.scheduleLevelAdvance();
     }, level.durationMinutes * 60_000);
   }
@@ -157,7 +245,7 @@ export class TableSession {
     }
     this.hand = this.tournament.startNextHand();
     this.broadcastState();
-    this.driveBotsOrWait();
+    this.scheduleTurn();
   }
 
   private currentButtonInfo(): { smallBlindSeat: number | null; bigBlindSeat: number } {
@@ -176,8 +264,8 @@ export class TableSession {
       hand.applyAction(seatIndex, action);
     } catch (err) {
       const isBot = this.players.get(seatIndex)?.isBot ?? false;
-      if (isBot) {
-        // BOTの想定外の不正アクションでテーブルが止まらないよう、必ず合法なfoldにフォールバックする
+      if (isBot || this.humanLeft) {
+        // 想定外の不正アクションでテーブルが止まらないよう、必ず合法なfoldにフォールバックする
         hand.applyAction(seatIndex, { kind: "fold" });
       } else {
         this.human?.socket.emit("actionError", { message: (err as Error).message });
@@ -188,23 +276,53 @@ export class TableSession {
     if (hand.isHandComplete()) {
       void this.finishHand();
     } else {
-      this.driveBotsOrWait();
+      this.scheduleTurn();
     }
   }
 
-  private driveBotsOrWait(): void {
+  /**
+   * 手番の進行管理。BOTの番ならディレイ後に自動アクション、人間の番なら持ち時間タイマーを起動し、
+   * 時間切れで自動チェック(チェック不可ならフォールド)する。離脱済みの人間は即フォールド。
+   */
+  private scheduleTurn(): void {
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.turnTimer = null;
+    }
     const hand = this.hand;
     if (!hand || hand.isHandComplete()) return;
     const actingSeat = hand.getActingSeatIndex();
     if (actingSeat === null) return;
     const player = this.players.get(actingSeat);
-    if (!player?.isBot) return; // 人間の番: ソケットからのactionイベントを待つ
+    if (!player) return;
 
-    setTimeout(() => {
-      if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-      const action = this.computeBotAction(actingSeat);
-      this.handlePlayerAction(actingSeat, action);
-    }, BOT_ACTION_DELAY_MS);
+    if (player.isBot) {
+      const delay = this.isAccelerated() ? FAST_BOT_DELAY_MS : BOT_ACTION_DELAY_MS;
+      this.turnTimer = setTimeout(() => {
+        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+        this.handlePlayerAction(actingSeat, this.computeBotAction(actingSeat));
+      }, delay);
+      return;
+    }
+
+    if (this.humanLeft) {
+      this.turnTimer = setTimeout(() => {
+        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+        this.handlePlayerAction(actingSeat, { kind: "fold" });
+      }, FAST_BOT_DELAY_MS);
+      return;
+    }
+
+    // 人間の番: 持ち時間リングを表示させ、時間切れで自動チェック/フォールド
+    const endsAt = Date.now() + ACTION_CLOCK_MS;
+    this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs: ACTION_CLOCK_MS });
+    this.turnTimer = setTimeout(() => {
+      const current = this.hand;
+      if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;
+      const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
+      const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
+      this.handlePlayerAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
+    }, ACTION_CLOCK_MS);
   }
 
   private computeBotAction(seatIndex: number): PlayerAction {
@@ -248,13 +366,15 @@ export class TableSession {
         levelSmallBlind: started.level.smallBlind,
         levelBigBlind: started.level.bigBlind,
         levelAnte: started.level.bbAnte,
-        seats: [...this.players.values()].map((p) => ({
-          seatIndex: p.seatIndex,
-          userId: p.userId,
-          startingStack: startingStacks.get(p.seatIndex) ?? 0,
-          isSmallBlind: p.seatIndex === smallBlindSeat,
-          isBigBlind: p.seatIndex === bigBlindSeat,
-        })),
+        seats: [...this.players.values()]
+          .filter((p) => tournament.getSeats().find((s) => s.seatIndex === p.seatIndex && s.bustedAtHand === null))
+          .map((p) => ({
+            seatIndex: p.seatIndex,
+            userId: p.userId,
+            startingStack: startingStacks.get(p.seatIndex) ?? 0,
+            isSmallBlind: p.seatIndex === smallBlindSeat,
+            isBigBlind: p.seatIndex === bigBlindSeat,
+          })),
         hand,
       });
     }
@@ -265,19 +385,66 @@ export class TableSession {
       holeCards: Object.fromEntries([...hand.getAllHoleCards()].map(([seat, cards]) => [seat, cards.map(cardToString)])),
     });
 
+    // 人間がこのハンドでバストしたら、その時点で着順・賞金を確定して通知する
+    const humanSeat = tournament.getSeats().find((s) => s.seatIndex === 0);
+    if (!this.humanDone && humanSeat && humanSeat.bustedAtHand !== null) {
+      await this.recordHumanFinish();
+    }
+
     if (tournament.isTournamentOver()) {
       void this.finishTournament();
       return;
     }
 
-    setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+    // 高速消化モードではブラインドクロック(実時間)を待たず、一定ハンドごとにレベルを
+    // 強制的に上げてBOT同士の消化を必ず収束させる。
+    if (this.isAccelerated()) {
+      this.acceleratedHands += 1;
+      if (this.acceleratedHands % 10 === 0) tournament.advanceToNextLevel();
+    }
+
+    const delay = this.isAccelerated() ? FAST_NEXT_HAND_DELAY_MS : NEXT_HAND_DELAY_MS;
+    setTimeout(() => this.beginNextHand(), delay);
   }
 
-  /** トーナメント終了処理: 全席の着順を確定し、賞金配分をDB(TournamentEntry.payout)とバンクロール台帳に反映する。 */
+  /** 人間の着順確定(バスト時 or 優勝時)。賞金を台帳とエントリーに記帳し、本人へ通知する。 */
+  private async recordHumanFinish(): Promise<void> {
+    const tournament = this.tournament;
+    if (!tournament || !this.dbTournamentId || this.humanResultRecorded) return;
+    this.humanResultRecorded = true;
+    this.humanDone = true;
+
+    const humanSeat = tournament.getSeats().find((s) => s.seatIndex === 0)!;
+    // バスト済みなら残り人数+1が着順、優勝(未バスト)なら1位
+    const remaining = tournament.getSeats().filter((s) => s.bustedAtHand === null).length;
+    const place = humanSeat.bustedAtHand === null ? 1 : remaining + 1;
+    const payout = computePayoutStructure(this.seatCount, this.buyIn).find((p) => p.place === place)?.amount ?? 0;
+
+    await prisma.tournamentEntry.updateMany({
+      where: { tournamentId: this.dbTournamentId, seatIndex: 0 },
+      data: { finishPosition: place, payout },
+    });
+    if (payout > 0) {
+      await recordPayout({ userId: this.humanUserId, tournamentId: this.dbTournamentId, amount: payout });
+    }
+
+    this.io.to(this.roomId).emit("tournamentOver", {
+      winnerPlayerId: place === 1 ? this.humanUserId : null,
+      yourFinishPosition: place,
+      yourPayout: payout,
+    });
+  }
+
+  /** トーナメント終了処理: 全席の着順を確定し、賞金配分をDBに反映する。 */
   private async finishTournament(): Promise<void> {
     const tournament = this.tournament;
     if (!tournament || !this.dbTournamentId || this.finished) return;
     this.finished = true;
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+
+    if (!this.humanResultRecorded) {
+      await this.recordHumanFinish();
+    }
 
     // bustedAtHandが遅い(=nullなら優勝)ほど着順が良い、として並べる。
     const seats = [...tournament.getSeats()].sort((a, b) => {
@@ -286,36 +453,22 @@ export class TableSession {
       return bRank - aRank;
     });
 
-    const payoutStructure = computePayoutStructure(seats.length, this.buyIn);
-    const payoutByPlace = new Map(payoutStructure.map((p) => [p.place, p.amount]));
+    const payoutByPlace = new Map(computePayoutStructure(this.seatCount, this.buyIn).map((p) => [p.place, p.amount]));
 
     await Promise.all(
       seats.map(async (seat, index) => {
+        if (seat.seatIndex === 0) return; // 人間はrecordHumanFinishで確定済み
         const place = index + 1;
-        const payout = payoutByPlace.get(place) ?? 0;
-        const player = this.players.get(seat.seatIndex);
         await prisma.tournamentEntry.updateMany({
           where: { tournamentId: this.dbTournamentId!, seatIndex: seat.seatIndex },
-          data: { finishPosition: place, payout },
+          data: { finishPosition: place, payout: payoutByPlace.get(place) ?? 0 },
         });
-        // BOTのバンクロールは意味を持たないため、人間プレイヤーの分だけ台帳に記帳する。
-        if (payout > 0 && player && !player.isBot) {
-          await recordPayout({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: payout });
-        }
       }),
     );
 
     await prisma.tournament.update({
       where: { id: this.dbTournamentId },
       data: { status: "finished", finishedAt: new Date() },
-    });
-
-    const humanSeat = seats.findIndex((s) => this.players.get(s.seatIndex)?.userId === this.humanUserId);
-    const humanPlace = humanSeat === -1 ? null : humanSeat + 1;
-    this.io.to(this.roomId).emit("tournamentOver", {
-      winnerPlayerId: tournament.getWinnerPlayerId(),
-      yourFinishPosition: humanPlace,
-      yourPayout: humanPlace !== null ? (payoutByPlace.get(humanPlace) ?? 0) : 0,
     });
   }
 

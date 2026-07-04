@@ -1,6 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getPlayerStats, prisma } from "@meta-geo/db";
-import { verifyAccessToken } from "./auth.js";
+import {
+  completeOnboarding,
+  getLeaderboard,
+  getOrCreateUserByAuthId,
+  getPlayerStats,
+  getUserHandHistory,
+  prisma,
+} from "@meta-geo/db";
+import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -18,8 +25,17 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
   return value.slice("Bearer ".length);
 }
 
+async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 const EMPTY_STATS = {
-  bankroll: 0,
   tournamentsPlayed: 0,
   itmCount: 0,
   itmRate: 0,
@@ -28,6 +44,11 @@ const EMPTY_STATS = {
   profit: 0,
   roi: 0,
 };
+
+async function resolveDbUser(verified: VerifiedUser) {
+  const fallbackName = verified.email?.split("@")[0] ?? "Player";
+  return getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
+}
 
 /**
  * ロビー画面用のREST API。`/api/lobby/*` 配下のリクエストを処理する。
@@ -40,7 +61,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
-      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
       "access-control-allow-headers": "content-type, authorization",
     });
     res.end();
@@ -48,6 +69,38 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
   }
 
   try {
+    // ログイン中ユーザーのプロフィール取得/オンボーディング保存
+    if (url.pathname === "/api/lobby/profile") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const displayName = typeof body["displayName"] === "string" ? body["displayName"].trim().slice(0, 16) : "";
+        const avatarKey = typeof body["avatarKey"] === "string" ? body["avatarKey"] : "";
+        if (!displayName || !avatarKey) {
+          sendJson(res, 400, { error: "displayNameとavatarKeyは必須です" });
+          return true;
+        }
+        await completeOnboarding({ userId: user.id, displayName, avatarKey });
+        sendJson(res, 200, { id: user.id, displayName, avatarKey, onboarded: true, email: verified.email });
+        return true;
+      }
+
+      sendJson(res, 200, {
+        id: user.id,
+        displayName: user.displayName,
+        avatarKey: user.avatarKey,
+        onboarded: user.onboarded,
+        email: verified.email,
+      });
+      return true;
+    }
+
     if (url.pathname === "/api/lobby/stats") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
@@ -56,6 +109,23 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
       sendJson(res, 200, user ? await getPlayerStats(user.id) : EMPTY_STATS);
+      return true;
+    }
+
+    // ランキングは公開情報(BOTは含まれない)
+    if (url.pathname === "/api/lobby/leaderboard") {
+      sendJson(res, 200, await getLeaderboard(50));
+      return true;
+    }
+
+    if (url.pathname === "/api/lobby/history") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100) : []);
       return true;
     }
 

@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type HandHistoryEntry } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { formatSignedBb } from "@/lib/format";
 import { useAuth } from "@/lib/useAuth";
+import { useProfile, saveProfile } from "@/lib/profile";
 import { LoginScreen } from "@/components/LoginScreen";
+import { Onboarding } from "@/components/Onboarding";
 import { Lobby } from "@/components/Lobby";
+import { BlindStructureSheet } from "@/components/BlindStructureSheet";
 
 const SEAT_COUNT = 6;
 
@@ -19,36 +21,6 @@ const SUIT_BADGE_CLASS: Record<string, string> = {
   d: "bg-azure-500",
   c: "bg-mint-500",
 };
-
-function NameGate({ onEnter }: { onEnter: (name: string) => void }) {
-  const [name, setName] = useState("");
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8">
-      <div className="text-center space-y-2">
-        <div className="text-[13px] tracking-[0.3em] text-gold-500 font-medium">TEN FOUR POKER</div>
-        <h1 className="text-2xl font-semibold text-ink-50">トーナメントに参加</h1>
-        <p className="text-sm text-ink-400 max-w-xs mx-auto">
-          ソロテスト用テーブルです。あなたが着席すると、BOTが自動的に席を埋めてすぐに開始します。
-        </p>
-      </div>
-      <div className="w-full max-w-xs space-y-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="表示名"
-          maxLength={16}
-          className="w-full rounded-xl bg-ink-900 ring-1 ring-ink-700 px-4 py-3 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:ring-gold-500"
-        />
-        <button
-          onClick={() => onEnter(name.trim() || `Guest-${Math.random().toString(36).slice(2, 6)}`)}
-          className="w-full rounded-xl bg-gold-500 text-ink-950 font-semibold py-3 shadow-card active:scale-[0.98] transition-transform"
-        >
-          テーブルに着席する
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function HandHistoryPill({ entry, bigBlind }: { entry: HandHistoryEntry; bigBlind: number }) {
   const deltaClass = entry.deltaChips > 0 ? "text-mint-400" : entry.deltaChips < 0 ? "text-crimson-400" : "text-navy-400";
@@ -71,38 +43,69 @@ function HandHistoryPill({ entry, bigBlind }: { entry: HandHistoryEntry; bigBlin
   );
 }
 
+/** 次のレベルまでの残り時間(mm:ss)。毎秒更新。 */
+function useLevelCountdown(endsAt: number | null): string {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!endsAt) return "--:--";
+  const remaining = Math.max(0, endsAt - now);
+  const m = Math.floor(remaining / 60000);
+  const s = Math.floor((remaining % 60000) / 1000);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function SettingsPopover({
-  connected,
-  level,
+  onShowStructure,
+  onLeave,
   onClose,
 }: {
-  connected: boolean;
-  level: { level: number; smallBlind: number; bigBlind: number } | null;
+  onShowStructure: () => void;
+  onLeave: () => void;
   onClose: () => void;
 }) {
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-56 rounded-2xl bg-navy-900 ring-1 ring-navy-700 shadow-panel p-3 space-y-3">
-        <div className="flex items-center justify-between text-xs text-navy-300">
-          <span>接続状況</span>
-          <span className="flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-mint-400" : "bg-crimson-500"}`} />
-            {connected ? "接続中" : "切断"}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-navy-300">
-          <span>レベル</span>
-          <span className="tabular-nums text-navy-100">
-            {level ? `Lv.${level.level} ${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "-"}
-          </span>
-        </div>
-        <Link
-          href="/geo"
-          className="block w-full rounded-xl bg-navy-800 text-navy-100 text-xs font-medium text-center py-2.5 ring-1 ring-navy-600/60 hover:bg-navy-700 transition-colors"
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-navy-900 ring-1 ring-navy-700 shadow-panel p-2 space-y-1">
+        <button
+          onClick={() => {
+            onClose();
+            onShowStructure();
+          }}
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-navy-200 hover:bg-navy-800 transition-colors"
         >
-          GEO分析を開く
-        </Link>
+          ブラインドストラクチャを見る
+        </button>
+        {confirmingLeave ? (
+          <div className="rounded-xl bg-navy-800 p-3 space-y-2">
+            <p className="text-xs text-navy-300">チップを破棄して離脱します。この操作は取り消せません。</p>
+            <div className="flex gap-2">
+              <button
+                onClick={onLeave}
+                className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 active:scale-[0.97] transition-transform"
+              >
+                離脱する
+              </button>
+              <button
+                onClick={() => setConfirmingLeave(false)}
+                className="flex-1 rounded-lg bg-navy-700 text-navy-200 text-xs py-2"
+              >
+                やめる
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingLeave(true)}
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-400 hover:bg-navy-800 transition-colors"
+          >
+            チップを破棄してゲームから離脱
+          </button>
+        )}
       </div>
     </>
   );
@@ -110,31 +113,39 @@ function SettingsPopover({
 
 function GameScreen({
   displayName,
+  avatarKey,
   gameKey,
   accessToken,
+  onExit,
 }: {
   displayName: string;
+  avatarKey: string | null;
   gameKey: GameKey;
   accessToken?: string;
+  onExit: () => void;
 }) {
   const {
-    connected,
     spectating,
     state,
     yourSeatIndex,
     yourCards,
     lastHandEnded,
     level,
+    levelEndsAt,
     tournamentOver,
     actionError,
     players,
     handHistory,
     lastActionBySeat,
     lastHandDeltaBySeat,
+    turnTimer,
     joinError,
     sendAction,
-  } = usePokerSocket({ displayName, gameKey, accessToken });
+    leaveGame,
+  } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [structureOpen, setStructureOpen] = useState(false);
+  const countdown = useLevelCountdown(levelEndsAt);
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
@@ -153,12 +164,25 @@ function GameScreen({
 
   return (
     <div className="min-h-screen flex flex-col bg-navy-950">
-      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2">
+      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
+        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示) */}
+        <div className="shrink-0 rounded-xl bg-navy-900/80 ring-1 ring-navy-700/50 px-2.5 py-1.5 leading-tight">
+          <div className="text-[11px] font-semibold text-navy-100 tabular-nums">
+            {level ? `Lv.${level.level}  ${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "Lv.-"}
+            {level && level.bbAnte > 0 && <span className="text-navy-400"> ({level.bbAnte.toLocaleString()})</span>}
+          </div>
+          <div className="text-[10px] text-navy-400 tabular-nums">
+            次のレベルまで <span className="text-mint-400 font-medium">{countdown}</span>
+            {gameKey === "mtt" && <span className="ml-1 text-navy-500">MTT</span>}
+          </div>
+        </div>
+
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {handHistory.map((entry, i) => (
             <HandHistoryPill key={i} entry={entry} bigBlind={bigBlind} />
           ))}
         </div>
+
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           className="shrink-0 h-8 w-8 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 flex items-center justify-center text-navy-300"
@@ -167,7 +191,14 @@ function GameScreen({
           ⚙
         </button>
         {settingsOpen && (
-          <SettingsPopover connected={connected} level={level} onClose={() => setSettingsOpen(false)} />
+          <SettingsPopover
+            onShowStructure={() => setStructureOpen(true)}
+            onLeave={() => {
+              leaveGame();
+              onExit();
+            }}
+            onClose={() => setSettingsOpen(false)}
+          />
         )}
       </header>
 
@@ -187,6 +218,7 @@ function GameScreen({
             bigBlind={bigBlind}
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
+            turnTimer={turnTimer}
           />
         )}
       </main>
@@ -211,17 +243,32 @@ function GameScreen({
             animate={{ opacity: 1 }}
             className="fixed inset-0 z-30 flex items-center justify-center bg-navy-950/90 backdrop-blur px-6"
           >
-            <div className="text-center space-y-3">
-              <div className="text-gold-500 text-xs tracking-[0.3em]">TOURNAMENT COMPLETE</div>
-              <div className="text-2xl font-semibold text-navy-100">
-                {tournamentOver.winnerPlayerId === yourSeat?.playerId ? "優勝しました 🏆" : "トーナメント終了"}
+            <div className="text-center space-y-4">
+              <div className="text-gold-500 text-xs tracking-[0.3em]">TOURNAMENT RESULT</div>
+              <div className="text-3xl font-bold text-navy-50">
+                {tournamentOver.yourFinishPosition === 1
+                  ? "優勝 🏆"
+                  : tournamentOver.yourFinishPosition !== null
+                    ? `${tournamentOver.yourFinishPosition}位`
+                    : "トーナメント終了"}
               </div>
+              {tournamentOver.yourPayout > 0 && (
+                <div className="text-mint-400 text-lg font-semibold tabular-nums">賞金 +{tournamentOver.yourPayout.toLocaleString()}</div>
+              )}
+              <button
+                onClick={onExit}
+                className="mt-2 rounded-xl bg-mint-500 text-white text-sm font-semibold px-8 py-3 shadow-card active:scale-[0.97] transition-transform"
+              >
+                ロビーへ戻る
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {!spectating && (
+      {structureOpen && <BlindStructureSheet currentLevel={level?.level} onClose={() => setStructureOpen(false)} />}
+
+      {!spectating && !tournamentOver && (
         <ActionBar
           isYourTurn={Boolean(isYourTurn)}
           street={state?.street ?? "preflop"}
@@ -246,38 +293,118 @@ function LoadingScreen() {
 
 export default function Page() {
   const auth = useAuth();
-  const [guestName, setGuestName] = useState<string | null>(null);
+  const accessToken = auth.session?.access_token;
+  const { profile, loading: profileLoading, reload } = useProfile(accessToken);
+  const [guest, setGuest] = useState<{ name: string; avatarKey: string } | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Supabaseが設定されている(本番想定): ログイン必須で、ロビー→プレイの流れにする。
+  // Supabaseが設定されている(本番想定): ログイン → オンボーディング必須 → ロビー → プレイ。
   if (auth.authAvailable) {
     if (auth.loading) return <LoadingScreen />;
     if (!auth.session) return <LoginScreen auth={auth} />;
-
-    const displayName =
-      (auth.session.user.user_metadata?.["displayName"] as string | undefined) ??
-      auth.session.user.email?.split("@")[0] ??
-      "Player";
-
-    if (!gameKey) {
+    if (profileLoading) return <LoadingScreen />;
+    if (!profile) {
       return (
-        <Lobby
-          auth={auth}
-          displayName={displayName}
-          onJoin={setGameKey}
-          onSignOut={() => {
-            setGameKey(null);
-            void auth.signOut();
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-navy-950 px-6">
+          <p className="text-sm text-navy-300">プロフィールの取得に失敗しました。</p>
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
+            再試行
+          </button>
+        </div>
+      );
+    }
+
+    // 名前とアバターを決めるまでは、ホームには一切進めない(この分岐が常に先に評価される)。
+    if (!profile.onboarded || editingProfile) {
+      return (
+        <Onboarding
+          title={profile.onboarded ? "プロフィールを編集" : "プロフィールを設定"}
+          initialName={profile.onboarded ? profile.displayName : ""}
+          initialAvatarKey={profile.avatarKey}
+          submitLabel={profile.onboarded ? "保存する" : "はじめる"}
+          saving={saving}
+          error={saveError}
+          onSubmit={(params) => {
+            setSaving(true);
+            setSaveError(null);
+            void saveProfile(accessToken!, params).then(async (saved) => {
+              if (!saved) setSaveError("保存に失敗しました。もう一度お試しください。");
+              else await reload();
+              setSaving(false);
+              setEditingProfile(false);
+            });
           }}
+          onCancel={profile.onboarded ? () => setEditingProfile(false) : undefined}
         />
       );
     }
 
-    return <GameScreen displayName={displayName} gameKey={gameKey} accessToken={auth.session.access_token} />;
+    if (gameKey) {
+      return (
+        <GameScreen
+          displayName={profile.displayName}
+          avatarKey={profile.avatarKey}
+          gameKey={gameKey}
+          accessToken={accessToken}
+          onExit={() => setGameKey(null)}
+        />
+      );
+    }
+
+    return (
+      <Lobby
+        displayName={profile.displayName}
+        avatarKey={profile.avatarKey}
+        email={profile.email}
+        userId={profile.id}
+        accessToken={accessToken}
+        onJoin={setGameKey}
+        onEditProfile={() => setEditingProfile(true)}
+        onSignOut={() => {
+          setGameKey(null);
+          void auth.signOut();
+        }}
+      />
+    );
   }
 
-  // Supabase未設定のローカル開発用フォールバック: 表示名入力→ロビー(スタッツ無し)→プレイ。
-  if (!guestName) return <NameGate onEnter={setGuestName} />;
-  if (!gameKey) return <Lobby auth={auth} displayName={guestName} onJoin={setGameKey} />;
-  return <GameScreen displayName={guestName} gameKey={gameKey} />;
+  // Supabase未設定のローカル/ゲストモード: 同じオンボーディングを通す(名前+アバター必須)。
+  if (!guest || editingProfile) {
+    return (
+      <Onboarding
+        title={guest ? "プロフィールを編集" : "プロフィールを設定"}
+        initialName={guest?.name ?? ""}
+        initialAvatarKey={guest?.avatarKey ?? null}
+        submitLabel={guest ? "保存する" : "はじめる"}
+        onSubmit={(params) => {
+          setGuest({ name: params.displayName, avatarKey: params.avatarKey });
+          setEditingProfile(false);
+        }}
+        onCancel={guest ? () => setEditingProfile(false) : undefined}
+      />
+    );
+  }
+
+  if (gameKey) {
+    return (
+      <GameScreen
+        displayName={guest.name}
+        avatarKey={guest.avatarKey}
+        gameKey={gameKey}
+        onExit={() => setGameKey(null)}
+      />
+    );
+  }
+
+  return (
+    <Lobby
+      displayName={guest.name}
+      avatarKey={guest.avatarKey}
+      onJoin={setGameKey}
+      onEditProfile={() => setEditingProfile(true)}
+    />
+  );
 }

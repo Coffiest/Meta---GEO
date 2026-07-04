@@ -12,6 +12,8 @@ export interface HandEndedPayload {
     wonByFold: boolean;
   };
   holeCards: Record<number, string[]>;
+  /** MTTのとき: トーナメント全体の残り人数 */
+  remainingPlayers?: number;
 }
 
 export interface LevelInfo {
@@ -35,6 +37,24 @@ export interface SeatAction {
   toAmount: number;
 }
 
+export interface SeatPlayerInfo {
+  displayName: string;
+  avatarKey: string | null;
+  isBot: boolean;
+}
+
+export interface TurnTimerInfo {
+  seatIndex: number;
+  endsAt: number;
+  durationMs: number;
+}
+
+export interface TournamentOverInfo {
+  winnerPlayerId: string | null;
+  yourFinishPosition: number | null;
+  yourPayout: number;
+}
+
 export interface PokerSocketState {
   connected: boolean;
   spectating: boolean;
@@ -43,14 +63,18 @@ export interface PokerSocketState {
   yourCards: string[];
   lastHandEnded: HandEndedPayload | null;
   level: LevelInfo | null;
-  tournamentOver: { winnerPlayerId: string | null } | null;
+  /** 現在のブラインドレベルが終わる時刻(ms epoch)。次レベルまでのカウントダウン表示用。 */
+  levelEndsAt: number | null;
+  tournamentOver: TournamentOverInfo | null;
   actionError: string | null;
-  players: Record<number, string>;
+  players: Record<number, SeatPlayerInfo>;
   handHistory: HandHistoryEntry[];
-  /** 今のストリートで各座席が最後に行ったアクション(街が変わる/新ハンドが始まると消える) */
+  /** ハンド中の各座席の最後のアクション(新しいハンドが始まるまで表示し続ける) */
   lastActionBySeat: Record<number, SeatAction>;
   /** 直近に終わったハンドの、座席ごとの収支(次のハンドの最初のstateが来るまで表示用に保持) */
   lastHandDeltaBySeat: Record<number, number> | null;
+  /** アクティブ席の持ち時間(アバター周囲のリング表示用) */
+  turnTimer: TurnTimerInfo | null;
   /** ゲーム参加(joinGame)が失敗した場合のエラーメッセージ */
   joinError: string | null;
 }
@@ -92,12 +116,13 @@ export type GameKey = "sng" | "mtt";
 
 export interface PokerSocketParams {
   displayName: string;
+  avatarKey: string | null;
   gameKey: GameKey;
   /** Supabase Authのアクセストークン。未ログイン(ゲストモード)ならundefined。 */
   accessToken?: string;
 }
 
-export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocketParams) {
+export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
@@ -107,18 +132,20 @@ export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocke
     yourCards: [],
     lastHandEnded: null,
     level: null,
+    levelEndsAt: null,
     tournamentOver: null,
     actionError: null,
     players: {},
     handHistory: [],
     lastActionBySeat: {},
     lastHandDeltaBySeat: null,
+    turnTimer: null,
     joinError: null,
   });
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
-      auth: { displayName, accessToken },
+      auth: { displayName, avatarKey, accessToken },
       transports: ["websocket", "polling"],
     });
     socketRef.current = socket;
@@ -131,17 +158,23 @@ export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocke
     socket.on("joinGameError", (payload: { message: string }) =>
       setData((d) => ({ ...d, joinError: payload.message })),
     );
-    socket.on("spectating", () => setData((d) => ({ ...d, spectating: true })));
     socket.on("state", (state: PublicHandState) =>
       setData((d) => {
         const prev = d.state;
-        const isNewHandOrStreet = !prev || prev.isComplete || prev.board.length !== state.board.length;
-        const lastActionBySeat = isNewHandOrStreet ? {} : diffSeatActions(prev, state);
+        // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
+        const isNewHand = !prev || prev.isComplete || state.board.length < prev.board.length;
+        // アクションバッジはハンド中ずっと表示し続ける。ストリートが変わった瞬間の
+        // streetContributionリセットを誤検知しないよう、同一ストリート内でのみ差分を取る。
+        const lastActionBySeat = isNewHand
+          ? {}
+          : prev.street !== state.street
+            ? d.lastActionBySeat
+            : { ...d.lastActionBySeat, ...diffSeatActions(prev, state) };
         return {
           ...d,
           state,
-          lastHandEnded: null,
-          lastHandDeltaBySeat: null,
+          lastHandEnded: isNewHand ? null : d.lastHandEnded,
+          lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
           actionError: null,
           lastActionBySeat,
         };
@@ -150,12 +183,20 @@ export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocke
     socket.on("yourCards", (payload: { seatIndex: number; cards: string[] }) =>
       setData((d) => ({ ...d, yourSeatIndex: payload.seatIndex, yourCards: payload.cards })),
     );
-    socket.on("players", (payload: { players: { seatIndex: number; displayName: string }[] }) =>
-      setData((d) => ({
-        ...d,
-        players: Object.fromEntries(payload.players.map((p) => [p.seatIndex, p.displayName])),
-      })),
+    socket.on(
+      "players",
+      (payload: { players: { seatIndex: number; displayName: string; avatarKey?: string | null; isBot?: boolean }[] }) =>
+        setData((d) => ({
+          ...d,
+          players: Object.fromEntries(
+            payload.players.map((p) => [
+              p.seatIndex,
+              { displayName: p.displayName, avatarKey: p.avatarKey ?? null, isBot: p.isBot ?? false },
+            ]),
+          ),
+        })),
     );
+    socket.on("turnTimer", (payload: TurnTimerInfo) => setData((d) => ({ ...d, turnTimer: payload })));
     socket.on("handEnded", (payload: HandEndedPayload) =>
       setData((d) => {
         if (!d.state) return { ...d, lastHandEnded: payload };
@@ -176,8 +217,10 @@ export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocke
         return { ...d, lastHandEnded: payload, lastHandDeltaBySeat, handHistory };
       }),
     );
-    socket.on("levelUp", (payload: { level: LevelInfo }) => setData((d) => ({ ...d, level: payload.level })));
-    socket.on("tournamentOver", (payload: { winnerPlayerId: string | null }) =>
+    socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
+      setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
+    );
+    socket.on("tournamentOver", (payload: TournamentOverInfo) =>
       setData((d) => ({ ...d, tournamentOver: payload })),
     );
     socket.on("actionError", (payload: { message: string }) =>
@@ -187,11 +230,16 @@ export function usePokerSocket({ displayName, gameKey, accessToken }: PokerSocke
     return () => {
       socket.disconnect();
     };
-  }, [displayName, gameKey, accessToken]);
+  }, [displayName, avatarKey, gameKey, accessToken]);
 
   const sendAction = useCallback((action: PlayerAction) => {
     socketRef.current?.emit("action", action);
   }, []);
 
-  return { ...data, sendAction };
+  /** チップを破棄してゲームから離脱する。 */
+  const leaveGame = useCallback(() => {
+    socketRef.current?.emit("leaveGame");
+  }, []);
+
+  return { ...data, sendAction, leaveGame };
 }

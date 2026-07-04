@@ -17,6 +17,10 @@ model User {
   authId      String?  @unique
   email       String?  @unique
   displayName String
+  /// プリセットアバターのキー(apps/web側の定義と対応)。未選択はnull。
+  avatarKey   String?
+  /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
+  onboarded   Boolean  @default(false)
   isBot       Boolean  @default(false)
   createdAt   DateTime @default(now())
 
