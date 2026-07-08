@@ -1,45 +1,59 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import {
-  HandEngine,
-  MultiTableTournament,
-  cardToString,
-  type Card,
-  type PlayerAction,
-} from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, computePayoutStructure } from "@meta-geo/db";
+import { HandEngine, MultiTableTournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
+import { prisma, recordHand, recordBuyIn, recordPayout, computeMttPrizeStructure, type PayoutPlace } from "@meta-geo/db";
 import { decideBotAction } from "./bot.js";
-import { ACTION_CLOCK_MS, ensureBotUsers, type GameSession } from "./gameServer.js";
+import {
+  ACTION_CLOCK_MS,
+  TIME_BANK_EXTENSION_MS,
+  MTT_TIME_BANK_CARDS,
+  ensureBotUsers,
+  runoutRevealDelayMs,
+  type HumanPlayer,
+  type GameSession,
+} from "./gameServer.js";
+import { computeRevealedSeats } from "./showdown.js";
 
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3000;
-const FAST_DELAY_MS = 15;
+const FAST_DELAY_MS = 20;
+export const MTT_MIN_PLAYERS_TO_START = 4;
+export const MTT_TABLE_SEAT_COUNT = 6;
+export const MTT_BUY_IN = 2000;
 
 interface PlayerInfo {
-  readonly userId: string;
-  readonly displayName: string;
-  readonly avatarKey: string | null;
-  readonly isBot: boolean;
+  userId: string;
+  displayName: string;
+  avatarKey: string | null;
+  isBot: boolean;
 }
 
-export interface MttSessionConfig {
-  readonly io: Server;
-  readonly buyIn: number;
-  readonly tableSeatCount: number;
-  readonly fieldSize: number;
-  readonly humanUserId: string;
-  readonly humanDisplayName: string;
-  readonly humanAvatarKey: string | null;
+interface HumanEntry {
+  userId: string;
+  displayName: string;
+  avatarKey: string | null;
+  socket: Socket | null;
+  timeBankCards: number;
+  timeBankArmed: boolean;
+  left: boolean;
+  done: boolean;
+  disconnectTimer: ReturnType<typeof setTimeout> | null;
+  currentTableId: number | null;
 }
 
 /**
- * MTT(複数テーブル)セッション。MultiTableTournamentエンジンに複数卓の進行・テーブル
- * バランシング・共有ブラインドクロックを委譲し、このクラスはソケット入出力とBOT駆動を担う。
+ * MTT(複数テーブル・レイトレジ対応)セッション。
  *
- * 進行はロックステップ方式: 全体で同時に1ハンドだけをアクティブにし、卓をローテーションしながら
- * 1ハンドずつ消化する。人間が座っている卓のハンドは通常速度の対話進行、BOTのみの卓のハンドは
- * 同期的に瞬時消化する。これにより「ハンドとハンドの間でのみバランシングする」というエンジンの
- * 前提が常に守られる(卓をまたぐチップ整合性が壊れない)。
+ * 仕組み:
+ *  - 4人登録された時点で開始する。以降はレジストレーションクローズ(closeRegistration)まで
+ *    誰でも途中参加(レイトレジ)できる。人数上限は無い。
+ *  - レジクロ時点までの総エントリー数でプライズプールとペイアウト構造(WSOP準拠)を確定する。
+ *    レジクロ後に参加していたプレイヤーがバストしていても、そのプレイヤーの着順は
+ *    バスト順(=通常のトーナメント順位)としてそのまま有効。
+ *  - 進行はロックステップ方式: 全体で同時に1ハンドだけをアクティブにし、卓を順番に回して
+ *    1ハンドずつ消化する。誰かが着席している卓は対話的なペースで進行し、BOTのみの卓は
+ *    瞬時に消化する。これによりハンド間だけで卓のバランシングが起きるというエンジンの
+ *    前提を壊さず、複数の人間プレイヤーが別々の卓に同時に座っていても安全に進行できる。
  */
 export class MttSession implements GameSession {
   private mtt: MultiTableTournament | null = null;
@@ -47,149 +61,222 @@ export class MttSession implements GameSession {
   private activeTableId: number | null = null;
   private dbTournamentId: string | null = null;
   private readonly playersById = new Map<string, PlayerInfo>();
-  private humanSocket: Socket | null = null;
+  private readonly humans = new Map<string, HumanEntry>();
+  private pendingRegistrants: HumanPlayer[] = [];
+  private started = false;
+  private registrationClosed = false;
   private finished = false;
-  private humanDone = false;
-  private humanLeft = false;
-  private humanResultRecorded = false;
+  private entryCount = 0;
+  private prizeStructure: PayoutPlace[] = [];
   private bustedOrder: string[] = [];
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
-  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private levelEndsAt = 0;
   private tableRotation = 0;
   private acceleratedHands = 0;
 
   private readonly io: Server;
-  readonly buyIn: number;
-  private readonly tableSeatCount: number;
-  private readonly fieldSize: number;
-  private readonly humanUserId: string;
-  private readonly roomId = `mtt:${randomUUID()}`;
+  readonly buyIn = MTT_BUY_IN;
+  private readonly roomPrefix: string;
 
-  constructor(config: MttSessionConfig) {
-    this.io = config.io;
-    this.buyIn = config.buyIn;
-    this.tableSeatCount = config.tableSeatCount;
-    this.fieldSize = config.fieldSize;
-    this.humanUserId = config.humanUserId;
-    this.playersById.set(config.humanUserId, {
-      userId: config.humanUserId,
-      displayName: config.humanDisplayName,
-      avatarKey: config.humanAvatarKey,
-      isBot: false,
-    });
+  constructor(io: Server) {
+    this.io = io;
+    this.roomPrefix = `mtt:${randomUUID()}`;
+  }
+
+  private tableRoom(tableId: number): string {
+    return `${this.roomPrefix}:t${tableId}`;
   }
 
   isFinished(): boolean {
     return this.finished;
   }
 
-  isHumanDone(): boolean {
-    return this.humanDone || this.finished;
+  isRegistrationOpen(): boolean {
+    return !this.registrationClosed;
   }
 
-  async start(): Promise<void> {
-    const botUsers = await ensureBotUsers(this.fieldSize - 1);
-    for (const b of botUsers) {
-      this.playersById.set(b.id, { userId: b.id, displayName: b.displayName, avatarKey: b.avatarKey, isBot: true });
+  entryCount_(): number {
+    return this.entryCount;
+  }
+
+  isUserDone(userId: string): boolean {
+    if (this.finished) return true;
+    const h = this.humans.get(userId);
+    return h ? h.done || h.left : false;
+  }
+
+  hasUser(userId: string): boolean {
+    return this.humans.has(userId) || this.pendingRegistrants.some((p) => p.userId === userId);
+  }
+
+  /** 参加登録。4人未満なら開始待ち(pending)、開始後はレイトレジとして即着席する。 */
+  async register(player: HumanPlayer, socket: Socket): Promise<void> {
+    if (this.humans.has(player.userId)) {
+      this.attachHuman(socket, player.userId);
+      return;
+    }
+    if (this.registrationClosed) throw new Error("このトーナメントは登録を締め切りました");
+
+    this.entryCount += 1;
+    this.humans.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      avatarKey: player.avatarKey,
+      socket,
+      timeBankCards: MTT_TIME_BANK_CARDS,
+      timeBankArmed: false,
+      left: false,
+      done: false,
+      disconnectTimer: null,
+      currentTableId: null,
+    });
+    this.playersById.set(player.userId, { ...player, isBot: false });
+    this.wireHumanSocket(socket, player.userId);
+
+    if (!this.started) {
+      this.pendingRegistrants.push(player);
+      if (!this.dbTournamentId) await this.ensureDbTournament();
+      await recordBuyIn({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: this.buyIn });
+      socket.emit("mttWaiting", { registered: this.pendingRegistrants.length, needed: MTT_MIN_PLAYERS_TO_START });
+      if (this.pendingRegistrants.length >= MTT_MIN_PLAYERS_TO_START) {
+        await this.beginTournament();
+      }
+      return;
+    }
+
+    // レイトレジ: 既に進行中のトーナメントへ開始スタックで途中参加
+    const assignment = this.mtt!.registerLatePlayer({ playerId: player.userId, displayName: player.displayName });
+    this.humans.get(player.userId)!.currentTableId = assignment.tableId;
+    void socket.join(this.tableRoom(assignment.tableId));
+    await prisma.tournamentEntry.create({
+      data: { tournamentId: this.dbTournamentId!, userId: player.userId, seatIndex: this.entryCount - 1 },
+    });
+    await recordBuyIn({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: this.buyIn });
+    this.emitPlayersForTable(assignment.tableId);
+  }
+
+  private async ensureDbTournament(): Promise<void> {
+    if (this.dbTournamentId) return;
+    const dbTournament = await prisma.tournament.create({
+      data: { seatCount: MTT_TABLE_SEAT_COUNT, startingStack: 20_000, status: "running", gameType: "mtt", buyIn: this.buyIn },
+    });
+    this.dbTournamentId = dbTournament.id;
+  }
+
+  private async beginTournament(): Promise<void> {
+    this.started = true;
+    for (const p of this.pendingRegistrants) {
+      const botCheck = this.playersById.get(p.userId);
+      if (botCheck) botCheck.isBot = false;
     }
 
     this.mtt = new MultiTableTournament({
-      tableSeatCount: this.tableSeatCount,
-      players: [...this.playersById.values()].map((p) => ({ playerId: p.userId, displayName: p.displayName })),
+      tableSeatCount: MTT_TABLE_SEAT_COUNT,
+      players: this.pendingRegistrants.map((p) => ({ playerId: p.userId, displayName: p.displayName })),
     });
 
-    const dbTournament = await prisma.tournament.create({
-      data: {
-        seatCount: this.tableSeatCount,
-        startingStack: 20_000,
-        status: "running",
-        gameType: "mtt",
-        buyIn: this.buyIn,
-      },
-    });
-    this.dbTournamentId = dbTournament.id;
     await prisma.tournamentEntry.createMany({
-      data: [...this.playersById.values()].map((p, i) => ({
-        tournamentId: dbTournament.id,
-        userId: p.userId,
-        // MTTでは席は卓をまたいで変動するため、エントリーの席番号は登録順の通し番号にする
-        seatIndex: i,
-      })),
+      data: this.pendingRegistrants.map((p, i) => ({ tournamentId: this.dbTournamentId!, userId: p.userId, seatIndex: i })),
     });
 
-    if (this.buyIn > 0) {
-      await recordBuyIn({ userId: this.humanUserId, tournamentId: dbTournament.id, amount: this.buyIn });
-    }
-
+    this.syncHumanTables();
     this.scheduleLevelAdvance();
     this.pump();
   }
 
-  attachHuman(socket: Socket): void {
-    this.humanSocket = socket;
-    if (this.disconnectTimer) {
-      clearTimeout(this.disconnectTimer);
-      this.disconnectTimer = null;
+  attachHuman(socket: Socket, userId: string): void {
+    const human = this.humans.get(userId);
+    if (!human) return;
+    human.socket = socket;
+    if (human.disconnectTimer) {
+      clearTimeout(human.disconnectTimer);
+      human.disconnectTimer = null;
     }
-    void socket.join(this.roomId);
-    socket.on("action", (action: PlayerAction) => {
-      const seatIndex = this.humanSeatOnActiveTable();
-      if (seatIndex !== null) this.handleAction(seatIndex, action);
-    });
-    socket.on("disconnect", () => {
-      if (this.humanSocket !== socket) return;
-      this.humanSocket = null;
-      // 再接続されないまま60秒経ったら離脱扱いにする
-      this.disconnectTimer = setTimeout(() => {
-        if (!this.humanSocket) this.leave();
-      }, 60_000);
-    });
+    this.wireHumanSocket(socket, userId);
+    if (human.currentTableId !== null) void socket.join(this.tableRoom(human.currentTableId));
 
-    this.emitPlayers(socket);
-    this.broadcastLevel(socket);
-    this.sendStateTo(socket);
-    this.sendYourCards();
+    if (!this.started) {
+      socket.emit("mttWaiting", { registered: this.pendingRegistrants.length, needed: MTT_MIN_PLAYERS_TO_START });
+      return;
+    }
+    if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+    socket.emit("levelUp", { level: this.mtt!.getCurrentLevel(), endsAt: this.levelEndsAt });
+    socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
+    if (this.hand && human.currentTableId === this.activeTableId) {
+      socket.emit("state", this.hand.getPublicState());
+      const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex !== null) socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+    }
   }
 
-  leave(): void {
-    if (this.humanLeft || this.finished) return;
-    this.humanLeft = true;
-    const seatIndex = this.humanSeatOnActiveTable();
-    if (this.hand && !this.hand.isHandComplete() && seatIndex !== null && this.hand.getActingSeatIndex() === seatIndex) {
-      this.handleAction(seatIndex, { kind: "fold" });
+  private wireHumanSocket(socket: Socket, userId: string): void {
+    socket.removeAllListeners("action");
+    socket.removeAllListeners("timeBankArm");
+    socket.on("action", (action: PlayerAction) => {
+      const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex !== null) this.handleAction(seatIndex, action);
+    });
+    socket.on("timeBankArm", (payload: { armed?: boolean }) => {
+      const human = this.humans.get(userId);
+      if (human) human.timeBankArmed = Boolean(payload?.armed);
+    });
+    socket.on("disconnect", () => {
+      const human = this.humans.get(userId);
+      if (!human || human.socket !== socket) return;
+      human.socket = null;
+      human.disconnectTimer = setTimeout(() => {
+        if (!human.socket) this.leave(userId);
+      }, 60_000);
+    });
+  }
+
+  leave(userId: string): void {
+    const human = this.humans.get(userId);
+    if (!human || this.finished || human.left) return;
+    human.left = true;
+    if (this.hand && human.currentTableId === this.activeTableId) {
+      const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex !== null && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
+        this.handleAction(seatIndex, { kind: "fold" });
+      }
     }
   }
 
   // --- テーブル/席のヘルパー ---
 
-  private humanTableId(): number | null {
-    const mtt = this.mtt;
-    if (!mtt) return null;
-    for (const tableId of mtt.getTableIds()) {
-      if (mtt.getTableOccupancy(tableId).some((o) => o.playerId === this.humanUserId)) return tableId;
-    }
-    return null;
-  }
-
-  private humanSeatOnActiveTable(): number | null {
-    const mtt = this.mtt;
-    if (!mtt || this.activeTableId === null) return null;
-    const occupant = mtt.getTableOccupancy(this.activeTableId).find((o) => o.playerId === this.humanUserId);
+  private seatIndexOf(userId: string): number | null {
+    const human = this.humans.get(userId);
+    if (!human || human.currentTableId === null || !this.mtt) return null;
+    const occupant = this.mtt.getTableOccupancy(human.currentTableId).find((o) => o.playerId === userId);
     return occupant?.seatIndex ?? null;
   }
 
-  private isHumanActiveTable(): boolean {
-    return this.activeTableId !== null && this.activeTableId === this.humanTableId();
+  /** 全人間の現在の卓IDを実際のエンジン状態と同期し、必要ならソケットのルームを移動する。 */
+  private syncHumanTables(): void {
+    if (!this.mtt) return;
+    for (const tableId of this.mtt.getTableIds()) {
+      for (const occ of this.mtt.getTableOccupancy(tableId)) {
+        const human = this.humans.get(occ.playerId);
+        if (!human) continue;
+        if (human.currentTableId !== tableId) {
+          if (human.socket && human.currentTableId !== null) void human.socket.leave(this.tableRoom(human.currentTableId));
+          human.currentTableId = tableId;
+          if (human.socket) void human.socket.join(this.tableRoom(tableId));
+          this.emitPlayersForTable(tableId);
+        }
+      }
+    }
   }
 
-  private isAccelerated(): boolean {
-    return this.humanLeft || this.humanDone;
+  private tableHasHuman(tableId: number): boolean {
+    for (const human of this.humans.values()) {
+      if (human.currentTableId === tableId && !human.left && !human.done) return true;
+    }
+    return false;
   }
 
   // --- 進行のメインループ ---
 
-  /** 次にハンドを回す卓を決めて開始する。人間卓は対話進行、BOT卓は瞬時消化。 */
   private pump(): void {
     const mtt = this.mtt;
     if (!mtt || this.finished) return;
@@ -209,18 +296,17 @@ export class MttSession implements GameSession {
     this.activeTableId = tableId;
     this.hand = mtt.startNextHandOnTable(tableId);
 
-    const humanHere = tableId === this.humanTableId() && !this.humanLeft && !this.humanDone;
-    if (humanHere) {
-      this.emitPlayers();
+    if (this.tableHasHuman(tableId)) {
+      this.emitPlayersForTable(tableId);
       this.broadcastState();
-      this.sendYourCards();
+      this.sendYourCardsForTable(tableId);
       this.scheduleTurn();
     } else {
       this.driveInstantHand();
     }
   }
 
-  /** BOTのみ(または人間離脱後)のハンドを同期的に最後まで消化する。 */
+  /** BOTのみ(または全員離脱済み)の卓のハンドを同期的に最後まで消化する。 */
   private driveInstantHand(): void {
     const hand = this.hand;
     if (!hand) return;
@@ -229,10 +315,9 @@ export class MttSession implements GameSession {
       const acting = hand.getActingSeatIndex();
       if (acting === null) break;
       const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === acting)?.playerId;
-      const info = playerId ? this.playersById.get(playerId) : undefined;
-      const isHuman = info ? !info.isBot : false;
+      const human = playerId ? this.humans.get(playerId) : undefined;
       try {
-        hand.applyAction(acting, isHuman ? { kind: "fold" } : this.computeBotAction(acting));
+        hand.applyAction(acting, human ? { kind: "fold" } : this.computeBotAction(acting));
       } catch {
         hand.applyAction(acting, { kind: "fold" });
       }
@@ -244,21 +329,24 @@ export class MttSession implements GameSession {
     const hand = this.hand;
     if (!hand || hand.isHandComplete()) return;
     if (hand.getActingSeatIndex() !== seatIndex) return;
+    const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === seatIndex)?.playerId;
+    const human = playerId ? this.humans.get(playerId) : undefined;
+    const boardLenBefore = hand.getPublicState().board.length;
     try {
       hand.applyAction(seatIndex, action);
     } catch (err) {
-      const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === seatIndex)?.playerId;
-      const isBot = playerId ? (this.playersById.get(playerId)?.isBot ?? true) : true;
-      if (isBot || this.humanLeft) {
+      if (!human || human.left) {
         hand.applyAction(seatIndex, { kind: "fold" });
       } else {
-        this.humanSocket?.emit("actionError", { message: (err as Error).message });
+        human.socket?.emit("actionError", { message: (err as Error).message });
         return;
       }
     }
-    if (this.isHumanActiveTable()) this.broadcastState();
+    if (this.tableHasHuman(this.activeTableId!)) this.broadcastState();
     if (hand.isHandComplete()) {
-      void this.finishHand();
+      const delay = runoutRevealDelayMs(boardLenBefore, hand.getPublicState().board.length);
+      if (delay > 0) setTimeout(() => void this.finishHand(), delay);
+      else void this.finishHand();
     } else {
       this.scheduleTurn();
     }
@@ -274,27 +362,46 @@ export class MttSession implements GameSession {
     const actingSeat = hand.getActingSeatIndex();
     if (actingSeat === null) return;
     const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === actingSeat)?.playerId;
-    const info = playerId ? this.playersById.get(playerId) : undefined;
-    if (!info) return;
+    const human = playerId ? this.humans.get(playerId) : undefined;
 
-    if (info.isBot || this.humanLeft) {
-      const delay = this.isAccelerated() ? FAST_DELAY_MS : BOT_ACTION_DELAY_MS;
+    if (!human) {
+      const delay = this.tableHasHuman(this.activeTableId!) ? BOT_ACTION_DELAY_MS : FAST_DELAY_MS;
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handleAction(actingSeat, info.isBot ? this.computeBotAction(actingSeat) : { kind: "fold" });
+        this.handleAction(actingSeat, this.computeBotAction(actingSeat));
       }, delay);
       return;
     }
 
-    const endsAt = Date.now() + ACTION_CLOCK_MS;
-    this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs: ACTION_CLOCK_MS });
+    if (human.left) {
+      this.turnTimer = setTimeout(() => {
+        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+        this.handleAction(actingSeat, { kind: "fold" });
+      }, FAST_DELAY_MS);
+      return;
+    }
+
+    this.armHumanClock(actingSeat, human, ACTION_CLOCK_MS);
+  }
+
+  private armHumanClock(actingSeat: number, human: HumanEntry, durationMs: number): void {
+    const endsAt = Date.now() + durationMs;
+    this.io.to(this.tableRoom(this.activeTableId!)).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs });
     this.turnTimer = setTimeout(() => {
       const current = this.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;
+
+      if (human.timeBankArmed && human.timeBankCards > 0 && !human.left) {
+        human.timeBankCards -= 1;
+        human.socket?.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed, consumed: true });
+        this.armHumanClock(actingSeat, human, TIME_BANK_EXTENSION_MS);
+        return;
+      }
+
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
       this.handleAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
-    }, ACTION_CLOCK_MS);
+    }, durationMs);
   }
 
   private computeBotAction(seatIndex: number): PlayerAction {
@@ -323,7 +430,7 @@ export class MttSession implements GameSession {
     if (!mtt || !hand || tableId === null || !this.dbTournamentId) return;
 
     const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted");
-    const wasHumanTable = this.isHumanActiveTable();
+    const tableHadHuman = this.tableHasHuman(tableId);
 
     if (started && started.type === "handStarted") {
       const occupancy = mtt.getTableOccupancy(tableId);
@@ -345,67 +452,78 @@ export class MttSession implements GameSession {
       }).catch((err) => console.error("[mtt] recordHand failed:", err));
     }
 
-    mtt.settleFinishedHandOnTable(tableId, hand);
-    const settled = [...mtt.getEvents()].reverse().find((e) => e.type === "handFinished");
-    if (settled && settled.type === "handFinished") {
-      this.bustedOrder.push(...settled.bustedPlayerIds);
-    }
-
-    if (wasHumanTable) {
-      this.io.to(this.roomId).emit("handEnded", {
+    if (tableHadHuman) {
+      const revealedSeats = computeRevealedSeats(hand);
+      const revealedHoleCards = Object.fromEntries(
+        [...hand.getAllHoleCards()].filter(([seat]) => revealedSeats.has(seat)).map(([seat, cards]) => [seat, cards.map(cardToString)]),
+      );
+      this.io.to(this.tableRoom(tableId)).emit("handEnded", {
         result: this.serializeResult(hand),
-        holeCards: Object.fromEntries([...hand.getAllHoleCards()].map(([seat, cards]) => [seat, cards.map(cardToString)])),
+        holeCards: revealedHoleCards,
         remainingPlayers: mtt.totalRemainingPlayers(),
       });
     }
 
+    mtt.settleFinishedHandOnTable(tableId, hand);
+    const settled = [...mtt.getEvents()].reverse().find((e) => e.type === "handFinished");
+    if (settled && settled.type === "handFinished") {
+      this.bustedOrder.push(...settled.bustedPlayerIds);
+      for (const playerId of settled.bustedPlayerIds) {
+        const human = this.humans.get(playerId);
+        if (human && !human.done) await this.recordHumanFinish(human);
+      }
+    }
+
     this.hand = null;
     this.activeTableId = null;
-
-    if (!this.humanDone && this.bustedOrder.includes(this.humanUserId)) {
-      await this.recordHumanFinish();
-    }
+    this.syncHumanTables();
 
     if (mtt.isTournamentOver()) {
       void this.finishTournament();
       return;
     }
 
-    // 高速消化モードではブラインドクロック(実時間)を待たず、一定ハンドごとにレベルを
-    // 強制的に上げてBOT同士の消化を必ず収束させる。
-    if (this.isAccelerated()) {
+    const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
+    if (!anyoneActive) {
       this.acceleratedHands += 1;
       if (this.acceleratedHands % 10 === 0) mtt.advanceToNextLevel();
     }
 
-    const delay = wasHumanTable && !this.isAccelerated() ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
+    const delay = tableHadHuman && anyoneActive ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
     setTimeout(() => this.pump(), delay);
+  }
+
+  /** レジクロ(登録締切)。以降は新規登録・レイトレジを受け付けず、確定エントリー数でプライズを固定する。 */
+  closeRegistration(): void {
+    if (this.registrationClosed) return;
+    this.registrationClosed = true;
+    this.prizeStructure = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn).places;
   }
 
   private placeOf(playerId: string): number {
     const bustIndex = this.bustedOrder.indexOf(playerId);
     if (bustIndex === -1) return 1; // 未バスト = 優勝
-    return this.fieldSize - bustIndex;
+    return this.entryCount - bustIndex;
   }
 
-  private async recordHumanFinish(): Promise<void> {
-    if (this.humanResultRecorded || !this.dbTournamentId) return;
-    this.humanResultRecorded = true;
-    this.humanDone = true;
+  private async recordHumanFinish(human: HumanEntry): Promise<void> {
+    if (human.done || !this.dbTournamentId) return;
+    human.done = true;
+    if (!this.registrationClosed) this.closeRegistration();
 
-    const place = this.placeOf(this.humanUserId);
-    const payout = computePayoutStructure(this.fieldSize, this.buyIn).find((p) => p.place === place)?.amount ?? 0;
+    const place = this.placeOf(human.userId);
+    const payout = this.prizeStructure.find((p) => p.place === place)?.amount ?? 0;
 
     await prisma.tournamentEntry.updateMany({
-      where: { tournamentId: this.dbTournamentId, userId: this.humanUserId },
+      where: { tournamentId: this.dbTournamentId, userId: human.userId },
       data: { finishPosition: place, payout },
     });
     if (payout > 0) {
-      await recordPayout({ userId: this.humanUserId, tournamentId: this.dbTournamentId, amount: payout });
+      await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
     }
 
-    this.io.to(this.roomId).emit("tournamentOver", {
-      winnerPlayerId: place === 1 ? this.humanUserId : null,
+    human.socket?.emit("tournamentOver", {
+      winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
     });
@@ -416,15 +534,16 @@ export class MttSession implements GameSession {
     if (!mtt || !this.dbTournamentId || this.finished) return;
     this.finished = true;
     if (this.turnTimer) clearTimeout(this.turnTimer);
+    if (!this.registrationClosed) this.closeRegistration();
 
-    if (!this.humanResultRecorded) {
-      await this.recordHumanFinish();
+    for (const human of this.humans.values()) {
+      if (!human.done) await this.recordHumanFinish(human);
     }
 
-    const payoutByPlace = new Map(computePayoutStructure(this.fieldSize, this.buyIn).map((p) => [p.place, p.amount]));
+    const payoutByPlace = new Map(this.prizeStructure.map((p) => [p.place, p.amount]));
     await Promise.all(
       [...this.playersById.values()]
-        .filter((p) => p.userId !== this.humanUserId)
+        .filter((p) => !this.humans.has(p.userId))
         .map(async (p) => {
           const place = this.placeOf(p.userId);
           await prisma.tournamentEntry.updateMany({
@@ -442,19 +561,12 @@ export class MttSession implements GameSession {
 
   // --- ブラインドクロック ---
 
-  private broadcastLevel(target?: Socket): void {
-    const mtt = this.mtt;
-    if (!mtt) return;
-    const payload = { level: mtt.getCurrentLevel(), endsAt: this.levelEndsAt };
-    (target ?? this.io.to(this.roomId)).emit("levelUp", payload);
-  }
-
   private scheduleLevelAdvance(): void {
     const mtt = this.mtt;
     if (!mtt) return;
     const level = mtt.getCurrentLevel();
     this.levelEndsAt = Date.now() + level.durationMinutes * 60_000;
-    this.broadcastLevel();
+    this.io.to([...this.mtt!.getTableIds()].map((id) => this.tableRoom(id))).emit("levelUp", { level, endsAt: this.levelEndsAt });
     setTimeout(() => {
       if (!this.mtt || this.mtt.isTournamentOver() || this.finished) return;
       this.mtt.advanceToNextLevel();
@@ -464,10 +576,9 @@ export class MttSession implements GameSession {
 
   // --- 出力 ---
 
-  private emitPlayers(target?: Socket): void {
+  private emitPlayersForTable(tableId: number): void {
     const mtt = this.mtt;
-    const tableId = this.humanTableId();
-    if (!mtt || tableId === null) return;
+    if (!mtt) return;
     const players = mtt.getTableOccupancy(tableId).map((o) => {
       const info = this.playersById.get(o.playerId);
       return {
@@ -477,24 +588,22 @@ export class MttSession implements GameSession {
         isBot: info?.isBot ?? true,
       };
     });
-    (target ?? this.io.to(this.roomId)).emit("players", { players });
+    this.io.to(this.tableRoom(tableId)).emit("players", { players });
   }
 
   private broadcastState(): void {
+    if (!this.hand || this.activeTableId === null) return;
+    this.io.to(this.tableRoom(this.activeTableId)).emit("state", this.hand.getPublicState());
+  }
+
+  private sendYourCardsForTable(tableId: number): void {
     if (!this.hand) return;
-    this.io.to(this.roomId).emit("state", this.hand.getPublicState());
-  }
-
-  private sendStateTo(socket: Socket): void {
-    if (!this.hand || !this.isHumanActiveTable()) return;
-    socket.emit("state", this.hand.getPublicState());
-  }
-
-  private sendYourCards(): void {
-    const seatIndex = this.humanSeatOnActiveTable();
-    if (!this.hand || seatIndex === null || !this.humanSocket) return;
-    const cards = this.hand.getSeatHoleCards(seatIndex);
-    this.humanSocket.emit("yourCards", { seatIndex, cards: cards.map(cardToString) });
+    for (const human of this.humans.values()) {
+      if (human.currentTableId !== tableId || !human.socket) continue;
+      const seatIndex = this.seatIndexOf(human.userId);
+      if (seatIndex === null) continue;
+      human.socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+    }
   }
 
   private serializeResult(hand: HandEngine) {

@@ -4,6 +4,7 @@ import {
   getLeaderboard,
   getOrCreateUserByAuthId,
   getPlayerStats,
+  getProfitGraph,
   getUserHandHistory,
   prisma,
 } from "@meta-geo/db";
@@ -43,6 +44,8 @@ const EMPTY_STATS = {
   totalPayouts: 0,
   profit: 0,
   roi: 0,
+  nationalRank: null,
+  totalRankedPlayers: 0,
 };
 
 async function resolveDbUser(verified: VerifiedUser) {
@@ -81,9 +84,10 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       if (req.method === "POST") {
         const body = await readJsonBody(req);
         const displayName = typeof body["displayName"] === "string" ? body["displayName"].trim().slice(0, 16) : "";
-        const avatarKey = typeof body["avatarKey"] === "string" ? body["avatarKey"] : "";
-        if (!displayName || !avatarKey) {
-          sendJson(res, 400, { error: "displayNameとavatarKeyは必須です" });
+        // アイコン画像は任意(カメラロールから選んだdata URIまたはnull)。名前だけが必須。
+        const avatarKey = typeof body["avatarKey"] === "string" && body["avatarKey"].length > 0 ? body["avatarKey"] : null;
+        if (!displayName) {
+          sendJson(res, 400, { error: "表示名は必須です" });
           return true;
         }
         await completeOnboarding({ userId: user.id, displayName, avatarKey });
@@ -126,6 +130,18 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
       sendJson(res, 200, user ? await getUserHandHistory(user.id, 100) : []);
+      return true;
+    }
+
+    // 収支推移グラフ(TenFourのStatsグラフ相当)
+    if (url.pathname === "/api/lobby/profit-graph") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      sendJson(res, 200, user ? await getProfitGraph(user.id) : []);
       return true;
     }
 

@@ -22,7 +22,7 @@ export async function fetchProfile(accessToken: string): Promise<Profile | null>
 
 export async function saveProfile(
   accessToken: string,
-  params: { displayName: string; avatarKey: string },
+  params: { displayName: string; avatarKey: string | null },
 ): Promise<Profile | null> {
   const res = await fetch(`${SERVER_URL}/api/lobby/profile`, {
     method: "POST",

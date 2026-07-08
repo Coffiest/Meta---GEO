@@ -1,5 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getGeoSummaryStats, getHandDetail, getPositionalRfiStats, getRecentHands } from "@meta-geo/db";
+import {
+  getGeoSummaryStats,
+  getHandDetail,
+  getPositionalRfiStats,
+  getRangeMatrix,
+  getRecentHands,
+  type RangeScenario,
+} from "@meta-geo/db";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -45,6 +52,19 @@ export async function handleGeoApiRequest(req: IncomingMessage, res: ServerRespo
       const limit = Math.min(100, Number(url.searchParams.get("limit") ?? 20));
       const offset = Number(url.searchParams.get("offset") ?? 0);
       sendJson(res, 200, await getRecentHands(limit, offset));
+      return true;
+    }
+
+    // GTO Wizard風レンジブラウザ用: ポジション×シナリオの169ハンドクラス別頻度マトリクス
+    if (url.pathname === "/api/geo/range-matrix") {
+      const position = url.searchParams.get("position") ?? "";
+      const scenarioParam = url.searchParams.get("scenario") ?? "rfi";
+      const scenario: RangeScenario = scenarioParam === "vsOpen" ? "vsOpen" : "rfi";
+      if (!position) {
+        sendJson(res, 400, { error: "positionは必須です" });
+        return true;
+      }
+      sendJson(res, 200, await getRangeMatrix(position, scenario));
       return true;
     }
 

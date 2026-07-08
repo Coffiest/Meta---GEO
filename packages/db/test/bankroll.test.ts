@@ -1,7 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "../src/client.js";
 import {
+  SNG_PAYOUTS,
   completeOnboarding,
+  computeMttPrizeStructure,
   computePayoutStructure,
   getLeaderboard,
   getNetProfit,
@@ -11,32 +13,42 @@ import {
   recordPayout,
 } from "../src/bankroll.js";
 
-describe("computePayoutStructure (pure function)", () => {
-  it("pays the whole pool to nobody when the field is 1 or smaller", () => {
+describe("computePayoutStructure (SNG fixed prizes + MTT delegation)", () => {
+  it("pays nobody when the field is 1 or smaller", () => {
     expect(computePayoutStructure(1, 1000)).toEqual([]);
     expect(computePayoutStructure(0, 1000)).toEqual([]);
   });
 
-  it("pays 1st the most and the total equals the prize pool exactly (SnG-sized field)", () => {
+  it("SNG (<=6 players, $1000 buy-in) always pays the fixed $4,000/$2,000 prizes", () => {
     const payouts = computePayoutStructure(6, 1000);
-    expect(payouts).toHaveLength(2);
-    expect(payouts[0]!.amount).toBeGreaterThan(payouts[1]!.amount);
-    expect(payouts.reduce((sum, p) => sum + p.amount, 0)).toBe(6 * 1000);
+    expect(payouts).toEqual(SNG_PAYOUTS);
+    expect(payouts[0]!.amount).toBe(4000);
+    expect(payouts[1]!.amount).toBe(2000);
   });
+});
 
-  it("pays roughly 15% of the field for a larger (MTT-sized) field, totalling the prize pool exactly", () => {
-    const payouts = computePayoutStructure(40, 500);
-    expect(payouts).toHaveLength(6); // round(40*0.15) = 6
-    expect(payouts.reduce((sum, p) => sum + p.amount, 0)).toBe(40 * 500);
-    for (let i = 1; i < payouts.length; i++) {
-      expect(payouts[i]!.amount).toBeLessThanOrEqual(payouts[i - 1]!.amount);
+describe("computeMttPrizeStructure (WSOP-style: 93% return rate, top ~15% paid)", () => {
+  it("pays roughly 15% of the field, totalling exactly 93% of the prize pool", () => {
+    const { places, prizePool } = computeMttPrizeStructure(40, 500);
+    expect(places).toHaveLength(6); // round(40*0.15) = 6
+    expect(prizePool).toBe(Math.round((40 * 500 * 0.93) / 10) * 10);
+    expect(places.reduce((sum, p) => sum + p.amount, 0)).toBe(prizePool);
+    for (let i = 1; i < places.length; i++) {
+      expect(places[i]!.amount).toBeLessThanOrEqual(places[i - 1]!.amount);
     }
   });
 
-  it("pays at least 2 places for a 12-player MTT field", () => {
-    const payouts = computePayoutStructure(12, 2000);
-    expect(payouts.length).toBeGreaterThanOrEqual(2);
-    expect(payouts.reduce((sum, p) => sum + p.amount, 0)).toBe(12 * 2000);
+  it("pays at least 2 places for a 12-player MTT field, totalling exactly the (93%) prize pool", () => {
+    const { places, prizePool } = computeMttPrizeStructure(12, 2000);
+    expect(places.length).toBeGreaterThanOrEqual(2);
+    expect(prizePool).toBeLessThan(12 * 2000);
+    expect(places.reduce((sum, p) => sum + p.amount, 0)).toBe(prizePool);
+  });
+
+  it("nobody finishes below the minimum cash (~1.5x buy-in)", () => {
+    const { places } = computeMttPrizeStructure(60, 2000);
+    const minCash = Math.round((2000 * 1.5) / 10) * 10;
+    for (const p of places) expect(p.amount).toBeGreaterThanOrEqual(minCash);
   });
 });
 

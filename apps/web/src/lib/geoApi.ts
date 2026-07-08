@@ -52,6 +52,23 @@ export interface HandDetail {
   }[];
 }
 
+export type RangeScenario = "rfi" | "vsOpen";
+
+export interface RangeCell {
+  label: string;
+  count: number;
+  raise: number;
+  call: number;
+  fold: number;
+}
+
+export interface RangeMatrixResult {
+  position: string;
+  scenario: RangeScenario;
+  cells: RangeCell[][];
+  totalSamples: number;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${SERVER_URL}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GEO API request failed: ${path} (${res.status})`);
@@ -63,4 +80,6 @@ export const geoApi = {
   positionalRfi: (seatCount = 6) => getJson<PositionalRfiStat[]>(`/api/geo/positional-rfi?seatCount=${seatCount}`),
   hands: (limit = 20, offset = 0) => getJson<RecentHandSummary[]>(`/api/geo/hands?limit=${limit}&offset=${offset}`),
   handDetail: (id: string) => getJson<HandDetail>(`/api/geo/hands/${id}`),
+  rangeMatrix: (position: string, scenario: RangeScenario) =>
+    getJson<RangeMatrixResult>(`/api/geo/range-matrix?position=${encodeURIComponent(position)}&scenario=${scenario}`),
 };

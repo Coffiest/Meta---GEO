@@ -14,6 +14,13 @@ interface PlayerStats {
   totalPayouts: number;
   profit: number;
   roi: number;
+  nationalRank: number | null;
+  totalRankedPlayers: number;
+}
+
+interface ProfitGraphPoint {
+  handIndex: number;
+  cumulativeBb: number;
 }
 
 interface LeaderboardRow {
@@ -92,6 +99,51 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-4">{children}</div>;
 }
 
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-center gap-1 text-navy-400 -ml-1 pr-2 py-1" aria-label="ホームに戻る">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+        <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+// 収支推移(bb換算)の折れ線+エリアグラフ。依存ライブラリなしで軽量なSVGとして描画する。
+function ProfitGraph({ points }: { points: ProfitGraphPoint[] }) {
+  if (points.length < 2) {
+    return <div className="py-6 text-center text-navy-500 text-xs">グラフ表示にはもう少しハンド数が必要です。</div>;
+  }
+  const width = 300;
+  const height = 100;
+  const values = points.map((p) => p.cumulativeBb);
+  const maxV = Math.max(...values, 0);
+  const minV = Math.min(...values, 0);
+  const range = maxV - minV || 1;
+  const xStep = width / (points.length - 1);
+  const toY = (v: number) => height - ((v - minV) / range) * height;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * xStep).toFixed(1)},${toY(p.cumulativeBb).toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
+  const zeroY = toY(0);
+  const last = values[values.length - 1] ?? 0;
+  const isUp = last >= 0;
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-28" preserveAspectRatio="none">
+        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="currentColor" strokeWidth={1} className="text-navy-700" strokeDasharray="3 3" />
+        <path d={areaPath} fill={isUp ? "rgb(52 211 153 / 0.15)" : "rgb(248 113 113 / 0.15)"} stroke="none" />
+        <path d={linePath} fill="none" stroke={isUp ? "rgb(52 211 153)" : "rgb(248 113 113)"} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+      <div className="flex items-center justify-between text-[10px] text-navy-500 mt-1">
+        <span>ハンド 1</span>
+        <span className={`font-semibold tabular-nums ${signedClass(last)}`}>{formatSigned(Math.round(last * 10) / 10)}bb</span>
+        <span>ハンド {points.length}</span>
+      </div>
+    </div>
+  );
+}
+
 // --- アイコン(フッター/FEATURES共用) ---
 function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
   const paths: Record<string, React.ReactNode> = {
@@ -141,6 +193,7 @@ export function Lobby({
 }) {
   const [tab, setTab] = useState<Tab>("home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [profitGraph, setProfitGraph] = useState<ProfitGraphPoint[] | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[] | null>(null);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [structureOpen, setStructureOpen] = useState(false);
@@ -150,6 +203,10 @@ export function Lobby({
     fetch(`${SERVER_URL}/api/lobby/stats`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<PlayerStats>) : null))
       .then((json) => json && setStats(json))
+      .catch(() => {});
+    fetch(`${SERVER_URL}/api/lobby/profit-graph`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<ProfitGraphPoint[]>) : null))
+      .then((json) => json && setProfitGraph(json))
       .catch(() => {});
   }, [accessToken]);
 
@@ -286,9 +343,12 @@ export function Lobby({
 
         {tab === "stats" && (
           <SectionCard>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
-                <Icon name="stats" className="h-4 w-4" /> Stats
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1">
+                <BackButton onClick={() => setTab("home")} />
+                <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+                  <Icon name="stats" className="h-4 w-4" /> Stats
+                </div>
               </div>
               <button onClick={() => setTab("leaderboard")} className="text-navy-400" aria-label="ランキングへ">
                 <Icon name="trophy" className="h-4 w-4" />
@@ -297,6 +357,15 @@ export function Lobby({
             {accessToken ? (
               stats ? (
                 <>
+                  {stats.nationalRank != null && (
+                    <div className="flex items-center justify-center gap-1.5 rounded-xl bg-navy-800/70 py-2.5 mb-4">
+                      <Icon name="trophy" className="h-4 w-4 text-amber-400" />
+                      <span className="text-sm text-navy-200">
+                        全国 <span className="text-base font-bold text-navy-50 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
+                        {stats.totalRankedPlayers.toLocaleString()} 人中
+                      </span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-x-2 gap-y-5">
                     <div>
                       <div className="text-[11px] text-navy-400">参加トナメ数</div>
@@ -323,6 +392,16 @@ export function Lobby({
                       <div className="text-lg font-bold tabular-nums text-navy-50">{stats.totalPayouts.toLocaleString()}</div>
                     </div>
                   </div>
+
+                  <div className="mt-6">
+                    <div className="text-[11px] text-navy-400 mb-2">収支推移(bb換算)</div>
+                    {profitGraph === null ? (
+                      <div className="py-6 text-center text-navy-500 text-xs">読み込み中…</div>
+                    ) : (
+                      <ProfitGraph points={profitGraph} />
+                    )}
+                  </div>
+
                   <p className="text-[11px] text-navy-500 mt-5">
                     収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。
                   </p>
@@ -338,8 +417,11 @@ export function Lobby({
 
         {tab === "leaderboard" && (
           <SectionCard>
-            <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm mb-1">
-              <Icon name="trophy" className="h-4 w-4" /> Leaderboard
+            <div className="flex items-center gap-1 mb-1">
+              <BackButton onClick={() => setTab("home")} />
+              <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+                <Icon name="trophy" className="h-4 w-4" /> Leaderboard
+              </div>
             </div>
             <p className="text-[11px] text-navy-500 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
             {leaderboard === null ? (
@@ -380,8 +462,11 @@ export function Lobby({
 
         {tab === "history" && (
           <SectionCard>
-            <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm mb-3">
-              <Icon name="layers" className="h-4 w-4" /> Hand History
+            <div className="flex items-center gap-1 mb-3">
+              <BackButton onClick={() => setTab("home")} />
+              <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+                <Icon name="layers" className="h-4 w-4" /> Hand History
+              </div>
             </div>
             {!accessToken ? (
               <div className="py-10 text-center text-navy-400 text-sm">ハンド履歴の記録にはログインが必要です。</div>
@@ -428,6 +513,10 @@ export function Lobby({
 
         {tab === "mypage" && (
           <>
+            <div className="flex items-center gap-1 -mb-1">
+              <BackButton onClick={() => setTab("home")} />
+              <span className="text-navy-50 font-semibold text-sm">Mypage</span>
+            </div>
             <SectionCard>
               <div className="flex items-center gap-4">
                 <Avatar avatarKey={avatarKey} size={56} />

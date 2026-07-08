@@ -17,7 +17,8 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   win: "bg-mint-500 text-white",
   raise: "bg-crimson-500 text-white",
   lose: "bg-crimson-500 text-white",
-  fold: "bg-azure-500 text-white",
+  // フォールドは他のアクションに比べて目立たせる意味が無いため、控えめな地味トーンにする
+  fold: "bg-navy-700/70 text-navy-400",
 };
 
 export interface SeatViewProps {
@@ -60,7 +61,11 @@ export function Seat({
   const showCards = !isEmpty && !folded;
 
   return (
-    <div className={`flex flex-col items-center gap-1 ${size === "lg" ? "w-32" : "w-24"}`}>
+    <div
+      className={`flex flex-col items-center gap-1 transition-opacity duration-300 ${size === "lg" ? "w-32" : "w-24"} ${
+        folded ? "opacity-35" : "opacity-100"
+      }`}
+    >
       <div className="flex gap-1">
         {showCards &&
           holeCards.map((c, i) => (
@@ -79,13 +84,13 @@ export function Seat({
           isEmpty
             ? "bg-transparent"
             : folded
-              ? "bg-navy-850/60 opacity-40"
+              ? "bg-navy-850/40"
               : "bg-navy-850/90 backdrop-blur ring-1 ring-navy-600/60 shadow-seat"
         } ${isActingSeat ? "ring-2 ring-mint-400" : ""}`}
       >
         {!isEmpty && (
           <>
-            <Avatar avatarKey={avatarKey} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+            <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
             <div className="text-left min-w-0">
               <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-navy-100`}>
                 {name}

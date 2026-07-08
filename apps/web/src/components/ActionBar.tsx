@@ -12,6 +12,32 @@ interface Preset {
 // ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
 
+const STREETS_REMAINING: Record<string, number> = { flop: 3, turn: 2, river: 1 };
+
+/**
+ * ジオメトリックベットサイズ: 各ストリートで同じ比率のポットベットを続けた場合に
+ * リバーでちょうどオールインになるサイズ。
+ *   growthFactor = (pot + 2*stack) / pot
+ *   fraction = 0.5 * (growthFactor^(1/残りストリート数) - 1)
+ * (出典: GTO Wizard "Pot Geometry" / Run It Once "How to solve for Geometric Bet Sizing")
+ */
+function computeGeometricToAmount(params: {
+  street: string;
+  potTotal: number;
+  streetContribution: number;
+  maxRaiseToAmount: number;
+}): number | null {
+  const { street, potTotal, streetContribution, maxRaiseToAmount } = params;
+  const streetsRemaining = STREETS_REMAINING[street];
+  if (!streetsRemaining || potTotal <= 0) return null;
+  const behindStack = maxRaiseToAmount - streetContribution;
+  if (behindStack <= 0) return null;
+
+  const growthFactor = (potTotal + 2 * behindStack) / potTotal;
+  const fraction = 0.5 * (Math.pow(growthFactor, 1 / streetsRemaining) - 1);
+  return Math.round(potTotal * fraction) + streetContribution;
+}
+
 function computePresets(params: {
   street: string;
   toCall: number;
@@ -41,10 +67,13 @@ function computePresets(params: {
     const amt = clamp(Math.round(potTotal * pct) + streetContribution);
     if (!byAmount.has(amt)) byAmount.set(amt, pct);
   }
-  return [
-    ...[...byAmount.entries()].map(([amt, pct]) => ({ label: `${Math.round(pct * 100)}%`, toAmount: amt })),
-    { label: "オールイン", toAmount: maxRaiseToAmount },
-  ];
+  const pctPresets: Preset[] = [...byAmount.entries()].map(([amt, pct]) => ({ label: `${Math.round(pct * 100)}%`, toAmount: amt }));
+
+  const geoAmount = computeGeometricToAmount({ street, potTotal, streetContribution, maxRaiseToAmount });
+  const geoPreset: Preset[] =
+    geoAmount !== null && !byAmount.has(clamp(geoAmount)) ? [{ label: "ジオメトリック", toAmount: clamp(geoAmount) }] : [];
+
+  return [...pctPresets, ...geoPreset, { label: "オールイン", toAmount: maxRaiseToAmount }];
 }
 
 export function ActionBar({

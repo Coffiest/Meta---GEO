@@ -133,6 +133,30 @@ export class MultiTableTournament {
     return this.displayNames.get(playerId) ?? playerId;
   }
 
+  /**
+   * レイトレジストレーション: 進行中のトーナメントに開始スタックで途中参加させる。
+   * ハンドとハンドの間(どの卓もハンド進行中でないタイミング)で呼び出すこと。
+   * 空席のある卓のうち最も人数が少ない卓に着席し、満席なら新しい卓を増設する。
+   */
+  registerLatePlayer(player: MultiTableSeatInput): { tableId: number; seatIndex: number } {
+    this.displayNames.set(player.playerId, player.displayName);
+
+    let table = this.findTableWithMostRoom();
+    if (!table) {
+      table = { id: this.nextTableId++, seats: new Map(), previousBigBlindFixedPos: null };
+      this.tables.push(table);
+    }
+    const seatIndex = findEmptySeat([...table.seats.keys()], this.seatCount)!;
+    table.seats.set(seatIndex, { playerId: player.playerId, stack: this.startingStack });
+
+    // 参加によって卓間の人数差が2以上になった場合に均す
+    this.rebalanceTables();
+
+    const finalTable = this.tables.find((t) => [...t.seats.values()].some((s) => s.playerId === player.playerId))!;
+    const finalSeat = [...finalTable.seats.entries()].find(([, s]) => s.playerId === player.playerId)![0];
+    return { tableId: finalTable.id, seatIndex: finalSeat };
+  }
+
   getEvents(): readonly MultiTableEvent[] {
     return this.events;
   }

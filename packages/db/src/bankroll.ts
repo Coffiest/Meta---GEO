@@ -33,11 +33,11 @@ export async function getOrCreateUserByAuthId(params: {
   return { id: user.id, displayName: user.displayName, avatarKey: user.avatarKey, onboarded: user.onboarded, isNew: true };
 }
 
-/** オンボーディング(名前+アバター)を保存し、完了フラグを立てる。 */
+/** オンボーディング(名前+アイコン)を保存し、完了フラグを立てる。アイコンは任意(未設定はnull)。 */
 export async function completeOnboarding(params: {
   userId: string;
   displayName: string;
-  avatarKey: string;
+  avatarKey: string | null;
 }): Promise<void> {
   await prisma.user.update({
     where: { id: params.userId },
@@ -94,20 +94,28 @@ export interface PlayerStats {
   profit: number;
   /** ROI = 収支 / 総buyin (buyinが0なら0) */
   roi: number;
+  /** 全国ランク(収支順、1始まり)。対象トーナメントが無ければnull。 */
+  nationalRank: number | null;
+  /** ランキング対象の総プレイヤー数 */
+  totalRankedPlayers: number;
 }
 
-/** ROI・収支・イン・ザ・マネー率などのロビー用サマリースタッツ。 */
+/** ROI・収支・イン・ザ・マネー率・全国ランクなどのロビー用サマリースタッツ。 */
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {
-  const entries = await prisma.tournamentEntry.findMany({
-    where: { userId, tournament: { status: "finished" } },
-    select: { payout: true, tournament: { select: { buyIn: true } } },
-  });
+  const [entries, leaderboard] = await Promise.all([
+    prisma.tournamentEntry.findMany({
+      where: { userId, tournament: { status: "finished" } },
+      select: { payout: true, tournament: { select: { buyIn: true } } },
+    }),
+    getLeaderboard(100000),
+  ]);
 
   const tournamentsPlayed = entries.length;
   const itmCount = entries.filter((e) => e.payout > 0).length;
   const totalBuyIns = entries.reduce((sum, e) => sum + e.tournament.buyIn, 0);
   const totalPayouts = entries.reduce((sum, e) => sum + e.payout, 0);
   const profit = totalPayouts - totalBuyIns;
+  const rankIndex = leaderboard.findIndex((r) => r.userId === userId);
 
   return {
     tournamentsPlayed,
@@ -117,7 +125,35 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     totalPayouts,
     profit,
     roi: totalBuyIns > 0 ? profit / totalBuyIns : 0,
+    nationalRank: rankIndex === -1 ? null : rankIndex + 1,
+    totalRankedPlayers: leaderboard.length,
   };
+}
+
+export interface ProfitGraphPoint {
+  /** 通算ハンド番号(1始まり) */
+  handIndex: number;
+  /** 累積収支(bb) */
+  cumulativeBb: number;
+}
+
+/**
+ * 収支推移の折れ線グラフ用データ(TenFourのStatsグラフ相当)。
+ * ハンドごとの収支をそのときのBBで正規化し、累積bbの時系列を返す。
+ */
+export async function getProfitGraph(userId: string, limit = 1000): Promise<ProfitGraphPoint[]> {
+  const seats = await prisma.handSeat.findMany({
+    where: { userId },
+    orderBy: { hand: { createdAt: "asc" } },
+    take: limit,
+    select: { resultStackDelta: true, hand: { select: { levelBigBlind: true } } },
+  });
+
+  let cumulative = 0;
+  return seats.map((s, i) => {
+    cumulative += s.hand.levelBigBlind > 0 ? s.resultStackDelta / s.hand.levelBigBlind : 0;
+    return { handIndex: i + 1, cumulativeBb: Math.round(cumulative * 10) / 10 };
+  });
 }
 
 export interface LeaderboardRow {
@@ -224,26 +260,76 @@ export interface PayoutPlace {
 }
 
 /**
- * シンプルな線形減衰の賞金配分(1着が最も多く、賞金圏の各着が均等差で減っていく)。
- * TDA等の公式ルールに「賞金配分の決まり」は無く運営(=このアプリ)側の裁量のため、
- * 分かりやすく調整しやすい形にしてある。
+ * SNGの固定プライズ: 常に上位2名インマネ、1位$4,000 / 2位$2,000
+ * (6人 × バイイン$1,000 = プール$6,000、還元率100%)。
  */
+export const SNG_PAYOUTS: PayoutPlace[] = [
+  { place: 1, amount: 4000 },
+  { place: 2, amount: 2000 },
+];
+
+export interface MttPrizeStructure {
+  fieldSize: number;
+  prizePool: number;
+  places: PayoutPlace[];
+}
+
+/**
+ * WSOPメインイベント準拠のMTTプライズ構造。
+ *  - 還元率93%(WSOP $10Kバイインのうち$9,300がプールに入るのと同率)
+ *  - 入賞はフィールドの上位15%(最低2名)
+ *  - ミニマムキャッシュはバイインの約1.5倍(2025年ME: $10Kバイインで$15,000ミンキャッシュ)
+ *  - 上位はべき乗則で減衰(大規模フィールドで1位がプールの11〜15%になるWSOPの実カーブに近似)
+ *  - 2名入賞の小規模フィールドは65/35
+ */
+export function computeMttPrizeStructure(fieldSize: number, buyIn: number): MttPrizeStructure {
+  const prizePool = Math.round((fieldSize * buyIn * 0.93) / 10) * 10;
+  if (fieldSize <= 1 || prizePool <= 0) return { fieldSize, prizePool: 0, places: [] };
+
+  const paidPlaces = Math.max(2, Math.round(fieldSize * 0.15));
+  const minCash = Math.round((buyIn * 1.5) / 10) * 10;
+
+  if (paidPlaces === 2) {
+    const first = Math.round((prizePool * 0.65) / 10) * 10;
+    return {
+      fieldSize,
+      prizePool,
+      places: [
+        { place: 1, amount: first },
+        { place: 2, amount: prizePool - first },
+      ],
+    };
+  }
+
+  // べき乗則ウェイト(指数1.45)で配分し、ミニマムキャッシュ未満の着順を底上げして
+  // 残りを上位に再配分する。
+  const weights = Array.from({ length: paidPlaces }, (_, i) => Math.pow(i + 1, -1.45));
+  let amounts: number[] = [];
+  let floorTotal = 0;
+  let flooredFrom = paidPlaces; // このインデックス以降はminCash固定
+  for (let iter = 0; iter < paidPlaces; iter++) {
+    const remainingPool = prizePool - floorTotal;
+    const wSum = weights.slice(0, flooredFrom).reduce((a, b) => a + b, 0);
+    amounts = weights.slice(0, flooredFrom).map((w) => Math.round(((remainingPool * w) / wSum) / 10) * 10);
+    const firstBelow = amounts.findIndex((a) => a < minCash);
+    if (firstBelow === -1) break;
+    floorTotal = (paidPlaces - firstBelow) * minCash;
+    flooredFrom = firstBelow;
+  }
+  const places: PayoutPlace[] = [];
+  for (let i = 0; i < paidPlaces; i++) {
+    places.push({ place: i + 1, amount: i < flooredFrom ? amounts[i]! : minCash });
+  }
+  // 丸め誤差は1位に吸収させ、合計をプールと厳密に一致させる
+  const distributed = places.reduce((sum, p) => sum + p.amount, 0);
+  places[0]!.amount += prizePool - distributed;
+
+  return { fieldSize, prizePool, places };
+}
+
+/** 後方互換: SNG用途で使われていた旧APIをSNG固定プライズへ委譲する。 */
 export function computePayoutStructure(fieldSize: number, buyIn: number): PayoutPlace[] {
-  const prizePool = fieldSize * buyIn;
-  if (prizePool <= 0 || fieldSize <= 1) return [];
-
-  // 賞金圏人数: 6人以下(SnG想定)は上位2名、それ以上(MTT想定)は上位15%(最低2名)
-  const paidPlaces = fieldSize <= 6 ? Math.min(2, fieldSize) : Math.max(2, Math.round(fieldSize * 0.15));
-
-  const weights = Array.from({ length: paidPlaces }, (_, i) => paidPlaces - i);
-  const weightSum = weights.reduce((a, b) => a + b, 0);
-
-  let distributed = 0;
-  const payouts: PayoutPlace[] = weights.map((w, i) => {
-    const amount = i === paidPlaces - 1 ? prizePool - distributed : Math.round((prizePool * w) / weightSum);
-    distributed += amount;
-    return { place: i + 1, amount };
-  });
-
-  return payouts;
+  if (fieldSize <= 1) return [];
+  if (fieldSize <= 6 && buyIn <= 1000) return SNG_PAYOUTS.slice(0, Math.min(2, fieldSize));
+  return computeMttPrizeStructure(fieldSize, buyIn).places;
 }

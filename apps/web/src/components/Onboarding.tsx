@@ -1,12 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { HUMAN_AVATARS } from "@/lib/avatars";
+import { useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 
+const MAX_AVATAR_DIMENSION = 256;
+const AVATAR_JPEG_QUALITY = 0.75;
+
+/** カメラロールから選んだ画像を正方形に切り抜いてリサイズし、data URI(JPEG)にする。 */
+function fileToAvatarDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = MAX_AVATAR_DIMENSION;
+        canvas.height = MAX_AVATAR_DIMENSION;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("画像の処理に失敗しました"));
+          return;
+        }
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, MAX_AVATAR_DIMENSION, MAX_AVATAR_DIMENSION);
+        resolve(canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * 初回オンボーディング / プロフィール編集画面。名前とアバターの両方を決めるまで先に進めない
- * (この画面を通過しない限りロビーは描画されないため、スキップは構造的に不可能)。
+ * 初回オンボーディング / プロフィール編集画面。名前は必須、アイコンはカメラロールから
+ * 選ぶ任意項目(未設定なら頭文字アバターになる)。この画面を通過しない限りロビーは
+ * 描画されないため、名前設定のスキップは構造的に不可能。
  */
 export function Onboarding({
   title = "プロフィールを設定",
@@ -24,39 +56,67 @@ export function Onboarding({
   submitLabel?: string;
   saving?: boolean;
   error?: string | null;
-  onSubmit: (params: { displayName: string; avatarKey: string }) => void;
+  onSubmit: (params: { displayName: string; avatarKey: string | null }) => void;
   onCancel?: () => void;
 }) {
   const [name, setName] = useState(initialName);
   const [avatarKey, setAvatarKey] = useState<string | null>(initialAvatarKey);
-  const canSubmit = name.trim().length > 0 && avatarKey !== null && !saving;
+  const [processing, setProcessing] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canSubmit = name.trim().length > 0 && !saving && !processing;
+
+  const handlePickFile = async (file: File | undefined) => {
+    if (!file) return;
+    setPickError(null);
+    setProcessing(true);
+    try {
+      setAvatarKey(await fileToAvatarDataUri(file));
+    } catch {
+      setPickError("画像を設定できませんでした。別の画像でお試しください。");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-navy-950">
       <div className="text-center space-y-1.5">
         <div className="text-[11px] tracking-[0.3em] text-mint-500 font-medium">TEN FOUR POKER</div>
         <h1 className="text-xl font-semibold text-navy-50">{title}</h1>
-        <p className="text-xs text-navy-400">テーブルで表示される名前とアイコンを選んでください</p>
+        <p className="text-xs text-navy-400">テーブルで表示される名前を入力してください(アイコンは任意です)</p>
       </div>
 
       <div className="w-full max-w-xs space-y-5">
-        <div className="flex justify-center">
-          <Avatar avatarKey={avatarKey} size={72} />
-        </div>
-
-        <div className="grid grid-cols-6 gap-2">
-          {HUMAN_AVATARS.map((a) => (
-            <button
-              key={a.key}
-              onClick={() => setAvatarKey(a.key)}
-              className={`rounded-full transition-transform active:scale-90 ${
-                avatarKey === a.key ? "ring-2 ring-mint-400 scale-105" : "ring-1 ring-navy-700 opacity-80"
-              }`}
-              aria-label={a.key}
-            >
-              <Avatar avatarKey={a.key} size={44} />
+        <div className="flex flex-col items-center gap-3">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="relative active:scale-95 transition-transform"
+            aria-label="アイコン画像を選択"
+          >
+            <Avatar avatarKey={avatarKey} displayName={name} size={84} />
+            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-mint-500 ring-2 ring-navy-950 flex items-center justify-center text-white text-xs">
+              📷
+            </div>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void handlePickFile(e.target.files?.[0])}
+          />
+          <div className="flex items-center gap-3 text-xs">
+            <button onClick={() => fileInputRef.current?.click()} className="text-mint-400 font-medium">
+              {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
             </button>
-          ))}
+            {avatarKey && (
+              <button onClick={() => setAvatarKey(null)} className="text-navy-500">
+                削除
+              </button>
+            )}
+          </div>
+          {pickError && <p className="text-xs text-crimson-400">{pickError}</p>}
         </div>
 
         <input
@@ -70,7 +130,7 @@ export function Onboarding({
         {error && <p className="text-xs text-crimson-400 px-1">{error}</p>}
 
         <button
-          onClick={() => canSubmit && avatarKey && onSubmit({ displayName: name.trim(), avatarKey })}
+          onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
           disabled={!canSubmit}
           className="w-full rounded-xl bg-mint-500 text-white font-semibold py-3 shadow-card active:scale-[0.98] transition-transform disabled:opacity-40"
         >

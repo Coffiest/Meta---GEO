@@ -1,24 +1,14 @@
 import type { Server, Socket } from "socket.io";
 import { getOrCreateUserByAuthId, prisma } from "@meta-geo/db";
 import { authAvailable, verifyAccessToken } from "./auth.js";
-import { TableSession, type GameSession } from "./gameServer.js";
-import { MttSession } from "./mttSession.js";
+import type { GameSession, HumanPlayer } from "./gameServer.js";
+import { SngMatchmaker } from "./sngMatchmaker.js";
+import { MttScheduler } from "./mttScheduler.js";
 
-const SEAT_COUNT = 6;
-
-/**
- * 参加可能なゲーム種別の一覧(サーバー側の許可リスト)。クライアントはgameKeyのみを送り、
- * buyIn等はここで決まる値を必ず使う(クライアントからの金額指定は信用しない)。
- */
-export const GAME_CONFIGS = {
-  sng: { gameType: "sng" as const, buyIn: 1000, seatCount: SEAT_COUNT, fieldSize: SEAT_COUNT },
-  mtt: { gameType: "mtt" as const, buyIn: 2000, seatCount: SEAT_COUNT, fieldSize: 12 },
-} satisfies Record<string, { gameType: "sng" | "mtt"; buyIn: number; seatCount: number; fieldSize: number }>;
-
-export type GameKey = keyof typeof GAME_CONFIGS;
+export type GameKey = "sng" | "mtt";
 
 function isGameKey(key: unknown): key is GameKey {
-  return typeof key === "string" && Object.prototype.hasOwnProperty.call(GAME_CONFIGS, key);
+  return key === "sng" || key === "mtt";
 }
 
 interface ResolvedUser {
@@ -30,15 +20,22 @@ interface ResolvedUser {
 /**
  * ソケット接続を受け取り、認証・ユーザー解決を行った上でゲームセッションへ振り分けるロビー。
  * 「プレイヤーがテーブルを立てるのではなく、システムがゲームを用意し参加する」という
- * 仕組み上、参加リクエストのたびに専用のゲームが新しく作成される。
+ * 仕組み上、SNGはマッチング待合室(6人揃うか60秒でBOT補充)、MTTは常時オープンな
+ * 30分ローテーションのレジストレーション窓口(SngMatchmaker/MttScheduler)に委譲する。
  */
 export class Lobby {
   private readonly io: Server;
   // 再接続時に同じゲームへ戻せるよう、ユーザーIDごとに進行中のセッションを保持する
   private readonly activeSessions = new Map<string, GameSession>();
+  private readonly sngMatchmaker: SngMatchmaker;
+  private readonly mttScheduler: MttScheduler;
 
   constructor(io: Server) {
     this.io = io;
+    this.sngMatchmaker = new SngMatchmaker(io, (session, humanUserIds) => {
+      for (const userId of humanUserIds) this.activeSessions.set(userId, session);
+    });
+    this.mttScheduler = new MttScheduler(io);
   }
 
   handleConnection(socket: Socket): void {
@@ -52,9 +49,10 @@ export class Lobby {
     socket.on("leaveGame", () => {
       const userId = socket.data["userId"] as string | undefined;
       if (!userId) return;
+      this.sngMatchmaker.leaveQueue(userId);
       const session = this.activeSessions.get(userId);
       if (session) {
-        session.leave();
+        session.leave(userId);
         this.activeSessions.delete(userId);
       }
     });
@@ -68,7 +66,7 @@ export class Lobby {
       if (!verified) return null;
       const fallbackName = verified.email?.split("@")[0] ?? "Player";
       const user = await getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
-      // オンボーディング(名前+アバター設定)未完了ならゲーム参加を拒否する
+      // オンボーディング(名前+アイコン設定)未完了ならゲーム参加を拒否する
       if (!user.onboarded) return null;
       return { userId: user.id, displayName: user.displayName, avatarKey: user.avatarKey };
     }
@@ -98,39 +96,22 @@ export class Lobby {
     socket.data["userId"] = resolved.userId;
 
     const existing = this.activeSessions.get(resolved.userId);
-    if (existing && !existing.isFinished() && !existing.isHumanDone()) {
-      existing.attachHuman(socket);
+    if (existing && !existing.isFinished() && !existing.isUserDone(resolved.userId)) {
+      existing.attachHuman(socket, resolved.userId);
       return;
     }
 
-    const config = GAME_CONFIGS[payload.gameKey];
-    const session: GameSession =
-      config.gameType === "mtt"
-        ? new MttSession({
-            io: this.io,
-            buyIn: config.buyIn,
-            tableSeatCount: config.seatCount,
-            fieldSize: config.fieldSize,
-            humanUserId: resolved.userId,
-            humanDisplayName: resolved.displayName,
-            humanAvatarKey: resolved.avatarKey,
-          })
-        : new TableSession({
-            io: this.io,
-            gameType: config.gameType,
-            buyIn: config.buyIn,
-            seatCount: config.seatCount,
-            humanUserId: resolved.userId,
-            humanDisplayName: resolved.displayName,
-            humanAvatarKey: resolved.avatarKey,
-          });
-    this.activeSessions.set(resolved.userId, session);
-    session.attachHuman(socket);
+    const player: HumanPlayer = { userId: resolved.userId, displayName: resolved.displayName, avatarKey: resolved.avatarKey };
+
+    if (payload.gameKey === "sng") {
+      this.sngMatchmaker.join(player, socket);
+      return;
+    }
 
     try {
-      await session.start();
+      const session = await this.mttScheduler.register(player, socket);
+      this.activeSessions.set(resolved.userId, session);
     } catch (err) {
-      this.activeSessions.delete(resolved.userId);
       socket.emit("joinGameError", { message: err instanceof Error ? err.message : "参加処理に失敗しました" });
     }
   }

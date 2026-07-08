@@ -55,6 +55,24 @@ export interface TournamentOverInfo {
   yourPayout: number;
 }
 
+export interface TimeBankInfo {
+  cards: number;
+  armed: boolean;
+  consumed?: boolean;
+}
+
+export interface MatchingInfo {
+  registered: number;
+  needed: number;
+  secondsLeft: number | null;
+  starting?: boolean;
+}
+
+export interface WaitingInfo {
+  registered: number;
+  needed: number;
+}
+
 export interface PokerSocketState {
   connected: boolean;
   spectating: boolean;
@@ -69,12 +87,18 @@ export interface PokerSocketState {
   actionError: string | null;
   players: Record<number, SeatPlayerInfo>;
   handHistory: HandHistoryEntry[];
-  /** ハンド中の各座席の最後のアクション(新しいハンドが始まるまで表示し続ける) */
+  /** ハンド中の各座席の最後のアクション(そのストリート中だけ表示し、ストリートが変わると消える) */
   lastActionBySeat: Record<number, SeatAction>;
   /** 直近に終わったハンドの、座席ごとの収支(次のハンドの最初のstateが来るまで表示用に保持) */
   lastHandDeltaBySeat: Record<number, number> | null;
   /** アクティブ席の持ち時間(アバター周囲のリング表示用) */
   turnTimer: TurnTimerInfo | null;
+  /** 自分のタイムバンクカード残数とON/OFF状態 */
+  timeBank: TimeBankInfo | null;
+  /** SNGマッチング待合室の状態(6人揃うまで/60秒まで) */
+  matching: MatchingInfo | null;
+  /** MTT開始待ち(4人揃うまで)の状態 */
+  waiting: WaitingInfo | null;
   /** ゲーム参加(joinGame)が失敗した場合のエラーメッセージ */
   joinError: string | null;
 }
@@ -140,6 +164,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     lastActionBySeat: {},
     lastHandDeltaBySeat: null,
     turnTimer: null,
+    timeBank: null,
+    matching: null,
+    waiting: null,
     joinError: null,
   });
 
@@ -163,13 +190,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         const prev = d.state;
         // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
         const isNewHand = !prev || prev.isComplete || state.board.length < prev.board.length;
-        // アクションバッジはハンド中ずっと表示し続ける。ストリートが変わった瞬間の
-        // streetContributionリセットを誤検知しないよう、同一ストリート内でのみ差分を取る。
-        const lastActionBySeat = isNewHand
-          ? {}
-          : prev.street !== state.street
-            ? d.lastActionBySeat
-            : { ...d.lastActionBySeat, ...diffSeatActions(prev, state) };
+        // アクションバッジはそのストリート中だけ表示する(ストリートが変わったら消える)。
+        const lastActionBySeat = isNewHand || prev.street !== state.street ? {} : { ...d.lastActionBySeat, ...diffSeatActions(prev, state) };
         return {
           ...d,
           state,
@@ -177,6 +199,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
           actionError: null,
           lastActionBySeat,
+          matching: null,
+          waiting: null,
         };
       }),
     );
@@ -221,11 +245,14 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
     );
     socket.on("tournamentOver", (payload: TournamentOverInfo) =>
-      setData((d) => ({ ...d, tournamentOver: payload })),
+      setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null })),
     );
     socket.on("actionError", (payload: { message: string }) =>
       setData((d) => ({ ...d, actionError: payload.message })),
     );
+    socket.on("timeBank", (payload: TimeBankInfo) => setData((d) => ({ ...d, timeBank: payload })));
+    socket.on("sngMatching", (payload: MatchingInfo) => setData((d) => ({ ...d, matching: payload })));
+    socket.on("mttWaiting", (payload: WaitingInfo) => setData((d) => ({ ...d, waiting: payload })));
 
     return () => {
       socket.disconnect();
@@ -241,5 +268,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socketRef.current?.emit("leaveGame");
   }, []);
 
-  return { ...data, sendAction, leaveGame };
+  /** タイムバンクカード使用のON/OFFを切り替える。 */
+  const armTimeBank = useCallback((armed: boolean) => {
+    socketRef.current?.emit("timeBankArm", { armed });
+    setData((d) => (d.timeBank ? { ...d, timeBank: { ...d.timeBank, armed } } : d));
+  }, []);
+
+  return { ...data, sendAction, leaveGame, armTimeBank };
 }
