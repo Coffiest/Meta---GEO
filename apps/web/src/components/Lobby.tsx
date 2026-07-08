@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { GameKey } from "@/lib/socket";
+import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
 import { PlayingCard } from "./PlayingCard";
@@ -772,7 +773,7 @@ export function Lobby({
               <p className="text-[10px] text-navy-600 leading-relaxed px-2">
                 Ten Four Poker (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
               </p>
-              <p className="text-[10px] text-navy-600">Meta-GEO Poker v1.0.0 ・ 作成者: Coffiest</p>
+              <p className="text-[10px] text-navy-600">Meta-GEO Poker v{APP_VERSION} ・ 作成者: Coffiest</p>
               <p className="text-[10px] text-navy-700">© 2026 Meta-GEO</p>
             </div>
           </>
