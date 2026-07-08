@@ -31,12 +31,12 @@ interface PlayerStats {
   threeBetRate: number;
 }
 
-interface HandProfitPoint {
-  handIndex: number;
-  cumulativeActual: number;
-  cumulativeEv: number;
-  cumulativeSd: number;
-  cumulativeNsd: number;
+interface BankrollGraphPoint {
+  tournamentIndex: number;
+  cumulativeProfit: number;
+  cumulativePayout: number;
+  /** 累計ROI(1.5なら150%) */
+  roi: number;
 }
 
 interface LeaderboardRow {
@@ -166,7 +166,9 @@ type StatInfoKey =
   | "vpip"
   | "pfr"
   | "threeBet"
-  | "profitGraph";
+  | "graphRoi"
+  | "graphProfit"
+  | "graphPayout";
 
 function buildStatInfo(key: StatInfoKey, s: PlayerStats): StatInfoDef {
   switch (key) {
@@ -260,19 +262,26 @@ function buildStatInfo(key: StatInfoKey, s: PlayerStats): StatInfoDef {
         },
         notes: ["自分の前に誰もレイズをしていない場合は実行機会に含まない。", "既に2回以上レイズがある場合は実行機会に含まない。"],
       };
-    case "profitGraph":
+    case "graphRoi":
       return {
-        title: "収支推移グラフ",
+        title: "ROIグラフ",
+        subtitle: "Return on Investment",
         value: "",
-        description: "ハンドごとの収支を4つの系列で累計表示しています(実額ベース・bb換算なし)。",
-        breakdown: {
-          execLabel: "収支 / 収支EV",
-          execDesc:
-            "収支は実際の結果の累計。収支EVは、オールインで残りのボードが開く前に決着したハンドについて、実際の勝敗ではなく手札のエクイティ(勝率)で按分した場合の期待収支に置き換えて累計したものです(運の要素を取り除いた実力ベースの収支の目安)。",
-          oppLabel: "SD / NSD",
-          oppDesc:
-            "SD(Showdown)はショーダウンに到達したハンドのみの収支累計。NSD(Non-Showdown)はショーダウンに至らず(フォールドで)決着したハンドのみの収支累計です。",
-        },
+        description:
+          "終了したトーナメントごとに、その時点までの累計ROI(得た金額 ÷ かけた金額 × 100)の推移を表示しています。破線の100%が収支±0のラインで、それより上なら黒字です。",
+      };
+    case "graphProfit":
+      return {
+        title: "収支グラフ",
+        value: "",
+        description:
+          "終了したトーナメントごとの収支(得た金額 − かけた金額)の累計推移です。破線の0より上なら黒字、下なら赤字です(実額ベース・bb換算なし)。",
+      };
+    case "graphPayout":
+      return {
+        title: "得た金額グラフ",
+        value: "",
+        description: "入賞して受け取った賞金の累計推移です。入賞していないトーナメントでは増えません(実額ベース)。",
       };
   }
 }
@@ -325,26 +334,18 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
   );
 }
 
-const HAND_GRAPH_RANGES: { key: string; label: string; limit: number }[] = [
-  { key: "1k", label: "1k", limit: 1_000 },
-  { key: "10k", label: "10k", limit: 10_000 },
-  { key: "20k", label: "20k", limit: 20_000 },
-  { key: "50k", label: "50k", limit: 50_000 },
-  { key: "100k", label: "100k", limit: 100_000 },
+const TOURNEY_GRAPH_RANGES: { key: string; label: string; limit: number }[] = [
+  { key: "10", label: "10", limit: 10 },
+  { key: "50", label: "50", limit: 50 },
+  { key: "100", label: "100", limit: 100 },
+  { key: "500", label: "500", limit: 500 },
   { key: "all", label: "All", limit: 1_000_000 },
 ];
 
-const PROFIT_SERIES: { key: keyof Omit<HandProfitPoint, "handIndex">; label: string; color: string }[] = [
-  { key: "cumulativeActual", label: "収支", color: "#22c55e" },
-  { key: "cumulativeEv", label: "収支EV", color: "#eab308" },
-  { key: "cumulativeSd", label: "SD", color: "#3b82f6" },
-  { key: "cumulativeNsd", label: "NSD", color: "#ef4444" },
-];
-
-/** 900/450/0/-450/-900のようにキリの良い間隔でy軸目盛りを作る。 */
-function niceAxisStep(maxAbs: number): number {
-  if (maxAbs <= 0) return 10;
-  const rough = maxAbs / 2;
+/** 値域spanを4分割前後になるキリの良い目盛り間隔にする(1/2/5×10^n)。 */
+function niceTickStep(span: number): number {
+  if (span <= 0) return 1;
+  const rough = span / 4;
   const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
   const normalized = rough / magnitude;
   const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
@@ -360,88 +361,115 @@ function pickTickIndices(count: number, maxTicks: number): number[] {
   return [...new Set(ticks)];
 }
 
+function formatAxisValue(v: number): string {
+  return v >= 1000 || v <= -1000 ? `${(v / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k` : v.toLocaleString();
+}
+
 /**
- * 収支/収支EV/SD/NSDの4系列折れ線グラフ。TenFourPokerのStatsグラフと同じ配色・凡例・
- * 期間切替ボタンのデザインに合わせている(bb換算はせず実額をそのまま使う)。
+ * 1系列だけの折れ線グラフ(ROI・収支・得た金額でそれぞれ1つずつ使う)。
+ * x軸は「何トーナメント目か」、baselineは損益分岐の破線(収支なら0、ROIなら100%)。
  */
-function ProfitLineChart({ points, onInfo }: { points: HandProfitPoint[]; onInfo?: () => void }) {
+function SingleLineChart({
+  title,
+  color,
+  points,
+  baseline,
+  formatValue,
+  onInfo,
+}: {
+  title: string;
+  color: string;
+  points: { x: number; y: number }[];
+  baseline: number;
+  formatValue: (v: number) => string;
+  onInfo?: () => void;
+}) {
+  const header = (
+    <div className="flex items-center gap-1.5 mb-1">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+      <span className="text-xs font-semibold text-navy-200">{title}</span>
+      {points.length >= 2 && (
+        <span className="ml-auto text-xs font-bold tabular-nums text-navy-100">{formatValue(points[points.length - 1]!.y)}</span>
+      )}
+      {onInfo && (
+        <button onClick={onInfo} className={`text-navy-500 active:text-navy-300 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={`${title}の説明`}>
+          <InfoIcon />
+        </button>
+      )}
+    </div>
+  );
+
   if (points.length < 2) {
-    return <div className="py-8 text-center text-navy-500 text-xs">グラフ表示にはもう少しハンド数が必要です。</div>;
+    return (
+      <div>
+        {header}
+        <div className="py-6 text-center text-navy-500 text-xs">グラフ表示にはもう少しトーナメント数が必要です。</div>
+      </div>
+    );
   }
 
   const width = 320;
-  const height = 220;
-  const padLeft = 42;
-  const padBottom = 18;
+  const height = 140;
+  const padLeft = 46;
+  const padBottom = 16;
   const plotWidth = width - padLeft;
   const plotHeight = height - padBottom;
 
-  const allValues = points.flatMap((p) => [p.cumulativeActual, p.cumulativeEv, p.cumulativeSd, p.cumulativeNsd]);
-  const maxAbs = Math.max(...allValues.map((v) => Math.abs(v)), 1);
-  const step = niceAxisStep(maxAbs);
-  const axisMax = step * 2;
-  const toY = (v: number) => padHeight(v, axisMax, plotHeight);
-  function padHeight(v: number, max: number, h: number): number {
-    const clamped = Math.max(-max, Math.min(max, v));
-    return h / 2 - (clamped / max) * (h / 2);
+  const values = [...points.map((p) => p.y), baseline];
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (max === min) {
+    max += 1;
+    min -= 1;
   }
+  const margin = (max - min) * 0.08;
+  min -= margin;
+  max += margin;
+
+  const toY = (v: number) => plotHeight - ((v - min) / (max - min)) * plotHeight;
   const xStep = plotWidth / (points.length - 1);
   const toX = (i: number) => padLeft + i * xStep;
 
-  const yLabels = [axisMax, step, 0, -step, -axisMax];
+  const tickStep = niceTickStep(max - min);
+  const yTicks: number[] = [];
+  for (let v = Math.ceil(min / tickStep) * tickStep; v <= max; v += tickStep) yTicks.push(Math.round(v * 100) / 100);
   const xTickIdx = pickTickIndices(points.length, 6);
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.y).toFixed(1)}`).join(" ");
 
   return (
     <div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 200 }} preserveAspectRatio="none">
-        {yLabels.map((label) => {
-          const y = toY(label);
-          return (
-            <g key={label}>
-              <line
-                x1={padLeft}
-                y1={y}
-                x2={width}
-                y2={y}
-                stroke="currentColor"
-                strokeWidth={label === 0 ? 1 : 0.5}
-                strokeDasharray={label === 0 ? "3 3" : undefined}
-                className="text-navy-700"
-              />
-              <text x={padLeft - 6} y={y + 3} textAnchor="end" className="fill-navy-500" style={{ fontSize: 8 }}>
-                {label >= 1000 || label <= -1000 ? `${(label / 1000).toFixed(1)}k` : label}
-              </text>
-            </g>
-          );
-        })}
+      {header}
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 130 }} preserveAspectRatio="none">
+        {yTicks.map((tick) => (
+          <g key={tick}>
+            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-navy-700" />
+            <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-navy-500" style={{ fontSize: 8 }}>
+              {formatAxisValue(tick)}
+            </text>
+          </g>
+        ))}
 
-        {PROFIT_SERIES.map((series) => {
-          const d = points
-            .map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p[series.key]).toFixed(1)}`)
-            .join(" ");
-          return <path key={series.key} d={d} fill="none" stroke={series.color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />;
-        })}
+        {/* 損益分岐ライン(収支=0 / ROI=100%) */}
+        <line
+          x1={padLeft}
+          y1={toY(baseline)}
+          x2={width}
+          y2={toY(baseline)}
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="3 3"
+          className="text-navy-500"
+        />
+
+        <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
         {xTickIdx.map((i) => (
           <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-navy-500" style={{ fontSize: 8 }}>
-            {points[i]!.handIndex}
+            {points[i]!.x}
           </text>
         ))}
       </svg>
-
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 mt-2">
-        {PROFIT_SERIES.map((series) => (
-          <span key={series.key} className="flex items-center gap-1 text-[11px] text-navy-300">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: series.color }} />
-            {series.label}
-          </span>
-        ))}
-        {onInfo && (
-          <button onClick={onInfo} className="text-navy-500 active:text-navy-300" aria-label="グラフの説明">
-            <InfoIcon />
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -497,10 +525,19 @@ export function Icon({ name, className = "h-5 w-5" }: { name: string; className?
 }
 
 /** ヘッダー右上のハンバーガーメニューから開くボトムシート。旧Mypageタブの機能をここに集約する。 */
+/** "google" → "Google" のようにプロバイダ名を表示用ラベルに変換する。 */
+function providerLabel(provider: string): string {
+  if (provider === "google") return "Google";
+  if (provider === "apple") return "Apple";
+  if (provider === "email") return "メール";
+  return provider;
+}
+
 function HamburgerMenu({
   displayName,
   avatarKey,
   email,
+  providers,
   isGuest,
   onClose,
   onEditProfile,
@@ -510,6 +547,7 @@ function HamburgerMenu({
   displayName: string;
   avatarKey: string | null;
   email?: string | null;
+  providers?: string[];
   isGuest: boolean;
   onClose: () => void;
   onEditProfile: () => void;
@@ -532,6 +570,12 @@ function HamburgerMenu({
               <div className="text-xs text-navy-400 truncate">{email}</div>
             ) : (
               isGuest && <div className="text-xs text-navy-500">ゲストプレイ中</div>
+            )}
+            {/* どのアカウントでログイン中かを常に確認できるよう、連携済みプロバイダを明示する */}
+            {providers && providers.length > 0 && (
+              <div className="text-[10px] text-navy-500 truncate">
+                {providers.map(providerLabel).join(" / ")} でログイン中
+              </div>
             )}
           </div>
         </div>
@@ -560,6 +604,7 @@ export function Lobby({
   displayName,
   avatarKey,
   email,
+  providers,
   userId,
   accessToken,
   onJoin,
@@ -569,6 +614,7 @@ export function Lobby({
   displayName: string;
   avatarKey: string | null;
   email?: string | null;
+  providers?: string[];
   userId?: string | null;
   accessToken?: string;
   onJoin: (gameKey: GameKey) => void;
@@ -578,7 +624,7 @@ export function Lobby({
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
-  const [profitGraph, setProfitGraph] = useState<HandProfitPoint[] | null>(null);
+  const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -596,11 +642,11 @@ export function Lobby({
 
   useEffect(() => {
     if (!accessToken || tab !== "stats") return;
-    const limit = HAND_GRAPH_RANGES.find((r) => r.key === graphRangeKey)?.limit ?? 1_000_000;
-    setProfitGraph(null);
-    fetch(`${SERVER_URL}/api/lobby/profit-graph?limit=${limit}`, { headers: { authorization: `Bearer ${accessToken}` } })
-      .then((res) => (res.ok ? (res.json() as Promise<HandProfitPoint[]>) : null))
-      .then((json) => json && setProfitGraph(json))
+    const limit = TOURNEY_GRAPH_RANGES.find((r) => r.key === graphRangeKey)?.limit ?? 1_000_000;
+    setBankrollGraph(null);
+    fetch(`${SERVER_URL}/api/lobby/bankroll-graph?limit=${limit}`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<BankrollGraphPoint[]>) : null))
+      .then((json) => json && setBankrollGraph(json))
       .catch(() => {});
   }, [accessToken, tab, graphRangeKey]);
 
@@ -850,15 +896,40 @@ export function Lobby({
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-navy-800">
-                    {profitGraph === null ? (
+                    {bankrollGraph === null ? (
                       <div className="py-8 text-center text-navy-500 text-xs">読み込み中…</div>
                     ) : (
-                      <ProfitLineChart points={profitGraph} onInfo={() => setInfoKey("profitGraph")} />
+                      <div className="space-y-6">
+                        <SingleLineChart
+                          title="ROI"
+                          color="#3b82f6"
+                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
+                          baseline={100}
+                          formatValue={(v) => `${v.toFixed(1)}%`}
+                          onInfo={() => setInfoKey("graphRoi")}
+                        />
+                        <SingleLineChart
+                          title="収支"
+                          color="#22c55e"
+                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
+                          baseline={0}
+                          formatValue={(v) => formatSigned(v)}
+                          onInfo={() => setInfoKey("graphProfit")}
+                        />
+                        <SingleLineChart
+                          title="得た金額"
+                          color="#a855f7"
+                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativePayout }))}
+                          baseline={0}
+                          formatValue={(v) => v.toLocaleString()}
+                          onInfo={() => setInfoKey("graphPayout")}
+                        />
+                      </div>
                     )}
 
                     <div className="flex items-center justify-center gap-1.5 mt-4">
-                      <span className="text-[10px] text-navy-500 mr-0.5">直近</span>
-                      {HAND_GRAPH_RANGES.map((r) => (
+                      <span className="text-[10px] text-navy-500 mr-0.5">直近トナメ数</span>
+                      {TOURNEY_GRAPH_RANGES.map((r) => (
                         <button
                           key={r.key}
                           onClick={() => setGraphRangeKey(r.key)}
@@ -1030,6 +1101,7 @@ export function Lobby({
           displayName={displayName}
           avatarKey={avatarKey}
           email={email}
+          providers={providers}
           isGuest={!accessToken}
           onClose={() => setMenuOpen(false)}
           onEditProfile={() => {

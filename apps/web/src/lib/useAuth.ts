@@ -48,7 +48,12 @@ export function useAuth(): AuthState {
     },
     signInWithGoogle: async () => {
       if (!supabase) return;
-      await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+      // prompt=select_account: ブラウザにログイン済みのGoogleセッションを黙って再利用させず、
+      // 毎回アカウント選択画面を出す(別のGoogleアカウントでログインし直せるようにするため)。
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo, queryParams: { prompt: "select_account" } },
+      });
     },
     signInWithApple: async () => {
       if (!supabase) return;

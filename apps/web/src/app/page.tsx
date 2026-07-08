@@ -143,6 +143,7 @@ function GameScreen({
     matching,
     waiting,
     joinError,
+    runoutHoleCards,
     sendAction,
     leaveGame,
     armTimeBank,
@@ -162,8 +163,11 @@ function GameScreen({
   const minRaiseToAmount = state ? Math.min(maxRaiseToAmount, state.currentBetToMatch + state.lastFullRaiseSize) : 0;
   const bigBlind = level?.bigBlind ?? 0;
 
-  const revealedHoleCards = lastHandEnded
-    ? Object.fromEntries(Object.entries(lastHandEnded.holeCards).map(([seat, cards]) => [Number(seat), cards]))
+  // 公開する手札: ハンド終了後はhandEndedのもの、オールインランアウト中(handEndedより前)は
+  // showdownRevealで先にテーブルアップされたものを表示する。
+  const shownHoleCards = lastHandEnded?.holeCards ?? runoutHoleCards;
+  const revealedHoleCards = shownHoleCards
+    ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
 
   return (
@@ -405,11 +409,18 @@ export default function Page() {
     );
   }
 
+  // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
+  // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
+  const providers =
+    (auth.session.user.app_metadata?.["providers"] as string[] | undefined) ??
+    (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
+
   return (
     <Lobby
       displayName={profile.displayName}
       avatarKey={profile.avatarKey}
       email={profile.email}
+      providers={providers}
       userId={profile.id}
       accessToken={accessToken}
       onJoin={setGameKey}

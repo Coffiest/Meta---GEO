@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import { HandEngine, Tournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
+import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, type PublicHandState } from "@meta-geo/engine";
 import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS } from "@meta-geo/db";
 import { decideBotAction } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
@@ -19,8 +19,10 @@ export const SNG_TIME_BANK_CARDS = 5;
 export const MTT_TIME_BANK_CARDS = 10;
 export const SNG_BUY_IN = 1000;
 export const SNG_SEAT_COUNT = 6;
-/** 全ストリートが一気にオープンした(オールインランアウト)場合、公開されたカード1枚あたりの演出待ち時間 */
-export const RUNOUT_REVEAL_DELAY_PER_CARD_MS = 650;
+/** オールインランアウト: 手札をテーブルアップしてから最初のストリートが開くまでの待ち時間 */
+export const SHOWDOWN_TABLE_PAUSE_MS = 1400;
+/** オールインランアウト: ストリート1つ開くごとの待ち時間 */
+export const RUNOUT_STREET_PAUSE_MS = 1100;
 
 export const BOT_PROFILES = [
   { name: "BOT-Akira", avatarKey: "bot1" },
@@ -45,14 +47,58 @@ export const BOT_PROFILES = [
   { name: "BOT-Roku", avatarKey: "bot2" },
 ] as const;
 
+export interface StagedRunoutParams {
+  hand: HandEngine;
+  /** オールインコールが成立した時点(=残りボード展開前)のボード枚数 */
+  boardLenBefore: number;
+  emitState: (state: PublicHandState) => void;
+  emitShowdown: (holeCards: Record<number, string[]>) => void;
+  /** ディレイ後もまだこのハンド/セッションが生きているか(次のハンドに進んでいたら中断) */
+  isStillCurrent: () => boolean;
+  onDone: () => void;
+}
+
 /**
- * オールインでベッティングが閉じ、エンジンが複数ストリートを一度に自動展開した場合、
- * クライアントが盤面を目で追えるよう「公開されたカード枚数 × 演出待ち時間」だけ
- * handEndedの送信を遅らせるための遅延時間を計算する。
+ * オールインでベッティングが閉じてハンドが完了した場合の公開順の演出。TDAルール16
+ * 「プレイヤーがオールインで他全員のベッティングアクションが完了したら、残りのボードが
+ * 配られる前に全ハンドを直ちにテーブルアップする」に従い、
+ *  1) ボードは増やさずに、公開義務のある全員の手札を先にテーブルアップ(showdownReveal)
+ *  2) フロップ/ターン/リバーを1ストリートずつ間を置いて公開
+ *  3) 最後に結果処理(handEnded)へ進む
+ * の順でクライアントへ配信する。エンジン自体は既に完了済みなので、途中経過のstateは
+ * 最終stateのボードを切り詰めたスナップショットとして合成する。
  */
-export function runoutRevealDelayMs(boardLenBefore: number, boardLenAfter: number): number {
-  const revealedCards = Math.max(0, boardLenAfter - boardLenBefore);
-  return revealedCards > 1 ? revealedCards * RUNOUT_REVEAL_DELAY_PER_CARD_MS : 0;
+export function scheduleStagedRunout(params: StagedRunoutParams): void {
+  const finalState = params.hand.getPublicState();
+  const stateAt = (boardLen: number): PublicHandState => ({
+    ...finalState,
+    board: finalState.board.slice(0, boardLen),
+    isComplete: false,
+  });
+
+  // 1) まずショウダウン: ボードはオールイン成立時点のまま、手札だけを公開する
+  params.emitState(stateAt(params.boardLenBefore));
+  const revealedSeats = computeRevealedSeats(params.hand);
+  const holeCards = Object.fromEntries(
+    [...params.hand.getAllHoleCards()]
+      .filter(([seat]) => revealedSeats.has(seat))
+      .map(([seat, cards]) => [seat, cards.map(cardToString)]),
+  );
+  params.emitShowdown(holeCards);
+
+  // 2) 残りのストリートを1つずつ公開し、3) 最後に結果処理へ進む
+  let delay = SHOWDOWN_TABLE_PAUSE_MS;
+  for (const boardLen of [3, 4, 5]) {
+    if (boardLen <= params.boardLenBefore || boardLen > finalState.board.length) continue;
+    const at = delay;
+    setTimeout(() => {
+      if (params.isStillCurrent()) params.emitState(stateAt(boardLen));
+    }, at);
+    delay += RUNOUT_STREET_PAUSE_MS;
+  }
+  setTimeout(() => {
+    if (params.isStillCurrent()) params.onDone();
+  }, delay);
 }
 
 /** BOT用のUserレコードを確保して返す(名前をキーにupsert)。offsetで別グループのBOTを取れる。 */
@@ -317,12 +363,26 @@ export class TableSession implements GameSession {
         return;
       }
     }
-    this.broadcastState();
     if (hand.isHandComplete()) {
-      const delay = runoutRevealDelayMs(boardLenBefore, hand.getPublicState().board.length);
-      if (delay > 0) setTimeout(() => void this.finishHand(), delay);
-      else void this.finishHand();
+      const boardGrew = hand.getPublicState().board.length > boardLenBefore;
+      // ボードが自動展開された=オールインでベッティングが閉じたケース。ルール上の順序どおり
+      // 「先にショウダウン→ストリートごとにボード公開→結果処理」で配信する。
+      // 全人間の結果確定後の高速消化中は演出を省いて即座に処理する。
+      if (boardGrew && !this.isAccelerated()) {
+        scheduleStagedRunout({
+          hand,
+          boardLenBefore,
+          emitState: (state) => this.io.to(this.roomId).emit("state", state),
+          emitShowdown: (holeCards) => this.io.to(this.roomId).emit("showdownReveal", { holeCards }),
+          isStillCurrent: () => this.hand === hand && !this.finished,
+          onDone: () => void this.finishHand(),
+        });
+      } else {
+        this.broadcastState();
+        void this.finishHand();
+      }
     } else {
+      this.broadcastState();
       this.scheduleTurn();
     }
   }

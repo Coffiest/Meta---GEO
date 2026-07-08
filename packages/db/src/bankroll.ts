@@ -231,6 +231,45 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   };
 }
 
+export interface BankrollGraphPoint {
+  /** 何トーナメント目か(1始まり、表示範囲内での連番) */
+  tournamentIndex: number;
+  /** 累計収支(賞金累計 − バイイン累計) */
+  cumulativeProfit: number;
+  /** 累計の得た金額(賞金) */
+  cumulativePayout: number;
+  /** その時点までの累計ROI = 累計賞金 ÷ 累計バイイン(1.5なら150%) */
+  roi: number;
+}
+
+/**
+ * Statsタブの「ROI / 収支 / 得た金額」3本の折れ線グラフ用に、終了済みトーナメントごとの
+ * 累計推移を古い順に返す。集計の定義はgetPlayerStatsのROI/収支/得た金額と同一。
+ */
+export async function getBankrollGraph(userId: string, limit = 1000): Promise<BankrollGraphPoint[]> {
+  // 「直近limitトーナメント」を対象にするため、新しい順に取得してから古い順へ並べ替える
+  const entriesDesc = await prisma.tournamentEntry.findMany({
+    where: { userId, tournament: { status: "finished" } },
+    orderBy: { tournament: { createdAt: "desc" } },
+    take: limit,
+    select: { payout: true, tournament: { select: { buyIn: true } } },
+  });
+  const entries = entriesDesc.reverse();
+
+  let cumBuyIn = 0;
+  let cumPayout = 0;
+  return entries.map((e, i) => {
+    cumBuyIn += e.tournament.buyIn;
+    cumPayout += e.payout;
+    return {
+      tournamentIndex: i + 1,
+      cumulativeProfit: cumPayout - cumBuyIn,
+      cumulativePayout: cumPayout,
+      roi: cumBuyIn > 0 ? cumPayout / cumBuyIn : 0,
+    };
+  });
+}
+
 export interface HandProfitPoint {
   /** 通算ハンド番号(1始まり) */
   handIndex: number;
