@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   completeOnboarding,
+  getBankrollGraph,
   getLeaderboard,
   getOrCreateUserByAuthId,
   getPlayerStats,
@@ -139,6 +140,19 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
       sendJson(res, 200, user ? await getUserHandHistory(user.id, 100) : []);
+      return true;
+    }
+
+    // Statsタブの「ROI / 収支 / 得た金額」グラフ(トーナメントごと・累計推移)
+    if (url.pathname === "/api/lobby/bankroll-graph") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      const limitParam = Number(url.searchParams.get("limit") ?? 1000);
+      sendJson(res, 200, user ? await getBankrollGraph(user.id, limitParam) : []);
       return true;
     }
 
