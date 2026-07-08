@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { GameKey } from "@/lib/socket";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
+import { PlayingCard } from "./PlayingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -28,14 +29,12 @@ interface PlayerStats {
   threeBetRate: number;
 }
 
-interface TournamentResultPoint {
-  index: number;
-  tournamentId: string;
-  finishedAt: string;
-  buyIn: number;
-  payout: number;
-  /** そのトーナメント単体のROI(%)。100が収支±0のライン。 */
-  roi: number;
+interface HandProfitPoint {
+  handIndex: number;
+  cumulativeActual: number;
+  cumulativeEv: number;
+  cumulativeSd: number;
+  cumulativeNsd: number;
 }
 
 interface LeaderboardRow {
@@ -75,32 +74,12 @@ const GAMES: { key: GameKey; title: string; subtitle: string; buyIn: number; det
     title: "MTT",
     subtitle: "Ten-Four",
     buyIn: 2000,
-    detail: "12人・マルチテーブル",
+    detail: "人数無制限・レイトレジ対応",
     gradient: "from-indigo-500 to-violet-700",
   },
 ];
 
 type Tab = "home" | "stats" | "leaderboard" | "history";
-
-const SUIT_BADGE_CLASS: Record<string, string> = {
-  s: "bg-navy-500",
-  h: "bg-crimson-500",
-  d: "bg-azure-500",
-  c: "bg-mint-500",
-};
-
-function CardChip({ card, size = "md" }: { card: string; size?: "sm" | "md" }) {
-  const rank = card.slice(0, -1);
-  const suit = card.slice(-1);
-  const dims = size === "md" ? "h-8 w-7 text-[13px]" : "h-6 w-5 text-[10px]";
-  return (
-    <span
-      className={`flex items-center justify-center rounded font-bold text-white ${dims} ${SUIT_BADGE_CLASS[suit] ?? "bg-navy-500"}`}
-    >
-      {rank}
-    </span>
-  );
-}
 
 function formatSigned(n: number): string {
   return `${n > 0 ? "+" : ""}${n.toLocaleString()}`;
@@ -179,7 +158,8 @@ type StatInfoKey =
   | "itmRate"
   | "vpip"
   | "pfr"
-  | "threeBet";
+  | "threeBet"
+  | "profitGraph";
 
 function buildStatInfo(key: StatInfoKey, s: PlayerStats): StatInfoDef {
   switch (key) {
@@ -273,6 +253,20 @@ function buildStatInfo(key: StatInfoKey, s: PlayerStats): StatInfoDef {
         },
         notes: ["自分の前に誰もレイズをしていない場合は実行機会に含まない。", "既に2回以上レイズがある場合は実行機会に含まない。"],
       };
+    case "profitGraph":
+      return {
+        title: "収支推移グラフ",
+        value: "",
+        description: "ハンドごとの収支を4つの系列で累計表示しています(実額ベース・bb換算なし)。",
+        breakdown: {
+          execLabel: "収支 / 収支EV",
+          execDesc:
+            "収支は実際の結果の累計。収支EVは、オールインで残りのボードが開く前に決着したハンドについて、実際の勝敗ではなく手札のエクイティ(勝率)で按分した場合の期待収支に置き換えて累計したものです(運の要素を取り除いた実力ベースの収支の目安)。",
+          oppLabel: "SD / NSD",
+          oppDesc:
+            "SD(Showdown)はショーダウンに到達したハンドのみの収支累計。NSD(Non-Showdown)はショーダウンに至らず(フォールドで)決着したハンドのみの収支累計です。",
+        },
+      };
   }
 }
 
@@ -294,7 +288,7 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
           </button>
         </div>
 
-        <div className="text-2xl font-bold tabular-nums text-navy-50 mb-3">{info.value}</div>
+        {info.value && <div className="text-2xl font-bold tabular-nums text-navy-50 mb-3">{info.value}</div>}
         <p className="text-sm text-navy-300 mb-4">{info.description}</p>
 
         {info.breakdown && (
@@ -324,78 +318,122 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
   );
 }
 
-const RESULTS_GRAPH_LIMITS = [10, 20, 50] as const;
+const HAND_GRAPH_RANGES: { key: string; label: string; limit: number }[] = [
+  { key: "1k", label: "1k", limit: 1_000 },
+  { key: "10k", label: "10k", limit: 10_000 },
+  { key: "20k", label: "20k", limit: 20_000 },
+  { key: "50k", label: "50k", limit: 50_000 },
+  { key: "100k", label: "100k", limit: 100_000 },
+  { key: "all", label: "All", limit: 1_000_000 },
+];
 
-/** 獲得金額とROIをトーナメントごとに並べた棒グラフ。依存ライブラリなしの軽量SVGで描画する。 */
-function ResultsBarChart({ points }: { points: TournamentResultPoint[] }) {
-  if (points.length === 0) {
-    return <div className="py-6 text-center text-navy-500 text-xs">まだ終了したトーナメントがありません。</div>;
+const PROFIT_SERIES: { key: keyof Omit<HandProfitPoint, "handIndex">; label: string; color: string }[] = [
+  { key: "cumulativeActual", label: "収支", color: "#22c55e" },
+  { key: "cumulativeEv", label: "収支EV", color: "#eab308" },
+  { key: "cumulativeSd", label: "SD", color: "#3b82f6" },
+  { key: "cumulativeNsd", label: "NSD", color: "#ef4444" },
+];
+
+/** 900/450/0/-450/-900のようにキリの良い間隔でy軸目盛りを作る。 */
+function niceAxisStep(maxAbs: number): number {
+  if (maxAbs <= 0) return 10;
+  const rough = maxAbs / 2;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
+  const normalized = rough / magnitude;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
+function pickTickIndices(count: number, maxTicks: number): number[] {
+  if (count <= maxTicks) return Array.from({ length: count }, (_, i) => i);
+  const ticks: number[] = [];
+  for (let i = 0; i < maxTicks; i++) {
+    ticks.push(Math.round((i * (count - 1)) / (maxTicks - 1)));
+  }
+  return [...new Set(ticks)];
+}
+
+/**
+ * 収支/収支EV/SD/NSDの4系列折れ線グラフ。TenFourPokerのStatsグラフと同じ配色・凡例・
+ * 期間切替ボタンのデザインに合わせている(bb換算はせず実額をそのまま使う)。
+ */
+function ProfitLineChart({ points, onInfo }: { points: HandProfitPoint[]; onInfo?: () => void }) {
+  if (points.length < 2) {
+    return <div className="py-8 text-center text-navy-500 text-xs">グラフ表示にはもう少しハンド数が必要です。</div>;
   }
 
-  const width = 300;
-  const rowHeight = 64;
-  const barGap = points.length > 40 ? 1 : 3;
-  const barWidth = Math.max(1.5, width / points.length - barGap);
-  const maxPayout = Math.max(...points.map((p) => p.payout), 1);
-  const maxDeviation = Math.max(...points.map((p) => Math.abs(p.roi - 100)), 20);
+  const width = 320;
+  const height = 220;
+  const padLeft = 42;
+  const padBottom = 18;
+  const plotWidth = width - padLeft;
+  const plotHeight = height - padBottom;
+
+  const allValues = points.flatMap((p) => [p.cumulativeActual, p.cumulativeEv, p.cumulativeSd, p.cumulativeNsd]);
+  const maxAbs = Math.max(...allValues.map((v) => Math.abs(v)), 1);
+  const step = niceAxisStep(maxAbs);
+  const axisMax = step * 2;
+  const toY = (v: number) => padHeight(v, axisMax, plotHeight);
+  function padHeight(v: number, max: number, h: number): number {
+    const clamped = Math.max(-max, Math.min(max, v));
+    return h / 2 - (clamped / max) * (h / 2);
+  }
+  const xStep = plotWidth / (points.length - 1);
+  const toX = (i: number) => padLeft + i * xStep;
+
+  const yLabels = [axisMax, step, 0, -step, -axisMax];
+  const xTickIdx = pickTickIndices(points.length, 6);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-[11px] text-navy-400 mb-1.5">獲得金額(トーナメントごと)</div>
-        <svg viewBox={`0 0 ${width} ${rowHeight}`} className="w-full" style={{ height: rowHeight }} preserveAspectRatio="none">
-          {points.map((p, i) => {
-            const h = Math.max(1, (p.payout / maxPayout) * (rowHeight - 4));
-            return (
-              <rect
-                key={p.tournamentId}
-                x={i * (barWidth + barGap)}
-                y={rowHeight - h}
-                width={barWidth}
-                height={h}
-                rx={0.5}
-                fill={p.payout > 0 ? "rgb(52 211 153)" : "rgb(55 75 122)"}
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 200 }} preserveAspectRatio="none">
+        {yLabels.map((label) => {
+          const y = toY(label);
+          return (
+            <g key={label}>
+              <line
+                x1={padLeft}
+                y1={y}
+                x2={width}
+                y2={y}
+                stroke="currentColor"
+                strokeWidth={label === 0 ? 1 : 0.5}
+                strokeDasharray={label === 0 ? "3 3" : undefined}
+                className="text-navy-700"
               />
-            );
-          })}
-        </svg>
-      </div>
+              <text x={padLeft - 6} y={y + 3} textAnchor="end" className="fill-navy-500" style={{ fontSize: 8 }}>
+                {label >= 1000 || label <= -1000 ? `${(label / 1000).toFixed(1)}k` : label}
+              </text>
+            </g>
+          );
+        })}
 
-      <div>
-        <div className="text-[11px] text-navy-400 mb-1.5">ROI(トーナメントごと・100%が収支±0)</div>
-        <svg viewBox={`0 0 ${width} ${rowHeight}`} className="w-full" style={{ height: rowHeight }} preserveAspectRatio="none">
-          <line
-            x1={0}
-            y1={rowHeight / 2}
-            x2={width}
-            y2={rowHeight / 2}
-            stroke="currentColor"
-            strokeWidth={1}
-            className="text-navy-700"
-            strokeDasharray="3 3"
-          />
-          {points.map((p, i) => {
-            const isUp = p.roi >= 100;
-            const h = Math.max(1, (Math.abs(p.roi - 100) / maxDeviation) * (rowHeight / 2 - 2));
-            return (
-              <rect
-                key={p.tournamentId}
-                x={i * (barWidth + barGap)}
-                y={isUp ? rowHeight / 2 - h : rowHeight / 2}
-                width={barWidth}
-                height={h}
-                rx={0.5}
-                fill={isUp ? "rgb(52 211 153)" : "rgb(248 113 113)"}
-              />
-            );
-          })}
-        </svg>
-      </div>
+        {PROFIT_SERIES.map((series) => {
+          const d = points
+            .map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p[series.key]).toFixed(1)}`)
+            .join(" ");
+          return <path key={series.key} d={d} fill="none" stroke={series.color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />;
+        })}
 
-      <div className="flex items-center justify-between text-[10px] text-navy-500">
-        <span>{new Date(points[0]!.finishedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}</span>
-        <span>直近 {points.length} トーナメント</span>
-        <span>{new Date(points[points.length - 1]!.finishedAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}</span>
+        {xTickIdx.map((i) => (
+          <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-navy-500" style={{ fontSize: 8 }}>
+            {points[i]!.handIndex}
+          </text>
+        ))}
+      </svg>
+
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 mt-2">
+        {PROFIT_SERIES.map((series) => (
+          <span key={series.key} className="flex items-center gap-1 text-[11px] text-navy-300">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: series.color }} />
+            {series.label}
+          </span>
+        ))}
+        {onInfo && (
+          <button onClick={onInfo} className="text-navy-500 active:text-navy-300" aria-label="グラフの説明">
+            <InfoIcon />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -405,18 +443,40 @@ function ResultsBarChart({ points }: { points: TournamentResultPoint[] }) {
 function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
   const paths: Record<string, React.ReactNode> = {
     home: <path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />,
-    stats: <path d="M4 20V10M12 20V4M20 20v-7" strokeLinecap="round" strokeLinejoin="round" />,
-    trophy: (
-      <path
-        d="M7 4h10v5a5 5 0 0 1-10 0V4ZM7 5H4a2 2 0 0 0 2 3M17 5h3a2 2 0 0 1-2 3M12 14v3m-3 3h6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    stats: (
+      <>
+        <rect x="4" y="13.5" width="3.2" height="6.5" rx="1" fill="currentColor" stroke="none" />
+        <rect x="10.4" y="9" width="3.2" height="11" rx="1" fill="currentColor" stroke="none" />
+        <rect x="16.8" y="4.5" width="3.2" height="15.5" rx="1" fill="currentColor" stroke="none" />
+        <path d="M4 8.5 9 5l4 2.5L20 4" strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
+      </>
     ),
-    layers: <path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16.5 12 21l9-4.5" strokeLinecap="round" strokeLinejoin="round" />,
-    user: <path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" strokeLinecap="round" />,
+    trophy: (
+      <>
+        <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
+        <path d="M7 5.2H4.6A2.4 2.4 0 0 0 7 8.4M17 5.2h2.4A2.4 2.4 0 0 1 17 8.4" strokeLinecap="round" />
+        <path d="M12 13.3v3.4M9 20h6M9.6 20c0-1.1.6-1.9 1.4-2.4a3 3 0 0 1 2 0c.8.5 1.4 1.3 1.4 2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    layers: (
+      <>
+        <path d="m12 3 9 5-9 5-9-5 9-5Z" strokeLinejoin="round" fill="currentColor" fillOpacity={0.18} />
+        <path d="m3 12 9 5 9-5M3 16.5 12 21l9-4.5" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    seat: <path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" strokeLinecap="round" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3.1" />
+        <path
+          d="M12 3v2.4M12 18.6V21M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M3 12h2.4M18.6 12H21M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7"
+          strokeLinecap="round"
+        />
+      </>
+    ),
     db: (
       <>
+        <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" fill="currentColor" fillOpacity={0.18} />
         <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
         <path d="M4.5 5.5v13c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-13M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" strokeLinecap="round" />
       </>
@@ -510,8 +570,8 @@ export function Lobby({
 }) {
   const [tab, setTab] = useState<Tab>("home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
-  const [resultsGraph, setResultsGraph] = useState<TournamentResultPoint[] | null>(null);
-  const [resultsLimit, setResultsLimit] = useState<number>(20);
+  const [profitGraph, setProfitGraph] = useState<HandProfitPoint[] | null>(null);
+  const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[] | null>(null);
@@ -528,11 +588,13 @@ export function Lobby({
 
   useEffect(() => {
     if (!accessToken || tab !== "stats") return;
-    fetch(`${SERVER_URL}/api/lobby/results-graph?limit=${resultsLimit}`, { headers: { authorization: `Bearer ${accessToken}` } })
-      .then((res) => (res.ok ? (res.json() as Promise<TournamentResultPoint[]>) : null))
-      .then((json) => json && setResultsGraph(json))
+    const limit = HAND_GRAPH_RANGES.find((r) => r.key === graphRangeKey)?.limit ?? 1_000_000;
+    setProfitGraph(null);
+    fetch(`${SERVER_URL}/api/lobby/profit-graph?limit=${limit}`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<HandProfitPoint[]>) : null))
+      .then((json) => json && setProfitGraph(json))
       .catch(() => {});
-  }, [accessToken, tab, resultsLimit]);
+  }, [accessToken, tab, graphRangeKey]);
 
   useEffect(() => {
     if (tab !== "leaderboard" || leaderboard) return;
@@ -550,6 +612,7 @@ export function Lobby({
       .catch(() => {});
   }, [tab, history, accessToken]);
 
+  // フッターナビ(Home / Stats / DB / History / Leaderboard)と同じ並び順に揃えてある。
   const FEATURES: { key: string; title: string; desc: string; icon: string; tile: string; onClick: () => void }[] = [
     {
       key: "stats",
@@ -558,22 +621,6 @@ export function Lobby({
       icon: "stats",
       tile: "bg-gradient-to-br from-sky-600 to-blue-800",
       onClick: () => setTab("stats"),
-    },
-    {
-      key: "leaderboard",
-      title: "Leaderboard",
-      desc: "全プレイヤーのランキングが表示されます。",
-      icon: "trophy",
-      tile: "bg-gradient-to-br from-rose-600 to-red-900",
-      onClick: () => setTab("leaderboard"),
-    },
-    {
-      key: "history",
-      title: "Hand History",
-      desc: "プレイしたハンドの履歴が表示されます。",
-      icon: "layers",
-      tile: "bg-gradient-to-br from-emerald-600 to-green-900",
-      onClick: () => setTab("history"),
     },
     {
       key: "geo",
@@ -586,10 +633,26 @@ export function Lobby({
       },
     },
     {
+      key: "history",
+      title: "Hand History",
+      desc: "プレイしたハンドの履歴が表示されます。",
+      icon: "layers",
+      tile: "bg-gradient-to-br from-emerald-600 to-green-900",
+      onClick: () => setTab("history"),
+    },
+    {
+      key: "leaderboard",
+      title: "Leaderboard",
+      desc: "全プレイヤーのランキングが表示されます。",
+      icon: "trophy",
+      tile: "bg-gradient-to-br from-rose-600 to-red-900",
+      onClick: () => setTab("leaderboard"),
+    },
+    {
       key: "mypage",
       title: "アカウント設定",
       desc: "プロフィールの編集や各種設定ができます。",
-      icon: "user",
+      icon: "settings",
       tile: "bg-gradient-to-br from-amber-600 to-yellow-800",
       onClick: () => setMenuOpen(true),
     },
@@ -646,7 +709,7 @@ export function Lobby({
               <div className="grid grid-cols-2 gap-3 mt-2">
                 {GAMES.map((game) => (
                   <div key={game.key} className="flex items-center justify-center gap-1 text-[10px] text-navy-400">
-                    <Icon name="user" className="h-3.5 w-3.5" />
+                    <Icon name="seat" className="h-3.5 w-3.5" />
                     {game.detail}
                   </div>
                 ))}
@@ -779,31 +842,30 @@ export function Lobby({
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-navy-800">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-[11px] text-navy-400">獲得金額・ROIの推移</div>
-                      <div className="flex gap-1">
-                        {RESULTS_GRAPH_LIMITS.map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => setResultsLimit(n)}
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
-                              resultsLimit === n ? "bg-mint-500 text-white" : "bg-navy-800 text-navy-400"
-                            }`}
-                          >
-                            直近{n}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {resultsGraph === null ? (
-                      <div className="py-6 text-center text-navy-500 text-xs">読み込み中…</div>
+                    {profitGraph === null ? (
+                      <div className="py-8 text-center text-navy-500 text-xs">読み込み中…</div>
                     ) : (
-                      <ResultsBarChart points={resultsGraph} />
+                      <ProfitLineChart points={profitGraph} onInfo={() => setInfoKey("profitGraph")} />
                     )}
+
+                    <div className="flex items-center justify-center gap-1.5 mt-4">
+                      <span className="text-[10px] text-navy-500 mr-0.5">直近</span>
+                      {HAND_GRAPH_RANGES.map((r) => (
+                        <button
+                          key={r.key}
+                          onClick={() => setGraphRangeKey(r.key)}
+                          className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
+                            graphRangeKey === r.key ? "bg-mint-500 text-white" : "bg-navy-800 text-navy-400"
+                          }`}
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <p className="text-[11px] text-navy-500 mt-5">
-                    収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。
+                    収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。実額ベースで、bb換算は行いません。
                   </p>
                 </>
               ) : (
@@ -893,11 +955,11 @@ export function Lobby({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1">
                             {h.holeCards.map((c, i) => (
-                              <CardChip key={i} card={c} />
+                              <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
                             ))}
-                            <span className="w-2" />
+                            <span className="w-1.5" />
                             {h.board.map((c, i) => (
-                              <CardChip key={`b-${i}`} card={c} size="sm" />
+                              <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
                             ))}
                           </div>
                           <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>

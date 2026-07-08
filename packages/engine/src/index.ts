@@ -12,3 +12,4 @@ export * from "./handEngine.js";
 export * from "./tournament.js";
 export * from "./tableBalancer.js";
 export * from "./multiTableTournament.js";
+export * from "./equity.js";
