@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { HandEngine, type PlayerAction } from "@meta-geo/engine";
+import { HandEngine, type Card, type PlayerAction, cardToString, createOrderedDeck, parseCard } from "@meta-geo/engine";
 import { prisma } from "../src/client.js";
 import { recordHand } from "../src/recordHand.js";
 import {
@@ -7,6 +7,7 @@ import {
   completeOnboarding,
   computeMttPrizeStructure,
   computePayoutStructure,
+  getHandProfitGraph,
   getLeaderboard,
   getNetProfit,
   getOrCreateUserByAuthId,
@@ -14,6 +15,22 @@ import {
   recordBuyIn,
   recordPayout,
 } from "../src/bankroll.js";
+
+/** 指定した位置(デッキの先頭からのインデックス)に指定カードを固定した52枚デッキを組み立てる。 */
+function buildFixedDeck(fixedPositions: Record<number, string>): Card[] {
+  const full = createOrderedDeck();
+  const usedStrings = new Set(Object.values(fixedPositions));
+  const rest = full.filter((c) => !usedStrings.has(cardToString(c)));
+  const deck: (Card | undefined)[] = new Array(52);
+  for (const [pos, cardStr] of Object.entries(fixedPositions)) {
+    deck[Number(pos)] = parseCard(cardStr)!;
+  }
+  let restIdx = 0;
+  for (let i = 0; i < 52; i++) {
+    if (!deck[i]) deck[i] = rest[restIdx++]!;
+  }
+  return deck as Card[];
+}
 
 describe("computePayoutStructure (SNG fixed prizes + MTT delegation)", () => {
   it("pays nobody when the field is 1 or smaller", () => {
@@ -234,5 +251,96 @@ describe("getPlayerStats VPIP/PFR/3Bet (integration, real Postgres)", () => {
     expect(stats.pfrCount).toBe(2);
     expect(stats.threeBetOpportunities).toBe(1); // Hand2のみ(1回だけレイズに直面)
     expect(stats.threeBetCount).toBe(1);
+  });
+});
+
+describe("getHandProfitGraph (integration, real Postgres)", () => {
+  const createdUserIds: string[] = [];
+  const createdTournamentIds: string[] = [];
+
+  afterAll(async () => {
+    for (const tournamentId of createdTournamentIds) {
+      await prisma.handPot.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.handAction.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.handSeat.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.hand.deleteMany({ where: { tournamentId } });
+      await prisma.tournament.delete({ where: { id: tournamentId } });
+    }
+    for (const userId of createdUserIds) {
+      await prisma.user.delete({ where: { id: userId } });
+    }
+    await prisma.$disconnect();
+  });
+
+  it("smooths a preflop AA-vs-KK all-in into its equity-based EV result, and classifies fold/showdown into NSD/SD", async () => {
+    const [p, q, r] = await Promise.all(
+      ["AApreflopAllin", "SBfolder", "KKpreflopAllin"].map((name) =>
+        prisma.user.create({ data: { displayName: `HandProfitTest-${name}`, isBot: true } }),
+      ),
+    );
+    createdUserIds.push(p.id, q.id, r.id);
+
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 3, startingStack: 1000, status: "running" },
+    });
+    createdTournamentIds.push(tournament.id);
+
+    // seat0=P(BTN)=AA, seat1=Q(SB)=Q.., seat2=R(BB)=KK。preflopOrderは[0,1,2](BTNが先)。
+    const deck = buildFixedDeck({ 2: "As", 5: "Ad", 0: "2c", 3: "3c", 1: "Ks", 4: "Kd" });
+    const hand = new HandEngine({
+      seats: [
+        { seatIndex: 0, playerId: p.id, stack: 1000 },
+        { seatIndex: 1, playerId: q.id, stack: 1000 },
+        { seatIndex: 2, playerId: r.id, stack: 1000 },
+      ],
+      seatCount: 3,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+      deck,
+    });
+
+    hand.applyAction(0, { kind: "allIn" }); // P(AA) shoves
+    hand.applyAction(1, { kind: "fold" }); // Q folds, forfeiting the SB
+    hand.applyAction(2, { kind: "allIn" }); // R(KK) calls all-in preflop
+    expect(hand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: tournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: [
+        { seatIndex: 0, userId: p.id, startingStack: 1000, isSmallBlind: false, isBigBlind: false },
+        { seatIndex: 1, userId: q.id, startingStack: 1000, isSmallBlind: true, isBigBlind: false },
+        { seatIndex: 2, userId: r.id, startingStack: 1000, isSmallBlind: false, isBigBlind: true },
+      ],
+      hand,
+    });
+
+    // AAはプリフロップで約82%のエクイティを持つ。ポットは2100(P:1000 + Q:100 + R:1000)、
+    // 実際の投資額はどちらも1000なので、期待収支 ≈ equity*2100 - 1000 ≈ +722(AA)/-622(KK)。
+    // 実際の勝敗(±1100 or -1000)に関わらず、EVはこの値の近辺に均される。
+    const pGraph = await getHandProfitGraph(p.id);
+    expect(pGraph).toHaveLength(1);
+    expect(pGraph[0]!.cumulativeSd).toBe(pGraph[0]!.cumulativeActual);
+    expect(pGraph[0]!.cumulativeNsd).toBe(0);
+    expect(Math.abs(pGraph[0]!.cumulativeEv - 722)).toBeLessThan(250);
+
+    const rGraph = await getHandProfitGraph(r.id);
+    expect(rGraph[0]!.cumulativeSd).toBe(rGraph[0]!.cumulativeActual);
+    expect(Math.abs(rGraph[0]!.cumulativeEv - -622)).toBeLessThan(250);
+
+    // Qはプリフロップでフォールドしているのでショーダウンに到達しておらず、EV調整も行われない(実収支=EV)。
+    const qGraph = await getHandProfitGraph(q.id);
+    expect(qGraph[0]!.cumulativeActual).toBe(-100);
+    expect(qGraph[0]!.cumulativeEv).toBe(-100);
+    expect(qGraph[0]!.cumulativeNsd).toBe(-100);
+    expect(qGraph[0]!.cumulativeSd).toBe(0);
   });
 });

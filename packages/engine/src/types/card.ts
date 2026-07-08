@@ -25,3 +25,37 @@ export function cardToString(card: Card): string {
   const suitChar = { spades: "s", hearts: "h", diamonds: "d", clubs: "c" }[card.suit];
   return `${rankStr}${suitChar}`;
 }
+
+const RANK_CHAR_TO_RANK: Readonly<Record<string, Rank>> = {
+  A: 14,
+  K: 13,
+  Q: 12,
+  J: 11,
+  T: 10,
+  "10": 10,
+  "9": 9,
+  "8": 8,
+  "7": 7,
+  "6": 6,
+  "5": 5,
+  "4": 4,
+  "3": 3,
+  "2": 2,
+};
+
+const SUIT_CHAR_TO_SUIT: Readonly<Record<string, Suit>> = {
+  s: "spades",
+  h: "hearts",
+  d: "diamonds",
+  c: "clubs",
+};
+
+/** cardToStringの逆変換。"As" → {rank:14, suit:"spades"}。不正な文字列はnullを返す。 */
+export function parseCard(str: string): Card | null {
+  const suitChar = str.slice(-1);
+  const rankChar = str.slice(0, -1);
+  const rank = RANK_CHAR_TO_RANK[rankChar];
+  const suit = SUIT_CHAR_TO_SUIT[suitChar];
+  if (rank === undefined || suit === undefined) return null;
+  return { rank, suit };
+}

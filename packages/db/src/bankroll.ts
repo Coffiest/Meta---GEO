@@ -1,3 +1,4 @@
+import { type Card, computeAllInEquity, parseCard } from "@meta-geo/engine";
 import { prisma } from "./client.js";
 
 /**
@@ -230,43 +231,124 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   };
 }
 
-export interface TournamentResultPoint {
-  /** 時系列インデックス(1始まり、古い順) */
-  index: number;
-  tournamentId: string;
-  finishedAt: string;
-  buyIn: number;
-  /** そのトーナメントで得た賞金(入賞していなければ0) */
-  payout: number;
-  /** そのトーナメント単体のROI(%)。payout/buyIn*100。 */
-  roi: number;
+export interface HandProfitPoint {
+  /** 通算ハンド番号(1始まり) */
+  handIndex: number;
+  /** 実収支の累計(実額) */
+  cumulativeActual: number;
+  /** オールインEV調整後の収支累計(実額)。ショーダウン以外・リバーまでアクションがあったハンドは実収支と一致する。 */
+  cumulativeEv: number;
+  /** ショーダウンに到達したハンドのみの収支累計(実額) */
+  cumulativeSd: number;
+  /** ショーダウンに至らなかった(フォールドで決着した)ハンドのみの収支累計(実額) */
+  cumulativeNsd: number;
 }
 
+const STREET_KNOWN_BOARD_COUNT: Readonly<Record<string, number>> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
 /**
- * 獲得金額・ROIの棒グラフ用データ(トーナメントごと・時系列)。
- * 直近limit件を古い順に並べ替えて返す。
+ * 収支推移の折れ線グラフ用データ(実収支/オールインEV調整後収支/SD/NSDの4系列、実額ベース)。
+ * オールインEVは、実際にリバーまでアクションが無かった(=途中でオールインが決着し残りのボードが
+ * 自動で開かれた)ハンドについてのみ、その時点で既知だったボードを固定し残りカードの決着パターンを
+ * 全列挙(未知2枚まで)またはモンテカルロ近似(未知3枚以上、プリフロップオールイン等)して
+ * エクイティを算出し、実際の勝敗ではなくエクイティ按分での収支に置き換えて計算する。
  */
-export async function getTournamentResultsGraph(userId: string, limit = 30): Promise<TournamentResultPoint[]> {
-  const entries = await prisma.tournamentEntry.findMany({
-    where: { userId, tournament: { status: "finished" } },
-    orderBy: { tournament: { finishedAt: "desc" } },
+export async function getHandProfitGraph(userId: string, limit = 1000): Promise<HandProfitPoint[]> {
+  // 直近limit件を対象にするため、いったん新しい順に取得してから古い順に並べ替える
+  // (「直近1000ハンド」というボタンの意味を満たすため。全件分の累計を保持するわけではない)。
+  const seatsDesc = await prisma.handSeat.findMany({
+    where: { userId },
+    orderBy: { hand: { createdAt: "desc" } },
     take: limit,
     select: {
-      payout: true,
-      tournament: { select: { id: true, buyIn: true, finishedAt: true, createdAt: true } },
+      seatIndex: true,
+      resultStackDelta: true,
+      hand: {
+        select: {
+          board: true,
+          wonByFold: true,
+          actions: {
+            where: { kind: { notIn: ["postBlind", "postAnte"] } },
+            orderBy: { sequenceNumber: "asc" },
+            select: { seatIndex: true, kind: true, street: true },
+          },
+          pots: { select: { amount: true, eligibleUserIds: true, winnerUserIds: true } },
+          seats: { select: { userId: true, holeCards: true } },
+        },
+      },
     },
   });
+  const seats = seatsDesc.reverse();
 
-  return entries
-    .reverse()
-    .map((e, i) => ({
-      index: i + 1,
-      tournamentId: e.tournament.id,
-      finishedAt: (e.tournament.finishedAt ?? e.tournament.createdAt).toISOString(),
-      buyIn: e.tournament.buyIn,
-      payout: e.payout,
-      roi: e.tournament.buyIn > 0 ? Math.round((e.payout / e.tournament.buyIn) * 1000) / 10 : 0,
-    }));
+  let cumActual = 0;
+  let cumEv = 0;
+  let cumSd = 0;
+  let cumNsd = 0;
+  const points: HandProfitPoint[] = [];
+
+  for (const seat of seats) {
+    const actual = seat.resultStackDelta;
+    cumActual += actual;
+
+    // このシートが自分でフォールドしていれば(全員フォールド決着のハンド含め)、
+    // ショーダウンには到達していない = NSD。エクイティ調整も対象外(実収支=EV)。
+    const heroFolded = seat.hand.actions.some((a) => a.seatIndex === seat.seatIndex && a.kind === "fold");
+    const reachedShowdown = !seat.hand.wonByFold && !heroFolded;
+
+    if (reachedShowdown) {
+      cumSd += actual;
+    } else {
+      cumNsd += actual;
+    }
+
+    if (!reachedShowdown) {
+      cumEv += actual;
+    } else {
+      const lastStreet = seat.hand.actions.at(-1)?.street ?? "preflop";
+      const knownCount = STREET_KNOWN_BOARD_COUNT[lastStreet] ?? 5;
+
+      if (knownCount >= 5) {
+        cumEv += actual;
+      } else {
+        const knownBoard = seat.hand.board
+          .slice(0, knownCount)
+          .map((s) => parseCard(s))
+          .filter((c): c is Card => c !== null);
+        const holeByUser = new Map(seat.hand.seats.map((s) => [s.userId, s.holeCards]));
+
+        let evDeltaFromActual = 0;
+        for (const pot of seat.hand.pots) {
+          const contenders = pot.eligibleUserIds
+            .map((uid) => {
+              const parsed = (holeByUser.get(uid) ?? [])
+                .map((s) => parseCard(s))
+                .filter((c): c is Card => c !== null);
+              return parsed.length === 2 ? { id: uid, holeCards: [parsed[0]!, parsed[1]!] as [Card, Card] } : null;
+            })
+            .filter((c): c is { id: string; holeCards: [Card, Card] } => c !== null);
+          // 誰かのホールカードが復元できない、または自分がこのポットの対象外なら調整をスキップする。
+          if (contenders.length !== pot.eligibleUserIds.length || contenders.length === 0) continue;
+          if (!pot.eligibleUserIds.includes(userId)) continue;
+
+          const equity = computeAllInEquity({ contenders, knownBoard });
+          const actualShare = pot.winnerUserIds.includes(userId) ? pot.amount / pot.winnerUserIds.length : 0;
+          const evShare = (equity.get(userId) ?? 0) * pot.amount;
+          evDeltaFromActual += evShare - actualShare;
+        }
+        cumEv += actual + evDeltaFromActual;
+      }
+    }
+
+    points.push({
+      handIndex: points.length + 1,
+      cumulativeActual: Math.round(cumActual),
+      cumulativeEv: Math.round(cumEv),
+      cumulativeSd: Math.round(cumSd),
+      cumulativeNsd: Math.round(cumNsd),
+    });
+  }
+
+  return points;
 }
 
 export interface LeaderboardRow {

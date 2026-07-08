@@ -4,7 +4,7 @@ import {
   getLeaderboard,
   getOrCreateUserByAuthId,
   getPlayerStats,
-  getTournamentResultsGraph,
+  getHandProfitGraph,
   getUserHandHistory,
   prisma,
 } from "@meta-geo/db";
@@ -142,16 +142,16 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
-    // 獲得金額・ROIの推移棒グラフ(トーナメントごと・時系列)
-    if (url.pathname === "/api/lobby/results-graph") {
+    // 収支推移の折れ線グラフ(実収支/オールインEV/SD/NSD、ハンドごと・時系列)
+    if (url.pathname === "/api/lobby/profit-graph") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
         sendJson(res, 401, { error: "unauthorized" });
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      const limitParam = Number(url.searchParams.get("limit") ?? 30);
-      sendJson(res, 200, user ? await getTournamentResultsGraph(user.id, limitParam) : []);
+      const limitParam = Number(url.searchParams.get("limit") ?? 1000);
+      sendJson(res, 200, user ? await getHandProfitGraph(user.id, limitParam) : []);
       return true;
     }
 
