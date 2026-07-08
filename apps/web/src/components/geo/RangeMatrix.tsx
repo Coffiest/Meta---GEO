@@ -3,9 +3,14 @@
 import { useState } from "react";
 import type { RangeCell, RangeMatrixResult } from "@/lib/geoApi";
 
+// GTO Wizardの実際の配色(レイズ=赤、コール=青、フォールド=グレー)に合わせたアクションカラー。
+export const RAISE_COLOR = "#e5484d";
+export const CALL_COLOR = "#3b82f6";
+export const FOLD_COLOR = "#48484f";
+
 /**
  * GTO Wizardのレンジグリッドを踏襲した13x13ハンドマトリクス。
- * 各セルは頻度に応じて「レイズ(オレンジ)/コール(ブルー)/フォールド(グレー)」を
+ * 各セルは頻度に応じて「レイズ(赤)/コール(青)/フォールド(グレー)」を
  * 左から右へ帯状に積み上げたグラデーションで塗り、サンプルが無いセルは暗いグレーの空セルにする。
  */
 export function RangeMatrix({
@@ -26,15 +31,15 @@ export function RangeMatrix({
     const stops: string[] = [];
     let cursor = 0;
     if (raisePct > 0) {
-      stops.push(`#c98500 ${cursor}% ${cursor + raisePct}%`);
+      stops.push(`${RAISE_COLOR} ${cursor}% ${cursor + raisePct}%`);
       cursor += raisePct;
     }
     if (callPct > 0) {
-      stops.push(`#3987e5 ${cursor}% ${cursor + callPct}%`);
+      stops.push(`${CALL_COLOR} ${cursor}% ${cursor + callPct}%`);
       cursor += callPct;
     }
     if (foldPct > 0) {
-      stops.push(`#3a3a42 ${cursor}% 100%`);
+      stops.push(`${FOLD_COLOR} ${cursor}% 100%`);
     }
     return { background: `linear-gradient(90deg, ${stops.join(", ")})` };
   }
@@ -103,16 +108,16 @@ function CellSummary({ cell }: { cell: RangeCell }) {
   return (
     <span className="flex items-center gap-3 flex-wrap">
       <span className="text-ink-100 font-semibold">{cell.label}</span>
-      <span className="flex items-center gap-1 text-[#c98500]">
-        <span className="h-2 w-2 rounded-full bg-[#c98500]" />
+      <span className="flex items-center gap-1" style={{ color: RAISE_COLOR }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: RAISE_COLOR }} />
         レイズ {pct(cell.raise)}%
       </span>
-      <span className="flex items-center gap-1 text-[#3987e5]">
-        <span className="h-2 w-2 rounded-full bg-[#3987e5]" />
+      <span className="flex items-center gap-1" style={{ color: CALL_COLOR }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: CALL_COLOR }} />
         コール {pct(cell.call)}%
       </span>
       <span className="flex items-center gap-1 text-ink-400">
-        <span className="h-2 w-2 rounded-full bg-ink-600" />
+        <span className="h-2 w-2 rounded-full" style={{ background: FOLD_COLOR }} />
         フォールド {pct(cell.fold)}%
       </span>
       <span className="text-ink-600 tabular-nums">({total}件)</span>

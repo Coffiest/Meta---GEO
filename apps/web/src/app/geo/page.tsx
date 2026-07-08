@@ -15,12 +15,48 @@ import { StatTile } from "@/components/geo/StatTile";
 import { PositionalRfiChart } from "@/components/geo/PositionalRfiChart";
 import { HandHistoryList } from "@/components/geo/HandHistoryList";
 import { HandDetailPanel } from "@/components/geo/HandDetailPanel";
-import { RangeMatrix } from "@/components/geo/RangeMatrix";
-import { SpotSelector } from "@/components/geo/SpotSelector";
+import { RangeMatrix, RAISE_COLOR, CALL_COLOR, FOLD_COLOR } from "@/components/geo/RangeMatrix";
+import { PositionTable } from "@/components/geo/PositionTable";
 
 type GeoTab = "range" | "analytics";
+type Street = "preflop" | "postflop";
 
-function RangeExplorer() {
+const SCENARIOS: { key: RangeScenario; label: string }[] = [
+  { key: "rfi", label: "RFI" },
+  { key: "vsOpen", label: "vs Open" },
+];
+
+/**
+ * GTO WizardのStudy最初の画面を踏襲した「Preflop / Postflop」切り替え。
+ * Preflopは実データに基づく169ハンドクラスのレンジエクスプローラー(本実装)、
+ * Postflopはボードテクスチャ別の集計基盤が未整備のため準備中表示にする。
+ */
+function StudyExplorer() {
+  const [street, setStreet] = useState<Street>("preflop");
+
+  return (
+    <div className="rounded-2xl bg-ink-950 ring-1 ring-ink-700/60 overflow-hidden">
+      <div className="flex items-center justify-center py-4 bg-ink-900/40">
+        <div className="inline-flex rounded-full bg-ink-800 p-1 ring-1 ring-ink-700/60">
+          {(["preflop", "postflop"] as Street[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStreet(s)}
+              className={`rounded-full px-5 py-1.5 text-[12px] font-semibold capitalize transition-colors ${
+                street === s ? "bg-mint-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
+              }`}
+            >
+              {s === "preflop" ? "Preflop" : "Postflop"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="p-4">{street === "preflop" ? <PreflopStudy /> : <PostflopComingSoon />}</div>
+    </div>
+  );
+}
+
+function PreflopStudy() {
   const [position, setPosition] = useState("BTN");
   const [scenario, setScenario] = useState<RangeScenario>("rfi");
   const [matrix, setMatrix] = useState<RangeMatrixResult | null>(null);
@@ -40,31 +76,37 @@ function RangeExplorer() {
   }, [position, scenario]);
 
   return (
-    <div className="rounded-2xl bg-ink-900/70 ring-1 ring-ink-700/50 p-4">
-      <div className="flex items-start justify-between gap-2 mb-4">
-        <div>
-          <h3 className="text-sm font-medium text-ink-100">レンジエクスプローラー</h3>
-          <p className="text-[11px] text-ink-500 mt-0.5">
-            ポジション・シナリオを選ぶと、実プレイヤーの169ハンドクラス別アクション頻度が13x13グリッドで表示されます。
-          </p>
-        </div>
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap justify-end shrink-0 text-[10px] text-ink-400">
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-[#c98500]" />
-            レイズ
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-[#3987e5]" />
-            コール
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-ink-600" />
-            フォールド
-          </span>
-        </div>
+    <div>
+      <PositionTable position={position} onChange={setPosition} />
+
+      <div className="flex items-center justify-center gap-1 mt-4">
+        {SCENARIOS.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setScenario(s.key)}
+            className={`rounded-md px-3.5 py-1.5 text-[11px] font-medium transition-colors ${
+              scenario === s.key ? "bg-mint-500 text-ink-950" : "bg-ink-800 text-ink-400 hover:text-ink-100"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
-      <SpotSelector position={position} scenario={scenario} onPositionChange={setPosition} onScenarioChange={setScenario} />
+      <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap text-[10px] text-ink-400 mt-4">
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-sm" style={{ background: RAISE_COLOR }} />
+          レイズ
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-sm" style={{ background: CALL_COLOR }} />
+          コール
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-2 rounded-sm" style={{ background: FOLD_COLOR }} />
+          フォールド
+        </span>
+      </div>
 
       <div className="mt-4">
         {loadError ? (
@@ -76,7 +118,7 @@ function RangeExplorer() {
             </div>
           ) : (
             <>
-              <div className="text-[11px] text-ink-500 mb-2">
+              <div className="text-[11px] text-ink-500 mb-2 text-center">
                 {position} ・ {scenario === "rfi" ? "オープンレイズ機会" : "vs オープン"} ・ サンプル {matrix.totalSamples.toLocaleString()}件
               </div>
               <RangeMatrix data={matrix} />
@@ -86,6 +128,24 @@ function RangeExplorer() {
           <div className="py-10 text-center text-sm text-ink-500">読み込み中…</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PostflopComingSoon() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+      <div className="h-14 w-14 rounded-full bg-ink-800 ring-1 ring-ink-700 flex items-center justify-center text-ink-500">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6">
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      </div>
+      <div className="text-sm font-medium text-ink-200">Postflopは近日対応予定です</div>
+      <p className="text-[11px] text-ink-500 max-w-xs leading-relaxed">
+        フロップ・ターン・リバーのレンジ分析にはボードテクスチャごとの集計基盤が必要なため、現在準備を進めています。
+        まずはPreflopの実データ分析からご利用ください。
+      </p>
     </div>
   );
 }
@@ -162,7 +222,7 @@ export default function GeoPage() {
             tab === "range" ? "bg-gold-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
           }`}
         >
-          レンジ
+          Study
         </button>
         <button
           onClick={() => setTab("analytics")}
@@ -175,7 +235,7 @@ export default function GeoPage() {
       </div>
 
       {tab === "range" ? (
-        <RangeExplorer />
+        <StudyExplorer />
       ) : (
         <>
           <p className="text-[12px] text-ink-500 mb-4 leading-relaxed">
