@@ -525,10 +525,19 @@ export function Icon({ name, className = "h-5 w-5" }: { name: string; className?
 }
 
 /** ヘッダー右上のハンバーガーメニューから開くボトムシート。旧Mypageタブの機能をここに集約する。 */
+/** "google" → "Google" のようにプロバイダ名を表示用ラベルに変換する。 */
+function providerLabel(provider: string): string {
+  if (provider === "google") return "Google";
+  if (provider === "apple") return "Apple";
+  if (provider === "email") return "メール";
+  return provider;
+}
+
 function HamburgerMenu({
   displayName,
   avatarKey,
   email,
+  providers,
   isGuest,
   onClose,
   onEditProfile,
@@ -538,6 +547,7 @@ function HamburgerMenu({
   displayName: string;
   avatarKey: string | null;
   email?: string | null;
+  providers?: string[];
   isGuest: boolean;
   onClose: () => void;
   onEditProfile: () => void;
@@ -560,6 +570,12 @@ function HamburgerMenu({
               <div className="text-xs text-navy-400 truncate">{email}</div>
             ) : (
               isGuest && <div className="text-xs text-navy-500">ゲストプレイ中</div>
+            )}
+            {/* どのアカウントでログイン中かを常に確認できるよう、連携済みプロバイダを明示する */}
+            {providers && providers.length > 0 && (
+              <div className="text-[10px] text-navy-500 truncate">
+                {providers.map(providerLabel).join(" / ")} でログイン中
+              </div>
             )}
           </div>
         </div>
@@ -588,6 +604,7 @@ export function Lobby({
   displayName,
   avatarKey,
   email,
+  providers,
   userId,
   accessToken,
   onJoin,
@@ -597,6 +614,7 @@ export function Lobby({
   displayName: string;
   avatarKey: string | null;
   email?: string | null;
+  providers?: string[];
   userId?: string | null;
   accessToken?: string;
   onJoin: (gameKey: GameKey) => void;
@@ -1083,6 +1101,7 @@ export function Lobby({
           displayName={displayName}
           avatarKey={avatarKey}
           email={email}
+          providers={providers}
           isGuest={!accessToken}
           onClose={() => setMenuOpen(false)}
           onEditProfile={() => {

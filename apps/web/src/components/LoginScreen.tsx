@@ -87,6 +87,10 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           </button>
         </div>
 
+        <p className="text-[10px] text-navy-500 text-center leading-relaxed">
+          同じメールアドレスのApple/Googleアカウントは、同じプレイヤーアカウントとして扱われます。
+        </p>
+
         <div className="flex items-center gap-3 py-1">
           <div className="h-px flex-1 bg-navy-700" />
           <span className="text-[11px] text-navy-500">または メールで続ける</span>

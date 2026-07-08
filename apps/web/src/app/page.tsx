@@ -405,11 +405,18 @@ export default function Page() {
     );
   }
 
+  // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
+  // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
+  const providers =
+    (auth.session.user.app_metadata?.["providers"] as string[] | undefined) ??
+    (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
+
   return (
     <Lobby
       displayName={profile.displayName}
       avatarKey={profile.avatarKey}
       email={profile.email}
+      providers={providers}
       userId={profile.id}
       accessToken={accessToken}
       onJoin={setGameKey}
