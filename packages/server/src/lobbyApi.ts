@@ -4,7 +4,7 @@ import {
   getLeaderboard,
   getOrCreateUserByAuthId,
   getPlayerStats,
-  getProfitGraph,
+  getTournamentResultsGraph,
   getUserHandHistory,
   prisma,
 } from "@meta-geo/db";
@@ -46,6 +46,15 @@ const EMPTY_STATS = {
   roi: 0,
   nationalRank: null,
   totalRankedPlayers: 0,
+  vpipCount: 0,
+  vpipOpportunities: 0,
+  vpipRate: 0,
+  pfrCount: 0,
+  pfrOpportunities: 0,
+  pfrRate: 0,
+  threeBetCount: 0,
+  threeBetOpportunities: 0,
+  threeBetRate: 0,
 };
 
 async function resolveDbUser(verified: VerifiedUser) {
@@ -133,15 +142,16 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
-    // 収支推移グラフ(TenFourのStatsグラフ相当)
-    if (url.pathname === "/api/lobby/profit-graph") {
+    // 獲得金額・ROIの推移棒グラフ(トーナメントごと・時系列)
+    if (url.pathname === "/api/lobby/results-graph") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
         sendJson(res, 401, { error: "unauthorized" });
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      sendJson(res, 200, user ? await getProfitGraph(user.id) : []);
+      const limitParam = Number(url.searchParams.get("limit") ?? 30);
+      sendJson(res, 200, user ? await getTournamentResultsGraph(user.id, limitParam) : []);
       return true;
     }
 

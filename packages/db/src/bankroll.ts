@@ -92,22 +92,113 @@ export interface PlayerStats {
   totalPayouts: number;
   /** 収支(総payout - 総buyin)。±方式のメイン指標。 */
   profit: number;
-  /** ROI = 収支 / 総buyin (buyinが0なら0) */
+  /** ROI = 得た金額 / かけた金額 (buyinが0なら0)。TenFour方式で「1.5倍で返ってきたら150%」の還元率表記。 */
   roi: number;
   /** 全国ランク(収支順、1始まり)。対象トーナメントが無ければnull。 */
   nationalRank: number | null;
   /** ランキング対象の総プレイヤー数 */
   totalRankedPlayers: number;
+  vpipCount: number;
+  vpipOpportunities: number;
+  /** VPIP(0-1) */
+  vpipRate: number;
+  pfrCount: number;
+  pfrOpportunities: number;
+  /** PFR(0-1) */
+  pfrRate: number;
+  threeBetCount: number;
+  threeBetOpportunities: number;
+  /** 3Bet(0-1) */
+  threeBetRate: number;
 }
 
-/** ROI・収支・イン・ザ・マネー率・全国ランクなどのロビー用サマリースタッツ。 */
+const AGGRESSIVE_KINDS = new Set(["bet", "raise", "allIn"]);
+
+interface PreflopStats {
+  vpipCount: number;
+  vpipOpportunities: number;
+  pfrCount: number;
+  pfrOpportunities: number;
+  threeBetCount: number;
+  threeBetOpportunities: number;
+}
+
+/**
+ * VPIP/PFR/3Betをプリフロップのアクションログから集計する。
+ *  - VPIP: プリフロップで自発的にチップを投入した割合(コール or レイズ / 参加した全ハンド)
+ *  - PFR:  プリフロップでレイズした割合(レイズ / 参加した全ハンド)
+ *  - 3Bet: 最初のレイズに対してリレイズをした割合(リレイズ / 自分の前にレイズが1回だけあったハンド)
+ * VPIP・PFRとも、BBがアンレイズドポットでチェックしたハンド(意思決定の余地が無い)は
+ * 回数・機会のどちらにも含めない(実測のプレイスタイルとして意味を持たないため)。
+ */
+async function getPreflopStats(userId: string): Promise<PreflopStats> {
+  const seats = await prisma.handSeat.findMany({
+    where: { userId },
+    select: {
+      seatIndex: true,
+      isBigBlind: true,
+      hand: {
+        select: {
+          actions: {
+            where: { street: "preflop" },
+            orderBy: { sequenceNumber: "asc" },
+            select: { seatIndex: true, kind: true },
+          },
+        },
+      },
+    },
+  });
+
+  let vpipCount = 0;
+  let vpipOpportunities = 0;
+  let pfrCount = 0;
+  let pfrOpportunities = 0;
+  let threeBetCount = 0;
+  let threeBetOpportunities = 0;
+
+  for (const seat of seats) {
+    const actions = seat.hand.actions.filter((a) => a.kind !== "postBlind" && a.kind !== "postAnte");
+    let raisesSoFar = 0;
+    let firstOwnAction: { kind: string } | null = null;
+    let raisesBeforeFirstOwnAction = 0;
+
+    for (const action of actions) {
+      if (action.seatIndex === seat.seatIndex) {
+        firstOwnAction = action;
+        raisesBeforeFirstOwnAction = raisesSoFar;
+        break;
+      }
+      if (AGGRESSIVE_KINDS.has(action.kind)) raisesSoFar++;
+    }
+
+    if (!firstOwnAction) continue;
+
+    const isBbFreeCheck = seat.isBigBlind && raisesBeforeFirstOwnAction === 0 && firstOwnAction.kind === "check";
+    if (!isBbFreeCheck) {
+      vpipOpportunities++;
+      pfrOpportunities++;
+      if (firstOwnAction.kind === "call" || AGGRESSIVE_KINDS.has(firstOwnAction.kind)) vpipCount++;
+      if (AGGRESSIVE_KINDS.has(firstOwnAction.kind)) pfrCount++;
+    }
+
+    if (raisesBeforeFirstOwnAction === 1) {
+      threeBetOpportunities++;
+      if (firstOwnAction.kind === "raise" || firstOwnAction.kind === "allIn") threeBetCount++;
+    }
+  }
+
+  return { vpipCount, vpipOpportunities, pfrCount, pfrOpportunities, threeBetCount, threeBetOpportunities };
+}
+
+/** ROI・収支・イン・ザ・マネー率・VPIP/PFR/3Bet・全国ランクなどのロビー用サマリースタッツ。 */
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {
-  const [entries, leaderboard] = await Promise.all([
+  const [entries, leaderboard, preflop] = await Promise.all([
     prisma.tournamentEntry.findMany({
       where: { userId, tournament: { status: "finished" } },
       select: { payout: true, tournament: { select: { buyIn: true } } },
     }),
     getLeaderboard(100000),
+    getPreflopStats(userId),
   ]);
 
   const tournamentsPlayed = entries.length;
@@ -124,36 +215,58 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     totalBuyIns,
     totalPayouts,
     profit,
-    roi: totalBuyIns > 0 ? profit / totalBuyIns : 0,
+    roi: totalBuyIns > 0 ? totalPayouts / totalBuyIns : 0,
     nationalRank: rankIndex === -1 ? null : rankIndex + 1,
     totalRankedPlayers: leaderboard.length,
+    vpipCount: preflop.vpipCount,
+    vpipOpportunities: preflop.vpipOpportunities,
+    vpipRate: preflop.vpipOpportunities > 0 ? preflop.vpipCount / preflop.vpipOpportunities : 0,
+    pfrCount: preflop.pfrCount,
+    pfrOpportunities: preflop.pfrOpportunities,
+    pfrRate: preflop.pfrOpportunities > 0 ? preflop.pfrCount / preflop.pfrOpportunities : 0,
+    threeBetCount: preflop.threeBetCount,
+    threeBetOpportunities: preflop.threeBetOpportunities,
+    threeBetRate: preflop.threeBetOpportunities > 0 ? preflop.threeBetCount / preflop.threeBetOpportunities : 0,
   };
 }
 
-export interface ProfitGraphPoint {
-  /** 通算ハンド番号(1始まり) */
-  handIndex: number;
-  /** 累積収支(bb) */
-  cumulativeBb: number;
+export interface TournamentResultPoint {
+  /** 時系列インデックス(1始まり、古い順) */
+  index: number;
+  tournamentId: string;
+  finishedAt: string;
+  buyIn: number;
+  /** そのトーナメントで得た賞金(入賞していなければ0) */
+  payout: number;
+  /** そのトーナメント単体のROI(%)。payout/buyIn*100。 */
+  roi: number;
 }
 
 /**
- * 収支推移の折れ線グラフ用データ(TenFourのStatsグラフ相当)。
- * ハンドごとの収支をそのときのBBで正規化し、累積bbの時系列を返す。
+ * 獲得金額・ROIの棒グラフ用データ(トーナメントごと・時系列)。
+ * 直近limit件を古い順に並べ替えて返す。
  */
-export async function getProfitGraph(userId: string, limit = 1000): Promise<ProfitGraphPoint[]> {
-  const seats = await prisma.handSeat.findMany({
-    where: { userId },
-    orderBy: { hand: { createdAt: "asc" } },
+export async function getTournamentResultsGraph(userId: string, limit = 30): Promise<TournamentResultPoint[]> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { userId, tournament: { status: "finished" } },
+    orderBy: { tournament: { finishedAt: "desc" } },
     take: limit,
-    select: { resultStackDelta: true, hand: { select: { levelBigBlind: true } } },
+    select: {
+      payout: true,
+      tournament: { select: { id: true, buyIn: true, finishedAt: true, createdAt: true } },
+    },
   });
 
-  let cumulative = 0;
-  return seats.map((s, i) => {
-    cumulative += s.hand.levelBigBlind > 0 ? s.resultStackDelta / s.hand.levelBigBlind : 0;
-    return { handIndex: i + 1, cumulativeBb: Math.round(cumulative * 10) / 10 };
-  });
+  return entries
+    .reverse()
+    .map((e, i) => ({
+      index: i + 1,
+      tournamentId: e.tournament.id,
+      finishedAt: (e.tournament.finishedAt ?? e.tournament.createdAt).toISOString(),
+      buyIn: e.tournament.buyIn,
+      payout: e.payout,
+      roi: e.tournament.buyIn > 0 ? Math.round((e.payout / e.tournament.buyIn) * 1000) / 10 : 0,
+    }));
 }
 
 export interface LeaderboardRow {

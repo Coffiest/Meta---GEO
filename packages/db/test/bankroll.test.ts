@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { HandEngine, type PlayerAction } from "@meta-geo/engine";
 import { prisma } from "../src/client.js";
+import { recordHand } from "../src/recordHand.js";
 import {
   SNG_PAYOUTS,
   completeOnboarding,
@@ -110,7 +112,8 @@ describe("bankroll ledger (integration, real Postgres)", () => {
     expect(stats.totalBuyIns).toBe(500);
     expect(stats.totalPayouts).toBe(1000);
     expect(stats.profit).toBe(500);
-    expect(stats.roi).toBe(1); // 500/500
+    expect(stats.roi).toBe(2); // 得た金額1000 / かけた金額500 = 200%還元
+    expect(stats.vpipOpportunities).toBe(0); // このテストはハンドを記録していないので機会0
 
     const leaderboard = await getLeaderboard();
     const row = leaderboard.find((r) => r.userId === user.id);
@@ -131,5 +134,105 @@ describe("bankroll ledger (integration, real Postgres)", () => {
 
     await recordBuyIn({ userId: user.id, tournamentId: tournament.id, amount: 99999 });
     expect(await getNetProfit(user.id)).toBe(-99999);
+  });
+});
+
+describe("getPlayerStats VPIP/PFR/3Bet (integration, real Postgres)", () => {
+  const createdUserIds: string[] = [];
+  const createdTournamentIds: string[] = [];
+
+  afterAll(async () => {
+    for (const tournamentId of createdTournamentIds) {
+      await prisma.handPot.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.handAction.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.handSeat.deleteMany({ where: { hand: { tournamentId } } });
+      await prisma.hand.deleteMany({ where: { tournamentId } });
+      await prisma.tournament.delete({ where: { id: tournamentId } });
+    }
+    for (const userId of createdUserIds) {
+      await prisma.user.delete({ where: { id: userId } });
+    }
+    await prisma.$disconnect();
+  });
+
+  it("aggregates VPIP/PFR/3Bet from preflop action logs, excluding BB's free check in an unraised pot", async () => {
+    const [u, a, b] = await Promise.all(
+      ["Target", "OppA", "OppB"].map((name) =>
+        prisma.user.create({ data: { displayName: `PreflopStatsTest-${name}`, isBot: true } }),
+      ),
+    );
+    createdUserIds.push(u.id, a.id, b.id);
+
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 3, startingStack: 20_000, status: "running" },
+    });
+    createdTournamentIds.push(tournament.id);
+
+    // 3人テーブル(seat0=BTN, seat1=SB, seat2=BB)でハンドを1つ再生し、DBへ記録するヘルパー。
+    // 指定したプリフロップアクションを適用した後は、残りをフォールドで畳んで完了させる
+    // (postflopの挙動はVPIP/PFR/3Betの集計に影響しないため無視してよい)。
+    async function playHand(
+      handNumber: number,
+      seatUsers: readonly { id: string }[],
+      actions: readonly (readonly [number, PlayerAction])[],
+    ): Promise<void> {
+      const hand = new HandEngine({
+        seats: seatUsers.map((user, i) => ({ seatIndex: i, playerId: user.id, stack: 20_000 })),
+        seatCount: 3,
+        buttonFixedPos: 0,
+        smallBlindSeat: 1,
+        bigBlindSeat: 2,
+        smallBlind: 100,
+        bigBlind: 200,
+        bbAnte: 200,
+      });
+      for (const [seatIndex, action] of actions) hand.applyAction(seatIndex, action);
+      while (!hand.isHandComplete()) {
+        const seatIndex = hand.getActingSeatIndex();
+        if (seatIndex === null) break;
+        hand.applyAction(seatIndex, { kind: "fold" });
+      }
+      await recordHand({
+        tournamentId: tournament.id,
+        handNumber,
+        buttonFixedPos: 0,
+        levelSmallBlind: 100,
+        levelBigBlind: 200,
+        levelAnte: 200,
+        seats: seatUsers.map((user, i) => ({
+          seatIndex: i,
+          userId: user.id,
+          startingStack: 20_000,
+          isSmallBlind: i === 1,
+          isBigBlind: i === 2,
+        })),
+        hand,
+      });
+    }
+
+    // Hand1: U(seat0=BTN)がオープンレイズ → VPIP・PFRの機会/回数それぞれ+1
+    await playHand(1, [u, a, b], [[0, { kind: "raise", toAmount: 600 }]]);
+
+    // Hand2: U(seat2=BB)が1回だけのレイズに対してリレイズ(3ベット) → VPIP・PFR・3Betすべて+1
+    await playHand(2, [a, b, u], [
+      [0, { kind: "raise", toAmount: 600 }],
+      [1, { kind: "fold" }],
+      [2, { kind: "raise", toAmount: 1800 }],
+    ]);
+
+    // Hand3: U(seat2=BB)がアンレイズドポットでチェック → VPIP・PFRの機会/回数どちらにも含まれない
+    await playHand(3, [a, b, u], [
+      [0, { kind: "call" }],
+      [1, { kind: "call" }],
+      [2, { kind: "check" }],
+    ]);
+
+    const stats = await getPlayerStats(u.id);
+    expect(stats.vpipOpportunities).toBe(2); // Hand1・Hand2のみ(Hand3はBBフリーチェックで除外)
+    expect(stats.vpipCount).toBe(2);
+    expect(stats.pfrOpportunities).toBe(2);
+    expect(stats.pfrCount).toBe(2);
+    expect(stats.threeBetOpportunities).toBe(1); // Hand2のみ(1回だけレイズに直面)
+    expect(stats.threeBetCount).toBe(1);
   });
 });
