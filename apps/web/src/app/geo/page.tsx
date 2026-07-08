@@ -17,6 +17,7 @@ import { HandHistoryList } from "@/components/geo/HandHistoryList";
 import { HandDetailPanel } from "@/components/geo/HandDetailPanel";
 import { RangeMatrix, RAISE_COLOR, CALL_COLOR, FOLD_COLOR } from "@/components/geo/RangeMatrix";
 import { PositionTable } from "@/components/geo/PositionTable";
+import { Icon } from "@/components/Lobby";
 
 type GeoTab = "range" | "analytics";
 type Street = "preflop" | "postflop";
@@ -187,7 +188,8 @@ export default function GeoPage() {
   }, [selectedHandId]);
 
   return (
-    <div className="min-h-screen max-w-5xl mx-auto px-4 pb-16">
+    <div className="min-h-screen">
+      <div className="max-w-5xl mx-auto px-4 pb-28">
       <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
         <div>
           <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GEO STRATEGY DB</div>
@@ -269,6 +271,36 @@ export default function GeoPage() {
           </div>
         </>
       )}
+      </div>
+
+      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-800 bg-ink-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
+          {(
+            [
+              { key: "home", label: "Home", icon: "home", href: "/" },
+              { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+              null,
+              { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+              { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+            ] as ({ key: string; label: string; icon: string; href: string } | null)[]
+          ).map((t, i) =>
+            t ? (
+              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-ink-500">
+                <Icon name={t.icon} />
+                <span className="text-[9px] font-medium">{t.label}</span>
+              </Link>
+            ) : (
+              <div key={`db-${i}`} className="relative flex justify-center">
+                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-ink-950 shadow-panel flex flex-col items-center justify-center text-ink-950">
+                  <Icon name="db" className="h-5 w-5" />
+                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
+                </div>
+                <div className="h-[54px]" />
+              </div>
+            ),
+          )}
+        </div>
+      </nav>
     </div>
   );
 }

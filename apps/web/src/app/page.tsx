@@ -340,95 +340,55 @@ export default function Page() {
   const auth = useAuth();
   const accessToken = auth.session?.access_token;
   const { profile, loading: profileLoading, reload } = useProfile(accessToken);
-  const [guest, setGuest] = useState<{ name: string; avatarKey: string | null } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Supabaseが設定されている(本番想定): ログイン → オンボーディング必須 → ロビー → プレイ。
-  if (auth.authAvailable) {
-    if (auth.loading) return <LoadingScreen />;
-    if (!auth.session) return <LoginScreen auth={auth} />;
-    if (profileLoading) return <LoadingScreen />;
-    if (!profile) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-navy-950 px-6">
-          <p className="text-sm text-navy-300">プロフィールの取得に失敗しました。</p>
-          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
-            再試行
-          </button>
-        </div>
-      );
-    }
-
-    // 名前とアバターを決めるまでは、ホームには一切進めない(この分岐が常に先に評価される)。
-    if (!profile.onboarded || editingProfile) {
-      return (
-        <Onboarding
-          title={profile.onboarded ? "プロフィールを編集" : "プロフィールを設定"}
-          initialName={profile.onboarded ? profile.displayName : ""}
-          initialAvatarKey={profile.avatarKey}
-          submitLabel={profile.onboarded ? "保存する" : "はじめる"}
-          saving={saving}
-          error={saveError}
-          onSubmit={(params) => {
-            setSaving(true);
-            setSaveError(null);
-            void saveProfile(accessToken!, params).then(async (saved) => {
-              if (!saved) setSaveError("保存に失敗しました。もう一度お試しください。");
-              else await reload();
-              setSaving(false);
-              setEditingProfile(false);
-            });
-          }}
-          onCancel={profile.onboarded ? () => setEditingProfile(false) : undefined}
-        />
-      );
-    }
-
-    if (gameKey) {
-      return (
-        <GameScreen
-          displayName={profile.displayName}
-          avatarKey={profile.avatarKey}
-          gameKey={gameKey}
-          accessToken={accessToken}
-          onExit={() => setGameKey(null)}
-        />
-      );
-    }
-
+  // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
+  if (!auth.authAvailable) {
     return (
-      <Lobby
-        displayName={profile.displayName}
-        avatarKey={profile.avatarKey}
-        email={profile.email}
-        userId={profile.id}
-        accessToken={accessToken}
-        onJoin={setGameKey}
-        onEditProfile={() => setEditingProfile(true)}
-        onSignOut={() => {
-          setGameKey(null);
-          void auth.signOut();
-        }}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-navy-950 text-navy-400 text-sm px-6 text-center">
+        ログイン機能が設定されていません。管理者にお問い合わせください。
+      </div>
     );
   }
 
-  // Supabase未設定のローカル/ゲストモード: 同じオンボーディングを通す(名前+アバター必須)。
-  if (!guest || editingProfile) {
+  if (auth.loading) return <LoadingScreen />;
+  if (!auth.session) return <LoginScreen auth={auth} />;
+  if (profileLoading) return <LoadingScreen />;
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-navy-950 px-6">
+        <p className="text-sm text-navy-300">プロフィールの取得に失敗しました。</p>
+        <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
+          再試行
+        </button>
+      </div>
+    );
+  }
+
+  // 名前とアバターを決めるまでは、ホームには一切進めない(この分岐が常に先に評価される)。
+  if (!profile.onboarded || editingProfile) {
     return (
       <Onboarding
-        title={guest ? "プロフィールを編集" : "プロフィールを設定"}
-        initialName={guest?.name ?? ""}
-        initialAvatarKey={guest?.avatarKey ?? null}
-        submitLabel={guest ? "保存する" : "はじめる"}
+        title={profile.onboarded ? "プロフィールを編集" : "プロフィールを設定"}
+        initialName={profile.onboarded ? profile.displayName : ""}
+        initialAvatarKey={profile.avatarKey}
+        submitLabel={profile.onboarded ? "保存する" : "はじめる"}
+        saving={saving}
+        error={saveError}
         onSubmit={(params) => {
-          setGuest({ name: params.displayName, avatarKey: params.avatarKey });
-          setEditingProfile(false);
+          setSaving(true);
+          setSaveError(null);
+          void saveProfile(accessToken!, params).then(async (saved) => {
+            if (!saved) setSaveError("保存に失敗しました。もう一度お試しください。");
+            else await reload();
+            setSaving(false);
+            setEditingProfile(false);
+          });
         }}
-        onCancel={guest ? () => setEditingProfile(false) : undefined}
+        onCancel={profile.onboarded ? () => setEditingProfile(false) : undefined}
       />
     );
   }
@@ -436,9 +396,10 @@ export default function Page() {
   if (gameKey) {
     return (
       <GameScreen
-        displayName={guest.name}
-        avatarKey={guest.avatarKey}
+        displayName={profile.displayName}
+        avatarKey={profile.avatarKey}
         gameKey={gameKey}
+        accessToken={accessToken}
         onExit={() => setGameKey(null)}
       />
     );
@@ -446,10 +407,17 @@ export default function Page() {
 
   return (
     <Lobby
-      displayName={guest.name}
-      avatarKey={guest.avatarKey}
+      displayName={profile.displayName}
+      avatarKey={profile.avatarKey}
+      email={profile.email}
+      userId={profile.id}
+      accessToken={accessToken}
       onJoin={setGameKey}
       onEditProfile={() => setEditingProfile(true)}
+      onSignOut={() => {
+        setGameKey(null);
+        void auth.signOut();
+      }}
     />
   );
 }

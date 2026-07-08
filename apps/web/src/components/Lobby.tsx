@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { GameKey } from "@/lib/socket";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
@@ -79,7 +80,12 @@ const GAMES: { key: GameKey; title: string; subtitle: string; buyIn: number; det
   },
 ];
 
-type Tab = "home" | "stats" | "leaderboard" | "history";
+export type Tab = "home" | "stats" | "leaderboard" | "history";
+
+/** URLの?tabクエリから有効なタブ名だけを取り出す(それ以外はnull)。/geo等の他画面からの遷移用。 */
+export function tabFromQuery(value: string | null): Tab | null {
+  return value === "home" || value === "stats" || value === "leaderboard" || value === "history" ? value : null;
+}
 
 function formatSigned(n: number): string {
   return `${n > 0 ? "+" : ""}${n.toLocaleString()}`;
@@ -440,7 +446,7 @@ function ProfitLineChart({ points, onInfo }: { points: HandProfitPoint[]; onInfo
 }
 
 // --- アイコン(フッター/FEATURES共用) ---
-function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+export function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
   const paths: Record<string, React.ReactNode> = {
     home: <path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />,
     stats: (
@@ -568,7 +574,8 @@ export function Lobby({
   onEditProfile: () => void;
   onSignOut?: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("home");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [profitGraph, setProfitGraph] = useState<HandProfitPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
