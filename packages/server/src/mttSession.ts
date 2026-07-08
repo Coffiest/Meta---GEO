@@ -8,7 +8,7 @@ import {
   TIME_BANK_EXTENSION_MS,
   MTT_TIME_BANK_CARDS,
   ensureBotUsers,
-  runoutRevealDelayMs,
+  scheduleStagedRunout,
   type HumanPlayer,
   type GameSession,
 } from "./gameServer.js";
@@ -342,12 +342,27 @@ export class MttSession implements GameSession {
         return;
       }
     }
-    if (this.tableHasHuman(this.activeTableId!)) this.broadcastState();
+    const tableHasHuman = this.tableHasHuman(this.activeTableId!);
     if (hand.isHandComplete()) {
-      const delay = runoutRevealDelayMs(boardLenBefore, hand.getPublicState().board.length);
-      if (delay > 0) setTimeout(() => void this.finishHand(), delay);
-      else void this.finishHand();
+      const boardGrew = hand.getPublicState().board.length > boardLenBefore;
+      // ボードが自動展開された=オールインでベッティングが閉じたケース。ルール上の順序どおり
+      // 「先にショウダウン→ストリートごとにボード公開→結果処理」で配信する(人間がいる卓のみ)。
+      if (boardGrew && tableHasHuman) {
+        const room = this.tableRoom(this.activeTableId!);
+        scheduleStagedRunout({
+          hand,
+          boardLenBefore,
+          emitState: (state) => this.io.to(room).emit("state", state),
+          emitShowdown: (holeCards) => this.io.to(room).emit("showdownReveal", { holeCards }),
+          isStillCurrent: () => this.hand === hand && !this.finished,
+          onDone: () => void this.finishHand(),
+        });
+      } else {
+        if (tableHasHuman) this.broadcastState();
+        void this.finishHand();
+      }
     } else {
+      if (tableHasHuman) this.broadcastState();
       this.scheduleTurn();
     }
   }

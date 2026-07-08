@@ -101,6 +101,11 @@ export interface PokerSocketState {
   waiting: WaitingInfo | null;
   /** ゲーム参加(joinGame)が失敗した場合のエラーメッセージ */
   joinError: string | null;
+  /**
+   * オールインでベッティングが閉じた時点で(残りのボードが開く前に)テーブルアップされた
+   * 手札。TDAルールの「ショウダウン→ランアウト」の公開順を再現するためにhandEndedより先に届く。
+   */
+  runoutHoleCards: Record<number, string[]> | null;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -168,6 +173,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     matching: null,
     waiting: null,
     joinError: null,
+    runoutHoleCards: null,
   });
 
   useEffect(() => {
@@ -197,6 +203,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           state,
           lastHandEnded: isNewHand ? null : d.lastHandEnded,
           lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
+          runoutHoleCards: isNewHand ? null : d.runoutHoleCards,
           actionError: null,
           lastActionBySeat,
           matching: null,
@@ -221,6 +228,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         })),
     );
     socket.on("turnTimer", (payload: TurnTimerInfo) => setData((d) => ({ ...d, turnTimer: payload })));
+    socket.on("showdownReveal", (payload: { holeCards: Record<number, string[]> }) =>
+      setData((d) => ({ ...d, runoutHoleCards: payload.holeCards })),
+    );
     socket.on("handEnded", (payload: HandEndedPayload) =>
       setData((d) => {
         if (!d.state) return { ...d, lastHandEnded: payload };

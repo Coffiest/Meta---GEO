@@ -143,6 +143,7 @@ function GameScreen({
     matching,
     waiting,
     joinError,
+    runoutHoleCards,
     sendAction,
     leaveGame,
     armTimeBank,
@@ -162,8 +163,11 @@ function GameScreen({
   const minRaiseToAmount = state ? Math.min(maxRaiseToAmount, state.currentBetToMatch + state.lastFullRaiseSize) : 0;
   const bigBlind = level?.bigBlind ?? 0;
 
-  const revealedHoleCards = lastHandEnded
-    ? Object.fromEntries(Object.entries(lastHandEnded.holeCards).map(([seat, cards]) => [Number(seat), cards]))
+  // 公開する手札: ハンド終了後はhandEndedのもの、オールインランアウト中(handEndedより前)は
+  // showdownRevealで先にテーブルアップされたものを表示する。
+  const shownHoleCards = lastHandEnded?.holeCards ?? runoutHoleCards;
+  const revealedHoleCards = shownHoleCards
+    ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
 
   return (
