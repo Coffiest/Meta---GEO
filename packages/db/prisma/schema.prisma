@@ -1,0 +1,147 @@
+// GEO(仮称)戦略DBの基礎スキーマ。
+// 「全ハンド・全アクションを記録し、後からスポットごとに検索・分析できる」というコンセプトの核。
+// ローカル開発ではこの環境のPostgres、本番ではSupabase Postgresを想定(DATABASE_URLを切り替えるだけ)。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  /// Supabase Authのユーザーid(auth.users.id)。BOTユーザーはnull。
+  authId      String?  @unique
+  email       String?  @unique
+  displayName String
+  /// プリセットアバターのキー(apps/web側の定義と対応)。未選択はnull。
+  avatarKey   String?
+  /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
+  onboarded   Boolean  @default(false)
+  isBot       Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  tournamentEntries    TournamentEntry[]
+  handSeats            HandSeat[]
+  bankrollTransactions BankrollTransaction[]
+}
+
+/// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
+/// (別に「現在残高」フィールドをキャッシュしない。導出元は常にこの台帳の1本にする)。
+model BankrollTransaction {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  /// 正=入金(サインアップボーナス・賞金)、負=出金(バイイン)
+  amount       Int
+  kind         String // "signupBonus" | "buyIn" | "payout" | "adjustment"
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Tournament {
+  id            String    @id @default(uuid())
+  /// "sng" | "mtt"。ロビーでの選択に対応。
+  gameType      String    @default("sng")
+  /// 参加費(バンクロールから引かれる額)。トーナメント内のチップ数(startingStack)とは別概念。
+  buyIn         Int       @default(0)
+  seatCount     Int
+  startingStack Int
+  status        String    @default("waiting") // "waiting" | "running" | "finished"
+  createdAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  entries              TournamentEntry[]
+  hands                Hand[]
+  bankrollTransactions BankrollTransaction[]
+}
+
+model TournamentEntry {
+  id                 String  @id @default(uuid())
+  tournamentId       String
+  tournament         Tournament @relation(fields: [tournamentId], references: [id])
+  userId             String
+  user               User    @relation(fields: [userId], references: [id])
+  seatIndex          Int
+  finishPosition     Int?
+  bustedAtHandNumber Int?
+  /// 着順に応じてバンクロールへ払い出した額(0=賞金圏外)。
+  payout             Int     @default(0)
+
+  @@unique([tournamentId, seatIndex])
+  @@index([userId])
+}
+
+model Hand {
+  id              String   @id @default(uuid())
+  tournamentId    String
+  tournament      Tournament @relation(fields: [tournamentId], references: [id])
+  handNumber      Int
+  levelSmallBlind Int
+  levelBigBlind   Int
+  levelAnte       Int
+  buttonFixedPos  Int
+  board           String[] // 例: ["9s","8s","7s","6h","2d"]
+  potTotal        Int
+  wonByFold       Boolean
+  createdAt       DateTime @default(now())
+
+  seats   HandSeat[]
+  actions HandAction[]
+  pots    HandPot[]
+
+  @@unique([tournamentId, handNumber])
+}
+
+/// そのハンドにおける各プレイヤーの着席情報。GEO分析上、全ハンド終了後はホールカードを常に記録する
+/// (Ten-Four Pokerの「全履歴公開」思想を踏襲)。
+model HandSeat {
+  id               String  @id @default(uuid())
+  handId           String
+  hand             Hand    @relation(fields: [handId], references: [id])
+  userId           String
+  user             User    @relation(fields: [userId], references: [id])
+  seatIndex        Int
+  startingStack    Int
+  holeCards        String[]
+  isSmallBlind     Boolean @default(false)
+  isBigBlind       Boolean @default(false)
+  resultStackDelta Int
+
+  @@unique([handId, seatIndex])
+  @@index([userId])
+}
+
+/// GEO分析の核となる、ハンド内の全アクションの時系列ログ
+model HandAction {
+  id             String @id @default(uuid())
+  handId         String
+  hand           Hand   @relation(fields: [handId], references: [id])
+  sequenceNumber Int
+  seatIndex      Int
+  street         String // "preflop" | "flop" | "turn" | "river"
+  kind           String // "fold" | "check" | "call" | "bet" | "raise" | "allIn" | "postBlind" | "postAnte"
+  toAmount       Int?
+  potBefore      Int
+
+  @@index([handId, sequenceNumber])
+  @@index([street, kind])
+}
+
+model HandPot {
+  id              String @id @default(uuid())
+  handId          String
+  hand            Hand   @relation(fields: [handId], references: [id])
+  potIndex        Int
+  amount          Int
+  eligibleUserIds String[]
+  winnerUserIds   String[]
+
+  @@unique([handId, potIndex])
+}

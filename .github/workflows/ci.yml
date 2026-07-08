@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: localdev
+          POSTGRES_DB: meta_geo_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:localdev@localhost:5432/meta_geo_dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @meta-geo/db run generate
+
+      - name: Apply DB migrations
+        run: pnpm --filter @meta-geo/db exec prisma migrate deploy
+
+      - name: Typecheck all packages
+        run: pnpm -r run typecheck
+
+      - name: Test engine, db, server
+        run: pnpm -r --filter=./packages/* run test
+
+      - name: Build web
+        run: pnpm --filter @meta-geo/web run build
+        env:
+          NEXT_PUBLIC_SERVER_URL: https://example.invalid

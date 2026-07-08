@@ -1,0 +1,24 @@
+# app名は Fly.io ダッシュボードで既に作成済みの "meta---geo" に合わせてある。
+# デプロイはリポジトリのルートから実行します(モノレポ全体をビルドコンテキストにする必要があるため):
+#   fly deploy --config packages/server/fly.toml --dockerfile packages/server/Dockerfile .
+
+app = "meta---geo"
+primary_region = "nrt" # 東京
+
+[build]
+
+[env]
+  PORT = "4000"
+  # WEB_ORIGIN と DATABASE_URL は `fly secrets set` で設定する(このファイルには書かない)
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
