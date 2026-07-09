@@ -9,7 +9,7 @@ import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
 import { PlayingCard } from "./PlayingCard";
-import { RRRatingCard, type RRRatingData } from "./RRRatingCard";
+import { RRRatingCard, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -647,6 +647,7 @@ export function Lobby({
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
+  const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
@@ -668,6 +669,14 @@ export function Lobby({
     fetch(`${SERVER_URL}/api/lobby/rr-rating`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<RRRatingData>) : null))
       .then((json) => json && setRRRating(json))
+      .catch(() => {});
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/tournament-history`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentHistoryPoint[]>) : null))
+      .then((json) => json && setTournamentHistory(json))
       .catch(() => {});
   }, [accessToken]);
 
@@ -772,7 +781,17 @@ export function Lobby({
               </div>
             </motion.div>
 
-            <RRRatingCard data={rrRating} itmRate={stats?.itmRate ?? 0} onViewLeaderboard={() => setTab("leaderboard")} />
+            <RRRatingCard
+              displayName={displayName}
+              avatarKey={avatarKey}
+              data={rrRating}
+              itmRate={stats?.itmRate ?? 0}
+              totalBuyIns={stats?.totalBuyIns ?? 0}
+              totalPayouts={stats?.totalPayouts ?? 0}
+              history={tournamentHistory}
+              onViewLeaderboard={() => setTab("leaderboard")}
+              onViewHistory={() => setTab("history")}
+            />
 
             <div className="text-center space-y-2 pt-2">
               <p className="text-[10px] text-ink-500 leading-relaxed px-2">

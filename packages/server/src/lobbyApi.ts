@@ -7,6 +7,7 @@ import {
   getPlayerStats,
   getHandProfitGraph,
   getRRRating,
+  getTournamentHistory,
   getUserHandHistory,
   prisma,
 } from "@meta-geo/db";
@@ -146,6 +147,19 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         200,
         user ? await getRRRating(user.id) : { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: 0 },
       );
+      return true;
+    }
+
+    // ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用(トーナメントごとの個別損益)
+    if (url.pathname === "/api/lobby/tournament-history") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      const limitParam = Number(url.searchParams.get("limit") ?? 20);
+      sendJson(res, 200, user ? await getTournamentHistory(user.id, limitParam) : []);
       return true;
     }
 

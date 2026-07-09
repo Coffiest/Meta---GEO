@@ -270,6 +270,41 @@ export async function getBankrollGraph(userId: string, limit = 1000): Promise<Ba
   });
 }
 
+export interface TournamentHistoryPoint {
+  tournamentId: string;
+  finishedAt: Date;
+  buyIn: number;
+  payout: number;
+  /** 賞金 − バイイン */
+  pnl: number;
+  finishPosition: number | null;
+}
+
+/**
+ * ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用に、終了済み
+ * トーナメントごとの個別損益(累計ではない)を古い順に返す。
+ */
+export async function getTournamentHistory(userId: string, limit = 20): Promise<TournamentHistoryPoint[]> {
+  const entriesDesc = await prisma.tournamentEntry.findMany({
+    where: { userId, tournament: { status: "finished" } },
+    orderBy: { tournament: { createdAt: "desc" } },
+    take: limit,
+    select: {
+      payout: true,
+      finishPosition: true,
+      tournament: { select: { id: true, buyIn: true, finishedAt: true, createdAt: true } },
+    },
+  });
+  return entriesDesc.reverse().map((e) => ({
+    tournamentId: e.tournament.id,
+    finishedAt: e.tournament.finishedAt ?? e.tournament.createdAt,
+    buyIn: e.tournament.buyIn,
+    payout: e.payout,
+    pnl: e.payout - e.tournament.buyIn,
+    finishPosition: e.finishPosition,
+  }));
+}
+
 export interface HandProfitPoint {
   /** 通算ハンド番号(1始まり) */
   handIndex: number;
