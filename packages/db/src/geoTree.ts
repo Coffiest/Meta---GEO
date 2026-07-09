@@ -116,6 +116,10 @@ type RawHand = Awaited<ReturnType<typeof fetchRawHands>>[number];
 async function fetchRawHands() {
   return prisma.hand.findMany({
     where: { seats: { some: { user: { isBot: false } } } },
+    // 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
+    // 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
+    // 結果が不安定になりうる。
+    orderBy: { createdAt: "asc" },
     select: RAW_HAND_SELECT,
   });
 }
@@ -348,7 +352,10 @@ export async function getPreflopNode(params: {
     if (!linesMatch(decisions, params.line)) continue;
     const next = decisions[params.line.length];
     if (!next) continue;
-    expectedPosition = next.position;
+    // 一致した最初のハンドの値を採用する(全ての正常な6-maxハンドはここで一致するはずなので、
+    // 後続のハンドで無条件に上書きすると、万一データに異常のあるハンドが1件混ざっただけで
+    // 正しい大多数の結果が塗り替えられてしまう)。
+    if (expectedPosition === null) expectedPosition = next.position;
     if (next.isHuman) nextDecisions.push(next);
   }
 
@@ -500,7 +507,8 @@ export async function getPostflopNode(params: {
 
     const next = streetDecisions[params.postflopLine.length];
     if (!next) continue;
-    expectedPosition = next.position;
+    // getPreflopNodeと同じ理由で、最初に一致したハンドの値のみ採用する。
+    if (expectedPosition === null) expectedPosition = next.position;
     if (next.isHuman) nextDecisions.push(next);
   }
 

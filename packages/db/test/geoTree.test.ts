@@ -195,6 +195,130 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(callOption!.count).toBeGreaterThanOrEqual(1);
   });
 
+  it("does not let a later, atypical (short-handed) hand override the root position from an earlier, normal hand", async () => {
+    // 回帰テスト: 以前はline=[]に一致する全ハンドをループし、一致するたびにexpectedPositionを
+    // 無条件に上書きしていた(「最後に処理されたハンドの値」が最終結果になる)。MTTで人数が減った
+    // 短縮卓(6席全部埋まっていない)では、最初のアクションのseatIndexがオフセット計算上「BB」等
+    // 別のポジションに化けることがあり、そのハンドがたまたま後から処理されると、本来UTGであるべき
+    // root nodeの答えが誤ったポジション名にすり替わってしまっていた。
+    // 修正後は「最初に一致したハンド」の値のみを採用するため、この上書きが起きない。
+    //
+    // 両ハンドともroot決定(decisions[0])を打つのはbotにし、実測サンプル(filtered)を空に保つ
+    // ことで、expectedPositionのフォールバック経路自体を確実に検証する(サンプルがあると
+    // buildNodeFromDecisionsはfiltered[0]の値を優先するため、この経路を通らなくなってしまう)。
+
+    // ハンド1(先に作成): 正常な6-max。UTG(bot)が2.2bbオープンし、BB(人間)以外は全員フォールド
+    // -> root=UTGが正解。
+    const humanUser1 = await prisma.user.create({ data: { displayName: "GeoTreeTest-Overwrite-Human1", isBot: false } });
+    const botUsers1 = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-Overwrite-Bot1-${i}`, isBot: true } })),
+    );
+    createdUserIds.push(humanUser1.id, ...botUsers1.map((u) => u.id));
+    // seat2=BB(人間)、他はbot。buttonFixedPos=0 -> seat0=BTN,1=SB,2=BB,3=UTG,4=HJ,5=CO
+    const normalSeatUsers = [botUsers1[0]!, botUsers1[1]!, humanUser1, botUsers1[2]!, botUsers1[3]!, botUsers1[4]!];
+
+    const normalTournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 4_000, status: "running", gameType: "sng" },
+    });
+    createdTournamentIds.push(normalTournament.id);
+    await prisma.tournamentEntry.createMany({
+      data: normalSeatUsers.map((u, i) => ({ tournamentId: normalTournament.id, userId: u.id, seatIndex: i })),
+    });
+
+    const normalHand = new HandEngine({
+      seats: normalSeatUsers.map((u, i) => ({ seatIndex: i, playerId: u.id, stack: 4_000 })),
+      seatCount: 6,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+    });
+    normalHand.applyAction(3, { kind: "raise", toAmount: 440 }); // UTG(bot)オープン
+    normalHand.applyAction(4, { kind: "fold" });
+    normalHand.applyAction(5, { kind: "fold" });
+    normalHand.applyAction(0, { kind: "fold" });
+    normalHand.applyAction(1, { kind: "fold" });
+    normalHand.applyAction(2, { kind: "fold" }); // BB(人間)フォールド
+    expect(normalHand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: normalTournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: normalSeatUsers.map((u, i) => ({
+        seatIndex: i,
+        userId: u.id,
+        startingStack: 4_000,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+      })),
+      hand: normalHand,
+    });
+
+    // ハンド2(後に作成): 短縮卓(seat2とseat5の2人しか座っていない、MTTでの人数減少を想定)。
+    // buttonFixedPos=0のオフセット式ではseat2 = BB。最初のアクション(seat2, bot)がroot決定
+    // となるため、このハンド単体を見るとdecisions[0].position = "BB"になる
+    // (=root=UTGとは異なる異常値)。seat5だけ人間にして、このハンド自体は集計対象から
+    // 除外されないようにする(seat5の意思決定はdecisions[1]なのでroot判定には影響しない)。
+    const botUser2 = await prisma.user.create({ data: { displayName: "GeoTreeTest-Overwrite-Bot2", isBot: true } });
+    const humanUser2 = await prisma.user.create({ data: { displayName: "GeoTreeTest-Overwrite-Human2", isBot: false } });
+    createdUserIds.push(botUser2.id, humanUser2.id);
+
+    const shortTournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 4_000, status: "running", gameType: "mtt" },
+    });
+    createdTournamentIds.push(shortTournament.id);
+    await prisma.tournamentEntry.createMany({
+      data: [
+        { tournamentId: shortTournament.id, userId: botUser2.id, seatIndex: 2 },
+        { tournamentId: shortTournament.id, userId: humanUser2.id, seatIndex: 5 },
+      ],
+    });
+
+    const shortHand = new HandEngine({
+      seats: [
+        { seatIndex: 2, playerId: botUser2.id, stack: 4_000 },
+        { seatIndex: 5, playerId: humanUser2.id, stack: 4_000 },
+      ],
+      seatCount: 6,
+      buttonFixedPos: 0,
+      smallBlindSeat: 2,
+      bigBlindSeat: 5,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+    });
+    shortHand.applyAction(2, { kind: "raise", toAmount: 440 }); // seat2(bot, offset上"BB") オープン
+    shortHand.applyAction(5, { kind: "fold" }); // seat5(人間)フォールド
+    expect(shortHand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: shortTournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: [
+        { seatIndex: 2, userId: botUser2.id, startingStack: 4_000, isSmallBlind: true, isBigBlind: false },
+        { seatIndex: 5, userId: humanUser2.id, startingStack: 4_000, isSmallBlind: false, isBigBlind: true },
+      ],
+      hand: shortHand,
+    });
+
+    // 4,000チップ/200bb = 20bb -> "15-20"バケット。他テストのバケットと衝突しないよう分離。
+    // root決定を打ったのは両ハンドともbotなので、実測サンプルは0件(filteredは空) -> 返る
+    // position は expectedPosition のフォールバック値そのものになる。
+    const { node: rootNode } = await getPreflopNode({ stackBucket: "15-20", bubbleStage: "normal", line: [] });
+    expect(rootNode.sampleSize).toBe(0);
+    expect(rootNode.position).toBe("UTG");
+  });
+
   it("returns an empty postflop node when the exact board never occurred", async () => {
     const { node } = await getPostflopNode({
       stackBucket: "30+",
