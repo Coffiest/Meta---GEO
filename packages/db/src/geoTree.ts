@@ -180,11 +180,19 @@ interface ReplayedDecision {
   stackBb: number;
   isGeometric: boolean;
   holeCards: string[];
+  /** そのアクションを打ったのが人間プレイヤーか(bot席は集計対象外だが、ポジション順の整合性のため
+   * シーケンス自体には含める。詳細はreplayPreflopDecisionsのコメント参照)。 */
+  isHuman: boolean;
 }
 
 /**
  * ハンド1件のプリフロップ意思決定を、座席→ポジション変換・スタック深度(bb)算出・
  * bb倍率バケット分類までまとめて時系列に並べる。ブラインド(postBlind/postAnte)は除外する。
+ *
+ * bot席のアクションも(isHuman: falseとして)シーケンスに含める。人間だけを間引くと、
+ * bot混在卓(実運用でごく一般的)でシーケンスのインデックスと実際のポジション順がズレてしまい、
+ * 例えば「line=[]の次の意思決定」が本来UTGであるべきなのに、たまたま最初に人間が座っていた
+ * ポジション(例: BB)にすり替わってしまう。集計(サンプル数・options)はisHumanで人間分のみに絞る。
  */
 function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>): ReplayedDecision[] {
   const seatCount = 6;
@@ -206,28 +214,27 @@ function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>
     const stackBeforeAction = startingStack - priorContribution;
     const stackBb = bigBlind > 0 ? stackBeforeAction / bigBlind : 0;
 
-    if (humanSeats.has(action.seatIndex)) {
-      const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
-      const position = POSITION_NAMES[offset] ?? "";
-      const toAmount = action.toAmount ?? priorContribution;
-      const maxPossible = priorContribution + stackBeforeAction;
-      const isAllIn = action.kind === "allIn" || toAmount >= maxPossible;
+    const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
+    const position = POSITION_NAMES[offset] ?? "";
+    const toAmount = action.toAmount ?? priorContribution;
+    const maxPossible = priorContribution + stackBeforeAction;
+    const isAllIn = action.kind === "allIn" || toAmount >= maxPossible;
 
-      let bucket: PreflopBucket;
-      if (action.kind === "fold") bucket = "fold";
-      else if (isAllIn) bucket = "allIn";
-      else if (action.kind === "call") bucket = "call";
-      else bucket = bucketPreflopRaiseBb(toAmount / bigBlind);
+    let bucket: PreflopBucket;
+    if (action.kind === "fold") bucket = "fold";
+    else if (isAllIn) bucket = "allIn";
+    else if (action.kind === "call") bucket = "call";
+    else bucket = bucketPreflopRaiseBb(toAmount / bigBlind);
 
-      decisions.push({
-        position,
-        seatIndex: action.seatIndex,
-        bucket,
-        stackBb,
-        isGeometric: false,
-        holeCards: humanSeats.get(action.seatIndex) ?? [],
-      });
-    }
+    decisions.push({
+      position,
+      seatIndex: action.seatIndex,
+      bucket,
+      stackBb,
+      isGeometric: false,
+      holeCards: humanSeats.get(action.seatIndex) ?? [],
+      isHuman: humanSeats.has(action.seatIndex),
+    });
 
     // toAmountはそのストリート内の累計拠出額そのもの(handEngine.commit()と同じ意味論)なので、
     // プリフロップ(=このハンド内で唯一のストリート扱い)ではhandContributionへそのまま設定する。
@@ -278,7 +285,16 @@ function emptyMatrix(): HandClassCell[][] {
   );
 }
 
-function buildNodeFromDecisions(nextDecisions: ReplayedDecision[], stackBucket: StackBucket): { node: TreeNode; matrix: HandClassMatrixResult } {
+/**
+ * `expectedPosition` は、実際に一致したハンドの生シーケンス(bot含む)から得られる「本来この
+ * インデックスに来るはずのポジション」。人間分の集計結果(filtered)が0件でも、正しいポジション名で
+ * 「サンプルなし」を表示できるようにするための値(サンプルがあればfiltered[0]の値と一致するはず)。
+ */
+function buildNodeFromDecisions(
+  nextDecisions: ReplayedDecision[],
+  stackBucket: StackBucket,
+  expectedPosition: string | null,
+): { node: TreeNode; matrix: HandClassMatrixResult } {
   const filtered = nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
   const tally = new Map<string, { count: number; geometricCount: number }>();
   const cells = emptyMatrix();
@@ -306,7 +322,7 @@ function buildNodeFromDecisions(nextDecisions: ReplayedDecision[], stackBucket: 
     geometricRatio: count > 0 ? geometricCount / count : 0,
   }));
 
-  const position = filtered[0]?.position ?? null;
+  const position = filtered[0]?.position ?? expectedPosition ?? null;
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
 
@@ -321,6 +337,7 @@ export async function getPreflopNode(params: {
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
   const hands = await fetchRawHands();
   const nextDecisions: ReplayedDecision[] = [];
+  let expectedPosition: string | null = null;
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
@@ -330,10 +347,12 @@ export async function getPreflopNode(params: {
     const decisions = replayPreflopDecisions(hand, humanSeats);
     if (!linesMatch(decisions, params.line)) continue;
     const next = decisions[params.line.length];
-    if (next) nextDecisions.push(next);
+    if (!next) continue;
+    expectedPosition = next.position;
+    if (next.isHuman) nextDecisions.push(next);
   }
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
 }
 
 interface ReplayedPostflopDecision extends ReplayedDecision {
@@ -377,7 +396,9 @@ function replayPostflopDecisions(
     // foldedSeatsへの追加は判定・記録の後に行う(そうしないとfold自体が記録されなくなる)。
     const wasAlreadyFolded = foldedSeats.has(action.seatIndex);
 
-    if (currentStreet !== "preflop" && humanSeats.has(action.seatIndex) && !wasAlreadyFolded) {
+    // bot席も(isHuman: falseとして)シーケンスに含める。理由はreplayPreflopDecisionsのコメント参照
+    // (人間だけを間引くとポジション順とシーケンスのインデックスがズレるため)。
+    if (currentStreet !== "preflop" && !wasAlreadyFolded) {
       const priorStreetContribution = streetContribution.get(action.seatIndex) ?? 0;
       const priorHandContribution = handContribution.get(action.seatIndex) ?? 0;
       const startingStack = startingStackBySeat.get(action.seatIndex) ?? 0;
@@ -419,6 +440,7 @@ function replayPostflopDecisions(
         stackBb: bigBlind > 0 ? behindStack / bigBlind : 0,
         isGeometric,
         holeCards: humanSeats.get(action.seatIndex) ?? [],
+        isHuman: humanSeats.has(action.seatIndex),
         street: currentStreet,
       });
     }
@@ -456,6 +478,7 @@ export async function getPostflopNode(params: {
 
   const hands = await fetchRawHands();
   const nextDecisions: ReplayedPostflopDecision[] = [];
+  let expectedPosition: string | null = null;
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
@@ -476,8 +499,10 @@ export async function getPostflopNode(params: {
     if (!linesMatch(streetDecisions, params.postflopLine)) continue;
 
     const next = streetDecisions[params.postflopLine.length];
-    if (next) nextDecisions.push(next);
+    if (!next) continue;
+    expectedPosition = next.position;
+    if (next.isHuman) nextDecisions.push(next);
   }
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
 }

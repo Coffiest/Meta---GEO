@@ -28,6 +28,8 @@ export const BUBBLE_STAGE_LABELS: Record<BubbleStage, string> = {
 };
 
 export type PreflopBucket = "fold" | "call" | "raise2-2.5" | "raise2.5-3" | "raise3-4" | "raise4+" | "allIn";
+/** 弱→強(アグレッション順)の固定順。頻度ではなくこの順でセル/バーを並べる。 */
+export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-2.5", "raise2.5-3", "raise3-4", "raise4+", "allIn"];
 export const PREFLOP_BUCKET_LABELS: Record<PreflopBucket, string> = {
   fold: "Fold",
   call: "Call",
@@ -39,6 +41,17 @@ export const PREFLOP_BUCKET_LABELS: Record<PreflopBucket, string> = {
 };
 
 export type PostflopBucket = "fold" | "checkOrCall" | "bet20-40" | "bet40-60" | "bet60-80" | "bet80-100" | "bet100+" | "allIn";
+/** 弱→強(アグレッション順)の固定順。頻度ではなくこの順でセル/バーを並べる。 */
+export const POSTFLOP_BUCKETS: PostflopBucket[] = [
+  "fold",
+  "checkOrCall",
+  "bet20-40",
+  "bet40-60",
+  "bet60-80",
+  "bet80-100",
+  "bet100+",
+  "allIn",
+];
 export const POSTFLOP_BUCKET_LABELS: Record<PostflopBucket, string> = {
   fold: "Fold",
   checkOrCall: "Check/Call",

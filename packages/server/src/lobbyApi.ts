@@ -6,6 +6,7 @@ import {
   getOrCreateUserByAuthId,
   getPlayerStats,
   getHandProfitGraph,
+  getRRRating,
   getUserHandHistory,
   prisma,
 } from "@meta-geo/db";
@@ -129,6 +130,22 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
     // ランキングは公開情報(BOTは含まれない)
     if (url.pathname === "/api/lobby/leaderboard") {
       sendJson(res, 200, await getLeaderboard(50));
+      return true;
+    }
+
+    // トナメ偏差値(RRRating)。RRPokerと同じロジック(平均50・標準偏差10のT-score)。
+    if (url.pathname === "/api/lobby/rr-rating") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      sendJson(
+        res,
+        200,
+        user ? await getRRRating(user.id) : { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: 0 },
+      );
       return true;
     }
 
