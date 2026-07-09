@@ -103,6 +103,98 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(emptyNode.sampleSize).toBe(0);
   });
 
+  it("keeps the root node correctly labeled UTG even when only the BB seat is human (bot-mixed table)", async () => {
+    // 回帰テスト: 以前はbot席のアクションをシーケンスから完全に除外していたため、
+    // 「人間が最初に登場するポジション」がline=[]の答えとしてすり替わってしまうバグがあった
+    // (例: BBだけ人間・他5席がbotの卓では、本来UTGであるべきroot nodeがBBとして返っていた)。
+    const humanUser = await prisma.user.create({ data: { displayName: "GeoTreeTest-BBOnly", isBot: false } });
+    const botUsers = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-Bot-${i}`, isBot: true } })),
+    );
+    createdUserIds.push(humanUser.id, ...botUsers.map((u) => u.id));
+
+    // seat2=BB(人間)、それ以外はbot。buttonFixedPos=0 -> seat0=BTN,1=SB,2=BB,3=UTG,4=HJ,5=CO
+    const seatUsers = [botUsers[0]!, botUsers[1]!, humanUser, botUsers[2]!, botUsers[3]!, botUsers[4]!];
+
+    // 他のテストは全て100bb("30+"バケット)のデータを作るため、このテストは12bb("10-15"バケット)を
+    // 使ってバケットを分離し、他テストのデータと集計が混ざらないようにする。
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 2_400, status: "running", gameType: "sng" },
+    });
+    createdTournamentIds.push(tournament.id);
+    await prisma.tournamentEntry.createMany({
+      data: seatUsers.map((u, i) => ({ tournamentId: tournament.id, userId: u.id, seatIndex: i })),
+    });
+
+    const hand = new HandEngine({
+      seats: seatUsers.map((u, i) => ({ seatIndex: i, playerId: u.id, stack: 2_400 })),
+      seatCount: 6,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+    });
+
+    // UTG(bot)が2.2bbオープン、HJ/CO/BTN/SB(全bot)フォールド、BB(人間)がコール。
+    // その後フロップ/ターン/リバーはチェック通しでショウダウンまで進める。
+    hand.applyAction(3, { kind: "raise", toAmount: 440 });
+    hand.applyAction(4, { kind: "fold" });
+    hand.applyAction(5, { kind: "fold" });
+    hand.applyAction(0, { kind: "fold" });
+    hand.applyAction(1, { kind: "fold" });
+    hand.applyAction(2, { kind: "call", toAmount: 440 });
+    hand.applyAction(2, { kind: "check" });
+    hand.applyAction(3, { kind: "check" });
+    hand.applyAction(2, { kind: "check" });
+    hand.applyAction(3, { kind: "check" });
+    hand.applyAction(2, { kind: "check" });
+    hand.applyAction(3, { kind: "check" });
+    expect(hand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: tournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: seatUsers.map((u, i) => ({
+        seatIndex: i,
+        userId: u.id,
+        startingStack: 2_400,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+      })),
+      hand,
+    });
+
+    // root node(line=[])は、たまたま最初に人間が座っていたBBではなく、正しくUTGを指すべき。
+    // UTGはbotなのでサンプルは0件(「サンプルなし」)だが、ポジション名は正しくUTG。
+    const { node: rootNode } = await getPreflopNode({ stackBucket: "10-15", bubbleStage: "normal", line: [] });
+    expect(rootNode.position).toBe("UTG");
+    expect(rootNode.sampleSize).toBe(0);
+
+    // bot達の実際のアクションでラインを辿ってBBまで到達すると、人間(BB)の実測コールが見える。
+    const { node: bbNode } = await getPreflopNode({
+      stackBucket: "10-15",
+      bubbleStage: "normal",
+      line: [
+        { position: "UTG", bucket: "raise2-2.5" },
+        { position: "HJ", bucket: "fold" },
+        { position: "CO", bucket: "fold" },
+        { position: "BTN", bucket: "fold" },
+        { position: "SB", bucket: "fold" },
+      ],
+    });
+    expect(bbNode.position).toBe("BB");
+    expect(bbNode.sampleSize).toBeGreaterThanOrEqual(1);
+    const callOption = bbNode.options.find((o) => o.bucket === "call");
+    expect(callOption).toBeDefined();
+    expect(callOption!.count).toBeGreaterThanOrEqual(1);
+  });
+
   it("returns an empty postflop node when the exact board never occurred", async () => {
     const { node } = await getPostflopNode({
       stackBucket: "30+",
