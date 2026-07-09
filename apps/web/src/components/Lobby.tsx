@@ -8,6 +8,7 @@ import type { GameKey } from "@/lib/socket";
 import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { PlayingCard } from "./PlayingCard";
 import { RRRatingCard, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
@@ -708,32 +709,14 @@ export function Lobby({
 
   return (
     <div className="min-h-screen bg-ink-50 flex flex-col">
-      <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
-        {/* ロゴ配置枠(準備中): 今後作成予定のロゴ画像/SVGに差し替える。それまでは簡易ワードマーク表示。 */}
-        <div className="h-8 flex items-center px-1">
-          <span className="text-[15px] font-black italic tracking-wide text-ink-950">
-            GTO<span className="text-gold-600">Poker</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 pl-1 pr-3 py-1"
-          >
-            <Avatar avatarKey={avatarKey} size={26} />
-            <span className="text-xs text-ink-850 max-w-[96px] truncate">{displayName}</span>
-          </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="メニューを開く"
-            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 text-ink-850"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4.5 w-4.5">
-              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-      </header>
+      <Header
+        left={<HeaderLogo />}
+        right={
+          <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel="メニューを開く">
+            <HamburgerIcon />
+          </HeaderIconButton>
+        }
+      />
 
       <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-5">
         <AnimatePresence mode="wait">
