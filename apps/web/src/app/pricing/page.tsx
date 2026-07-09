@@ -68,7 +68,7 @@ export default function PricingPage() {
           <button
             onClick={handleSubscribe}
             disabled={submitting}
-            className="w-full rounded-xl bg-gold-500 text-ink-950 font-semibold text-sm py-3 shadow-card disabled:opacity-60"
+            className="w-full rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 text-ink-950 font-semibold text-sm py-3 shadow-card active:scale-[0.97] transition-transform disabled:opacity-60"
           >
             {submitting ? "処理中…" : "サブスクリプションに登録"}
           </button>

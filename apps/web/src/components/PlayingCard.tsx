@@ -52,7 +52,7 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
         alt={card}
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} rounded-md object-contain shadow-card select-none`}
+        className={`${dims} rounded-md object-contain shadow-seat select-none`}
       />
     );
   }
@@ -60,7 +60,7 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
   const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-ink-900";
   return (
     <div
-      className={`${dims} rounded-md bg-ink-50 shadow-card ring-1 ring-black/10 flex flex-col items-center justify-center leading-none select-none`}
+      className={`${dims} rounded-md bg-ink-50 shadow-seat ring-1 ring-black/10 flex flex-col items-center justify-center leading-none select-none`}
     >
       <span className={`font-semibold ${suitClass}`}>{rank}</span>
       <span className={suitClass}>{SUIT_GLYPH[suit]}</span>
@@ -79,13 +79,13 @@ function CardBack({ dims }: { dims: string }) {
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} rounded-md object-contain shadow-card select-none`}
+        className={`${dims} rounded-md object-contain shadow-seat select-none`}
       />
     );
   }
 
   return (
-    <div className={`${dims} rounded-md bg-gradient-to-br from-ink-700 to-ink-800 shadow-card ring-1 ring-black/40 relative overflow-hidden`}>
+    <div className={`${dims} rounded-md bg-gradient-to-br from-ink-700 to-ink-800 shadow-seat ring-1 ring-black/40 relative overflow-hidden`}>
       <div className="absolute inset-[3px] rounded-[5px] border border-ink-500/30" />
       <div className="absolute inset-0 flex items-center justify-center text-ink-500/50 text-[10px] tracking-widest">♠</div>
     </div>

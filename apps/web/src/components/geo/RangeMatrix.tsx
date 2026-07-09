@@ -25,7 +25,7 @@ export function RangeMatrix({
 
   function cellStyle(cell: RangeCell): React.CSSProperties {
     const total = cell.raise + cell.call + cell.fold;
-    if (total === 0) return { background: "#e8e8ea" };
+    if (total === 0) return { background: "#f3f4f6" };
     const raisePct = (cell.raise / total) * 100;
     const callPct = (cell.call / total) * 100;
     const foldPct = 100 - raisePct - callPct;
