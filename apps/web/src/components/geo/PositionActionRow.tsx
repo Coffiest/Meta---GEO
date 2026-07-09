@@ -58,7 +58,10 @@ export function PositionActionRow({
         <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase font-semibold">{node.position}</p>
         <p className="text-[10px] text-navy-500 tabular-nums">n={node.sampleSize}</p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+      {/* 横スクロール1行(グリッドの折り返しに頼らない): 弱→強の順で並べているため、
+          行が折り返されても崩れないよう、最も激しいアクションが常に一番右(スクロール終端)に
+          来ることを保証する。 */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
         <AnimatePresence mode="popLayout">
           {sortedOptions.map((opt, i) => (
             <motion.button
@@ -69,7 +72,7 @@ export function PositionActionRow({
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
               onClick={() => onSelect(opt.bucket)}
-              className="relative overflow-hidden rounded-xl p-2.5 text-left"
+              className="relative overflow-hidden rounded-xl p-2.5 text-left shrink-0 w-[104px]"
               style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
             >
               <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
