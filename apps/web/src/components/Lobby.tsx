@@ -9,6 +9,8 @@ import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
+import { Footer } from "./Footer";
+import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { RRRatingCard, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
@@ -489,55 +491,7 @@ function SingleLineChart({
   );
 }
 
-// --- アイコン(フッター/FEATURES共用) ---
-export function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
-  const paths: Record<string, React.ReactNode> = {
-    home: <path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />,
-    stats: (
-      <>
-        <rect x="4" y="13.5" width="3.2" height="6.5" rx="1" fill="currentColor" stroke="none" />
-        <rect x="10.4" y="9" width="3.2" height="11" rx="1" fill="currentColor" stroke="none" />
-        <rect x="16.8" y="4.5" width="3.2" height="15.5" rx="1" fill="currentColor" stroke="none" />
-        <path d="M4 8.5 9 5l4 2.5L20 4" strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
-      </>
-    ),
-    trophy: (
-      <>
-        <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
-        <path d="M7 5.2H4.6A2.4 2.4 0 0 0 7 8.4M17 5.2h2.4A2.4 2.4 0 0 1 17 8.4" strokeLinecap="round" />
-        <path d="M12 13.3v3.4M9 20h6M9.6 20c0-1.1.6-1.9 1.4-2.4a3 3 0 0 1 2 0c.8.5 1.4 1.3 1.4 2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    layers: (
-      <>
-        <path d="m12 3 9 5-9 5-9-5 9-5Z" strokeLinejoin="round" fill="currentColor" fillOpacity={0.18} />
-        <path d="m3 12 9 5 9-5M3 16.5 12 21l9-4.5" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    seat: <path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" strokeLinecap="round" />,
-    settings: (
-      <>
-        <circle cx="12" cy="12" r="3.1" />
-        <path
-          d="M12 3v2.4M12 18.6V21M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M3 12h2.4M18.6 12H21M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7"
-          strokeLinecap="round"
-        />
-      </>
-    ),
-    db: (
-      <>
-        <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" fill="currentColor" fillOpacity={0.18} />
-        <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
-        <path d="M4.5 5.5v13c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-13M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" strokeLinecap="round" />
-      </>
-    ),
-  };
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
-      {paths[name]}
-    </svg>
-  );
-}
+export { Icon };
 
 /** ヘッダー右上のハンバーガーメニューから開くボトムシート。旧Mypageタブの機能をここに集約する。 */
 /** "google" → "Google" のようにプロバイダ名を表示用ラベルに変換する。 */
@@ -1055,45 +1009,17 @@ export function Lobby({
 
       </main>
 
-      {/* フッターナビ: 中央にGEOデータベースへの丸ボタン */}
-      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-300 bg-ink-50/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-          {(
-            [
-              { key: "home" as Tab, label: "Home", icon: "home" },
-              { key: "stats" as Tab, label: "Stats", icon: "stats" },
-              null, // 中央: DBボタン
-              { key: "history" as Tab, label: "History", icon: "layers" },
-              { key: "leaderboard" as Tab, label: "Leaderboard", icon: "trophy" },
-            ] as ({ key: Tab; label: string; icon: string } | null)[]
-          ).map((t, i) =>
-            t ? (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                  tab === t.key ? "text-mint-400" : "text-ink-600"
-                }`}
-              >
-                <Icon name={t.icon} />
-                <span className="text-[9px] font-medium">{t.label}</span>
-              </button>
-            ) : (
-              <div key={`db-${i}`} className="relative flex justify-center">
-                <Link
-                  href="/geo"
-                  aria-label="GEOデータベース"
-                  className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-mint-400 to-emerald-600 ring-4 ring-ink-50 shadow-panel flex flex-col items-center justify-center text-white active:scale-95 transition-transform"
-                >
-                  <Icon name="db" className="h-5 w-5" />
-                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
-                </Link>
-                <div className="h-[54px]" />
-              </div>
-            ),
-          )}
-        </div>
-      </nav>
+      <Footer
+        tone="light"
+        activeKey={tab}
+        centerHref="/geo"
+        items={[
+          { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
+          { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
+          { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+          { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+        ]}
+      />
 
       {structureOpen && <BlindStructureSheet onClose={() => setStructureOpen(false)} />}
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats)} onClose={() => setInfoKey(null)} />}

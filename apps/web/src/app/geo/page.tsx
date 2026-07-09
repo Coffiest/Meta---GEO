@@ -22,6 +22,7 @@ import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
@@ -348,34 +349,17 @@ export default function GeoPage() {
         )}
       </AnimatePresence>
 
-      <nav className="fixed bottom-0 inset-x-0 border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-          {(
-            [
-              { key: "home", label: "Home", icon: "home", href: "/" },
-              { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-              null,
-              { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-              { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-            ] as ({ key: string; label: string; icon: string; href: string } | null)[]
-          ).map((t, i) =>
-            t ? (
-              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-navy-500">
-                <Icon name={t.icon} />
-                <span className="text-[9px] font-medium">{t.label}</span>
-              </Link>
-            ) : (
-              <div key={`db-${i}`} className="relative flex justify-center">
-                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-navy-950 shadow-panel flex flex-col items-center justify-center text-navy-950">
-                  <Icon name="db" className="h-5 w-5" />
-                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
-                </div>
-                <div className="h-[54px]" />
-              </div>
-            ),
-          )}
-        </div>
-      </nav>
+      <Footer
+        tone="dark"
+        activeKey={null}
+        centerActive
+        items={[
+          { key: "home", label: "Home", icon: "home", href: "/" },
+          { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+          { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+          { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+        ]}
+      />
     </div>
   );
 }
