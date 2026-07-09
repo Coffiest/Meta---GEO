@@ -337,7 +337,7 @@ function GameScreen({
 }
 
 function LoadingScreen() {
-  return <div className="min-h-screen flex items-center justify-center bg-navy-950 text-navy-400 text-sm">読み込み中…</div>;
+  return <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm">読み込み中…</div>;
 }
 
 export default function Page() {
@@ -352,7 +352,7 @@ export default function Page() {
   // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
   if (!auth.authAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy-950 text-navy-400 text-sm px-6 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm px-6 text-center">
         ログイン機能が設定されていません。管理者にお問い合わせください。
       </div>
     );
@@ -363,8 +363,8 @@ export default function Page() {
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-navy-950 px-6">
-        <p className="text-sm text-navy-300">プロフィールの取得に失敗しました。</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6">
+        <p className="text-sm text-ink-800">プロフィールの取得に失敗しました。</p>
         <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
           再試行
         </button>

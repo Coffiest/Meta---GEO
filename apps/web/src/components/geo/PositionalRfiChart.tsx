@@ -22,17 +22,17 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
   const [hover, setHover] = useState<SegmentHover | null>(null);
 
   return (
-    <div className="rounded-2xl bg-ink-900/70 ring-1 ring-ink-700/50 p-4">
+    <div className="rounded-2xl bg-ink-100/70 ring-1 ring-ink-400/50 p-4">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div>
-          <h3 className="text-sm font-medium text-ink-100">ポジション別 プリフロップ・オープン頻度(RFI)</h3>
-          <p className="text-[11px] text-ink-500 mt-0.5">
+          <h3 className="text-sm font-medium text-ink-900">ポジション別 プリフロップ・オープン頻度(RFI)</h3>
+          <p className="text-[11px] text-ink-600 mt-0.5">
             まだ誰もレイズしていない状態で自分の番が回ってきたとき、実際に何をしたか(母集団の実測値)
           </p>
         </div>
         <button
           onClick={() => setShowTable((v) => !v)}
-          className="shrink-0 rounded-full bg-ink-800 text-ink-300 text-[11px] px-3 py-1.5 ring-1 ring-ink-600/60 hover:text-ink-100 transition-colors"
+          className="shrink-0 rounded-full bg-ink-300 text-ink-800 text-[11px] px-3 py-1.5 ring-1 ring-ink-500/60 hover:text-ink-900 transition-colors"
         >
           {showTable ? "チャート表示" : "テーブル表示"}
         </button>
@@ -41,7 +41,7 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 mb-4">
         {SERIES.map((s) => (
-          <div key={s.key} className="flex items-center gap-1.5 text-[11px] text-ink-300">
+          <div key={s.key} className="flex items-center gap-1.5 text-[11px] text-ink-800">
             <span className={`h-2 w-2 rounded-full ${s.color}`} />
             {s.label}
           </div>
@@ -52,7 +52,7 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-[12px] tabular-nums">
             <thead>
-              <tr className="text-ink-500 text-left">
+              <tr className="text-ink-600 text-left">
                 <th className="font-normal pb-2 pr-3 whitespace-nowrap">ポジション</th>
                 <th className="font-normal pb-2 pr-3 text-right whitespace-nowrap">機会数</th>
                 {SERIES.map((s) => (
@@ -64,15 +64,15 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
             </thead>
             <tbody>
               {data.map((row) => (
-                <tr key={row.position} className="border-t border-ink-700/50">
-                  <td className="py-2 pr-3 text-ink-100 font-medium whitespace-nowrap">{row.position}</td>
-                  <td className="py-2 pr-3 text-right text-ink-300 whitespace-nowrap">{row.opportunities}</td>
+                <tr key={row.position} className="border-t border-ink-400/50">
+                  <td className="py-2 pr-3 text-ink-900 font-medium whitespace-nowrap">{row.position}</td>
+                  <td className="py-2 pr-3 text-right text-ink-800 whitespace-nowrap">{row.opportunities}</td>
                   {SERIES.map((s) => {
                     const count = row[s.key];
                     const pct = row.opportunities > 0 ? Math.round((count / row.opportunities) * 100) : 0;
                     return (
-                      <td key={s.key} className="py-2 pl-3 text-right text-ink-300 whitespace-nowrap">
-                        {count} <span className="text-ink-500">({pct}%)</span>
+                      <td key={s.key} className="py-2 pl-3 text-right text-ink-800 whitespace-nowrap">
+                        {count} <span className="text-ink-600">({pct}%)</span>
                       </td>
                     );
                   })}
@@ -85,10 +85,10 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
         <div className="space-y-3">
           {data.map((row) => (
             <div key={row.position} className="flex items-center gap-3">
-              <div className="w-9 shrink-0 text-[12px] font-medium text-ink-200">{row.position}</div>
-              <div className="flex-1 flex h-5 rounded-full overflow-hidden bg-ink-800" role="img" aria-label={`${row.position}: ${row.opportunities}件`}>
+              <div className="w-9 shrink-0 text-[12px] font-medium text-ink-850">{row.position}</div>
+              <div className="flex-1 flex h-5 rounded-full overflow-hidden bg-ink-300" role="img" aria-label={`${row.position}: ${row.opportunities}件`}>
                 {row.opportunities === 0 ? (
-                  <div className="w-full h-full bg-ink-800" />
+                  <div className="w-full h-full bg-ink-300" />
                 ) : (
                   SERIES.map((s) => {
                     const count = row[s.key];
@@ -99,7 +99,7 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
                       <button
                         key={s.key}
                         style={{ width: `${pct}%` }}
-                        className={`${s.color} h-full flex items-center justify-center border-r-2 border-ink-900 last:border-r-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-50`}
+                        className={`${s.color} h-full flex items-center justify-center border-r-2 border-ink-100 last:border-r-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-950`}
                         onMouseEnter={() =>
                           setHover({ position: row.position, seriesLabel: s.label, count, pct: Math.round(pct) })
                         }
@@ -116,18 +116,18 @@ export function PositionalRfiChart({ data }: { data: PositionalRfiStat[] }) {
                   })
                 )}
               </div>
-              <div className="w-9 shrink-0 text-right text-[11px] text-ink-500 tabular-nums">{row.opportunities}</div>
+              <div className="w-9 shrink-0 text-right text-[11px] text-ink-600 tabular-nums">{row.opportunities}</div>
             </div>
           ))}
 
-          <div className="h-5 text-[11px] text-ink-400">
+          <div className="h-5 text-[11px] text-ink-700">
             {hover ? (
               <span>
-                <span className="text-ink-200 font-medium">{hover.position}</span> の{hover.seriesLabel}:{" "}
-                <span className="text-ink-100 font-medium tabular-nums">{hover.count}</span>件 ({hover.pct}%)
+                <span className="text-ink-850 font-medium">{hover.position}</span> の{hover.seriesLabel}:{" "}
+                <span className="text-ink-900 font-medium tabular-nums">{hover.count}</span>件 ({hover.pct}%)
               </span>
             ) : (
-              <span className="text-ink-600">セグメントにカーソルを合わせると内訳が表示されます</span>
+              <span className="text-ink-500">セグメントにカーソルを合わせると内訳が表示されます</span>
             )}
           </div>
         </div>

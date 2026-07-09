@@ -66,7 +66,7 @@ const GAMES: { key: GameKey; title: string; subtitle: string; buyIn: number; det
   {
     key: "sng",
     title: "SNG",
-    subtitle: "Ten-Four",
+    subtitle: "GTO Poker",
     buyIn: 1000,
     detail: "6人卓・シングルテーブル",
     gradient: "from-mint-500 to-emerald-700",
@@ -74,7 +74,7 @@ const GAMES: { key: GameKey; title: string; subtitle: string; buyIn: number; det
   {
     key: "mtt",
     title: "MTT",
-    subtitle: "Ten-Four",
+    subtitle: "GTO Poker",
     buyIn: 2000,
     detail: "人数無制限・レイトレジ対応",
     gradient: "from-indigo-500 to-violet-700",
@@ -93,16 +93,16 @@ function formatSigned(n: number): string {
 }
 
 function signedClass(n: number): string {
-  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-400" : "text-navy-100";
+  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-400" : "text-ink-900";
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-4">{children}</div>;
+  return <div className="rounded-2xl bg-ink-100 ring-1 ring-ink-400 p-4">{children}</div>;
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-center gap-1 text-navy-400 -ml-1 pr-2 py-1" aria-label="ホームに戻る">
+    <button onClick={onClick} className="flex items-center gap-1 text-ink-700 -ml-1 pr-2 py-1" aria-label="ホームに戻る">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
         <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -133,15 +133,15 @@ function StatTile({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1 text-[11px] text-navy-400">
+      <div className="flex items-center gap-1 text-[11px] text-ink-700">
         <span>{label}</span>
         {onInfo && (
-          <button onClick={onInfo} className="text-navy-500 active:text-navy-300" aria-label={`${label}の説明`}>
+          <button onClick={onInfo} className="text-ink-600 active:text-ink-800" aria-label={`${label}の説明`}>
             <InfoIcon />
           </button>
         )}
       </div>
-      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-navy-50"}`}>{value}</div>
+      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{value}</div>
     </div>
   );
 }
@@ -291,39 +291,39 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-md rounded-t-3xl bg-navy-900 ring-1 ring-navy-700 p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+        className="relative w-full max-w-md rounded-t-3xl bg-ink-100 ring-1 ring-ink-400 p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h2 className="text-base font-bold text-navy-50">{info.title}</h2>
-            {info.subtitle && <p className="text-[11px] text-navy-500">{info.subtitle}</p>}
+            <h2 className="text-base font-bold text-ink-950">{info.title}</h2>
+            {info.subtitle && <p className="text-[11px] text-ink-600">{info.subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-navy-400 text-xl leading-none px-2" aria-label="閉じる">
+          <button onClick={onClose} className="text-ink-700 text-xl leading-none px-2" aria-label="閉じる">
             ×
           </button>
         </div>
 
-        {info.value && <div className="text-2xl font-bold tabular-nums text-navy-50 mb-3">{info.value}</div>}
-        <p className="text-sm text-navy-300 mb-4">{info.description}</p>
+        {info.value && <div className="text-2xl font-bold tabular-nums text-ink-950 mb-3">{info.value}</div>}
+        <p className="text-sm text-ink-800 mb-4">{info.description}</p>
 
         {info.breakdown && (
-          <div className="rounded-xl bg-navy-800/70 divide-y divide-navy-700 mb-3">
+          <div className="rounded-xl bg-ink-300/70 divide-y divide-ink-400 mb-3">
             <div className="px-3 py-2.5">
               <div className="text-[11px] text-mint-400 font-semibold">{info.breakdown.execLabel}</div>
-              <div className="text-xs text-navy-300 mt-0.5">{info.breakdown.execDesc}</div>
+              <div className="text-xs text-ink-800 mt-0.5">{info.breakdown.execDesc}</div>
             </div>
             <div className="px-3 py-2.5">
               <div className="text-[11px] text-mint-400 font-semibold">{info.breakdown.oppLabel}</div>
-              <div className="text-xs text-navy-300 mt-0.5">{info.breakdown.oppDesc}</div>
+              <div className="text-xs text-ink-800 mt-0.5">{info.breakdown.oppDesc}</div>
             </div>
           </div>
         )}
 
         {info.notes && info.notes.length > 0 && (
-          <div className="rounded-xl bg-navy-800/40 px-3 py-2.5 space-y-1">
+          <div className="rounded-xl bg-ink-300/40 px-3 py-2.5 space-y-1">
             {info.notes.map((n, i) => (
-              <p key={i} className="text-[11px] text-navy-500">
+              <p key={i} className="text-[11px] text-ink-600">
                 ※ {n}
               </p>
             ))}
@@ -387,12 +387,12 @@ function SingleLineChart({
   const header = (
     <div className="flex items-center gap-1.5 mb-1">
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-      <span className="text-xs font-semibold text-navy-200">{title}</span>
+      <span className="text-xs font-semibold text-ink-850">{title}</span>
       {points.length >= 2 && (
-        <span className="ml-auto text-xs font-bold tabular-nums text-navy-100">{formatValue(points[points.length - 1]!.y)}</span>
+        <span className="ml-auto text-xs font-bold tabular-nums text-ink-900">{formatValue(points[points.length - 1]!.y)}</span>
       )}
       {onInfo && (
-        <button onClick={onInfo} className={`text-navy-500 active:text-navy-300 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={`${title}の説明`}>
+        <button onClick={onInfo} className={`text-ink-600 active:text-ink-800 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={`${title}の説明`}>
           <InfoIcon />
         </button>
       )}
@@ -403,7 +403,7 @@ function SingleLineChart({
     return (
       <div>
         {header}
-        <div className="py-6 text-center text-navy-500 text-xs">グラフ表示にはもう少しトーナメント数が必要です。</div>
+        <div className="py-6 text-center text-ink-600 text-xs">グラフ表示にはもう少しトーナメント数が必要です。</div>
       </div>
     );
   }
@@ -443,8 +443,8 @@ function SingleLineChart({
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 130 }} preserveAspectRatio="none">
         {yTicks.map((tick) => (
           <g key={tick}>
-            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-navy-700" />
-            <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-navy-500" style={{ fontSize: 8 }}>
+            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-ink-400" />
+            <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-ink-600" style={{ fontSize: 8 }}>
               {formatAxisValue(tick)}
             </text>
           </g>
@@ -459,13 +459,13 @@ function SingleLineChart({
           stroke="currentColor"
           strokeWidth={1}
           strokeDasharray="3 3"
-          className="text-navy-500"
+          className="text-ink-600"
         />
 
         <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
         {xTickIdx.map((i) => (
-          <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-navy-500" style={{ fontSize: 8 }}>
+          <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-ink-600" style={{ fontSize: 8 }}>
             {points[i]!.x}
           </text>
         ))}
@@ -558,40 +558,40 @@ function HamburgerMenu({
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-md rounded-t-3xl bg-navy-900 ring-1 ring-navy-700 pt-2 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+        className="relative w-full max-w-md rounded-t-3xl bg-ink-100 ring-1 ring-ink-400 pt-2 pb-[calc(env(safe-area-inset-bottom)+20px)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto h-1 w-10 rounded-full bg-navy-700 mb-4" />
+        <div className="mx-auto h-1 w-10 rounded-full bg-ink-400 mb-4" />
         <div className="px-5 flex items-center gap-3 mb-2">
           <Avatar avatarKey={avatarKey} displayName={displayName} size={48} />
           <div className="min-w-0">
-            <div className="text-base font-semibold text-navy-50 truncate">{displayName}</div>
+            <div className="text-base font-semibold text-ink-950 truncate">{displayName}</div>
             {email ? (
-              <div className="text-xs text-navy-400 truncate">{email}</div>
+              <div className="text-xs text-ink-700 truncate">{email}</div>
             ) : (
-              isGuest && <div className="text-xs text-navy-500">ゲストプレイ中</div>
+              isGuest && <div className="text-xs text-ink-600">ゲストプレイ中</div>
             )}
             {/* どのアカウントでログイン中かを常に確認できるよう、連携済みプロバイダを明示する */}
             {providers && providers.length > 0 && (
-              <div className="text-[10px] text-navy-500 truncate">
+              <div className="text-[10px] text-ink-600 truncate">
                 {providers.map(providerLabel).join(" / ")} でログイン中
               </div>
             )}
           </div>
         </div>
-        <div className="px-2 mt-2 divide-y divide-navy-800">
-          <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-navy-100">
-            プロフィールを編集 <span className="text-navy-500">›</span>
+        <div className="px-2 mt-2 divide-y divide-ink-300">
+          <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
+            プロフィールを編集 <span className="text-ink-600">›</span>
           </button>
-          <button onClick={onOpenStructure} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-navy-100">
-            ブラインドストラクチャ <span className="text-navy-500">›</span>
+          <button onClick={onOpenStructure} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
+            ブラインドストラクチャ <span className="text-ink-600">›</span>
           </button>
-          <Link href="/geo" onClick={onClose} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-navy-100">
-            GEOデータベース <span className="text-navy-500">›</span>
+          <Link href="/geo" onClick={onClose} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
+            GEOデータベース <span className="text-ink-600">›</span>
           </Link>
           {onSignOut && (
             <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-400">
-              ログアウト <span className="text-navy-500">›</span>
+              ログアウト <span className="text-ink-600">›</span>
             </button>
           )}
         </div>
@@ -713,24 +713,24 @@ export function Lobby({
   ];
 
   return (
-    <div className="min-h-screen bg-navy-950 flex flex-col">
+    <div className="min-h-screen bg-ink-50 flex flex-col">
       <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
         <div className="flex items-center gap-1.5">
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-navy-950">T♠</span>
+          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-ink-950">T♠</span>
           <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-crimson-500">4♥</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMenuOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 pl-1 pr-3 py-1"
+            className="flex items-center gap-2 rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 pl-1 pr-3 py-1"
           >
             <Avatar avatarKey={avatarKey} size={26} />
-            <span className="text-xs text-navy-200 max-w-[96px] truncate">{displayName}</span>
+            <span className="text-xs text-ink-850 max-w-[96px] truncate">{displayName}</span>
           </button>
           <button
             onClick={() => setMenuOpen(true)}
             aria-label="メニューを開く"
-            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 text-navy-200"
+            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 text-ink-850"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4.5 w-4.5">
               <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
@@ -744,8 +744,8 @@ export function Lobby({
           <>
             <SectionCard>
               <div className="text-center mb-3">
-                <div className="text-[11px] tracking-[0.25em] text-navy-400 italic font-medium">PLAY POKER</div>
-                <div className="text-xl font-bold italic text-navy-50 tracking-wide">6-MAX TOURNAMENT</div>
+                <div className="text-[11px] tracking-[0.25em] text-ink-700 italic font-medium">PLAY POKER</div>
+                <div className="text-xl font-bold italic text-ink-950 tracking-wide">6-MAX TOURNAMENT</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {GAMES.map((game) => (
@@ -762,7 +762,7 @@ export function Lobby({
               </div>
               <div className="grid grid-cols-2 gap-3 mt-2">
                 {GAMES.map((game) => (
-                  <div key={game.key} className="flex items-center justify-center gap-1 text-[10px] text-navy-400">
+                  <div key={game.key} className="flex items-center justify-center gap-1 text-[10px] text-ink-700">
                     <Icon name="seat" className="h-3.5 w-3.5" />
                     {game.detail}
                   </div>
@@ -771,20 +771,20 @@ export function Lobby({
             </SectionCard>
 
             <SectionCard>
-              <div className="text-center text-[11px] tracking-[0.25em] text-navy-400 italic font-medium mb-3">FEATURES</div>
+              <div className="text-center text-[11px] tracking-[0.25em] text-ink-700 italic font-medium mb-3">FEATURES</div>
               <div className="space-y-1">
                 {FEATURES.map((f) => (
                   <button
                     key={f.key}
                     onClick={f.onClick}
-                    className="w-full flex items-start gap-3 rounded-xl px-2 py-2.5 text-left active:bg-navy-800/60 transition-colors"
+                    className="w-full flex items-start gap-3 rounded-xl px-2 py-2.5 text-left active:bg-ink-300/60 transition-colors"
                   >
                     <div className={`h-11 w-11 shrink-0 rounded-xl ${f.tile} flex items-center justify-center text-white`}>
                       <Icon name={f.icon} className="h-5.5 w-5.5" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[15px] font-semibold italic text-navy-50">{f.title}</div>
-                      <div className="text-xs text-navy-400 mt-0.5">{f.desc}</div>
+                      <div className="text-[15px] font-semibold italic text-ink-950">{f.title}</div>
+                      <div className="text-xs text-ink-700 mt-0.5">{f.desc}</div>
                     </div>
                   </button>
                 ))}
@@ -795,32 +795,35 @@ export function Lobby({
               href="https://rrpoker.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-3.5 active:bg-navy-800/60 transition-colors"
+              className="flex items-center gap-3 rounded-2xl bg-ink-100 ring-1 ring-ink-400 p-3.5 active:bg-ink-300/60 transition-colors"
             >
               <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-crimson-500 to-rose-700 flex items-center justify-center text-white font-black text-sm italic">
                 RR
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold text-navy-50">RR Poker</div>
-                <div className="text-[11px] text-navy-400">同じ作成者のポーカーアプリもチェック</div>
+                <div className="text-[13px] font-semibold text-ink-950">RR Poker</div>
+                <div className="text-[11px] text-ink-700">同じ作成者のポーカーアプリもチェック</div>
               </div>
-              <span className="shrink-0 rounded bg-navy-800 text-navy-500 text-[9px] font-bold px-1.5 py-0.5">PR</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-navy-500 shrink-0">
+              <span className="shrink-0 rounded bg-ink-300 text-ink-600 text-[9px] font-bold px-1.5 py-0.5">PR</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-ink-600 shrink-0">
                 <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </a>
 
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-azure-600 to-navy-900 px-5 py-4 text-center shadow-card">
-              <div className="text-white font-black italic text-base tracking-wide">Meta-GEO サポーター 募集中</div>
-              <div className="text-white/70 text-[11px] mt-1">今後の機能追加・GEOデータベース拡充にご協力ください</div>
-            </div>
+            <Link
+              href="/pricing"
+              className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-500 to-gold-600 px-5 py-4 text-center shadow-card block"
+            >
+              <div className="text-ink-950 font-black italic text-base tracking-wide">GEO戦略DB サブスクリプション</div>
+              <div className="text-ink-950/70 text-[11px] mt-1">レンジ分析を無制限に利用。今後の機能追加にもご協力ください</div>
+            </Link>
 
             <div className="text-center space-y-2 pt-2">
-              <p className="text-[10px] text-navy-600 leading-relaxed px-2">
-                Ten Four Poker (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
+              <p className="text-[10px] text-ink-500 leading-relaxed px-2">
+                GTO Poker (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
               </p>
-              <p className="text-[10px] text-navy-600">Meta-GEO Poker v{APP_VERSION} ・ 作成者: Coffiest</p>
-              <p className="text-[10px] text-navy-700">© 2026 Meta-GEO</p>
+              <p className="text-[10px] text-ink-500">GTO Poker v{APP_VERSION} ・ 作成者: Coffiest</p>
+              <p className="text-[10px] text-ink-400">© 2026 GTO Poker</p>
             </div>
           </>
         )}
@@ -830,11 +833,11 @@ export function Lobby({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1">
                 <BackButton onClick={() => setTab("home")} />
-                <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
                   <Icon name="stats" className="h-4 w-4" /> Stats
                 </div>
               </div>
-              <button onClick={() => setTab("leaderboard")} className="text-navy-400" aria-label="ランキングへ">
+              <button onClick={() => setTab("leaderboard")} className="text-ink-700" aria-label="ランキングへ">
                 <Icon name="trophy" className="h-4 w-4" />
               </button>
             </div>
@@ -842,16 +845,16 @@ export function Lobby({
               stats ? (
                 <>
                   {stats.nationalRank != null && (
-                    <div className="flex items-center justify-center gap-1.5 rounded-xl bg-navy-800/70 py-2.5 mb-4">
+                    <div className="flex items-center justify-center gap-1.5 rounded-xl bg-ink-300/70 py-2.5 mb-4">
                       <Icon name="trophy" className="h-4 w-4 text-amber-400" />
-                      <span className="text-sm text-navy-200">
-                        全国 <span className="text-base font-bold text-navy-50 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
+                      <span className="text-sm text-ink-850">
+                        全国 <span className="text-base font-bold text-ink-950 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
                         {stats.totalRankedPlayers.toLocaleString()} 人中
                       </span>
                     </div>
                   )}
 
-                  <div className="text-[10px] tracking-[0.2em] text-navy-500 font-medium mb-2">収支</div>
+                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">収支</div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-4 mb-5">
                     <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
                     <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
@@ -869,7 +872,7 @@ export function Lobby({
                     />
                   </div>
 
-                  <div className="text-[10px] tracking-[0.2em] text-navy-500 font-medium mb-2">トーナメント成績</div>
+                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">トーナメント成績</div>
                   <div className="grid grid-cols-3 gap-x-2 gap-y-4 mb-5">
                     <StatTile
                       label="参加トナメ数"
@@ -880,7 +883,7 @@ export function Lobby({
                     <StatTile label="インマネ率" value={`${(stats.itmRate * 100).toFixed(1)}%`} onInfo={() => setInfoKey("itmRate")} />
                   </div>
 
-                  <div className="text-[10px] tracking-[0.2em] text-navy-500 font-medium mb-2">プレイスタイル</div>
+                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">プレイスタイル</div>
                   <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                     <StatTile
                       label="VPIP"
@@ -895,9 +898,9 @@ export function Lobby({
                     />
                   </div>
 
-                  <div className="mt-6 pt-5 border-t border-navy-800">
+                  <div className="mt-6 pt-5 border-t border-ink-300">
                     {bankrollGraph === null ? (
-                      <div className="py-8 text-center text-navy-500 text-xs">読み込み中…</div>
+                      <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
@@ -928,13 +931,13 @@ export function Lobby({
                     )}
 
                     <div className="flex items-center justify-center gap-1.5 mt-4">
-                      <span className="text-[10px] text-navy-500 mr-0.5">直近トナメ数</span>
+                      <span className="text-[10px] text-ink-600 mr-0.5">直近トナメ数</span>
                       {TOURNEY_GRAPH_RANGES.map((r) => (
                         <button
                           key={r.key}
                           onClick={() => setGraphRangeKey(r.key)}
                           className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
-                            graphRangeKey === r.key ? "bg-mint-500 text-white" : "bg-navy-800 text-navy-400"
+                            graphRangeKey === r.key ? "bg-mint-500 text-white" : "bg-ink-300 text-ink-700"
                           }`}
                         >
                           {r.label}
@@ -943,15 +946,15 @@ export function Lobby({
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-navy-500 mt-5">
+                  <p className="text-[11px] text-ink-600 mt-5">
                     収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。実額ベースで、bb換算は行いません。
                   </p>
                 </>
               ) : (
-                <div className="py-10 text-center text-navy-400 text-sm">読み込み中…</div>
+                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
               )
             ) : (
-              <div className="py-10 text-center text-navy-400 text-sm">スタッツの記録にはログインが必要です。</div>
+              <div className="py-10 text-center text-ink-700 text-sm">スタッツの記録にはログインが必要です。</div>
             )}
           </SectionCard>
         )}
@@ -960,15 +963,15 @@ export function Lobby({
           <SectionCard>
             <div className="flex items-center gap-1 mb-1">
               <BackButton onClick={() => setTab("home")} />
-              <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+              <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
                 <Icon name="trophy" className="h-4 w-4" /> Leaderboard
               </div>
             </div>
-            <p className="text-[11px] text-navy-500 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
+            <p className="text-[11px] text-ink-600 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
             {leaderboard === null ? (
-              <div className="py-10 text-center text-navy-400 text-sm">読み込み中…</div>
+              <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
             ) : leaderboard.length === 0 ? (
-              <div className="py-10 text-center text-navy-400 text-sm">まだランキングデータがありません。</div>
+              <div className="py-10 text-center text-ink-700 text-sm">まだランキングデータがありません。</div>
             ) : (
               <div className="space-y-2">
                 {leaderboard.map((row, i) => {
@@ -977,21 +980,21 @@ export function Lobby({
                     <div
                       key={row.userId}
                       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                        isYou ? "bg-mint-500/10 ring-1 ring-mint-500/40" : "bg-navy-800/70"
+                        isYou ? "bg-mint-500/10 ring-1 ring-mint-500/40" : "bg-ink-300/70"
                       }`}
                     >
-                      <div className="w-6 text-center text-sm font-bold tabular-nums text-navy-300">{i + 1}</div>
+                      <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
                       <Avatar avatarKey={row.avatarKey} size={30} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-navy-100 truncate">
+                        <div className="text-sm text-ink-900 truncate">
                           {row.displayName}
                           {isYou && <span className="text-mint-400 text-[10px] ml-1">(あなた)</span>}
                         </div>
-                        <div className="text-[10px] text-navy-500">{row.tournamentsPlayed} トーナメント</div>
+                        <div className="text-[10px] text-ink-600">{row.tournamentsPlayed} トーナメント</div>
                       </div>
                       <div className="text-right">
                         <div className={`text-sm font-bold tabular-nums ${signedClass(row.profit)}`}>{formatSigned(row.profit)}</div>
-                        <div className="text-[10px] text-navy-500 tabular-nums">ROI {(row.roi * 100).toFixed(0)}%</div>
+                        <div className="text-[10px] text-ink-600 tabular-nums">ROI {(row.roi * 100).toFixed(0)}%</div>
                       </div>
                     </div>
                   );
@@ -1005,31 +1008,31 @@ export function Lobby({
           <SectionCard>
             <div className="flex items-center gap-1 mb-3">
               <BackButton onClick={() => setTab("home")} />
-              <div className="flex items-center gap-2 text-navy-50 font-semibold text-sm">
+              <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
                 <Icon name="layers" className="h-4 w-4" /> Hand History
               </div>
             </div>
             {!accessToken ? (
-              <div className="py-10 text-center text-navy-400 text-sm">ハンド履歴の記録にはログインが必要です。</div>
+              <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
             ) : history === null ? (
-              <div className="py-10 text-center text-navy-400 text-sm">読み込み中…</div>
+              <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
             ) : history.length === 0 ? (
-              <div className="py-10 text-center text-navy-400 text-sm">まだプレイしたハンドがありません。</div>
+              <div className="py-10 text-center text-ink-700 text-sm">まだプレイしたハンドがありません。</div>
             ) : (
               <>
-                <p className="text-[11px] text-navy-500 mb-3">直近 {history.length} ハンドを表示中</p>
+                <p className="text-[11px] text-ink-600 mb-3">直近 {history.length} ハンドを表示中</p>
                 <div className="space-y-2">
                   {history.map((h) => {
                     const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
                     const rounded = Math.round(deltaBb * 10) / 10;
                     const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
                     return (
-                      <div key={h.handId} className="rounded-xl bg-navy-800/70 px-3 py-2.5">
-                        <div className="flex items-center gap-2 text-[10px] text-navy-400 mb-1.5">
+                      <div key={h.handId} className="rounded-xl bg-ink-300/70 px-3 py-2.5">
+                        <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
                           <span className="tabular-nums">
                             {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                           </span>
-                          <span className="rounded bg-navy-700 px-1.5 py-[1px] text-navy-200 font-semibold">{h.position}</span>
+                          <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1">
@@ -1055,7 +1058,7 @@ export function Lobby({
       </main>
 
       {/* フッターナビ: 中央にGEOデータベースへの丸ボタン */}
-      <nav className="fixed bottom-0 inset-x-0 border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-300 bg-ink-50/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
           {(
             [
@@ -1071,7 +1074,7 @@ export function Lobby({
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                  tab === t.key ? "text-mint-400" : "text-navy-500"
+                  tab === t.key ? "text-mint-400" : "text-ink-600"
                 }`}
               >
                 <Icon name={t.icon} />
@@ -1082,7 +1085,7 @@ export function Lobby({
                 <Link
                   href="/geo"
                   aria-label="GEOデータベース"
-                  className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-mint-400 to-emerald-600 ring-4 ring-navy-950 shadow-panel flex flex-col items-center justify-center text-white active:scale-95 transition-transform"
+                  className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-mint-400 to-emerald-600 ring-4 ring-ink-50 shadow-panel flex flex-col items-center justify-center text-white active:scale-95 transition-transform"
                 >
                   <Icon name="db" className="h-5 w-5" />
                   <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>

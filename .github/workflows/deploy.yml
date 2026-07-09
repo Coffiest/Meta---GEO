@@ -10,8 +10,12 @@ name: Deploy
 #   - SUPABASE_SERVICE_ROLE_KEY Supabaseのservice roleキー (サーバー側トークン検証用)
 #   - NEXT_PUBLIC_SUPABASE_URL       同上のプロジェクトURL (ブラウザ用、公開値)
 #   - NEXT_PUBLIC_SUPABASE_ANON_KEY  Supabaseのanon(公開)キー (ブラウザ用、公開値)
+#   - STRIPE_SECRET_KEY         Stripeのシークレットキー (サーバー側、GEOサブスク決済用)
+#   - STRIPE_WEBHOOK_SECRET     StripeのWebhook署名シークレット
+#   - STRIPE_PRICE_ID           GEOサブスクの月額プランのPrice ID
 # Supabase系の4つが未設定でもデプロイ自体は失敗しない(ログイン機能が自動的に無効化され、
-# 従来のゲスト名入力フローにフォールバックする)。
+# 従来のゲスト名入力フローにフォールバックする)。Stripe系の3つが未設定でもデプロイは失敗せず、
+# サブスク機能(checkout/webhook/portal)のみ503を返して無効化される(GEO閲覧の日次無料枠は動作する)。
 # 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
 
 on:
@@ -48,6 +52,9 @@ jobs:
             WEB_ORIGIN="*" \
             SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
+            STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+            STRIPE_PRICE_ID="${{ secrets.STRIPE_PRICE_ID }}" \
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

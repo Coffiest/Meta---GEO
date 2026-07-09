@@ -24,10 +24,11 @@ const config: Config = {
           800: "#16281f",
           700: "#1e3529",
         },
+        // GTO Poker のアクセントカラー(黄色)。白背景でのCTA/フォーカス表示に使う。
         gold: {
-          400: "#d8bd85",
-          500: "#c9a668",
-          600: "#a9884f",
+          400: "#ffe066",
+          500: "#ffd60a",
+          600: "#e6b800",
         },
         rose: {
           400: "#c76a63",
@@ -106,8 +107,8 @@ const config: Config = {
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
         "pulse-ring": {
-          "0%": { boxShadow: "0 0 0 0 rgba(201,166,104,0.55)" },
-          "100%": { boxShadow: "0 0 0 10px rgba(201,166,104,0)" },
+          "0%": { boxShadow: "0 0 0 0 rgba(255,214,10,0.55)" },
+          "100%": { boxShadow: "0 0 0 10px rgba(255,214,10,0)" },
         },
         "pulse-ring-mint": {
           "0%": { boxShadow: "0 0 0 0 rgba(31,174,112,0.55)" },

@@ -69,17 +69,39 @@ export interface RangeMatrixResult {
   totalSamples: number;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${SERVER_URL}${path}`, { cache: "no-store" });
+/** サブスク未加入者が無料枠上限に達した場合にサーバーが返す403のボディ形状。 */
+export class GeoDailyLimitError extends Error {
+  constructor(public limit: number) {
+    super("daily_limit_reached");
+  }
+}
+
+async function getJson<T>(path: string, accessToken: string): Promise<T> {
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    cache: "no-store",
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 403) {
+    const body = (await res.json().catch(() => ({}))) as { limit?: number };
+    throw new GeoDailyLimitError(body.limit ?? 0);
+  }
   if (!res.ok) throw new Error(`GEO API request failed: ${path} (${res.status})`);
   return (await res.json()) as T;
 }
 
-export const geoApi = {
-  summary: () => getJson<GeoSummaryStats>("/api/geo/summary"),
-  positionalRfi: (seatCount = 6) => getJson<PositionalRfiStat[]>(`/api/geo/positional-rfi?seatCount=${seatCount}`),
-  hands: (limit = 20, offset = 0) => getJson<RecentHandSummary[]>(`/api/geo/hands?limit=${limit}&offset=${offset}`),
-  handDetail: (id: string) => getJson<HandDetail>(`/api/geo/hands/${id}`),
-  rangeMatrix: (position: string, scenario: RangeScenario) =>
-    getJson<RangeMatrixResult>(`/api/geo/range-matrix?position=${encodeURIComponent(position)}&scenario=${scenario}`),
-};
+/** GEO APIはログイン必須(無料枠は1日の閲覧回数制限、サブスク加入者は無制限)。accessTokenを毎回渡す。 */
+export function createGeoApi(accessToken: string) {
+  return {
+    summary: () => getJson<GeoSummaryStats>("/api/geo/summary", accessToken),
+    positionalRfi: (seatCount = 6) =>
+      getJson<PositionalRfiStat[]>(`/api/geo/positional-rfi?seatCount=${seatCount}`, accessToken),
+    hands: (limit = 20, offset = 0) =>
+      getJson<RecentHandSummary[]>(`/api/geo/hands?limit=${limit}&offset=${offset}`, accessToken),
+    handDetail: (id: string) => getJson<HandDetail>(`/api/geo/hands/${id}`, accessToken),
+    rangeMatrix: (position: string, scenario: RangeScenario) =>
+      getJson<RangeMatrixResult>(
+        `/api/geo/range-matrix?position=${encodeURIComponent(position)}&scenario=${scenario}`,
+        accessToken,
+      ),
+  };
+}
