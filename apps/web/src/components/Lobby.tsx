@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
 import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
 import { PlayingCard } from "./PlayingCard";
+import { RRRatingCard, type RRRatingData } from "./RRRatingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -62,22 +64,20 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 
 // サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
 // 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
-const GAMES: { key: GameKey; title: string; subtitle: string; buyIn: number; detail: string; gradient: string }[] = [
+// 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
+const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detail: string }[] = [
   {
     key: "sng",
-    title: "SNG",
-    subtitle: "GTO Poker",
+    title: "Sit & Go",
+    caption: "(Single table)",
     buyIn: 1000,
     detail: "6人卓・シングルテーブル",
-    gradient: "from-mint-500 to-emerald-700",
   },
   {
     key: "mtt",
     title: "MTT",
-    subtitle: "GTO Poker",
     buyIn: 2000,
     detail: "人数無制限・レイトレジ対応",
-    gradient: "from-indigo-500 to-violet-700",
   },
 ];
 
@@ -98,6 +98,20 @@ function signedClass(n: number): string {
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl bg-ink-100 ring-1 ring-ink-400 p-4">{children}</div>;
+}
+
+/** RRPokerのhistory-card風、rounded-3xlの白カード。フェードアップで順にstagger表示する。 */
+function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-4"
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
@@ -555,13 +569,21 @@ function HamburgerMenu({
   onSignOut?: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative w-full max-w-md rounded-t-3xl bg-ink-100 ring-1 ring-ink-400 pt-2 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+    <div className="fixed inset-0 z-50 flex items-stretch justify-end" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="relative h-full w-[82%] max-w-sm bg-ink-100 ring-1 ring-ink-400 pt-6 pb-[calc(env(safe-area-inset-bottom)+20px)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto h-1 w-10 rounded-full bg-ink-400 mb-4" />
         <div className="px-5 flex items-center gap-3 mb-2">
           <Avatar avatarKey={avatarKey} displayName={displayName} size={48} />
           <div className="min-w-0">
@@ -595,7 +617,7 @@ function HamburgerMenu({
             </button>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -624,6 +646,7 @@ export function Lobby({
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
@@ -637,6 +660,14 @@ export function Lobby({
     fetch(`${SERVER_URL}/api/lobby/stats`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<PlayerStats>) : null))
       .then((json) => json && setStats(json))
+      .catch(() => {});
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/rr-rating`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<RRRatingData>) : null))
+      .then((json) => json && setRRRating(json))
       .catch(() => {});
   }, [accessToken]);
 
@@ -666,58 +697,14 @@ export function Lobby({
       .catch(() => {});
   }, [tab, history, accessToken]);
 
-  // フッターナビ(Home / Stats / DB / History / Leaderboard)と同じ並び順に揃えてある。
-  const FEATURES: { key: string; title: string; desc: string; icon: string; tile: string; onClick: () => void }[] = [
-    {
-      key: "stats",
-      title: "Stats",
-      desc: "プレイ成績。ROI・収支・イン・ザ・マネー率が表示されます。",
-      icon: "stats",
-      tile: "bg-gradient-to-br from-sky-600 to-blue-800",
-      onClick: () => setTab("stats"),
-    },
-    {
-      key: "geo",
-      title: "GEO Database",
-      desc: "全プレイヤーの実データから傾向を検索・分析できます。",
-      icon: "db",
-      tile: "bg-gradient-to-br from-violet-600 to-purple-900",
-      onClick: () => {
-        window.location.href = "/geo";
-      },
-    },
-    {
-      key: "history",
-      title: "Hand History",
-      desc: "プレイしたハンドの履歴が表示されます。",
-      icon: "layers",
-      tile: "bg-gradient-to-br from-emerald-600 to-green-900",
-      onClick: () => setTab("history"),
-    },
-    {
-      key: "leaderboard",
-      title: "Leaderboard",
-      desc: "全プレイヤーのランキングが表示されます。",
-      icon: "trophy",
-      tile: "bg-gradient-to-br from-rose-600 to-red-900",
-      onClick: () => setTab("leaderboard"),
-    },
-    {
-      key: "mypage",
-      title: "アカウント設定",
-      desc: "プロフィールの編集や各種設定ができます。",
-      icon: "settings",
-      tile: "bg-gradient-to-br from-amber-600 to-yellow-800",
-      onClick: () => setMenuOpen(true),
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-ink-50 flex flex-col">
       <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-ink-950">T♠</span>
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-crimson-500">4♥</span>
+        {/* ロゴ配置枠(準備中): 今後作成予定のロゴ画像/SVGに差し替える。それまでは簡易ワードマーク表示。 */}
+        <div className="h-8 flex items-center px-1">
+          <span className="text-[15px] font-black italic tracking-wide text-ink-950">
+            GTO<span className="text-gold-600">Poker</span>
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -740,83 +727,52 @@ export function Lobby({
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-5">
+        <AnimatePresence mode="wait">
         {tab === "home" && (
-          <>
-            <SectionCard>
-              <div className="text-center mb-3">
-                <div className="text-[11px] tracking-[0.25em] text-ink-700 italic font-medium">PLAY POKER</div>
-                <div className="text-xl font-bold italic text-ink-950 tracking-wide">6-MAX TOURNAMENT</div>
+          <motion.div
+            key="home"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-5"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 overflow-hidden shadow-card"
+            >
+              <div className="relative bg-gradient-to-br from-gold-500 to-gold-600 px-5 pt-4 pb-5 overflow-hidden text-center">
+                <div className="pointer-events-none absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
+                <div className="pointer-events-none absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-white/5" />
+                <p className="relative text-[11px] font-bold tracking-[0.15em] uppercase text-white/70 mb-1">Play Poker</p>
+                <p className="relative text-2xl font-black italic text-white tracking-wide">6-MAX TOURNAMENT</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {GAMES.map((game) => (
-                  <button
+              <div className="p-4 grid grid-cols-2 gap-3">
+                {GAMES.map((game, i) => (
+                  <motion.button
                     key={game.key}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 + i * 0.06 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => onJoin(game.key)}
-                    className={`rounded-2xl bg-gradient-to-br ${game.gradient} p-4 text-center shadow-card active:scale-[0.97] transition-transform`}
+                    className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/25 p-3.5 text-center"
                   >
-                    <div className="text-white/80 text-[12px] italic font-semibold">{game.subtitle}</div>
-                    <div className="text-white text-2xl font-black italic tracking-wide">{game.title}</div>
-                    <div className="text-white/80 text-[11px] mt-1">バイイン {game.buyIn.toLocaleString()}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                {GAMES.map((game) => (
-                  <div key={game.key} className="flex items-center justify-center gap-1 text-[10px] text-ink-700">
-                    <Icon name="seat" className="h-3.5 w-3.5" />
-                    {game.detail}
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard>
-              <div className="text-center text-[11px] tracking-[0.25em] text-ink-700 italic font-medium mb-3">FEATURES</div>
-              <div className="space-y-1">
-                {FEATURES.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={f.onClick}
-                    className="w-full flex items-start gap-3 rounded-xl px-2 py-2.5 text-left active:bg-ink-300/60 transition-colors"
-                  >
-                    <div className={`h-11 w-11 shrink-0 rounded-xl ${f.tile} flex items-center justify-center text-white`}>
-                      <Icon name={f.icon} className="h-5.5 w-5.5" />
+                    <div className="text-ink-950 text-lg font-black italic tracking-wide leading-tight">{game.title}</div>
+                    {game.caption && <div className="text-gold-600 text-[10px] font-semibold mt-0.5">{game.caption}</div>}
+                    <div className="text-ink-600 text-[10px] mt-1.5 flex items-center justify-center gap-1">
+                      <Icon name="seat" className="h-3 w-3" />
+                      {game.detail}
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-[15px] font-semibold italic text-ink-950">{f.title}</div>
-                      <div className="text-xs text-ink-700 mt-0.5">{f.desc}</div>
-                    </div>
-                  </button>
+                    <div className="text-ink-700 text-[10px] mt-1">バイイン {game.buyIn.toLocaleString()}</div>
+                  </motion.button>
                 ))}
               </div>
-            </SectionCard>
+            </motion.div>
 
-            <a
-              href="https://rrpoker.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-2xl bg-ink-100 ring-1 ring-ink-400 p-3.5 active:bg-ink-300/60 transition-colors"
-            >
-              <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-crimson-500 to-rose-700 flex items-center justify-center text-white font-black text-sm italic">
-                RR
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold text-ink-950">RR Poker</div>
-                <div className="text-[11px] text-ink-700">同じ作成者のポーカーアプリもチェック</div>
-              </div>
-              <span className="shrink-0 rounded bg-ink-300 text-ink-600 text-[9px] font-bold px-1.5 py-0.5">PR</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-ink-600 shrink-0">
-                <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
-
-            <Link
-              href="/pricing"
-              className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-500 to-gold-600 px-5 py-4 text-center shadow-card block"
-            >
-              <div className="text-ink-950 font-black italic text-base tracking-wide">GEO戦略DB サブスクリプション</div>
-              <div className="text-ink-950/70 text-[11px] mt-1">レンジ分析を無制限に利用。今後の機能追加にもご協力ください</div>
-            </Link>
+            <RRRatingCard data={rrRating} itmRate={stats?.itmRate ?? 0} onViewLeaderboard={() => setTab("leaderboard")} />
 
             <div className="text-center space-y-2 pt-2">
               <p className="text-[10px] text-ink-500 leading-relaxed px-2">
@@ -825,12 +781,19 @@ export function Lobby({
               <p className="text-[10px] text-ink-500">GTO Poker v{APP_VERSION} ・ 作成者: Coffiest</p>
               <p className="text-[10px] text-ink-400">© 2026 GTO Poker</p>
             </div>
-          </>
+          </motion.div>
         )}
 
         {tab === "stats" && (
-          <SectionCard>
-            <div className="flex items-center justify-between mb-2">
+          <motion.div
+            key="stats"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-1">
                 <BackButton onClick={() => setTab("home")} />
                 <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
@@ -845,67 +808,75 @@ export function Lobby({
               stats ? (
                 <>
                   {stats.nationalRank != null && (
-                    <div className="flex items-center justify-center gap-1.5 rounded-xl bg-ink-300/70 py-2.5 mb-4">
-                      <Icon name="trophy" className="h-4 w-4 text-amber-400" />
-                      <span className="text-sm text-ink-850">
-                        全国 <span className="text-base font-bold text-ink-950 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
-                        {stats.totalRankedPlayers.toLocaleString()} 人中
-                      </span>
-                    </div>
+                    <AnimatedCard delay={0.02}>
+                      <div className="flex items-center justify-center gap-1.5 py-1">
+                        <Icon name="trophy" className="h-4 w-4 text-gold-500" />
+                        <span className="text-sm text-ink-850">
+                          全国 <span className="text-base font-bold text-ink-950 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
+                          {stats.totalRankedPlayers.toLocaleString()} 人中
+                        </span>
+                      </div>
+                    </AnimatedCard>
                   )}
 
-                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">収支</div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-4 mb-5">
-                    <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
-                    <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
-                    <StatTile
-                      label="収支"
-                      value={formatSigned(stats.profit)}
-                      valueClass={signedClass(stats.profit)}
-                      onInfo={() => setInfoKey("profit")}
-                    />
-                    <StatTile
-                      label="ROI"
-                      value={`${(stats.roi * 100).toFixed(1)}%`}
-                      valueClass={signedClass(stats.roi * 100 - 100)}
-                      onInfo={() => setInfoKey("roi")}
-                    />
-                  </div>
+                  <AnimatedCard delay={0.06}>
+                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">収支</div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+                      <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
+                      <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
+                      <StatTile
+                        label="収支"
+                        value={formatSigned(stats.profit)}
+                        valueClass={signedClass(stats.profit)}
+                        onInfo={() => setInfoKey("profit")}
+                      />
+                      <StatTile
+                        label="ROI"
+                        value={`${(stats.roi * 100).toFixed(1)}%`}
+                        valueClass={signedClass(stats.roi * 100 - 100)}
+                        onInfo={() => setInfoKey("roi")}
+                      />
+                    </div>
+                  </AnimatedCard>
 
-                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">トーナメント成績</div>
-                  <div className="grid grid-cols-3 gap-x-2 gap-y-4 mb-5">
-                    <StatTile
-                      label="参加トナメ数"
-                      value={stats.tournamentsPlayed.toLocaleString()}
-                      onInfo={() => setInfoKey("tournamentsPlayed")}
-                    />
-                    <StatTile label="インマネ回数" value={stats.itmCount.toLocaleString()} onInfo={() => setInfoKey("itmCount")} />
-                    <StatTile label="インマネ率" value={`${(stats.itmRate * 100).toFixed(1)}%`} onInfo={() => setInfoKey("itmRate")} />
-                  </div>
+                  <AnimatedCard delay={0.1}>
+                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">トーナメント成績</div>
+                    <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+                      <StatTile
+                        label="参加トナメ数"
+                        value={stats.tournamentsPlayed.toLocaleString()}
+                        onInfo={() => setInfoKey("tournamentsPlayed")}
+                      />
+                      <StatTile label="インマネ回数" value={stats.itmCount.toLocaleString()} onInfo={() => setInfoKey("itmCount")} />
+                      <StatTile label="インマネ率" value={`${(stats.itmRate * 100).toFixed(1)}%`} onInfo={() => setInfoKey("itmRate")} />
+                    </div>
+                  </AnimatedCard>
 
-                  <div className="text-[10px] tracking-[0.2em] text-ink-600 font-medium mb-2">プレイスタイル</div>
-                  <div className="grid grid-cols-3 gap-x-2 gap-y-4">
-                    <StatTile
-                      label="VPIP"
-                      value={`${(stats.vpipRate * 100).toFixed(0)}%`}
-                      onInfo={() => setInfoKey("vpip")}
-                    />
-                    <StatTile label="PFR" value={`${(stats.pfrRate * 100).toFixed(0)}%`} onInfo={() => setInfoKey("pfr")} />
-                    <StatTile
-                      label="3Bet"
-                      value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
-                      onInfo={() => setInfoKey("threeBet")}
-                    />
-                  </div>
+                  <AnimatedCard delay={0.14}>
+                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">プレイスタイル</div>
+                    <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+                      <StatTile
+                        label="VPIP"
+                        value={`${(stats.vpipRate * 100).toFixed(0)}%`}
+                        onInfo={() => setInfoKey("vpip")}
+                      />
+                      <StatTile label="PFR" value={`${(stats.pfrRate * 100).toFixed(0)}%`} onInfo={() => setInfoKey("pfr")} />
+                      <StatTile
+                        label="3Bet"
+                        value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
+                        onInfo={() => setInfoKey("threeBet")}
+                      />
+                    </div>
+                  </AnimatedCard>
 
-                  <div className="mt-6 pt-5 border-t border-ink-300">
+                  <AnimatedCard delay={0.18}>
                     {bankrollGraph === null ? (
                       <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
                           title="ROI"
-                          color="#3b82f6"
+                          color="#D4910A"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
                           baseline={100}
                           formatValue={(v) => `${v.toFixed(1)}%`}
@@ -933,20 +904,21 @@ export function Lobby({
                     <div className="flex items-center justify-center gap-1.5 mt-4">
                       <span className="text-[10px] text-ink-600 mr-0.5">直近トナメ数</span>
                       {TOURNEY_GRAPH_RANGES.map((r) => (
-                        <button
+                        <motion.button
                           key={r.key}
+                          whileTap={{ scale: 0.94 }}
                           onClick={() => setGraphRangeKey(r.key)}
                           className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
-                            graphRangeKey === r.key ? "bg-mint-500 text-white" : "bg-ink-300 text-ink-700"
+                            graphRangeKey === r.key ? "bg-gold-500 text-white" : "bg-ink-300 text-ink-700"
                           }`}
                         >
                           {r.label}
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
-                  </div>
+                  </AnimatedCard>
 
-                  <p className="text-[11px] text-ink-600 mt-5">
+                  <p className="text-[11px] text-ink-600 px-1">
                     収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。実額ベースで、bb換算は行いません。
                   </p>
                 </>
@@ -956,104 +928,130 @@ export function Lobby({
             ) : (
               <div className="py-10 text-center text-ink-700 text-sm">スタッツの記録にはログインが必要です。</div>
             )}
-          </SectionCard>
+          </motion.div>
         )}
 
         {tab === "leaderboard" && (
-          <SectionCard>
-            <div className="flex items-center gap-1 mb-1">
-              <BackButton onClick={() => setTab("home")} />
-              <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
-                <Icon name="trophy" className="h-4 w-4" /> Leaderboard
+          <motion.div
+            key="leaderboard"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <SectionCard>
+              <div className="flex items-center gap-1 mb-1">
+                <BackButton onClick={() => setTab("home")} />
+                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
+                  <Icon name="trophy" className="h-4 w-4" /> Leaderboard
+                </div>
               </div>
-            </div>
-            <p className="text-[11px] text-ink-600 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
-            {leaderboard === null ? (
-              <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
-            ) : leaderboard.length === 0 ? (
-              <div className="py-10 text-center text-ink-700 text-sm">まだランキングデータがありません。</div>
-            ) : (
-              <div className="space-y-2">
-                {leaderboard.map((row, i) => {
-                  const isYou = userId != null && row.userId === userId;
-                  return (
-                    <div
-                      key={row.userId}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                        isYou ? "bg-mint-500/10 ring-1 ring-mint-500/40" : "bg-ink-300/70"
-                      }`}
-                    >
-                      <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
-                      <Avatar avatarKey={row.avatarKey} size={30} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink-900 truncate">
-                          {row.displayName}
-                          {isYou && <span className="text-mint-400 text-[10px] ml-1">(あなた)</span>}
-                        </div>
-                        <div className="text-[10px] text-ink-600">{row.tournamentsPlayed} トーナメント</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-sm font-bold tabular-nums ${signedClass(row.profit)}`}>{formatSigned(row.profit)}</div>
-                        <div className="text-[10px] text-ink-600 tabular-nums">ROI {(row.roi * 100).toFixed(0)}%</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
-        )}
-
-        {tab === "history" && (
-          <SectionCard>
-            <div className="flex items-center gap-1 mb-3">
-              <BackButton onClick={() => setTab("home")} />
-              <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
-                <Icon name="layers" className="h-4 w-4" /> Hand History
-              </div>
-            </div>
-            {!accessToken ? (
-              <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
-            ) : history === null ? (
-              <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
-            ) : history.length === 0 ? (
-              <div className="py-10 text-center text-ink-700 text-sm">まだプレイしたハンドがありません。</div>
-            ) : (
-              <>
-                <p className="text-[11px] text-ink-600 mb-3">直近 {history.length} ハンドを表示中</p>
+              <p className="text-[11px] text-ink-600 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
+              {leaderboard === null ? (
+                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+              ) : leaderboard.length === 0 ? (
+                <div className="py-10 text-center text-ink-700 text-sm">まだランキングデータがありません。</div>
+              ) : (
                 <div className="space-y-2">
-                  {history.map((h) => {
-                    const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
-                    const rounded = Math.round(deltaBb * 10) / 10;
-                    const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                  {leaderboard.map((row, i) => {
+                    const isYou = userId != null && row.userId === userId;
                     return (
-                      <div key={h.handId} className="rounded-xl bg-ink-300/70 px-3 py-2.5">
-                        <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
-                          <span className="tabular-nums">
-                            {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                          <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1">
-                            {h.holeCards.map((c, i) => (
-                              <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
-                            ))}
-                            <span className="w-1.5" />
-                            {h.board.map((c, i) => (
-                              <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
-                            ))}
+                      <motion.div
+                        key={row.userId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                          isYou ? "bg-gold-500/10 ring-1 ring-gold-500/40" : "bg-ink-300/70"
+                        }`}
+                      >
+                        <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
+                        <Avatar avatarKey={row.avatarKey} size={30} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-ink-900 truncate">
+                            {row.displayName}
+                            {isYou && <span className="text-gold-600 text-[10px] ml-1">(あなた)</span>}
                           </div>
-                          <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
+                          <div className="text-[10px] text-ink-600">{row.tournamentsPlayed} トーナメント</div>
                         </div>
-                      </div>
+                        <div className="text-right">
+                          <div className={`text-sm font-bold tabular-nums ${signedClass(row.profit)}`}>{formatSigned(row.profit)}</div>
+                          <div className="text-[10px] text-ink-600 tabular-nums">ROI {(row.roi * 100).toFixed(0)}%</div>
+                        </div>
+                      </motion.div>
                     );
                   })}
                 </div>
-              </>
-            )}
-          </SectionCard>
+              )}
+            </SectionCard>
+          </motion.div>
         )}
+
+        {tab === "history" && (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <SectionCard>
+              <div className="flex items-center gap-1 mb-3">
+                <BackButton onClick={() => setTab("home")} />
+                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
+                  <Icon name="layers" className="h-4 w-4" /> Hand History
+                </div>
+              </div>
+              {!accessToken ? (
+                <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
+              ) : history === null ? (
+                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+              ) : history.length === 0 ? (
+                <div className="py-10 text-center text-ink-700 text-sm">まだプレイしたハンドがありません。</div>
+              ) : (
+                <>
+                  <p className="text-[11px] text-ink-600 mb-3">直近 {history.length} ハンドを表示中</p>
+                  <div className="space-y-2">
+                    {history.map((h, i) => {
+                      const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
+                      const rounded = Math.round(deltaBb * 10) / 10;
+                      const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                      return (
+                        <motion.div
+                          key={h.handId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
+                          className="rounded-xl bg-ink-300/70 px-3 py-2.5"
+                        >
+                          <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
+                            <span className="tabular-nums">
+                              {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1">
+                              {h.holeCards.map((c, i) => (
+                                <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
+                              ))}
+                              <span className="w-1.5" />
+                              {h.board.map((c, i) => (
+                                <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
+                              ))}
+                            </div>
+                            <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </SectionCard>
+          </motion.div>
+        )}
+        </AnimatePresence>
 
       </main>
 
@@ -1099,32 +1097,34 @@ export function Lobby({
 
       {structureOpen && <BlindStructureSheet onClose={() => setStructureOpen(false)} />}
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats)} onClose={() => setInfoKey(null)} />}
-      {menuOpen && (
-        <HamburgerMenu
-          displayName={displayName}
-          avatarKey={avatarKey}
-          email={email}
-          providers={providers}
-          isGuest={!accessToken}
-          onClose={() => setMenuOpen(false)}
-          onEditProfile={() => {
-            setMenuOpen(false);
-            onEditProfile();
-          }}
-          onOpenStructure={() => {
-            setMenuOpen(false);
-            setStructureOpen(true);
-          }}
-          onSignOut={
-            onSignOut
-              ? () => {
-                  setMenuOpen(false);
-                  onSignOut();
-                }
-              : undefined
-          }
-        />
-      )}
+      <AnimatePresence>
+        {menuOpen && (
+          <HamburgerMenu
+            displayName={displayName}
+            avatarKey={avatarKey}
+            email={email}
+            providers={providers}
+            isGuest={!accessToken}
+            onClose={() => setMenuOpen(false)}
+            onEditProfile={() => {
+              setMenuOpen(false);
+              onEditProfile();
+            }}
+            onOpenStructure={() => {
+              setMenuOpen(false);
+              setStructureOpen(true);
+            }}
+            onSignOut={
+              onSignOut
+                ? () => {
+                    setMenuOpen(false);
+                    onSignOut();
+                  }
+                : undefined
+            }
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
