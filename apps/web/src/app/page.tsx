@@ -57,6 +57,29 @@ function useLevelCountdown(endsAt: number | null): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * SNGマッチング待合室の残り秒数。サーバーは待合人数が変わった時だけ`secondsLeft`を送ってくるため、
+ * 受信時点の値を元にした締切時刻(endsAt)を基準にクライアント側で毎秒カウントダウンする。
+ */
+function useMatchingCountdown(secondsLeft: number | null): number | null {
+  const [endsAt, setEndsAt] = useState<number | null>(secondsLeft !== null ? Date.now() + secondsLeft * 1000 : null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setEndsAt(secondsLeft !== null ? Date.now() + secondsLeft * 1000 : null);
+    setNow(Date.now());
+  }, [secondsLeft]);
+
+  useEffect(() => {
+    if (endsAt === null) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [endsAt]);
+
+  if (endsAt === null) return null;
+  return Math.max(0, Math.ceil((endsAt - now) / 1000));
+}
+
 function SettingsPopover({
   onShowStructure,
   onLeave,
@@ -151,6 +174,7 @@ function GameScreen({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const countdown = useLevelCountdown(levelEndsAt);
+  const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
@@ -249,8 +273,8 @@ function GameScreen({
             <div className="text-[11px] text-navy-400 mt-1.5">
               {matching ? `${matching.registered} / ${matching.needed} 人集まりました` : `${waiting!.registered} / ${waiting!.needed} 人登録済み`}
             </div>
-            {matching?.secondsLeft !== null && matching?.secondsLeft !== undefined && !matching.starting && (
-              <div className="text-[11px] text-navy-500 mt-0.5">残り{matching.secondsLeft}秒でBOTが自動補充されます</div>
+            {matchingSecondsLeft !== null && !matching?.starting && (
+              <div className="text-[11px] text-navy-500 mt-0.5">残り{matchingSecondsLeft}秒でBOTが自動補充されます</div>
             )}
             {waiting && <div className="text-[11px] text-navy-500 mt-0.5">4人集まり次第すぐに開始します</div>}
           </motion.div>
