@@ -7,8 +7,10 @@ import {
   getPlayerStats,
   getHandProfitGraph,
   getRRRating,
+  getTournamentHistory,
   getUserHandHistory,
   prisma,
+  setHandFavorite,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 
@@ -149,6 +151,19 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
+    // ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用(トーナメントごとの個別損益)
+    if (url.pathname === "/api/lobby/tournament-history") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      const limitParam = Number(url.searchParams.get("limit") ?? 20);
+      sendJson(res, 200, user ? await getTournamentHistory(user.id, limitParam) : []);
+      return true;
+    }
+
     if (url.pathname === "/api/lobby/history") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
@@ -156,7 +171,32 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100) : []);
+      const favoritesOnly = url.searchParams.get("favorites") === "1";
+      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100, favoritesOnly) : []);
+      return true;
+    }
+
+    // ハンドのお気に入り登録/解除。 { handId, isFavorite } をJSON bodyで受け取る。
+    if (url.pathname === "/api/lobby/history/favorite" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      if (!user) {
+        sendJson(res, 404, { error: "user not found" });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const handId = typeof body["handId"] === "string" ? body["handId"] : null;
+      const isFavorite = body["isFavorite"] === true;
+      if (!handId) {
+        sendJson(res, 400, { error: "handId is required" });
+        return true;
+      }
+      await setHandFavorite(user.id, handId, isFavorite);
+      sendJson(res, 200, { handId, isFavorite });
       return true;
     }
 

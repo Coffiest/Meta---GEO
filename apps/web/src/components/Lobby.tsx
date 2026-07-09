@@ -8,8 +8,11 @@ import type { GameKey } from "@/lib/socket";
 import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
 import { BlindStructureSheet } from "./BlindStructureSheet";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
+import { Footer } from "./Footer";
+import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
-import { RRRatingCard, type RRRatingData } from "./RRRatingCard";
+import { RRRatingCard, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -58,6 +61,9 @@ interface HistoryRow {
   board: string[];
   deltaChips: number;
   bigBlind: number;
+  tournamentId: string;
+  tournamentLabel: string;
+  isFavorite: boolean;
 }
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -488,55 +494,7 @@ function SingleLineChart({
   );
 }
 
-// --- アイコン(フッター/FEATURES共用) ---
-export function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
-  const paths: Record<string, React.ReactNode> = {
-    home: <path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />,
-    stats: (
-      <>
-        <rect x="4" y="13.5" width="3.2" height="6.5" rx="1" fill="currentColor" stroke="none" />
-        <rect x="10.4" y="9" width="3.2" height="11" rx="1" fill="currentColor" stroke="none" />
-        <rect x="16.8" y="4.5" width="3.2" height="15.5" rx="1" fill="currentColor" stroke="none" />
-        <path d="M4 8.5 9 5l4 2.5L20 4" strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
-      </>
-    ),
-    trophy: (
-      <>
-        <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
-        <path d="M7 5.2H4.6A2.4 2.4 0 0 0 7 8.4M17 5.2h2.4A2.4 2.4 0 0 1 17 8.4" strokeLinecap="round" />
-        <path d="M12 13.3v3.4M9 20h6M9.6 20c0-1.1.6-1.9 1.4-2.4a3 3 0 0 1 2 0c.8.5 1.4 1.3 1.4 2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    layers: (
-      <>
-        <path d="m12 3 9 5-9 5-9-5 9-5Z" strokeLinejoin="round" fill="currentColor" fillOpacity={0.18} />
-        <path d="m3 12 9 5 9-5M3 16.5 12 21l9-4.5" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    seat: <path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" strokeLinecap="round" />,
-    settings: (
-      <>
-        <circle cx="12" cy="12" r="3.1" />
-        <path
-          d="M12 3v2.4M12 18.6V21M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M3 12h2.4M18.6 12H21M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7"
-          strokeLinecap="round"
-        />
-      </>
-    ),
-    db: (
-      <>
-        <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" fill="currentColor" fillOpacity={0.18} />
-        <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
-        <path d="M4.5 5.5v13c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-13M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8" strokeLinecap="round" />
-      </>
-    ),
-  };
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
-      {paths[name]}
-    </svg>
-  );
-}
+export { Icon };
 
 /** ヘッダー右上のハンバーガーメニューから開くボトムシート。旧Mypageタブの機能をここに集約する。 */
 /** "google" → "Google" のようにプロバイダ名を表示用ラベルに変換する。 */
@@ -647,13 +605,25 @@ export function Lobby({
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
+  const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[] | null>(null);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
+  const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
   const [structureOpen, setStructureOpen] = useState(false);
+
+  function toggleFavorite(handId: string, isFavorite: boolean) {
+    setHistory((prev) => (prev ? prev.map((h) => (h.handId === handId ? { ...h, isFavorite } : h)) : prev));
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/history/favorite`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ handId, isFavorite }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     if (!accessToken) return;
@@ -668,6 +638,14 @@ export function Lobby({
     fetch(`${SERVER_URL}/api/lobby/rr-rating`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<RRRatingData>) : null))
       .then((json) => json && setRRRating(json))
+      .catch(() => {});
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/tournament-history`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentHistoryPoint[]>) : null))
+      .then((json) => json && setTournamentHistory(json))
       .catch(() => {});
   }, [accessToken]);
 
@@ -699,32 +677,14 @@ export function Lobby({
 
   return (
     <div className="min-h-screen bg-ink-50 flex flex-col">
-      <header className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
-        {/* ロゴ配置枠(準備中): 今後作成予定のロゴ画像/SVGに差し替える。それまでは簡易ワードマーク表示。 */}
-        <div className="h-8 flex items-center px-1">
-          <span className="text-[15px] font-black italic tracking-wide text-ink-950">
-            GTO<span className="text-gold-600">Poker</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 pl-1 pr-3 py-1"
-          >
-            <Avatar avatarKey={avatarKey} size={26} />
-            <span className="text-xs text-ink-850 max-w-[96px] truncate">{displayName}</span>
-          </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="メニューを開く"
-            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-ink-100/80 ring-1 ring-ink-400/50 text-ink-850"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4.5 w-4.5">
-              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-      </header>
+      <Header
+        left={<HeaderLogo />}
+        right={
+          <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel="メニューを開く">
+            <HamburgerIcon />
+          </HeaderIconButton>
+        }
+      />
 
       <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-5">
         <AnimatePresence mode="wait">
@@ -741,15 +701,13 @@ export function Lobby({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 overflow-hidden shadow-card"
+              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-4"
             >
-              <div className="relative bg-gradient-to-br from-gold-500 to-gold-600 px-5 pt-4 pb-5 overflow-hidden text-center">
-                <div className="pointer-events-none absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
-                <div className="pointer-events-none absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-white/5" />
-                <p className="relative text-[11px] font-bold tracking-[0.15em] uppercase text-white/70 mb-1">Play Poker</p>
-                <p className="relative text-2xl font-black italic text-white tracking-wide">6-MAX TOURNAMENT</p>
+              <div className="flex items-center justify-between mb-3 px-0.5">
+                <p className="text-[13px] font-bold text-ink-950">プレイする</p>
+                <p className="text-[10px] tracking-[0.15em] text-ink-500 font-medium">6-MAX TOURNAMENT</p>
               </div>
-              <div className="p-4 grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {GAMES.map((game, i) => (
                   <motion.button
                     key={game.key}
@@ -758,21 +716,31 @@ export function Lobby({
                     transition={{ duration: 0.35, delay: 0.1 + i * 0.06 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => onJoin(game.key)}
-                    className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/25 p-3.5 text-center"
+                    className="rounded-2xl bg-ink-50 ring-1 ring-ink-300 p-3.5 text-center"
                   >
-                    <div className="text-ink-950 text-lg font-black italic tracking-wide leading-tight">{game.title}</div>
-                    {game.caption && <div className="text-gold-600 text-[10px] font-semibold mt-0.5">{game.caption}</div>}
+                    <div className="text-ink-950 text-base font-bold tracking-wide leading-tight">{game.title}</div>
+                    {game.caption && <div className="text-ink-600 text-[10px] font-medium mt-0.5">{game.caption}</div>}
                     <div className="text-ink-600 text-[10px] mt-1.5 flex items-center justify-center gap-1">
                       <Icon name="seat" className="h-3 w-3" />
                       {game.detail}
                     </div>
-                    <div className="text-ink-700 text-[10px] mt-1">バイイン {game.buyIn.toLocaleString()}</div>
+                    <div className="text-gold-600 text-[10px] font-semibold mt-1">バイイン {game.buyIn.toLocaleString()}</div>
                   </motion.button>
                 ))}
               </div>
             </motion.div>
 
-            <RRRatingCard data={rrRating} itmRate={stats?.itmRate ?? 0} onViewLeaderboard={() => setTab("leaderboard")} />
+            <RRRatingCard
+              displayName={displayName}
+              avatarKey={avatarKey}
+              data={rrRating}
+              itmRate={stats?.itmRate ?? 0}
+              totalBuyIns={stats?.totalBuyIns ?? 0}
+              totalPayouts={stats?.totalPayouts ?? 0}
+              history={tournamentHistory}
+              onViewLeaderboard={() => setTab("leaderboard")}
+              onViewHistory={() => setTab("history")}
+            />
 
             <div className="text-center space-y-2 pt-2">
               <p className="text-[10px] text-ink-500 leading-relaxed px-2">
@@ -1006,46 +974,95 @@ export function Lobby({
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
               ) : history === null ? (
                 <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
-              ) : history.length === 0 ? (
-                <div className="py-10 text-center text-ink-700 text-sm">まだプレイしたハンドがありません。</div>
               ) : (
                 <>
-                  <p className="text-[11px] text-ink-600 mb-3">直近 {history.length} ハンドを表示中</p>
-                  <div className="space-y-2">
-                    {history.map((h, i) => {
-                      const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
-                      const rounded = Math.round(deltaBb * 10) / 10;
-                      const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
-                      return (
-                        <motion.div
-                          key={h.handId}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className="rounded-xl bg-ink-300/70 px-3 py-2.5"
-                        >
-                          <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
-                            <span className="tabular-nums">
-                              {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1">
-                              {h.holeCards.map((c, i) => (
-                                <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
-                              ))}
-                              <span className="w-1.5" />
-                              {h.board.map((c, i) => (
-                                <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
-                              ))}
-                            </div>
-                            <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                  <div className="flex gap-1.5 mb-3">
+                    <button
+                      onClick={() => setHistorySubTab("all")}
+                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                        historySubTab === "all" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      }`}
+                    >
+                      すべて
+                    </button>
+                    <button
+                      onClick={() => setHistorySubTab("favorites")}
+                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
+                        historySubTab === "favorites" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      }`}
+                    >
+                      <Icon name="star" className="h-3.5 w-3.5" />
+                      お気に入り
+                    </button>
                   </div>
+
+                  {(() => {
+                    const rows = historySubTab === "favorites" ? history.filter((h) => h.isFavorite) : history;
+                    if (rows.length === 0) {
+                      return (
+                        <div className="py-10 text-center text-ink-700 text-sm">
+                          {historySubTab === "favorites" ? "お気に入りのハンドはまだありません。" : "まだプレイしたハンドがありません。"}
+                        </div>
+                      );
+                    }
+                    const groups: { tournamentId: string; tournamentLabel: string; rows: HistoryRow[] }[] = [];
+                    for (const h of rows) {
+                      const last = groups[groups.length - 1];
+                      if (last && last.tournamentId === h.tournamentId) last.rows.push(h);
+                      else groups.push({ tournamentId: h.tournamentId, tournamentLabel: h.tournamentLabel, rows: [h] });
+                    }
+                    return (
+                      <div className="space-y-4">
+                        {groups.map((group) => (
+                          <div key={group.tournamentId}>
+                            <p className="text-[11px] font-semibold text-ink-600 mb-1.5 px-0.5">{group.tournamentLabel}</p>
+                            <div className="space-y-2">
+                              {group.rows.map((h, i) => {
+                                const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
+                                const rounded = Math.round(deltaBb * 10) / 10;
+                                const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                                return (
+                                  <motion.div
+                                    key={h.handId}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
+                                    className="rounded-xl bg-ink-300/70 px-3 py-2.5"
+                                  >
+                                    <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
+                                      <span className="tabular-nums">
+                                        {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                      <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                                      <button
+                                        onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
+                                        aria-label={h.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
+                                        className="ml-auto text-gold-500"
+                                      >
+                                        <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1">
+                                        {h.holeCards.map((c, i) => (
+                                          <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
+                                        ))}
+                                        <span className="w-1.5" />
+                                        {h.board.map((c, i) => (
+                                          <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
+                                        ))}
+                                      </div>
+                                      <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </SectionCard>
@@ -1055,45 +1072,17 @@ export function Lobby({
 
       </main>
 
-      {/* フッターナビ: 中央にGEOデータベースへの丸ボタン */}
-      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-300 bg-ink-50/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-          {(
-            [
-              { key: "home" as Tab, label: "Home", icon: "home" },
-              { key: "stats" as Tab, label: "Stats", icon: "stats" },
-              null, // 中央: DBボタン
-              { key: "history" as Tab, label: "History", icon: "layers" },
-              { key: "leaderboard" as Tab, label: "Leaderboard", icon: "trophy" },
-            ] as ({ key: Tab; label: string; icon: string } | null)[]
-          ).map((t, i) =>
-            t ? (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                  tab === t.key ? "text-mint-400" : "text-ink-600"
-                }`}
-              >
-                <Icon name={t.icon} />
-                <span className="text-[9px] font-medium">{t.label}</span>
-              </button>
-            ) : (
-              <div key={`db-${i}`} className="relative flex justify-center">
-                <Link
-                  href="/geo"
-                  aria-label="GEOデータベース"
-                  className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-mint-400 to-emerald-600 ring-4 ring-ink-50 shadow-panel flex flex-col items-center justify-center text-white active:scale-95 transition-transform"
-                >
-                  <Icon name="db" className="h-5 w-5" />
-                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
-                </Link>
-                <div className="h-[54px]" />
-              </div>
-            ),
-          )}
-        </div>
-      </nav>
+      <Footer
+        tone="light"
+        activeKey={tab}
+        centerHref="/geo"
+        items={[
+          { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
+          { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
+          { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+          { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+        ]}
+      />
 
       {structureOpen && <BlindStructureSheet onClose={() => setStructureOpen(false)} />}
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats)} onClose={() => setInfoKey(null)} />}

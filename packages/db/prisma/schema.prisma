@@ -143,6 +143,8 @@ model HandSeat {
   isSmallBlind     Boolean @default(false)
   isBigBlind       Boolean @default(false)
   resultStackDelta Int
+  /// Historyタブでプレイヤーが「お気に入り」登録したハンドかどうか。
+  isFavorite       Boolean @default(false)
 
   @@unique([handId, seatIndex])
   @@index([userId])

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   geoTreeApi,
@@ -21,6 +20,8 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
@@ -251,24 +252,31 @@ export default function GeoPage() {
 
   return (
     <div className="min-h-screen bg-navy-950">
-      <div className="max-w-3xl mx-auto px-4 pb-28">
-        <header className="pt-[calc(env(safe-area-inset-top)+12px)] pb-3">
-          <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">
-            GEO DATABASE <span className="text-navy-500">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
-          </p>
-          <div className="flex items-center gap-2.5">
-            <motion.button
-              onClick={() => setSettingsOpen(true)}
-              whileTap={{ scale: 0.9 }}
-              className="shrink-0 h-11 w-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 shadow-panel flex items-center justify-center"
-              aria-label="詳細設定"
-            >
-              <Icon name="settings" className="h-5 w-5 text-navy-950" />
-            </motion.button>
-            <PositionPillBar items={items} onTruncate={handleTruncate} />
-          </div>
-        </header>
+      <div className="max-w-3xl mx-auto">
+        <Header
+          tone="dark"
+          left={
+            <div className="w-full">
+              <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">
+                GEO DATABASE <span className="text-navy-500">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
+              </p>
+              <div className="flex items-center gap-2.5">
+                <motion.button
+                  onClick={() => setSettingsOpen(true)}
+                  whileTap={{ scale: 0.9 }}
+                  className="shrink-0 h-11 w-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 shadow-panel flex items-center justify-center"
+                  aria-label="詳細設定"
+                >
+                  <Icon name="settings" className="h-5 w-5 text-navy-950" />
+                </motion.button>
+                <PositionPillBar items={items} onTruncate={handleTruncate} />
+              </div>
+            </div>
+          }
+        />
+      </div>
 
+      <div className="max-w-3xl mx-auto px-4 pb-28">
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-300 text-sm px-4 py-3 mb-4">{error}</div>
         )}
@@ -340,34 +348,17 @@ export default function GeoPage() {
         )}
       </AnimatePresence>
 
-      <nav className="fixed bottom-0 inset-x-0 border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-          {(
-            [
-              { key: "home", label: "Home", icon: "home", href: "/" },
-              { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-              null,
-              { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-              { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-            ] as ({ key: string; label: string; icon: string; href: string } | null)[]
-          ).map((t, i) =>
-            t ? (
-              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-navy-500">
-                <Icon name={t.icon} />
-                <span className="text-[9px] font-medium">{t.label}</span>
-              </Link>
-            ) : (
-              <div key={`db-${i}`} className="relative flex justify-center">
-                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-navy-950 shadow-panel flex flex-col items-center justify-center text-navy-950">
-                  <Icon name="db" className="h-5 w-5" />
-                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
-                </div>
-                <div className="h-[54px]" />
-              </div>
-            ),
-          )}
-        </div>
-      </nav>
+      <Footer
+        tone="dark"
+        activeKey={null}
+        centerActive
+        items={[
+          { key: "home", label: "Home", icon: "home", href: "/" },
+          { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+          { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+          { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+        ]}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Avatar } from "./Avatar";
 
 export interface RRRatingData {
   rrRating: number;
@@ -11,24 +12,130 @@ export interface RRRatingData {
   totalRankedPlayers: number;
 }
 
+export interface TournamentHistoryPoint {
+  tournamentId: string;
+  finishedAt: string;
+  buyIn: number;
+  payout: number;
+  /** 賞金 − バイイン */
+  pnl: number;
+  finishPosition: number | null;
+}
+
 /** RRPokerと同じく、下位帯(50未満で目安45未満)は細かい数値を伏せて「< 45」とだけ表示する。 */
 function displayRating(rr: number): string {
   return rr < 45 ? "< 45" : rr.toFixed(2);
 }
 
+function formatSigned(n: number): string {
+  return `${n > 0 ? "+" : ""}${n.toLocaleString()}`;
+}
+
+const CHART_STEP = 52;
+const CHART_HEIGHT = 108;
+const CHART_PADDING_Y = 16;
+
 /**
- * 「トナメ偏差値」(RRRating)カード。RRPokerのホーム画面ヒーローカードと同じデザイン言語
- * (ゴールドグラデーションのヒーロー部+下部の統計グリッド)で、ROIベースの偏差値を表示する。
+ * RRPokerホーム画面の「Tournament History」と同じ、トーナメントごとの損益を横並びの点+
+ * 折れ線で表示するインラインSVGチャート(専用チャートライブラリは使わず手組み)。
+ * 0ラインを点線で示し、点は黒字=緑・赤字=赤・トントン=グレーで色分け、着順を点の中に表示する。
+ * タップするとその大会の詳細(日付・バイイン・獲得・損益)をポップオーバーで表示する。
+ */
+function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  if (points.length === 0) {
+    return <p className="text-center text-[12px] text-ink-600 py-8">参加すると記録されます</p>;
+  }
+
+  const values = points.map((p) => p.pnl).concat([0]);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const plotHeight = CHART_HEIGHT - CHART_PADDING_Y * 2;
+  const yFor = (v: number) => CHART_PADDING_Y + ((max - v) / range) * plotHeight;
+  const zeroY = yFor(0);
+  const width = Math.max(points.length * CHART_STEP, 260);
+
+  const xFor = (i: number) => i * CHART_STEP + CHART_STEP / 2;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(p.pnl)}`).join(" ");
+
+  return (
+    <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+      <svg width={width} height={CHART_HEIGHT + 22} className="block">
+        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#d1d5db" strokeWidth={1} strokeDasharray="3,3" />
+        <path d={linePath} fill="none" stroke="#d4910a" strokeWidth={1.5} strokeOpacity={0.5} />
+        {points.map((p, i) => {
+          const cx = xFor(i);
+          const cy = yFor(p.pnl);
+          const color = p.pnl > 0 ? "#22c55e" : p.pnl < 0 ? "#e5484d" : "#9ca3af";
+          const date = new Date(p.finishedAt);
+          const dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
+          return (
+            <g key={p.tournamentId} onClick={() => setSelected(selected === i ? null : i)} className="cursor-pointer">
+              <circle cx={cx} cy={cy} r={16} fill="transparent" />
+              <circle cx={cx} cy={cy} r={9} fill={color} stroke="white" strokeWidth={1.5} />
+              {p.finishPosition != null && (
+                <text x={cx} y={cy + 3} textAnchor="middle" fontSize={8} fontWeight={700} fill="white">
+                  {p.finishPosition}
+                </text>
+              )}
+              <text x={cx} y={CHART_HEIGHT + 16} textAnchor="middle" fontSize={9} fill="#6b7280">
+                {dateLabel}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <AnimatePresence>
+        {selected != null && points[selected] && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="rounded-xl bg-ink-200/70 px-3 py-2 mt-1 text-[11px] text-ink-800 flex items-center justify-between"
+          >
+            <span>
+              {new Date(points[selected]!.finishedAt).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
+              {points[selected]!.finishPosition != null && ` ・ ${points[selected]!.finishPosition}位`}
+            </span>
+            <span className={points[selected]!.pnl >= 0 ? "text-mint-600 font-bold" : "text-crimson-500 font-bold"}>
+              {formatSigned(points[selected]!.pnl)}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * 「トナメ偏差値」(RRRating)カード。RRPokerのホーム画面ヒーローカードと同じデザイン言語・
+ * 同じ構成(アバター/名前の識別行→ヒーロー部の偏差値→参加数/コスト合計/リターン+インマネ率/ROIの
+ * 統計グリッド→ランキングを見るボタン→Tournament History折れ線グラフ)で表示する。
  * 計算ロジックはpackages/db/src/rrRating.tsでRRPokerの実装と全く同じ式を再現している。
  */
 export function RRRatingCard({
+  displayName,
+  avatarKey,
   data,
   itmRate,
+  totalBuyIns,
+  totalPayouts,
+  history,
   onViewLeaderboard,
+  onViewHistory,
 }: {
+  displayName: string;
+  avatarKey: string | null;
   data: RRRatingData | null;
   itmRate: number;
+  totalBuyIns: number;
+  totalPayouts: number;
+  history: TournamentHistoryPoint[] | null;
   onViewLeaderboard: () => void;
+  onViewHistory: () => void;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -43,6 +150,11 @@ export function RRRatingCard({
       <div className="relative bg-gradient-to-br from-gold-500 to-gold-600 px-5 pt-4 pb-5 overflow-hidden">
         <div className="pointer-events-none absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-white/5" />
+
+        <div className="relative flex items-center gap-2.5 mb-4">
+          <Avatar avatarKey={avatarKey} displayName={displayName} size={34} />
+          <p className="text-sm font-bold text-white truncate min-w-0">{displayName}</p>
+        </div>
 
         <div className="relative flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold tracking-[0.1em] uppercase text-white/70">トナメ偏差値</p>
@@ -97,10 +209,14 @@ export function RRRatingCard({
       </div>
 
       <div className="p-4">
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-2">
           <MiniStat label="参加数" value={(data?.tournamentsPlayed ?? 0).toLocaleString()} />
-          <MiniStat label="ROI" value={`${((data?.roi ?? 0) * 100).toFixed(0)}%`} accent />
+          <MiniStat label="コスト合計" value={totalBuyIns.toLocaleString()} />
+          <MiniStat label="リターン" value={totalPayouts.toLocaleString()} accent />
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
           <MiniStat label="インマネ率" value={`${(itmRate * 100).toFixed(0)}%`} accent />
+          <MiniStat label="ROI" value={`${((data?.roi ?? 0) * 100).toFixed(0)}%`} accent />
         </div>
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -113,6 +229,26 @@ export function RRRatingCard({
           </svg>
           ランキングを見る
         </motion.button>
+      </div>
+
+      <div className="border-t border-ink-300 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-gold-600">
+              <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
+              <path d="M7 5.2H4.6A2.4 2.4 0 0 0 7 8.4M17 5.2h2.4A2.4 2.4 0 0 1 17 8.4" strokeLinecap="round" />
+            </svg>
+            <p className="text-[13px] font-bold text-ink-950">Tournament History</p>
+          </div>
+          <button onClick={onViewHistory} className="text-[11px] text-gold-600 font-semibold">
+            もっと見る
+          </button>
+        </div>
+        {history === null ? (
+          <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
+        ) : (
+          <TournamentHistoryChart points={history} />
+        )}
       </div>
     </motion.div>
   );
