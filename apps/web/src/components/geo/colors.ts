@@ -1,4 +1,4 @@
-import type { PostflopBucket, PreflopBucket } from "@/lib/geoApi";
+import { PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
 
 /**
  * GTO Wizardの実際の配色に合わせたアクションカラー。Fold=青、Call/Check=緑、
@@ -45,4 +45,16 @@ export function bucketColor(bucket: string, geometricRatio = 0): string {
     (POSTFLOP_BUCKET_COLOR as Record<string, string>)[bucket] ??
     "#4b5563"
   );
+}
+
+/**
+ * バケットの「弱→強」順のインデックス。頻度でなくこの順でセル/バーを並べるために使う
+ * (一番激しいアクションを右端に配置する、という表示要件)。未知のバケットは最後尾扱い。
+ */
+export function bucketOrderIndex(bucket: string): number {
+  const preflopIndex = (PREFLOP_BUCKETS as string[]).indexOf(bucket);
+  if (preflopIndex !== -1) return preflopIndex;
+  const postflopIndex = (POSTFLOP_BUCKETS as string[]).indexOf(bucket);
+  if (postflopIndex !== -1) return postflopIndex;
+  return 999;
 }

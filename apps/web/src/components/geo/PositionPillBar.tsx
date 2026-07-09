@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { bucketColor } from "./colors";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
@@ -54,26 +55,41 @@ export function PositionPillBar({
     <div className="flex items-stretch gap-1.5 overflow-x-auto no-scrollbar">
       {items.map((item, i) =>
         item.kind === "street" ? (
-          <div
+          <motion.div
             key={`street-${i}`}
+            layout
+            initial={{ opacity: 0, scale: 0.9, x: -10 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            transition={{ type: "spring", damping: 22, stiffness: 300 }}
             className="shrink-0 flex items-center gap-1.5 rounded-xl bg-navy-900 ring-1 ring-navy-700 px-2.5 py-1.5"
           >
             <span className="text-[9px] font-bold tracking-widest text-gold-500">{STREET_LABEL[item.street]}</span>
             <div className="flex gap-0.5">
               {item.cards.map((c) => (
-                <div key={c} className="h-7 w-5 rounded-sm bg-navy-50 flex flex-col items-center justify-center text-[8px] font-bold leading-none">
+                <motion.div
+                  key={c}
+                  initial={{ opacity: 0, rotateY: 90 }}
+                  animate={{ opacity: 1, rotateY: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="h-7 w-5 rounded-sm bg-navy-50 flex flex-col items-center justify-center text-[8px] font-bold leading-none"
+                >
                   <span className={suitTextClass(c)}>{c.slice(0, -1)}</span>
                   <span className={suitTextClass(c)}>{suitSymbol(c)}</span>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
         ) : (
-          <button
+          <motion.button
             key={`${item.street}-${item.position}-${i}`}
+            layout
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
+            transition={{ type: "spring", damping: 24, stiffness: 320 }}
             disabled={item.state === "future" || item.lineIndex === undefined}
             onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
-            className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left transition-colors min-w-[64px] ${
+            className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
               item.state === "active"
                 ? "bg-navy-900 ring-2 ring-gold-500"
                 : item.state === "decided"
@@ -89,10 +105,18 @@ export function PositionPillBar({
               >
                 {item.actionLabel}
               </div>
+            ) : item.state === "active" ? (
+              <motion.div
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                className="text-[11px] font-medium text-gold-400"
+              >
+                選択中
+              </motion.div>
             ) : (
-              <div className="text-[11px] font-medium text-navy-500">{item.state === "active" ? "選択中" : "—"}</div>
+              <div className="text-[11px] font-medium text-navy-500">—</div>
             )}
-          </button>
+          </motion.button>
         ),
       )}
     </div>

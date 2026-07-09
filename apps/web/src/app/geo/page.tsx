@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   geoTreeApi,
   PREFLOP_BUCKET_LABELS,
@@ -252,18 +253,18 @@ export default function GeoPage() {
     <div className="min-h-screen bg-navy-950">
       <div className="max-w-3xl mx-auto px-4 pb-28">
         <header className="pt-[calc(env(safe-area-inset-top)+12px)] pb-3">
-          <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">GEO DATABASE</p>
-          <div className="flex items-center gap-1.5">
-            <button
+          <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">
+            GEO DATABASE <span className="text-navy-500">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
+          </p>
+          <div className="flex items-center gap-2.5">
+            <motion.button
               onClick={() => setSettingsOpen(true)}
-              className="shrink-0 flex items-center gap-1.5 rounded-xl bg-navy-900 ring-1 ring-navy-700 px-2.5 py-1.5"
+              whileTap={{ scale: 0.9 }}
+              className="shrink-0 h-11 w-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 shadow-panel flex items-center justify-center"
+              aria-label="詳細設定"
             >
-              <Icon name="settings" className="h-4 w-4 text-gold-500" />
-              <div className="text-left leading-none">
-                <div className="text-[9px] text-navy-400">{STACK_BUCKET_LABELS[stackBucket]}</div>
-                <div className="text-[9px] text-navy-500 mt-0.5">{BUBBLE_STAGE_LABELS[bubbleStage]}</div>
-              </div>
-            </button>
+              <Icon name="settings" className="h-5 w-5 text-navy-950" />
+            </motion.button>
             <PositionPillBar items={items} onTruncate={handleTruncate} />
           </div>
         </header>
@@ -278,16 +279,29 @@ export default function GeoPage() {
           {loading ? (
             <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-8 text-center text-sm text-navy-400">読み込み中…</div>
           ) : noBoardData ? (
-            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+            >
               <p className="text-sm text-navy-300 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
-              <button onClick={retryBoard} className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={retryBoard}
+                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2"
+              >
                 板面を選び直す
-              </button>
-            </div>
+              </motion.button>
+            </motion.div>
           ) : awaitingDismissedBoard ? (
-            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+            >
               <p className="text-sm text-navy-300 mb-3">次のストリートに進むにはボードを選択してください。</p>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setDismissedStreet(null);
                   setPendingStreet(nextStreetOf(street));
@@ -295,32 +309,36 @@ export default function GeoPage() {
                 className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2"
               >
                 ボードを選択
-              </button>
-            </div>
+              </motion.button>
+            </motion.div>
           ) : node ? (
             <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
           ) : null}
         </div>
       </div>
 
-      {pendingStreet && (
-        <BoardCardPicker
-          cardsNeeded={pendingStreet === "flop" ? 3 : 1}
-          usedCards={board}
-          onClose={closeBoardPicker}
-          onConfirm={confirmBoard}
-        />
-      )}
+      <AnimatePresence>
+        {pendingStreet && (
+          <BoardCardPicker
+            cardsNeeded={pendingStreet === "flop" ? 3 : 1}
+            usedCards={board}
+            onClose={closeBoardPicker}
+            onConfirm={confirmBoard}
+          />
+        )}
+      </AnimatePresence>
 
-      {settingsOpen && (
-        <GeoSettingsModal
-          stackBucket={stackBucket}
-          bubbleStage={bubbleStage}
-          onChangeStackBucket={setStackBucket}
-          onChangeBubbleStage={setBubbleStage}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {settingsOpen && (
+          <GeoSettingsModal
+            stackBucket={stackBucket}
+            bubbleStage={bubbleStage}
+            onChangeStackBucket={setStackBucket}
+            onChangeBubbleStage={setBubbleStage}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <nav className="fixed bottom-0 inset-x-0 border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">

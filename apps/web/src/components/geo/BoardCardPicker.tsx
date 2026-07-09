@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUITS: { key: string; symbol: string; colorClass: string }[] = [
@@ -42,10 +43,20 @@ export function BoardCardPicker({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-4"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 40, scale: 0.97 }}
+        transition={{ type: "spring", damping: 28, stiffness: 320 }}
         onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-4"
       >
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-navy-100">
@@ -64,9 +75,12 @@ export function BoardCardPicker({
                 const isUsed = usedSet.has(card);
                 const isSelected = selected.includes(card);
                 return (
-                  <button
+                  <motion.button
                     key={card}
                     disabled={isUsed}
+                    whileTap={isUsed ? undefined : { scale: 0.85 }}
+                    animate={isSelected ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.2 }}
                     onClick={() => toggle(card)}
                     className={`aspect-[3/4] rounded flex flex-col items-center justify-center text-[10px] font-bold transition-colors ${
                       isUsed
@@ -78,21 +92,22 @@ export function BoardCardPicker({
                   >
                     <span>{rank}</span>
                     <span>{suit.symbol}</span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
           ))}
         </div>
 
-        <button
+        <motion.button
+          whileTap={selected.length === cardsNeeded ? { scale: 0.97 } : undefined}
           onClick={() => selected.length === cardsNeeded && onConfirm(selected)}
           disabled={selected.length !== cardsNeeded}
           className="w-full mt-4 rounded-xl bg-gold-500 text-navy-950 font-semibold py-3 disabled:opacity-30 disabled:pointer-events-none"
         >
           確定
-        </button>
-      </div>
-    </div>
+        </motion.button>
+      </motion.div>
+    </motion.div>
   );
 }

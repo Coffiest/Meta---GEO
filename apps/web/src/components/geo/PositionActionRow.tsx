@@ -1,12 +1,14 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import type { TreeNode } from "@/lib/geoApi";
-import { bucketColor } from "./colors";
+import { bucketColor, bucketOrderIndex } from "./colors";
 
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
- * タップするとそのバケットがラインに追加される。GTOWizardと同様、ジオメトリックサイズ
- * 以上のオプションは紫系の色で表示される(bucketColorがgeometricRatioを見て判定)。
+ * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
+ * (弱→強、左から右)で並べる。ジオメトリックサイズ以上のオプションは紫系の色で表示される
+ * (bucketColorがgeometricRatioを見て判定)。
  */
 export function PositionActionRow({
   node,
@@ -19,50 +21,77 @@ export function PositionActionRow({
 }) {
   if (node.position === null) {
     return (
-      <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+      >
         <p className="text-sm text-navy-300">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
-      </div>
+      </motion.div>
     );
   }
 
   if (node.sampleSize === 0) {
     return (
-      <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+      >
         <p className="text-[11px] tracking-[0.2em] text-navy-500 uppercase mb-1">{node.position}</p>
         <p className="text-sm text-navy-400">サンプルなし</p>
-      </div>
+      </motion.div>
     );
   }
 
-  const sortedOptions = [...node.options].sort((a, b) => b.frequency - a.frequency);
+  const sortedOptions = [...node.options].sort((a, b) => bucketOrderIndex(a.bucket) - bucketOrderIndex(b.bucket));
 
   return (
-    <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-3">
+    <motion.div
+      key={node.position}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-3"
+    >
       <div className="flex items-center justify-between mb-2.5 px-1">
         <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase font-semibold">{node.position}</p>
         <p className="text-[10px] text-navy-500 tabular-nums">n={node.sampleSize}</p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-        {sortedOptions.map((opt) => (
-          <button
-            key={opt.bucket}
-            onClick={() => onSelect(opt.bucket)}
-            className="relative overflow-hidden rounded-xl p-2.5 text-left active:scale-[0.97] transition-transform"
-            style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
-          >
-            <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
-            <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
-              {Math.round(opt.frequency * 100)}%
-            </div>
-            <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
-          </button>
-        ))}
+        <AnimatePresence mode="popLayout">
+          {sortedOptions.map((opt, i) => (
+            <motion.button
+              key={opt.bucket}
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => onSelect(opt.bucket)}
+              className="relative overflow-hidden rounded-xl p-2.5 text-left"
+              style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+            >
+              <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
+              <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
+                {Math.round(opt.frequency * 100)}%
+              </div>
+              <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
+            </motion.button>
+          ))}
+        </AnimatePresence>
       </div>
       <div className="flex h-1.5 rounded-full overflow-hidden mt-2.5">
         {sortedOptions.map((opt) => (
-          <div key={opt.bucket} style={{ width: `${opt.frequency * 100}%`, background: bucketColor(opt.bucket, opt.geometricRatio) }} />
+          <motion.div
+            key={opt.bucket}
+            initial={{ width: 0 }}
+            animate={{ width: `${opt.frequency * 100}%` }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+          />
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
