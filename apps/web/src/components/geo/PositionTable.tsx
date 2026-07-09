@@ -22,7 +22,7 @@ export function PositionTable({ position, onChange }: { position: string; onChan
   return (
     <svg viewBox="0 0 300 176" className="w-full max-w-[280px] mx-auto">
       <ellipse cx={cx} cy={cy} rx={rx} ry={ry} className="fill-felt-800" stroke="#0a1712" strokeWidth={4} />
-      <ellipse cx={cx} cy={cy} rx={rx - 16} ry={ry - 16} className="fill-none stroke-ink-50/10" strokeWidth={1} />
+      <ellipse cx={cx} cy={cy} rx={rx - 16} ry={ry - 16} className="fill-none stroke-ink-950/10" strokeWidth={1} />
       {SEATS.map((seat) => {
         const rad = (seat.angleDeg * Math.PI) / 180;
         const x = cx + Math.cos(rad) * (rx + 4);
@@ -40,7 +40,7 @@ export function PositionTable({ position, onChange }: { position: string; onChan
               cx={x}
               cy={y}
               r={18}
-              className={isActive ? "fill-mint-500" : "fill-ink-800 hover:fill-ink-700 transition-colors"}
+              className={isActive ? "fill-mint-500" : "fill-ink-300 hover:fill-ink-400 transition-colors"}
               stroke={isActive ? "#7adcae" : "#2e2e33"}
               strokeWidth={isActive ? 2 : 1.5}
             />
@@ -48,7 +48,7 @@ export function PositionTable({ position, onChange }: { position: string; onChan
               x={x}
               y={y + 4}
               textAnchor="middle"
-              className={`text-[11px] font-bold ${isActive ? "fill-ink-950" : "fill-ink-300"}`}
+              className={`text-[11px] font-bold ${isActive ? "fill-ink-50" : "fill-ink-800"}`}
               style={{ pointerEvents: "none" }}
             >
               {seat.key}

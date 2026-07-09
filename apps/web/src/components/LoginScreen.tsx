@@ -56,15 +56,15 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8 bg-navy-950">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8 bg-ink-50">
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-1.5">
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-navy-950">T♠</span>
+          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-ink-950">T♠</span>
           <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-crimson-500">4♥</span>
         </div>
-        <div className="text-[13px] tracking-[0.3em] text-mint-500 font-medium">TEN FOUR POKER</div>
-        <h1 className="text-2xl font-semibold text-navy-50">ログイン / 新規登録</h1>
-        <p className="text-sm text-navy-400 max-w-xs mx-auto">
+        <div className="text-[13px] tracking-[0.3em] text-mint-500 font-medium">GTO POKER</div>
+        <h1 className="text-2xl font-semibold text-ink-950">ログイン / 新規登録</h1>
+        <p className="text-sm text-ink-700 max-w-xs mx-auto">
           バーチャルチップのみで遊べるトーナメントです。実際の金銭のやり取りはありません。
         </p>
       </div>
@@ -87,18 +87,18 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           </button>
         </div>
 
-        <p className="text-[10px] text-navy-500 text-center leading-relaxed">
+        <p className="text-[10px] text-ink-600 text-center leading-relaxed">
           同じメールアドレスのApple/Googleアカウントは、同じプレイヤーアカウントとして扱われます。
         </p>
 
         <div className="flex items-center gap-3 py-1">
-          <div className="h-px flex-1 bg-navy-700" />
-          <span className="text-[11px] text-navy-500">または メールで続ける</span>
-          <div className="h-px flex-1 bg-navy-700" />
+          <div className="h-px flex-1 bg-ink-400" />
+          <span className="text-[11px] text-ink-600">または メールで続ける</span>
+          <div className="h-px flex-1 bg-ink-400" />
         </div>
 
         {sent ? (
-          <div className="rounded-xl bg-navy-900 ring-1 ring-navy-700 px-4 py-4 text-sm text-navy-200 text-center">
+          <div className="rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-4 text-sm text-ink-850 text-center">
             <span className="font-medium text-mint-400">{email}</span> 宛にログインリンクを送りました。
             メール内のリンクを開くとログインできます。
           </div>
@@ -110,7 +110,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
               type="email"
               placeholder="メールアドレス"
-              className="w-full rounded-xl bg-navy-900 ring-1 ring-navy-700 px-4 py-3 text-sm text-navy-50 placeholder:text-navy-500 focus:outline-none focus:ring-mint-500"
+              className="w-full rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-600 focus:outline-none focus:ring-mint-500"
             />
             {error && <p className="text-xs text-crimson-400 px-1">{error}</p>}
             <button

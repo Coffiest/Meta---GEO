@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import { Lobby } from "./lobby.js";
 import { handleGeoApiRequest } from "./geoApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
+import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -15,10 +16,13 @@ const httpServer = createServer((req, res) => {
 
   handleLobbyApiRequest(req, res).then((handled) => {
     if (handled) return;
-    handleGeoApiRequest(req, res).then((handled2) => {
-      if (handled2) return;
-      res.writeHead(404);
-      res.end();
+    handleSubscriptionApiRequest(req, res).then((handledSub) => {
+      if (handledSub) return;
+      handleGeoApiRequest(req, res).then((handled2) => {
+        if (handled2) return;
+        res.writeHead(404);
+        res.end();
+      });
     });
   });
 });

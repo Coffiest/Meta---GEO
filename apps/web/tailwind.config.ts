@@ -5,29 +5,33 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // RRPoker(姉妹アプリ)のライトテーマに合わせたニュートラルスケール。50はRRPokerの
+        // ページ背景と同じ温かみのあるクリーム色、100以降は標準的なTailwind grayに準拠し、
+        // 950はRRPokerの見出しテキスト色(#1C1C1E)に合わせてある。
         ink: {
-          950: "#08080a",
-          900: "#0d0d10",
-          850: "#131316",
-          800: "#18181c",
-          700: "#222226",
-          600: "#2e2e33",
-          500: "#4a4a52",
-          400: "#6f6f78",
-          300: "#9a9aa2",
-          200: "#c4c4ca",
-          100: "#e8e8ea",
-          50: "#f6f6f4",
+          950: "#1c1c1e",
+          900: "#111827",
+          850: "#25303f",
+          800: "#374151",
+          700: "#4b5563",
+          600: "#6b7280",
+          500: "#9ca3af",
+          400: "#d1d5db",
+          300: "#e5e7eb",
+          200: "#f3f4f6",
+          100: "#f9fafb",
+          50: "#fffbf5",
         },
         felt: {
           900: "#0f1d18",
           800: "#16281f",
           700: "#1e3529",
         },
+        // GTO Poker のアクセントカラー。RRPoker(姉妹アプリ)と統一したアンバーゴールド。
         gold: {
-          400: "#d8bd85",
-          500: "#c9a668",
-          600: "#a9884f",
+          400: "#f7c548",
+          500: "#f2a900",
+          600: "#d4910a",
         },
         rose: {
           400: "#c76a63",
@@ -83,19 +87,24 @@ const config: Config = {
         },
       },
       fontFamily: {
+        // 姉妹アプリRRPokerと統一したフォントスタック。本体はlayout.tsxのnext/font/googleで
+        // 読み込んだPlus Jakarta Sansがbodyに直接適用されるが、フォールバックもここで揃えておく。
         sans: [
+          "'Plus Jakarta Sans'",
           "-apple-system",
           "BlinkMacSystemFont",
-          "'SF Pro Display'",
           "'Hiragino Sans'",
           "'Noto Sans JP'",
           "sans-serif",
         ],
       },
       boxShadow: {
+        // テーブルプレイ画面(暗色)専用。プレイ中の座席の立体感を出す濃いシャドウ。
         seat: "0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -8px rgba(0,0,0,0.6)",
-        card: "0 2px 6px rgba(0,0,0,0.35)",
-        panel: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 40px -16px rgba(0,0,0,0.7)",
+        // RRPokerの ios-card に寄せた柔らかいシャドウ(白背景・暗色テーブル背景の両方で使われるため
+        // ios-card本家よりわずかに濃いめにして、暗いネイビー面でも輪郭が消えないようにしてある)。
+        card: "0 2px 8px rgba(0,0,0,0.16), 0 1px 2px rgba(0,0,0,0.10)",
+        panel: "0 4px 16px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.10)",
       },
       borderRadius: {
         xl2: "1.25rem",
@@ -106,8 +115,8 @@ const config: Config = {
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
         "pulse-ring": {
-          "0%": { boxShadow: "0 0 0 0 rgba(201,166,104,0.55)" },
-          "100%": { boxShadow: "0 0 0 10px rgba(201,166,104,0)" },
+          "0%": { boxShadow: "0 0 0 0 rgba(242,169,0,0.55)" },
+          "100%": { boxShadow: "0 0 0 10px rgba(242,169,0,0)" },
         },
         "pulse-ring-mint": {
           "0%": { boxShadow: "0 0 0 0 rgba(31,174,112,0.55)" },

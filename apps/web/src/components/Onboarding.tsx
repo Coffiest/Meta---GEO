@@ -80,11 +80,11 @@ export function Onboarding({
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-navy-950">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-ink-50">
       <div className="text-center space-y-1.5">
-        <div className="text-[11px] tracking-[0.3em] text-mint-500 font-medium">TEN FOUR POKER</div>
-        <h1 className="text-xl font-semibold text-navy-50">{title}</h1>
-        <p className="text-xs text-navy-400">テーブルで表示される名前を入力してください(アイコンは任意です)</p>
+        <div className="text-[11px] tracking-[0.3em] text-mint-500 font-medium">GTO POKER</div>
+        <h1 className="text-xl font-semibold text-ink-950">{title}</h1>
+        <p className="text-xs text-ink-700">テーブルで表示される名前を入力してください(アイコンは任意です)</p>
       </div>
 
       <div className="w-full max-w-xs space-y-5">
@@ -95,7 +95,7 @@ export function Onboarding({
             aria-label="アイコン画像を選択"
           >
             <Avatar avatarKey={avatarKey} displayName={name} size={84} />
-            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-mint-500 ring-2 ring-navy-950 flex items-center justify-center text-white text-xs">
+            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-mint-500 ring-2 ring-ink-50 flex items-center justify-center text-white text-xs">
               📷
             </div>
           </button>
@@ -111,7 +111,7 @@ export function Onboarding({
               {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
             </button>
             {avatarKey && (
-              <button onClick={() => setAvatarKey(null)} className="text-navy-500">
+              <button onClick={() => setAvatarKey(null)} className="text-ink-600">
                 削除
               </button>
             )}
@@ -124,7 +124,7 @@ export function Onboarding({
           onChange={(e) => setName(e.target.value)}
           placeholder="プレイヤー名(16文字まで)"
           maxLength={16}
-          className="w-full rounded-xl bg-navy-900 ring-1 ring-navy-700 px-4 py-3 text-sm text-navy-50 placeholder:text-navy-500 focus:outline-none focus:ring-mint-500"
+          className="w-full rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-600 focus:outline-none focus:ring-mint-500"
         />
 
         {error && <p className="text-xs text-crimson-400 px-1">{error}</p>}
@@ -138,7 +138,7 @@ export function Onboarding({
         </button>
 
         {onCancel && (
-          <button onClick={onCancel} className="w-full text-xs text-navy-400 py-1">
+          <button onClick={onCancel} className="w-full text-xs text-ink-700 py-1">
             キャンセル
           </button>
         )}

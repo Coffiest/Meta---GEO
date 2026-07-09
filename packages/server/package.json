@@ -15,7 +15,8 @@
     "@meta-geo/db": "workspace:*",
     "@meta-geo/engine": "workspace:*",
     "@supabase/supabase-js": "^2.110.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "stripe": "^17.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
