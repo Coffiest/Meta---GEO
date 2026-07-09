@@ -1,5 +1,14 @@
 // --- アイコン(ヘッダー/フッター共用) ---
-export function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+export function Icon({
+  name,
+  className = "h-5 w-5",
+  filled = false,
+}: {
+  name: string;
+  className?: string;
+  /** お気に入り星等、塗りつぶし表現が必要なアイコン向け。 */
+  filled?: boolean;
+}) {
   const paths: Record<string, React.ReactNode> = {
     home: <path d="M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5" strokeLinecap="round" strokeLinejoin="round" />,
     stats: (
@@ -48,7 +57,7 @@ export function Icon({ name, className = "h-5 w-5" }: { name: string; className?
     ),
   };
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className}>
+    <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.8} className={className}>
       {paths[name]}
     </svg>
   );

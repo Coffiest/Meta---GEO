@@ -484,14 +484,25 @@ export interface HandHistoryRow {
   /** ヒーローの収支(チップ) */
   deltaChips: number;
   bigBlind: number;
+  tournamentId: string;
+  /** トナメごとのグルーピング用の見出し(ゲーム種別+開始日時)。 */
+  tournamentLabel: string;
+  isFavorite: boolean;
 }
 
 const POSITION_TABLE_6MAX = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
 
-/** 指定ユーザーのハンド履歴(TenFourのHand History画面相当)。新しい順。 */
-export async function getUserHandHistory(userId: string, limit = 100): Promise<HandHistoryRow[]> {
+/**
+ * 指定ユーザーのハンド履歴(TenFourのHand History画面相当)。新しい順。
+ * `favoritesOnly` を渡すと、お気に入り登録済みのハンドだけに絞り込む。
+ */
+export async function getUserHandHistory(
+  userId: string,
+  limit = 100,
+  favoritesOnly = false,
+): Promise<HandHistoryRow[]> {
   const seats = await prisma.handSeat.findMany({
-    where: { userId },
+    where: { userId, ...(favoritesOnly ? { isFavorite: true } : {}) },
     orderBy: { hand: { createdAt: "desc" } },
     take: limit,
     include: {
@@ -502,7 +513,8 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
           board: true,
           buttonFixedPos: true,
           levelBigBlind: true,
-          tournament: { select: { seatCount: true } },
+          tournamentId: true,
+          tournament: { select: { seatCount: true, gameType: true, createdAt: true } },
         },
       },
     },
@@ -511,6 +523,8 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
   return seats.map((s) => {
     const seatCount = s.hand.tournament.seatCount;
     const offset = (((s.seatIndex - s.hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
+    const tournamentStart = s.hand.tournament.createdAt;
+    const gameLabel = s.hand.tournament.gameType === "mtt" ? "MTT" : "Sit & Go";
     return {
       handId: s.hand.id,
       playedAt: s.hand.createdAt,
@@ -519,8 +533,16 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
       board: s.hand.board,
       deltaChips: s.resultStackDelta,
       bigBlind: s.hand.levelBigBlind,
+      tournamentId: s.hand.tournamentId,
+      tournamentLabel: `${gameLabel} ・ ${tournamentStart.toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      isFavorite: s.isFavorite,
     };
   });
+}
+
+/** ハンドのお気に入り登録状態をトグルする。指定ユーザーの座席行が存在しなければ何もしない。 */
+export async function setHandFavorite(userId: string, handId: string, isFavorite: boolean): Promise<void> {
+  await prisma.handSeat.updateMany({ where: { userId, handId }, data: { isFavorite } });
 }
 
 export interface PayoutPlace {

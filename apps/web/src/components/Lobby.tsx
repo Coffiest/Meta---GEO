@@ -61,6 +61,9 @@ interface HistoryRow {
   board: string[];
   deltaChips: number;
   bigBlind: number;
+  tournamentId: string;
+  tournamentLabel: string;
+  isFavorite: boolean;
 }
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -609,7 +612,18 @@ export function Lobby({
   const [menuOpen, setMenuOpen] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[] | null>(null);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
+  const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
   const [structureOpen, setStructureOpen] = useState(false);
+
+  function toggleFavorite(handId: string, isFavorite: boolean) {
+    setHistory((prev) => (prev ? prev.map((h) => (h.handId === handId ? { ...h, isFavorite } : h)) : prev));
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/history/favorite`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ handId, isFavorite }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     if (!accessToken) return;
@@ -960,46 +974,95 @@ export function Lobby({
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
               ) : history === null ? (
                 <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
-              ) : history.length === 0 ? (
-                <div className="py-10 text-center text-ink-700 text-sm">まだプレイしたハンドがありません。</div>
               ) : (
                 <>
-                  <p className="text-[11px] text-ink-600 mb-3">直近 {history.length} ハンドを表示中</p>
-                  <div className="space-y-2">
-                    {history.map((h, i) => {
-                      const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
-                      const rounded = Math.round(deltaBb * 10) / 10;
-                      const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
-                      return (
-                        <motion.div
-                          key={h.handId}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className="rounded-xl bg-ink-300/70 px-3 py-2.5"
-                        >
-                          <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
-                            <span className="tabular-nums">
-                              {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1">
-                              {h.holeCards.map((c, i) => (
-                                <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
-                              ))}
-                              <span className="w-1.5" />
-                              {h.board.map((c, i) => (
-                                <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
-                              ))}
-                            </div>
-                            <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                  <div className="flex gap-1.5 mb-3">
+                    <button
+                      onClick={() => setHistorySubTab("all")}
+                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                        historySubTab === "all" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      }`}
+                    >
+                      すべて
+                    </button>
+                    <button
+                      onClick={() => setHistorySubTab("favorites")}
+                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
+                        historySubTab === "favorites" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      }`}
+                    >
+                      <Icon name="star" className="h-3.5 w-3.5" />
+                      お気に入り
+                    </button>
                   </div>
+
+                  {(() => {
+                    const rows = historySubTab === "favorites" ? history.filter((h) => h.isFavorite) : history;
+                    if (rows.length === 0) {
+                      return (
+                        <div className="py-10 text-center text-ink-700 text-sm">
+                          {historySubTab === "favorites" ? "お気に入りのハンドはまだありません。" : "まだプレイしたハンドがありません。"}
+                        </div>
+                      );
+                    }
+                    const groups: { tournamentId: string; tournamentLabel: string; rows: HistoryRow[] }[] = [];
+                    for (const h of rows) {
+                      const last = groups[groups.length - 1];
+                      if (last && last.tournamentId === h.tournamentId) last.rows.push(h);
+                      else groups.push({ tournamentId: h.tournamentId, tournamentLabel: h.tournamentLabel, rows: [h] });
+                    }
+                    return (
+                      <div className="space-y-4">
+                        {groups.map((group) => (
+                          <div key={group.tournamentId}>
+                            <p className="text-[11px] font-semibold text-ink-600 mb-1.5 px-0.5">{group.tournamentLabel}</p>
+                            <div className="space-y-2">
+                              {group.rows.map((h, i) => {
+                                const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
+                                const rounded = Math.round(deltaBb * 10) / 10;
+                                const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                                return (
+                                  <motion.div
+                                    key={h.handId}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
+                                    className="rounded-xl bg-ink-300/70 px-3 py-2.5"
+                                  >
+                                    <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
+                                      <span className="tabular-nums">
+                                        {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                      <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                                      <button
+                                        onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
+                                        aria-label={h.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
+                                        className="ml-auto text-gold-500"
+                                      >
+                                        <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1">
+                                        {h.holeCards.map((c, i) => (
+                                          <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
+                                        ))}
+                                        <span className="w-1.5" />
+                                        {h.board.map((c, i) => (
+                                          <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
+                                        ))}
+                                      </div>
+                                      <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </SectionCard>
