@@ -1,372 +1,230 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  createGeoApi,
-  GeoDailyLimitError,
-  type GeoSummaryStats,
-  type HandDetail,
-  type PositionalRfiStat,
-  type RangeMatrixResult,
-  type RangeScenario,
-  type RecentHandSummary,
+  geoTreeApi,
+  PREFLOP_BUCKET_LABELS,
+  POSTFLOP_BUCKET_LABELS,
+  type BubbleStage,
+  type HandClassMatrixResult,
+  type LineStep,
+  type StackBucket,
+  type TreeNode,
 } from "@/lib/geoApi";
-import { useAuth } from "@/lib/useAuth";
-import { useSubscriptionStatus } from "@/lib/subscription";
-import { StatTile } from "@/components/geo/StatTile";
-import { PositionalRfiChart } from "@/components/geo/PositionalRfiChart";
-import { HandHistoryList } from "@/components/geo/HandHistoryList";
-import { HandDetailPanel } from "@/components/geo/HandDetailPanel";
-import { RangeMatrix, RAISE_COLOR, CALL_COLOR, FOLD_COLOR } from "@/components/geo/RangeMatrix";
-import { PositionTable } from "@/components/geo/PositionTable";
+import { StackBucketSelector } from "@/components/geo/StackBucketSelector";
+import { BubbleStageSelector } from "@/components/geo/BubbleStageSelector";
+import { LineBreadcrumb, PositionActionRow } from "@/components/geo/PositionActionRow";
+import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
+import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 
-type GeoTab = "range" | "analytics";
-type Street = "preflop" | "postflop";
+type Street = "preflop" | "flop" | "turn" | "river";
+const BOARD_LEN: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 
-const SCENARIOS: { key: RangeScenario; label: string }[] = [
-  { key: "rfi", label: "RFI" },
-  { key: "vsOpen", label: "vs Open" },
-];
-
-/**
- * GTO WizardのStudy最初の画面を踏襲した「Preflop / Postflop」切り替え。
- * Preflopは実データに基づく169ハンドクラスのレンジエクスプローラー(本実装)、
- * Postflopはボードテクスチャ別の集計基盤が未整備のため準備中表示にする。
- */
-function StudyExplorer({
-  geoApi,
-  onDailyLimitReached,
-}: {
-  geoApi: ReturnType<typeof createGeoApi>;
-  onDailyLimitReached: () => void;
-}) {
-  const [street, setStreet] = useState<Street>("preflop");
-
-  return (
-    <div className="rounded-2xl bg-ink-50 ring-1 ring-ink-400/60 overflow-hidden">
-      <div className="flex items-center justify-center py-4 bg-ink-100/40">
-        <div className="inline-flex rounded-full bg-ink-300 p-1 ring-1 ring-ink-400/60">
-          {(["preflop", "postflop"] as Street[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStreet(s)}
-              className={`rounded-full px-5 py-1.5 text-[12px] font-semibold capitalize transition-colors ${
-                street === s ? "bg-mint-500 text-ink-950" : "text-ink-700 hover:text-ink-900"
-              }`}
-            >
-              {s === "preflop" ? "Preflop" : "Postflop"}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="p-4">
-        {street === "preflop" ? (
-          <PreflopStudy geoApi={geoApi} onDailyLimitReached={onDailyLimitReached} />
-        ) : (
-          <PostflopComingSoon />
-        )}
-      </div>
-    </div>
-  );
+/** 6-max卓でラインの中でfoldしていない座席数。次のストリートへ進めるかの目安に使う。 */
+function playersRemaining(line: LineStep[]): number {
+  const folded = new Set(line.filter((s) => s.bucket === "fold").map((s) => s.position));
+  return 6 - folded.size;
 }
 
-function PreflopStudy({
-  geoApi,
-  onDailyLimitReached,
-}: {
-  geoApi: ReturnType<typeof createGeoApi>;
-  onDailyLimitReached: () => void;
-}) {
-  const [position, setPosition] = useState("BTN");
-  const [scenario, setScenario] = useState<RangeScenario>("rfi");
-  const [matrix, setMatrix] = useState<RangeMatrixResult | null>(null);
-  const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setMatrix(null);
-    setLoadError(false);
-    geoApi
-      .rangeMatrix(position, scenario)
-      .then((m) => !cancelled && setMatrix(m))
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof GeoDailyLimitError) {
-          onDailyLimitReached();
-        } else {
-          setLoadError(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [position, scenario, geoApi, onDailyLimitReached]);
-
-  return (
-    <div>
-      <PositionTable position={position} onChange={setPosition} />
-
-      <div className="flex items-center justify-center gap-1 mt-4">
-        {SCENARIOS.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => setScenario(s.key)}
-            className={`rounded-md px-3.5 py-1.5 text-[11px] font-medium transition-colors ${
-              scenario === s.key ? "bg-mint-500 text-ink-950" : "bg-ink-300 text-ink-700 hover:text-ink-900"
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap text-[10px] text-ink-700 mt-4">
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: RAISE_COLOR }} />
-          レイズ
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: CALL_COLOR }} />
-          コール
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: FOLD_COLOR }} />
-          フォールド
-        </span>
-      </div>
-
-      <div className="mt-4">
-        {loadError ? (
-          <div className="py-10 text-center text-sm text-rose-400">レンジデータの取得に失敗しました。</div>
-        ) : matrix ? (
-          matrix.totalSamples === 0 ? (
-            <div className="py-10 text-center text-sm text-ink-600">
-              {position} / {scenario === "rfi" ? "RFI" : "vs オープン"} のサンプルがまだありません。プレイが進むと表示されます。
-            </div>
-          ) : (
-            <>
-              <div className="text-[11px] text-ink-600 mb-2 text-center">
-                {position} ・ {scenario === "rfi" ? "オープンレイズ機会" : "vs オープン"} ・ サンプル {matrix.totalSamples.toLocaleString()}件
-              </div>
-              <RangeMatrix data={matrix} />
-            </>
-          )
-        ) : (
-          <div className="py-10 text-center text-sm text-ink-600">読み込み中…</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PostflopComingSoon() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-      <div className="h-14 w-14 rounded-full bg-ink-300 ring-1 ring-ink-400 flex items-center justify-center text-ink-600">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6">
-          <rect x="5" y="11" width="14" height="9" rx="2" />
-          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-      </div>
-      <div className="text-sm font-medium text-ink-850">Postflopは近日対応予定です</div>
-      <p className="text-[11px] text-ink-600 max-w-xs leading-relaxed">
-        フロップ・ターン・リバーのレンジ分析にはボードテクスチャごとの集計基盤が必要なため、現在準備を進めています。
-        まずはPreflopの実データ分析からご利用ください。
-      </p>
-    </div>
-  );
-}
-
-/** 無料枠(1日の閲覧回数)を使い切った際のロック画面。サブスク登録への導線を出す。 */
-function DailyLimitLocked() {
-  return (
-    <div className="rounded-2xl bg-ink-50 ring-1 ring-ink-400/60 p-8 text-center">
-      <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-gold-500/20 flex items-center justify-center text-gold-600">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
-          <rect x="5" y="11" width="14" height="9" rx="2" />
-          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-      </div>
-      <div className="text-sm font-semibold text-ink-950 mb-1">本日の無料閲覧回数が上限に達しました</div>
-      <p className="text-[12px] text-ink-600 leading-relaxed mb-4">
-        GEO戦略DBは1日{5}回まで無料で閲覧できます。サブスクリプションに登録すると無制限に利用できます。
-      </p>
-      <Link
-        href="/pricing"
-        className="inline-block rounded-full bg-gold-500 text-ink-950 text-[12px] font-semibold px-5 py-2 shadow-card"
-      >
-        サブスクリプションを見る
-      </Link>
-    </div>
-  );
-}
-
-/** ログインしていない状態で/geoに直接アクセスされた場合のガード画面。 */
-function LoginRequired() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <p className="text-sm text-ink-800">GEO戦略DBの閲覧にはログインが必要です。</p>
-      <Link href="/" className="rounded-full bg-gold-500 text-ink-950 text-sm font-semibold px-5 py-2 shadow-card">
-        ログイン画面へ
-      </Link>
-    </div>
-  );
+function suitSymbol(card: string): string {
+  const s = card.slice(-1);
+  return s === "s" ? "♠" : s === "h" ? "♥" : s === "d" ? "♦" : "♣";
 }
 
 export default function GeoPage() {
-  const { session, loading: authLoading } = useAuth();
-  const accessToken = session?.access_token;
-  const geoApi = useMemo(() => (accessToken ? createGeoApi(accessToken) : null), [accessToken]);
-  const { status: subStatus, reload: reloadSubStatus } = useSubscriptionStatus(accessToken);
-  const [tab, setTab] = useState<GeoTab>("range");
-  const [summary, setSummary] = useState<GeoSummaryStats | null>(null);
-  const [positional, setPositional] = useState<PositionalRfiStat[] | null>(null);
-  const [hands, setHands] = useState<RecentHandSummary[] | null>(null);
-  const [selectedHandId, setSelectedHandId] = useState<string | null>(null);
-  const [selectedHand, setSelectedHand] = useState<HandDetail | null>(null);
+  const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
+  const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
+  const [street, setStreet] = useState<Street>("preflop");
+  const [preflopLine, setPreflopLine] = useState<LineStep[]>([]);
+  const [board, setBoard] = useState<string[]>([]);
+  const [streetLines, setStreetLines] = useState<Record<Street, LineStep[]>>({ preflop: [], flop: [], turn: [], river: [] });
+  const [pendingStreet, setPendingStreet] = useState<Street | null>(null);
+
+  const [node, setNode] = useState<TreeNode | null>(null);
+  const [matrix, setMatrix] = useState<HandClassMatrixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleDailyLimitReached() {
-    setDailyLimitReached(true);
-    void reloadSubStatus();
-  }
+  const bucketLabels: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  const currentLine = street === "preflop" ? preflopLine : streetLines[street];
 
-  async function loadAll() {
-    if (!geoApi) return;
-    try {
-      const [s, p, h] = await Promise.all([geoApi.summary(), geoApi.positionalRfi(6), geoApi.hands(20)]);
-      setSummary(s);
-      setPositional(p);
-      setHands(h);
-      setError(null);
-    } catch (err) {
-      if (err instanceof GeoDailyLimitError) {
-        handleDailyLimitReached();
-      } else {
-        setError("対戦サーバーに接続できませんでした。packages/server が起動しているか確認してください。");
-      }
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const request =
+      street === "preflop"
+        ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine })
+        : geoTreeApi.postflopNode({
+            stackBucket,
+            bubbleStage,
+            preflopLine,
+            board,
+            street,
+            postflopLine: streetLines[street],
+          });
+
+    request
+      .then((result) => {
+        if (cancelled) return;
+        setNode(result.node);
+        setMatrix(result.matrix);
+      })
+      .catch(() => {
+        if (!cancelled) setError("対戦サーバーに接続できませんでした。packages/server が起動しているか確認してください。");
+      })
+      .finally(() => !cancelled && setLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stackBucket, bubbleStage, street, preflopLine, board, streetLines[street]]);
+
+  function selectBucket(bucket: string) {
+    if (!node?.position) return;
+    const step: LineStep = { position: node.position, bucket };
+    if (street === "preflop") {
+      setPreflopLine((prev) => [...prev, step]);
+    } else {
+      setStreetLines((prev) => ({ ...prev, [street]: [...prev[street], step] }));
     }
   }
 
-  useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoApi]);
-
-  useEffect(() => {
-    if (!selectedHandId || !geoApi) {
-      setSelectedHand(null);
-      return;
+  function truncateLine(length: number) {
+    if (street === "preflop") {
+      setPreflopLine((prev) => prev.slice(0, length));
+    } else {
+      setStreetLines((prev) => ({ ...prev, [street]: prev[street].slice(0, length) }));
     }
-    geoApi
-      .handDetail(selectedHandId)
-      .then(setSelectedHand)
-      .catch((err) => {
-        if (err instanceof GeoDailyLimitError) handleDailyLimitReached();
-        setSelectedHand(null);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedHandId, geoApi]);
+  }
 
-  const locked = dailyLimitReached && !subStatus?.active;
+  function advanceStreet(next: Street) {
+    setPendingStreet(next);
+  }
 
-  if (!authLoading && !accessToken) return <LoginRequired />;
+  function confirmBoard(newCards: string[]) {
+    setBoard((prev) => [...prev, ...newCards]);
+    if (pendingStreet) setStreet(pendingStreet);
+    setPendingStreet(null);
+  }
+
+  function resetAll() {
+    setStreet("preflop");
+    setPendingStreet(null);
+    setPreflopLine([]);
+    setBoard([]);
+    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
+  }
+
+  const remaining = playersRemaining(currentLine);
+  const canAdvanceStreet = remaining >= 2 && currentLine.length > 0;
+  const nextStreet: Street | null = street === "preflop" ? "flop" : street === "flop" ? "turn" : street === "turn" ? "river" : null;
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 pb-28">
-      <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
-        <div>
-          <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GEO STRATEGY DB</div>
-          <h1 className="text-lg font-semibold text-ink-950">プレイヤー傾向分析</h1>
+    <div className="min-h-screen bg-navy-950">
+      <div className="max-w-3xl mx-auto px-4 pb-28">
+        <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
+          <div>
+            <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GEO DATABASE</div>
+            <h1 className="text-lg font-semibold text-navy-50">実測アクションツリー</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={resetAll} className="rounded-full bg-navy-800 text-navy-300 text-[11px] px-3 py-1.5 ring-1 ring-navy-600/60">
+              リセット
+            </button>
+            <Link href="/" className="rounded-full bg-gold-500 text-navy-950 text-[11px] font-semibold px-3 py-1.5 shadow-card">
+              テーブルへ
+            </Link>
+          </div>
+        </header>
+
+        {error && (
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-300 text-sm px-4 py-3 mb-4">{error}</div>
+        )}
+
+        <div className="space-y-2 mb-4">
+          <StackBucketSelector value={stackBucket} onChange={setStackBucket} />
+          <BubbleStageSelector value={bubbleStage} onChange={setBubbleStage} />
         </div>
-        <div className="flex items-center gap-2">
-          {subStatus && !subStatus.active && (
-            <span className="text-[10px] text-ink-600">本日残り{subStatus.dailyViewsRemaining}回</span>
-          )}
-          <button
-            onClick={loadAll}
-            className="rounded-full bg-ink-300 text-ink-800 text-[11px] px-3 py-1.5 ring-1 ring-ink-500/60 hover:text-ink-900 transition-colors"
-          >
-            更新
-          </button>
-          <Link
-            href="/"
-            className="rounded-full bg-gold-500 text-ink-950 text-[11px] font-semibold px-3 py-1.5 shadow-card"
-          >
-            テーブルへ
-          </Link>
+
+        <div className="flex items-center gap-1.5 mb-3">
+          {(["preflop", "flop", "turn", "river"] as Street[]).map((s) => {
+            const reached = s === "preflop" || board.length >= BOARD_LEN[s];
+            return (
+              <div
+                key={s}
+                className={`flex-1 rounded-lg py-1.5 text-center text-[10px] font-bold uppercase tracking-wide ${
+                  street === s ? "bg-gold-500 text-navy-950" : reached ? "bg-navy-800 text-navy-300" : "bg-navy-900 text-navy-600"
+                }`}
+              >
+                {s}
+              </div>
+            );
+          })}
         </div>
-      </header>
 
-      {error && (
-        <div className="rounded-2xl bg-rose-500/10 ring-1 ring-rose-500/30 text-rose-300 text-sm px-4 py-3 mb-4">
-          {error}
-        </div>
-      )}
+        {board.length > 0 && (
+          <div className="flex items-center justify-center gap-2 mb-3">
+            {board.map((c, i) => (
+              <div key={i} className="h-11 w-8 rounded bg-navy-50 flex flex-col items-center justify-center text-[11px] font-bold">
+                <span className={c.endsWith("h") || c.endsWith("d") ? "text-crimson-500" : "text-navy-950"}>{c.slice(0, -1)}</span>
+                <span className={c.endsWith("h") ? "text-crimson-500" : c.endsWith("d") ? "text-azure-500" : c.endsWith("c") ? "text-mint-500" : "text-navy-950"}>
+                  {suitSymbol(c)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
-      <div className="flex gap-1.5 rounded-full bg-ink-100/70 ring-1 ring-ink-400/50 p-1 w-fit mb-4">
-        <button
-          onClick={() => setTab("range")}
-          className={`rounded-full px-4 py-1.5 text-[12px] font-medium transition-colors ${
-            tab === "range" ? "bg-gold-500 text-ink-950" : "text-ink-700 hover:text-ink-900"
-          }`}
-        >
-          Study
-        </button>
-        <button
-          onClick={() => setTab("analytics")}
-          className={`rounded-full px-4 py-1.5 text-[12px] font-medium transition-colors ${
-            tab === "analytics" ? "bg-gold-500 text-ink-950" : "text-ink-700 hover:text-ink-900"
-          }`}
-        >
-          アナリティクス
-        </button>
-      </div>
-
-      {locked ? (
-        <DailyLimitLocked />
-      ) : tab === "range" ? (
-        geoApi && <StudyExplorer geoApi={geoApi} onDailyLimitReached={handleDailyLimitReached} />
-      ) : (
-        <>
-          <p className="text-[12px] text-ink-600 mb-4 leading-relaxed">
-            このテーブルでプレイされた全ハンド・全アクションを記録し、スポットごとの傾向を可視化しています。
-            GTOソルバーとの比較(理論値との乖離)は今後実装予定です。現時点では実際のプレイヤー母集団の
-            実測データのみを表示しています。
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
-            <StatTile label="記録済みハンド数" value={summary ? summary.totalHands.toLocaleString() : "—"} />
-            <StatTile label="プレイヤー数" value={summary ? summary.totalPlayers.toLocaleString() : "—"} hint="BOTを除く" />
-            <StatTile label="平均ポット" value={summary ? summary.averagePot.toLocaleString() : "—"} />
-            <StatTile
-              label="ショーダウン率"
-              value={summary ? `${Math.round(summary.showdownRate * 100)}%` : "—"}
-              hint="残りはフォールドで決着"
+        <LineBreadcrumb line={preflopLine} bucketLabels={PREFLOP_BUCKET_LABELS} onTruncate={(len) => setPreflopLine((p) => p.slice(0, len))} />
+        {street !== "preflop" && (
+          <div className="mt-1.5">
+            <LineBreadcrumb
+              line={streetLines[street]}
+              bucketLabels={POSTFLOP_BUCKET_LABELS}
+              onTruncate={(len) => setStreetLines((prev) => ({ ...prev, [street]: prev[street].slice(0, len) }))}
             />
           </div>
+        )}
 
-          {positional && <PositionalRfiChart data={positional} />}
+        <div className="mt-3">
+          {loading ? (
+            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-8 text-center text-sm text-navy-400">読み込み中…</div>
+          ) : node ? (
+            <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
+          ) : null}
+        </div>
 
-          <div className="grid md:grid-cols-2 gap-4 mt-5">
-            <div>
-              <h2 className="text-[12px] text-ink-700 mb-2">ハンド履歴</h2>
-              {hands && <HandHistoryList hands={hands} selectedId={selectedHandId} onSelect={setSelectedHandId} />}
-            </div>
-            <div>
-              <h2 className="text-[12px] text-ink-700 mb-2">ハンド詳細</h2>
-              <HandDetailPanel hand={selectedHand} />
-            </div>
+        {nextStreet && canAdvanceStreet && (
+          <button
+            onClick={() => advanceStreet(nextStreet)}
+            className="w-full mt-3 rounded-xl bg-navy-800 ring-1 ring-navy-600/60 text-navy-100 text-sm font-semibold py-2.5"
+          >
+            → {nextStreet.toUpperCase()}へ進む(ボードを選択)
+          </button>
+        )}
+
+        {matrix && (
+          <div className="mt-5">
+            <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />
           </div>
-        </>
-      )}
+        )}
       </div>
 
-      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-300 bg-ink-50/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+      {pendingStreet && (
+        <BoardCardPicker
+          cardsNeeded={pendingStreet === "flop" ? 3 : 1}
+          usedCards={board}
+          onClose={() => setPendingStreet(null)}
+          onConfirm={confirmBoard}
+        />
+      )}
+
+      <nav className="fixed bottom-0 inset-x-0 border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
           {(
             [
@@ -378,13 +236,13 @@ export default function GeoPage() {
             ] as ({ key: string; label: string; icon: string; href: string } | null)[]
           ).map((t, i) =>
             t ? (
-              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-ink-600">
+              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-navy-500">
                 <Icon name={t.icon} />
                 <span className="text-[9px] font-medium">{t.label}</span>
               </Link>
             ) : (
               <div key={`db-${i}`} className="relative flex justify-center">
-                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-ink-50 shadow-panel flex flex-col items-center justify-center text-ink-950">
+                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-navy-950 shadow-panel flex flex-col items-center justify-center text-navy-950">
                   <Icon name="db" className="h-5 w-5" />
                   <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
                 </div>

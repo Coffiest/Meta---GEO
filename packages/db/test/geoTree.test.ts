@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { HandEngine, STARTING_STACK } from "@meta-geo/engine";
+import { HandEngine } from "@meta-geo/engine";
 import { prisma } from "../src/client.js";
 import { recordHand } from "../src/recordHand.js";
-import { getGeoSummaryStats, getPositionalRfiStats } from "../src/geoStats.js";
+import { getPreflopNode, getPostflopNode } from "../src/geoTree.js";
 
-describe("geoStats (integration, real Postgres)", () => {
+describe("geoTree (integration, real Postgres)", () => {
   const createdUserIds: string[] = [];
   const createdTournamentIds: string[] = [];
 
@@ -23,17 +23,14 @@ describe("geoStats (integration, real Postgres)", () => {
     await prisma.$disconnect();
   });
 
-  it("counts a human UTG open-raise as an RFI opportunity, excluding bot seats from GEO stats", async () => {
-    // GEO統計は実ユーザーの意思決定のみを集計するため、UTG(seat3)だけを人間にする。
+  it("aggregates a human UTG open-raise into the preflop tree's first node", async () => {
     const users = await Promise.all(
-      Array.from({ length: 6 }, (_, i) =>
-        prisma.user.create({ data: { displayName: `GeoStatsTest-${i}`, isBot: i !== 3 } }),
-      ),
+      Array.from({ length: 6 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-${i}`, isBot: false } })),
     );
     createdUserIds.push(...users.map((u) => u.id));
 
     const tournament = await prisma.tournament.create({
-      data: { seatCount: 6, startingStack: STARTING_STACK, status: "running" },
+      data: { seatCount: 6, startingStack: 20_000, status: "running", gameType: "sng" },
     });
     createdTournamentIds.push(tournament.id);
     await prisma.tournamentEntry.createMany({
@@ -49,11 +46,11 @@ describe("geoStats (integration, real Postgres)", () => {
       bigBlindSeat: 2,
       smallBlind: 100,
       bigBlind: 200,
-      bbAnte: 200,
+      bbAnte: 0,
     });
 
-    // UTG(seat3) opens to 600 -> everyone else folds.
-    hand.applyAction(3, { kind: "raise", toAmount: 600 });
+    // UTG(seat3, 100bb深いスタック)が2.2bb(=440)にオープンレイズ -> 全員フォールド。
+    hand.applyAction(3, { kind: "raise", toAmount: 440 });
     hand.applyAction(4, { kind: "fold" });
     hand.applyAction(5, { kind: "fold" });
     hand.applyAction(0, { kind: "fold" });
@@ -61,20 +58,13 @@ describe("geoStats (integration, real Postgres)", () => {
     hand.applyAction(2, { kind: "fold" });
     expect(hand.isHandComplete()).toBe(true);
 
-    // DBには他のテスト/セッションのハンドも既に存在しうるため、絶対値ではなく
-    // このハンドを記録する前後の差分で検証する。
-    const before = await getPositionalRfiStats(6);
-    const beforeUtg = before.find((s) => s.position === "UTG")!;
-    const beforeHj = before.find((s) => s.position === "HJ")!;
-    const summaryBefore = await getGeoSummaryStats();
-
     await recordHand({
       tournamentId: tournament.id,
       handNumber: 1,
       buttonFixedPos: 0,
       levelSmallBlind: 100,
       levelBigBlind: 200,
-      levelAnte: 200,
+      levelAnte: 0,
       seats: users.map((u, i) => ({
         seatIndex: i,
         userId: u.id,
@@ -85,20 +75,43 @@ describe("geoStats (integration, real Postgres)", () => {
       hand,
     });
 
-    const after = await getPositionalRfiStats(6);
-    const afterUtg = after.find((s) => s.position === "UTG")!;
-    expect(afterUtg.opportunities - beforeUtg.opportunities).toBe(1);
-    expect(afterUtg.raises - beforeUtg.raises).toBe(1);
-    expect(afterUtg.limps - beforeUtg.limps).toBe(0);
-    expect(afterUtg.folds - beforeUtg.folds).toBe(0);
+    // 20,000スタック / 200bb = 100bb深いので "30+" バケットに入るはず。
+    const { node } = await getPreflopNode({ stackBucket: "30+", bubbleStage: "normal", line: [] });
+    expect(node.position).toBe("UTG");
+    expect(node.sampleSize).toBeGreaterThanOrEqual(1);
+    const raiseOption = node.options.find((o) => o.bucket === "raise2-2.5");
+    expect(raiseOption).toBeDefined();
+    expect(raiseOption!.count).toBeGreaterThanOrEqual(1);
 
-    // HJ/CO/BTN/SB folded *facing a raise*, not as an RFI opportunity, so they should not be counted.
-    const afterHj = after.find((s) => s.position === "HJ")!;
-    expect(afterHj.opportunities - beforeHj.opportunities).toBe(0);
+    // 次のノード(HJ)はUTGのraise2-2.5に対してfoldしたはず。
+    const { node: hjNode } = await getPreflopNode({
+      stackBucket: "30+",
+      bubbleStage: "normal",
+      line: [{ position: "UTG", bucket: "raise2-2.5" }],
+    });
+    expect(hjNode.position).toBe("HJ");
+    const foldOption = hjNode.options.find((o) => o.bucket === "fold");
+    expect(foldOption).toBeDefined();
+    expect(foldOption!.count).toBeGreaterThanOrEqual(1);
 
-    const summaryAfter = await getGeoSummaryStats();
-    expect(summaryAfter.totalHands - summaryBefore.totalHands).toBe(1);
-    expect(summaryAfter.showdownRate).toBeGreaterThanOrEqual(0);
-    expect(summaryAfter.showdownRate).toBeLessThanOrEqual(1);
+    // 誰も一致しないラインを要求すると空のノードが返る。
+    const { node: emptyNode } = await getPreflopNode({
+      stackBucket: "0-5",
+      bubbleStage: "normal",
+      line: [],
+    });
+    expect(emptyNode.sampleSize).toBe(0);
+  });
+
+  it("returns an empty postflop node when the exact board never occurred", async () => {
+    const { node } = await getPostflopNode({
+      stackBucket: "30+",
+      bubbleStage: "normal",
+      preflopLine: [],
+      board: ["2c", "2d", "2h"],
+      street: "flop",
+      postflopLine: [],
+    });
+    expect(node.sampleSize).toBe(0);
   });
 });
