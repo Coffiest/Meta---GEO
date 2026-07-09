@@ -750,15 +750,13 @@ export function Lobby({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 overflow-hidden shadow-card"
+              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-4"
             >
-              <div className="relative bg-gradient-to-br from-gold-500 to-gold-600 px-5 pt-4 pb-5 overflow-hidden text-center">
-                <div className="pointer-events-none absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
-                <div className="pointer-events-none absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-white/5" />
-                <p className="relative text-[11px] font-bold tracking-[0.15em] uppercase text-white/70 mb-1">Play Poker</p>
-                <p className="relative text-2xl font-black italic text-white tracking-wide">6-MAX TOURNAMENT</p>
+              <div className="flex items-center justify-between mb-3 px-0.5">
+                <p className="text-[13px] font-bold text-ink-950">プレイする</p>
+                <p className="text-[10px] tracking-[0.15em] text-ink-500 font-medium">6-MAX TOURNAMENT</p>
               </div>
-              <div className="p-4 grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {GAMES.map((game, i) => (
                   <motion.button
                     key={game.key}
@@ -767,15 +765,15 @@ export function Lobby({
                     transition={{ duration: 0.35, delay: 0.1 + i * 0.06 }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => onJoin(game.key)}
-                    className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/25 p-3.5 text-center"
+                    className="rounded-2xl bg-ink-50 ring-1 ring-ink-300 p-3.5 text-center"
                   >
-                    <div className="text-ink-950 text-lg font-black italic tracking-wide leading-tight">{game.title}</div>
-                    {game.caption && <div className="text-gold-600 text-[10px] font-semibold mt-0.5">{game.caption}</div>}
+                    <div className="text-ink-950 text-base font-bold tracking-wide leading-tight">{game.title}</div>
+                    {game.caption && <div className="text-ink-600 text-[10px] font-medium mt-0.5">{game.caption}</div>}
                     <div className="text-ink-600 text-[10px] mt-1.5 flex items-center justify-center gap-1">
                       <Icon name="seat" className="h-3 w-3" />
                       {game.detail}
                     </div>
-                    <div className="text-ink-700 text-[10px] mt-1">バイイン {game.buyIn.toLocaleString()}</div>
+                    <div className="text-gold-600 text-[10px] font-semibold mt-1">バイイン {game.buyIn.toLocaleString()}</div>
                   </motion.button>
                 ))}
               </div>
