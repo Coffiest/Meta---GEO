@@ -6,49 +6,95 @@ import {
   geoTreeApi,
   PREFLOP_BUCKET_LABELS,
   POSTFLOP_BUCKET_LABELS,
+  STACK_BUCKET_LABELS,
+  BUBBLE_STAGE_LABELS,
   type BubbleStage,
   type HandClassMatrixResult,
   type LineStep,
   type StackBucket,
   type TreeNode,
 } from "@/lib/geoApi";
-import { StackBucketSelector } from "@/components/geo/StackBucketSelector";
-import { BubbleStageSelector } from "@/components/geo/BubbleStageSelector";
-import { LineBreadcrumb, PositionActionRow } from "@/components/geo/PositionActionRow";
+import { GeoSettingsModal } from "@/components/geo/GeoSettingsModal";
+import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
+import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 
-type Street = "preflop" | "flop" | "turn" | "river";
-const BOARD_LEN: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
 
-/** 6-max卓でラインの中でfoldしていない座席数。次のストリートへ進めるかの目安に使う。 */
-function playersRemaining(line: LineStep[]): number {
-  const folded = new Set(line.filter((s) => s.bucket === "fold").map((s) => s.position));
-  return 6 - folded.size;
+type LineStepWithMeta = LineStep & { geometricRatio?: number };
+
+function nextStreetOf(street: Street): PostflopStreet | null {
+  if (street === "preflop") return "flop";
+  if (street === "flop") return "turn";
+  if (street === "turn") return "river";
+  return null;
 }
 
-function suitSymbol(card: string): string {
-  const s = card.slice(-1);
-  return s === "s" ? "♠" : s === "h" ? "♥" : s === "d" ? "♦" : "♣";
+function bucketLabelFor(street: Street, bucket: string): string {
+  const table: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  return table[bucket] ?? bucket;
 }
 
 export default function GeoPage() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
+
   const [street, setStreet] = useState<Street>("preflop");
-  const [preflopLine, setPreflopLine] = useState<LineStep[]>([]);
+  const [preflopLine, setPreflopLine] = useState<LineStepWithMeta[]>([]);
   const [board, setBoard] = useState<string[]>([]);
-  const [streetLines, setStreetLines] = useState<Record<Street, LineStep[]>>({ preflop: [], flop: [], turn: [], river: [] });
-  const [pendingStreet, setPendingStreet] = useState<Street | null>(null);
+  const [streetLines, setStreetLines] = useState<Record<Street, LineStepWithMeta[]>>({
+    preflop: [],
+    flop: [],
+    turn: [],
+    river: [],
+  });
+  const [pendingStreet, setPendingStreet] = useState<PostflopStreet | null>(null);
+  const [dismissedStreet, setDismissedStreet] = useState<PostflopStreet | null>(null);
 
   const [node, setNode] = useState<TreeNode | null>(null);
   const [matrix, setMatrix] = useState<HandClassMatrixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /** ボード選択直後、その板面に一致する実測データが1件もないかどうか。真の間は次のストリートへ
+   * 自動で進めず、「板面を選び直す」導線を出す(存在しない板面を選んだ場合の連鎖ポップアップ防止)。 */
+  const [justPickedBoard, setJustPickedBoard] = useState(false);
 
   const bucketLabels: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
-  const currentLine = street === "preflop" ? preflopLine : streetLines[street];
+
+  function foldedBeforeStreet(streetKey: Street): Set<string> {
+    const folded = new Set<string>();
+    preflopLine.forEach((s) => {
+      if (s.bucket === "fold") folded.add(s.position);
+    });
+    if (streetKey === "turn" || streetKey === "river") {
+      streetLines.flop.forEach((s) => {
+        if (s.bucket === "fold") folded.add(s.position);
+      });
+    }
+    if (streetKey === "river") {
+      streetLines.turn.forEach((s) => {
+        if (s.bucket === "fold") folded.add(s.position);
+      });
+    }
+    return folded;
+  }
+
+  function activePositions(streetKey: Street): string[] {
+    const before = foldedBeforeStreet(streetKey);
+    const order = streetKey === "preflop" ? PREFLOP_ORDER : POSTFLOP_ORDER;
+    return order.filter((p) => !before.has(p));
+  }
+
+  function remainingActiveCount(streetKey: Street): number {
+    const activeAtStart = activePositions(streetKey);
+    const currentStreetLine = streetKey === "preflop" ? preflopLine : streetLines[streetKey];
+    const foldedThisStreet = new Set(currentStreetLine.filter((s) => s.bucket === "fold").map((s) => s.position));
+    return activeAtStart.filter((p) => !foldedThisStreet.has(p)).length;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +118,7 @@ export default function GeoPage() {
         if (cancelled) return;
         setNode(result.node);
         setMatrix(result.matrix);
+        if (result.node.sampleSize > 0) setJustPickedBoard(false);
       })
       .catch(() => {
         if (!cancelled) setError("対戦サーバーに接続できませんでした。packages/server が起動しているか確認してください。");
@@ -84,9 +131,24 @@ export default function GeoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stackBucket, bubbleStage, street, preflopLine, board, streetLines[street]]);
 
+  // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
+  // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
+  useEffect(() => {
+    if (!node || node.position !== null || pendingStreet || justPickedBoard) return;
+    const next = nextStreetOf(street);
+    if (!next) return;
+    if (remainingActiveCount(street) < 2) return;
+    if (dismissedStreet === next) return;
+    setPendingStreet(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node, street, pendingStreet, dismissedStreet, justPickedBoard, preflopLine, streetLines, board]);
+
   function selectBucket(bucket: string) {
     if (!node?.position) return;
-    const step: LineStep = { position: node.position, bucket };
+    const opt = node.options.find((o) => o.bucket === bucket);
+    const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
+    setDismissedStreet(null);
+    setJustPickedBoard(false);
     if (street === "preflop") {
       setPreflopLine((prev) => [...prev, step]);
     } else {
@@ -94,51 +156,115 @@ export default function GeoPage() {
     }
   }
 
-  function truncateLine(length: number) {
-    if (street === "preflop") {
-      setPreflopLine((prev) => prev.slice(0, length));
-    } else {
-      setStreetLines((prev) => ({ ...prev, [street]: prev[street].slice(0, length) }));
+  function handleTruncate(streetKey: Street, lineIndex: number) {
+    setDismissedStreet(null);
+    if (streetKey === "preflop") {
+      setPreflopLine((prev) => prev.slice(0, lineIndex));
+      setBoard([]);
+      setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
+      setStreet("preflop");
+      return;
     }
-  }
-
-  function advanceStreet(next: Street) {
-    setPendingStreet(next);
+    setStreet(streetKey);
+    if (streetKey === "flop") {
+      setBoard((prev) => prev.slice(0, 3));
+      setStreetLines((prev) => ({ ...prev, flop: prev.flop.slice(0, lineIndex), turn: [], river: [] }));
+    } else if (streetKey === "turn") {
+      setBoard((prev) => prev.slice(0, 4));
+      setStreetLines((prev) => ({ ...prev, turn: prev.turn.slice(0, lineIndex), river: [] }));
+    } else {
+      setStreetLines((prev) => ({ ...prev, river: prev.river.slice(0, lineIndex) }));
+    }
   }
 
   function confirmBoard(newCards: string[]) {
     setBoard((prev) => [...prev, ...newCards]);
     if (pendingStreet) setStreet(pendingStreet);
     setPendingStreet(null);
+    setDismissedStreet(null);
+    setJustPickedBoard(true);
   }
 
-  function resetAll() {
-    setStreet("preflop");
+  const BOARD_LEN_BEFORE: Record<PostflopStreet, number> = { flop: 0, turn: 3, river: 4 };
+
+  function retryBoard() {
+    if (street === "preflop") return;
+    const streetKey = street as PostflopStreet;
+    setJustPickedBoard(false);
+    setBoard((prev) => prev.slice(0, BOARD_LEN_BEFORE[streetKey]));
+    setPendingStreet(streetKey);
+  }
+
+  function closeBoardPicker() {
+    setDismissedStreet(pendingStreet);
     setPendingStreet(null);
-    setPreflopLine([]);
-    setBoard([]);
-    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
   }
 
-  const remaining = playersRemaining(currentLine);
-  const canAdvanceStreet = remaining >= 2 && currentLine.length > 0;
-  const nextStreet: Street | null = street === "preflop" ? "flop" : street === "flop" ? "turn" : street === "turn" ? "river" : null;
+  function buildPositionPills(streetKey: Street, order: string[], line: LineStepWithMeta[], isCurrentStreet: boolean): PillBarItem[] {
+    return order.map((position) => {
+      const idx = line.findIndex((s) => s.position === position);
+      if (idx !== -1) {
+        const step = line[idx]!;
+        return {
+          kind: "position",
+          street: streetKey,
+          position,
+          state: "decided",
+          actionLabel: bucketLabelFor(streetKey, step.bucket),
+          bucket: step.bucket,
+          geometricRatio: step.geometricRatio,
+          lineIndex: idx,
+        };
+      }
+      if (isCurrentStreet && node?.position === position) {
+        return { kind: "position", street: streetKey, position, state: "active" };
+      }
+      return { kind: "position", street: streetKey, position, state: "future" };
+    });
+  }
+
+  const items: PillBarItem[] = [...buildPositionPills("preflop", PREFLOP_ORDER, preflopLine, street === "preflop")];
+  if (board.length >= 3) {
+    items.push({ kind: "street", street: "flop", cards: board.slice(0, 3) });
+    items.push(...buildPositionPills("flop", activePositions("flop"), streetLines.flop, street === "flop"));
+  }
+  if (board.length >= 4) {
+    items.push({ kind: "street", street: "turn", cards: board.slice(3, 4) });
+    items.push(...buildPositionPills("turn", activePositions("turn"), streetLines.turn, street === "turn"));
+  }
+  if (board.length >= 5) {
+    items.push({ kind: "street", street: "river", cards: board.slice(4, 5) });
+    items.push(...buildPositionPills("river", activePositions("river"), streetLines.river, street === "river"));
+  }
+
+  const noBoardData = !!node && node.position === null && justPickedBoard;
+
+  const awaitingDismissedBoard =
+    !!node &&
+    node.position === null &&
+    !pendingStreet &&
+    !justPickedBoard &&
+    dismissedStreet === nextStreetOf(street) &&
+    nextStreetOf(street) !== null &&
+    remainingActiveCount(street) >= 2;
 
   return (
     <div className="min-h-screen bg-navy-950">
       <div className="max-w-3xl mx-auto px-4 pb-28">
-        <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
-          <div>
-            <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GEO DATABASE</div>
-            <h1 className="text-lg font-semibold text-navy-50">実測アクションツリー</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={resetAll} className="rounded-full bg-navy-800 text-navy-300 text-[11px] px-3 py-1.5 ring-1 ring-navy-600/60">
-              リセット
+        <header className="pt-[calc(env(safe-area-inset-top)+12px)] pb-3">
+          <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">GEO DATABASE</p>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="shrink-0 flex items-center gap-1.5 rounded-xl bg-navy-900 ring-1 ring-navy-700 px-2.5 py-1.5"
+            >
+              <Icon name="settings" className="h-4 w-4 text-gold-500" />
+              <div className="text-left leading-none">
+                <div className="text-[9px] text-navy-400">{STACK_BUCKET_LABELS[stackBucket]}</div>
+                <div className="text-[9px] text-navy-500 mt-0.5">{BUBBLE_STAGE_LABELS[bubbleStage]}</div>
+              </div>
             </button>
-            <Link href="/" className="rounded-full bg-gold-500 text-navy-950 text-[11px] font-semibold px-3 py-1.5 shadow-card">
-              テーブルへ
-            </Link>
+            <PositionPillBar items={items} onTruncate={handleTruncate} />
           </div>
         </header>
 
@@ -146,81 +272,53 @@ export default function GeoPage() {
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-300 text-sm px-4 py-3 mb-4">{error}</div>
         )}
 
-        <div className="space-y-2 mb-4">
-          <StackBucketSelector value={stackBucket} onChange={setStackBucket} />
-          <BubbleStageSelector value={bubbleStage} onChange={setBubbleStage} />
-        </div>
-
-        <div className="flex items-center gap-1.5 mb-3">
-          {(["preflop", "flop", "turn", "river"] as Street[]).map((s) => {
-            const reached = s === "preflop" || board.length >= BOARD_LEN[s];
-            return (
-              <div
-                key={s}
-                className={`flex-1 rounded-lg py-1.5 text-center text-[10px] font-bold uppercase tracking-wide ${
-                  street === s ? "bg-gold-500 text-navy-950" : reached ? "bg-navy-800 text-navy-300" : "bg-navy-900 text-navy-600"
-                }`}
-              >
-                {s}
-              </div>
-            );
-          })}
-        </div>
-
-        {board.length > 0 && (
-          <div className="flex items-center justify-center gap-2 mb-3">
-            {board.map((c, i) => (
-              <div key={i} className="h-11 w-8 rounded bg-navy-50 flex flex-col items-center justify-center text-[11px] font-bold">
-                <span className={c.endsWith("h") || c.endsWith("d") ? "text-crimson-500" : "text-navy-950"}>{c.slice(0, -1)}</span>
-                <span className={c.endsWith("h") ? "text-crimson-500" : c.endsWith("d") ? "text-azure-500" : c.endsWith("c") ? "text-mint-500" : "text-navy-950"}>
-                  {suitSymbol(c)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <LineBreadcrumb line={preflopLine} bucketLabels={PREFLOP_BUCKET_LABELS} onTruncate={(len) => setPreflopLine((p) => p.slice(0, len))} />
-        {street !== "preflop" && (
-          <div className="mt-1.5">
-            <LineBreadcrumb
-              line={streetLines[street]}
-              bucketLabels={POSTFLOP_BUCKET_LABELS}
-              onTruncate={(len) => setStreetLines((prev) => ({ ...prev, [street]: prev[street].slice(0, len) }))}
-            />
-          </div>
-        )}
+        <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
 
         <div className="mt-3">
           {loading ? (
             <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-8 text-center text-sm text-navy-400">読み込み中…</div>
+          ) : noBoardData ? (
+            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+              <p className="text-sm text-navy-300 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
+              <button onClick={retryBoard} className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2">
+                板面を選び直す
+              </button>
+            </div>
+          ) : awaitingDismissedBoard ? (
+            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center">
+              <p className="text-sm text-navy-300 mb-3">次のストリートに進むにはボードを選択してください。</p>
+              <button
+                onClick={() => {
+                  setDismissedStreet(null);
+                  setPendingStreet(nextStreetOf(street));
+                }}
+                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2"
+              >
+                ボードを選択
+              </button>
+            </div>
           ) : node ? (
             <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
           ) : null}
         </div>
-
-        {nextStreet && canAdvanceStreet && (
-          <button
-            onClick={() => advanceStreet(nextStreet)}
-            className="w-full mt-3 rounded-xl bg-navy-800 ring-1 ring-navy-600/60 text-navy-100 text-sm font-semibold py-2.5"
-          >
-            → {nextStreet.toUpperCase()}へ進む(ボードを選択)
-          </button>
-        )}
-
-        {matrix && (
-          <div className="mt-5">
-            <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />
-          </div>
-        )}
       </div>
 
       {pendingStreet && (
         <BoardCardPicker
           cardsNeeded={pendingStreet === "flop" ? 3 : 1}
           usedCards={board}
-          onClose={() => setPendingStreet(null)}
+          onClose={closeBoardPicker}
           onConfirm={confirmBoard}
+        />
+      )}
+
+      {settingsOpen && (
+        <GeoSettingsModal
+          stackBucket={stackBucket}
+          bubbleStage={bubbleStage}
+          onChangeStackBucket={setStackBucket}
+          onChangeBubbleStage={setBubbleStage}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 
