@@ -1,40 +1,12 @@
 "use client";
 
-import type { LineStep, TreeNode } from "@/lib/geoApi";
+import type { TreeNode } from "@/lib/geoApi";
 import { bucketColor } from "./colors";
 
-/** ラインの確定済みステップをパンくず表示する。タップでその地点まで巻き戻せる。 */
-export function LineBreadcrumb({
-  line,
-  bucketLabels,
-  onTruncate,
-}: {
-  line: LineStep[];
-  bucketLabels: Record<string, string>;
-  onTruncate: (length: number) => void;
-}) {
-  if (line.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {line.map((step, i) => (
-        <button
-          key={i}
-          onClick={() => onTruncate(i)}
-          className="flex items-center gap-1 rounded-full bg-navy-800 px-2.5 py-1 text-[11px] ring-1 ring-navy-600/60"
-          style={{ color: bucketColor(step.bucket) }}
-        >
-          <span className="text-navy-300">{step.position}</span>
-          <span className="font-semibold">{bucketLabels[step.bucket] ?? step.bucket}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /**
- * 現在のノード(次に手番が来るポジション)を、色分けされた頻度バーとして表示する。
- * GTO Wizardの "Actions" パネル(Allin/Raise/Fold等の色付きボックス)に相当。
- * タップするとそのバケットがラインに追加される。
+ * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
+ * タップするとそのバケットがラインに追加される。GTOWizardと同様、ジオメトリックサイズ
+ * 以上のオプションは紫系の色で表示される(bucketColorがgeometricRatioを見て判定)。
  */
 export function PositionActionRow({
   node,
@@ -76,13 +48,8 @@ export function PositionActionRow({
             key={opt.bucket}
             onClick={() => onSelect(opt.bucket)}
             className="relative overflow-hidden rounded-xl p-2.5 text-left active:scale-[0.97] transition-transform"
-            style={{ background: bucketColor(opt.bucket) }}
+            style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
           >
-            {opt.geometricRatio > 0.3 && (
-              <span className="absolute top-1 right-1 rounded-full bg-black/30 px-1.5 py-0.5 text-[8px] font-bold text-white/90">
-                Geo
-              </span>
-            )}
             <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
             <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
               {Math.round(opt.frequency * 100)}%
@@ -93,7 +60,7 @@ export function PositionActionRow({
       </div>
       <div className="flex h-1.5 rounded-full overflow-hidden mt-2.5">
         {sortedOptions.map((opt) => (
-          <div key={opt.bucket} style={{ width: `${opt.frequency * 100}%`, background: bucketColor(opt.bucket) }} />
+          <div key={opt.bucket} style={{ width: `${opt.frequency * 100}%`, background: bucketColor(opt.bucket, opt.geometricRatio) }} />
         ))}
       </div>
     </div>
