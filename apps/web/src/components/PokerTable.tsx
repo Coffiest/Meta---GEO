@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
@@ -35,19 +35,27 @@ const SEAT_LAYOUT: Record<number, string> = {
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const showFrame = failed || !loaded;
+
+  // ブラウザキャッシュ済みの画像は、Reactがonloadリスナーを付ける前にloadイベントが
+  // 発火してしまい、onLoadが一生呼ばれないことがある。マウント時にcompleteを直接確認する。
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, []);
 
   return (
     <div
       className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
-        showFrame
-          ? "rounded-[46%] bg-gradient-to-b from-navy-800 to-navy-900 ring-1 ring-black/40 shadow-[inset_0_2px_24px_rgba(0,0,0,0.55)]"
-          : ""
+        showFrame ? "rounded-[46%] bg-white ring-[1.5px] ring-ink-950" : ""
       }`}
     >
       {!failed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src="/table/felt.png"
           alt=""
           draggable={false}
@@ -57,7 +65,6 @@ function TableFelt() {
           style={{ opacity: loaded ? 1 : 0 }}
         />
       )}
-      {showFrame && <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />}
     </div>
   );
 }
