@@ -1174,7 +1174,7 @@ export function Lobby({
       {tab === "home" && (
         <div
           className="fixed inset-x-0 z-10 flex justify-center px-4"
-          style={{ bottom: "calc(64px + env(safe-area-inset-bottom))" }}
+          style={{ bottom: "calc(96px + env(safe-area-inset-bottom))" }}
         >
           <PlayButton games={GAMES} onJoin={onJoin} />
         </div>

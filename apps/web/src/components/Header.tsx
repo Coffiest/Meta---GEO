@@ -81,7 +81,7 @@ export function HeaderIconButton({
   href?: string;
   tone?: "light" | "dark";
 }) {
-  const className = `relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors ${ICON_BUTTON_TONE_CLASS[tone]}`;
+  const className = `relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${ICON_BUTTON_TONE_CLASS[tone]}`;
   if (href) {
     return (
       <a href={href} aria-label={ariaLabel} className={className}>
@@ -96,7 +96,7 @@ export function HeaderIconButton({
   );
 }
 
-export function HamburgerIcon({ className = "h-4.5 w-4.5" }: { className?: string }) {
+export function HamburgerIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
       <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />

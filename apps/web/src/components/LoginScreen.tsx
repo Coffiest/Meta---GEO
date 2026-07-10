@@ -56,13 +56,15 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8 bg-ink-50">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8 bg-white">
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-1.5">
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-ink-950">T♠</span>
-          <span className="rounded-md bg-white px-1.5 py-0.5 text-[13px] font-black text-crimson-500">4♥</span>
+          <span className="rounded-md border border-ink-950 px-1.5 py-0.5 text-[13px] font-black text-ink-950">A♠</span>
+          <span className="rounded-md border border-ink-950 px-1.5 py-0.5 text-[13px] font-black text-ink-950">R♥</span>
         </div>
-        <div className="text-[13px] tracking-[0.3em] text-mint-500 font-medium">GTO POKER</div>
+        <div className="text-[13px] tracking-[0.3em] text-ink-500 font-semibold">
+          POKER <span className="text-gold-600">ART</span>
+        </div>
         <h1 className="text-2xl font-semibold text-ink-950">ログイン / 新規登録</h1>
         <p className="text-sm text-ink-700 max-w-xs mx-auto">
           バーチャルチップのみで遊べるトーナメントです。実際の金銭のやり取りはありません。
@@ -74,14 +76,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           <button
             onClick={() => auth.signInWithApple()}
             aria-label="Appleでログイン"
-            className="h-14 w-14 rounded-full bg-black ring-1 ring-white/20 flex items-center justify-center shadow-card active:scale-90 transition-transform"
+            className="h-14 w-14 rounded-full bg-ink-950 flex items-center justify-center active:scale-90 transition-transform"
           >
             <AppleIcon />
           </button>
           <button
             onClick={() => auth.signInWithGoogle()}
             aria-label="Googleでログイン"
-            className="h-14 w-14 rounded-full bg-white flex items-center justify-center shadow-card active:scale-90 transition-transform"
+            className="h-14 w-14 rounded-full bg-white border border-ink-950 flex items-center justify-center active:scale-90 transition-transform"
           >
             <GoogleIcon />
           </button>
@@ -92,14 +94,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         </p>
 
         <div className="flex items-center gap-3 py-1">
-          <div className="h-px flex-1 bg-ink-400" />
+          <div className="h-px flex-1 bg-ink-300" />
           <span className="text-[11px] text-ink-600">または メールで続ける</span>
-          <div className="h-px flex-1 bg-ink-400" />
+          <div className="h-px flex-1 bg-ink-300" />
         </div>
 
         {sent ? (
-          <div className="rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-4 text-sm text-ink-850 text-center">
-            <span className="font-medium text-mint-400">{email}</span> 宛にログインリンクを送りました。
+          <div className="rounded-xl bg-ink-100 border border-ink-300 px-4 py-4 text-sm text-ink-850 text-center">
+            <span className="font-semibold text-ink-950">{email}</span> 宛にログインリンクを送りました。
             メール内のリンクを開くとログインできます。
           </div>
         ) : (
@@ -110,13 +112,13 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
               type="email"
               placeholder="メールアドレス"
-              className="w-full rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-600 focus:outline-none focus:ring-mint-500"
+              className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-500 focus:outline-none focus:border-ink-950"
             />
-            {error && <p className="text-xs text-crimson-400 px-1">{error}</p>}
+            {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
             <button
               onClick={handleSendLink}
               disabled={sending || !email.trim()}
-              className="w-full rounded-xl bg-mint-500 text-white font-semibold py-3 shadow-card active:scale-[0.98] transition-transform disabled:opacity-40"
+              className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3 active:scale-[0.98] transition-transform disabled:opacity-40"
             >
               {sending ? "送信中…" : "ログインリンクを送る"}
             </button>

@@ -28,7 +28,7 @@ export default function TokushohoPage() {
     <div className="min-h-screen">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
-          <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GTO POKER</div>
+          <div className="text-[11px] tracking-[0.25em] text-gold-600 font-semibold">POKER ART</div>
           <Link href="/pricing" className="text-[12px] text-ink-600 hover:text-ink-900">
             戻る
           </Link>
