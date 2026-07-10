@@ -10,7 +10,7 @@ import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabel } from "@/lib/position";
 import { formatBb, formatSignedBb } from "@/lib/format";
-import type { SeatAction, SeatPlayerInfo, TimeBankInfo, TurnTimerInfo } from "@/lib/socket";
+import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
 
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
 // 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
@@ -131,8 +131,6 @@ export function PokerTable({
   lastActionBySeat,
   lastHandDeltaBySeat,
   turnTimer,
-  timeBank,
-  onToggleTimeBank,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -144,8 +142,6 @@ export function PokerTable({
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
   turnTimer: TurnTimerInfo | null;
-  timeBank?: TimeBankInfo | null;
-  onToggleTimeBank?: () => void;
 }) {
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
 
@@ -237,38 +233,6 @@ export function PokerTable({
             })}
           />
         );
-
-        // 自分の席(スロット0)だけは、タイムバンクボタンを同じ行のgridセルに置く。
-        // 独立した絶対座標同士だと表示名の長さ次第でどうしても衝突するため、
-        // グリッドで並べて「レイアウト上ぶつかり得ない」構造にする(ディーラーボタンの
-        // 修正と同じ考え方)。
-        if (slot === 0) {
-          return (
-            <div key={seatIndex} className="absolute inset-x-2 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-1">
-              <div className="flex justify-start pb-1">
-                {timeBank && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    onClick={onToggleTimeBank}
-                    className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors border whitespace-nowrap ${
-                      timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-                    }`}
-                  >
-                    <span
-                      className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}
-                    >
-                      {timeBank.armed ? "✓" : ""}
-                    </span>
-                    タイムバンクを使用({timeBank.cards})
-                  </motion.button>
-                )}
-              </div>
-              {seatNode}
-              <div />
-            </div>
-          );
-        }
 
         return (
           <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[slot]}`}>

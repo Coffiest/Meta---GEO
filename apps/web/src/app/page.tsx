@@ -222,8 +222,6 @@ function GameScreen({
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
             turnTimer={turnTimer}
-            timeBank={!tournamentOver ? timeBank : null}
-            onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
           />
         )}
       </main>
@@ -312,6 +310,8 @@ function GameScreen({
           canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
           bigBlind={bigBlind}
           onAction={sendAction}
+          timeBank={timeBank}
+          onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
         />
       )}
     </div>
