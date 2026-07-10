@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { HandClassCell, HandClassMatrixResult } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex } from "./colors";
 
-/** セル内のバケット構成を、頻度順ではなく固定のアグレッション順(弱→強)で左から右に並べる。 */
+/** セル内のバケット構成を、頻度順ではなく固定のアグレッション順(強→弱)で左から右に並べる(濃い色=強いアクションが常に左)。 */
 function orderedBucketEntries(cell: HandClassCell): [string, number][] {
-  return Object.entries(cell.byBucket).sort((a, b) => bucketOrderIndex(a[0]) - bucketOrderIndex(b[0]));
+  return Object.entries(cell.byBucket).sort((a, b) => bucketOrderIndex(b[0]) - bucketOrderIndex(a[0]));
 }
 
 function cellGradient(cell: HandClassCell): string {
@@ -43,7 +43,8 @@ interface HoverState {
 
 /**
  * GTO Wizard型の169ハンドクラス・マトリクス。各セルは実測アクション頻度の色分け帯(アグレッション順、
- * 左=弱いアクション→右=強いアクション)で塗り、最頻出アクションの頻度%だけを数字表示する
+ * 左=強いアクション(濃い色)→右=弱いアクション(薄い色、Foldは常に右端))で塗り、
+ * 最頻出アクションの頻度%だけを数字表示する
  * (EVはソルバー未実装のため表示しない)。カーソルを合わせる/タップすると、そのハンドの詳細が
  * ふわっと浮かび上がるツールチップで表示される。
  */
@@ -131,8 +132,6 @@ export function HandClassMatrix({
             </div>
             <div className="space-y-1.5">
               {orderedBucketEntries(hover.cell)
-                .slice()
-                .reverse()
                 .map(([bucket, count]) => {
                   const pct = Math.round((count / hover.cell.count) * 100);
                   return (

@@ -17,6 +17,7 @@ import {
 import { GeoSettingsModal } from "@/components/geo/GeoSettingsModal";
 import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
 import { PositionActionRow } from "@/components/geo/PositionActionRow";
+import { PositionActionList } from "@/components/geo/PositionActionList";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
@@ -285,15 +286,13 @@ export default function GeoPage() {
         <AnimatePresence>
           {actionPanelOpen && node && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="overflow-hidden px-4"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="px-5 pb-3"
             >
-              <div className="pb-3 pt-1">
-                <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
-              </div>
+              <PositionActionList node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
             </motion.div>
           )}
         </AnimatePresence>
