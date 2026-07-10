@@ -7,8 +7,8 @@ import { bucketColor, bucketOrderIndex } from "./colors";
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
  * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
- * (弱→強、左から右)で並べる。ジオメトリックサイズ以上のオプションは紫系の色で表示される
- * (bucketColorがgeometricRatioを見て判定)。
+ * (強→弱、左から右。濃い色ほど左)で並べる。ジオメトリックサイズ以上のオプションは
+ * 紫系の色で表示される(bucketColorがgeometricRatioを見て判定)。
  */
 export function PositionActionRow({
   node,
@@ -44,7 +44,7 @@ export function PositionActionRow({
     );
   }
 
-  const sortedOptions = [...node.options].sort((a, b) => bucketOrderIndex(a.bucket) - bucketOrderIndex(b.bucket));
+  const sortedOptions = [...node.options].sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket));
 
   return (
     <motion.div
@@ -58,8 +58,8 @@ export function PositionActionRow({
         <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase font-semibold">{node.position}</p>
         <p className="text-[10px] text-navy-500 tabular-nums">n={node.sampleSize}</p>
       </div>
-      {/* 横スクロール1行(グリッドの折り返しに頼らない): 弱→強の順で並べているため、
-          行が折り返されても崩れないよう、最も激しいアクションが常に一番右(スクロール終端)に
+      {/* 横スクロール1行(グリッドの折り返しに頼らない): 強→弱の順で並べているため、
+          行が折り返されても崩れないよう、最も激しいアクションが常に一番左(スクロール起点)に
           来ることを保証する。 */}
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
         <AnimatePresence mode="popLayout">
