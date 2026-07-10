@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatBb } from "@/lib/format";
@@ -111,10 +111,30 @@ export function ActionBar({
   onToggleTimeBank?: () => void;
 }) {
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
+  // 「チェック/フォールドを予約」: 手番でない間にONにしておくと、次に手番が来た瞬間に
+  // 一度だけ自動でチェック(できなければフォールド)する。よくあるポーカーアプリの
+  // 事前アクション予約と同じく、発火後は自動でOFFに戻る(毎回のハンドで明示的に予約し直す)。
+  const [checkFoldArmed, setCheckFoldArmed] = useState(false);
+  // 「離席」: ONの間は手番が来るたびに毎回自動でチェック/フォールドし続ける。手動でOFFに
+  // するまで持続する点がチェック/フォールド予約(一度きり)との違い。
+  const [away, setAway] = useState(false);
+  const wasYourTurnRef = useRef(isYourTurn);
 
   useEffect(() => {
     setRaiseTo(minRaiseToAmount);
   }, [minRaiseToAmount, isYourTurn]);
+
+  // 手番が「来た瞬間」(false→trueに変わった瞬間)だけ発火させる。isYourTurnがtrueの間
+  // ずっとレンダリングされ続けても多重発火しないよう、直前の値をrefで見て立ち上がりを検出する。
+  useEffect(() => {
+    const justBecameYourTurn = isYourTurn && !wasYourTurnRef.current;
+    wasYourTurnRef.current = isYourTurn;
+    if (!justBecameYourTurn) return;
+    if (away || checkFoldArmed) {
+      onAction({ kind: canCheck ? "check" : "fold" });
+      if (!away) setCheckFoldArmed(false);
+    }
+  }, [isYourTurn, away, checkFoldArmed, canCheck, onAction]);
 
   const timeBankRow = timeBank && (
     <motion.button
@@ -132,11 +152,47 @@ export function ActionBar({
     </motion.button>
   );
 
+  // 「離席」トグル: 席替えボタンなど座席側の要素と同じ空間に置くと表示名の長さ次第で干渉するため、
+  // タイムバンクと同じアクションバー側の行に、同じピル型トグルの見た目で並べて配置する。
+  const awayRow = (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      onClick={() => setAway((v) => !v)}
+      className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border shrink-0 ${
+        away ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
+      }`}
+    >
+      <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${away ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
+        {away ? "✓" : ""}
+      </span>
+      離席
+    </motion.button>
+  );
+
   if (!isYourTurn) {
     return (
-      <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
+      <div className="safe-area-bottom px-4 pb-6 pt-3 bg-white border-t border-ink-200">
         <div className="mx-auto max-w-md space-y-2">
-          {timeBankRow}
+          <div className="flex items-center gap-2">
+            {timeBankRow}
+            {awayRow}
+          </div>
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={() => setCheckFoldArmed((v) => !v)}
+            className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border ${
+              checkFoldArmed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
+            }`}
+          >
+            <span
+              className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${checkFoldArmed ? "bg-white/20" : "ring-1 ring-ink-400"}`}
+            >
+              {checkFoldArmed ? "✓" : ""}
+            </span>
+            チェック/フォールドを予約
+          </motion.button>
           <div className="rounded-2xl bg-ink-100 py-3 text-center text-xs text-ink-500 tracking-wide">相手のアクションを待っています…</div>
         </div>
       </div>
@@ -153,9 +209,12 @@ export function ActionBar({
   const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
 
   return (
-    <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
+    <div className="safe-area-bottom px-4 pb-6 pt-3 bg-white border-t border-ink-200">
       <div className="mx-auto max-w-md space-y-2">
-        {timeBankRow}
+        <div className="flex items-center gap-2">
+          {timeBankRow}
+          {awayRow}
+        </div>
 
         {!raiseDisabled && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
