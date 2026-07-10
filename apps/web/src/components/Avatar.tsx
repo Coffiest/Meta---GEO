@@ -20,7 +20,7 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
     return () => cancelAnimationFrame(rafRef.current);
   }, [endsAt, durationMs]);
 
-  const stroke = 3;
+  const stroke = 2.5;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
@@ -85,11 +85,11 @@ export function Avatar({
           src={avatarKey}
           alt=""
           draggable={false}
-          className="absolute inset-[3px] rounded-full object-cover select-none ring-1 ring-black/20"
+          className={`absolute rounded-full object-cover select-none ring-1 ring-black/20 ${timer ? "inset-[6px]" : "inset-[3px]"}`}
         />
       ) : (
         <div
-          className={`absolute inset-[3px] rounded-full ${bgClass} flex items-center justify-center select-none ring-1 ring-black/20 text-white font-bold`}
+          className={`absolute rounded-full ${bgClass} flex items-center justify-center select-none ring-1 ring-black/20 text-white font-bold ${timer ? "inset-[6px]" : "inset-[3px]"}`}
           style={{ fontSize: size * 0.4 }}
         >
           {initial}

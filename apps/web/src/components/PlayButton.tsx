@@ -21,6 +21,17 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
 
   return (
     <div className="relative flex justify-center py-2" style={{ minHeight: 86 }}>
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[5]"
+          onClick={() => setExpanded(false)}
+          aria-label="閉じる"
+        />
+      )}
+      <div className="relative z-[6]">
       <AnimatePresence mode="popLayout">
         {!expanded ? (
           <motion.button
@@ -58,19 +69,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
           </motion.div>
         )}
       </AnimatePresence>
-
-      {expanded && (
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setExpanded(false)}
-          aria-label="閉じる"
-          className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-ink-500"
-        >
-          閉じる
-        </motion.button>
-      )}
+      </div>
     </div>
   );
 }

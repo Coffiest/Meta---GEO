@@ -10,7 +10,7 @@ import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabel } from "@/lib/position";
 import { formatBb, formatSignedBb } from "@/lib/format";
-import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
+import type { SeatAction, SeatPlayerInfo, TimeBankInfo, TurnTimerInfo } from "@/lib/socket";
 
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
 // 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
@@ -147,6 +147,8 @@ export function PokerTable({
   lastActionBySeat,
   lastHandDeltaBySeat,
   turnTimer,
+  timeBank,
+  onToggleTimeBank,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -158,6 +160,8 @@ export function PokerTable({
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
   turnTimer: TurnTimerInfo | null;
+  timeBank?: TimeBankInfo | null;
+  onToggleTimeBank?: () => void;
 }) {
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
 
@@ -177,6 +181,23 @@ export function PokerTable({
       <TableFelt />
 
       {state && <DealerButton displaySlot={displaySlotOf(state.buttonFixedPos)} />}
+
+      {/* タイムバンク: 自分の席(常にスロット0=画面下)のすぐ左に、初見でもわかるよう常駐表示 */}
+      {timeBank && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          onClick={onToggleTimeBank}
+          className={`absolute z-20 bottom-[6%] left-[2%] flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors ${
+            timeBank.armed ? "bg-gold-500 text-ink-950" : "bg-white text-navy-900 ring-1 ring-black/10"
+          }`}
+        >
+          <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-ink-950/20" : "ring-1 ring-navy-400"}`}>
+            {timeBank.armed ? "✓" : ""}
+          </span>
+          タイムバンク({timeBank.cards})
+        </motion.button>
+      )}
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
       <div className="absolute inset-x-0 top-[33%] flex justify-center">
