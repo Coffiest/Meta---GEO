@@ -77,7 +77,7 @@ function DealerButton({ displaySlot }: { displaySlot: number }) {
   return (
     <motion.div
       layout
-      className={`absolute z-10 h-6 w-6 rounded-full bg-white text-navy-950 text-[11px] font-bold flex items-center justify-center shadow-card ring-1 ring-black/10 ${layout}`}
+      className={`absolute z-20 h-7 w-7 rounded-full bg-white text-ink-950 text-[12px] font-black flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.5)] ring-2 ring-gold-500 ${layout}`}
       transition={{ type: "spring", stiffness: 300, damping: 26 }}
     >
       D

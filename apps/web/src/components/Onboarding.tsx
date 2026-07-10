@@ -80,9 +80,11 @@ export function Onboarding({
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-ink-50">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-white">
       <div className="text-center space-y-1.5">
-        <div className="text-[11px] tracking-[0.3em] text-mint-500 font-medium">GTO POKER</div>
+        <div className="text-[11px] tracking-[0.3em] text-ink-500 font-semibold">
+          POKER <span className="text-gold-600">ART</span>
+        </div>
         <h1 className="text-xl font-semibold text-ink-950">{title}</h1>
         <p className="text-xs text-ink-700">テーブルで表示される名前を入力してください(アイコンは任意です)</p>
       </div>
@@ -95,7 +97,7 @@ export function Onboarding({
             aria-label="アイコン画像を選択"
           >
             <Avatar avatarKey={avatarKey} displayName={name} size={84} />
-            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-mint-500 ring-2 ring-ink-50 flex items-center justify-center text-white text-xs">
+            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-ink-950 ring-2 ring-white flex items-center justify-center text-white text-xs">
               📷
             </div>
           </button>
@@ -107,7 +109,7 @@ export function Onboarding({
             onChange={(e) => void handlePickFile(e.target.files?.[0])}
           />
           <div className="flex items-center gap-3 text-xs">
-            <button onClick={() => fileInputRef.current?.click()} className="text-mint-400 font-medium">
+            <button onClick={() => fileInputRef.current?.click()} className="text-ink-950 font-semibold underline decoration-dashed underline-offset-2">
               {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
             </button>
             {avatarKey && (
@@ -116,7 +118,7 @@ export function Onboarding({
               </button>
             )}
           </div>
-          {pickError && <p className="text-xs text-crimson-400">{pickError}</p>}
+          {pickError && <p className="text-xs text-crimson-500">{pickError}</p>}
         </div>
 
         <input
@@ -124,15 +126,15 @@ export function Onboarding({
           onChange={(e) => setName(e.target.value)}
           placeholder="プレイヤー名(16文字まで)"
           maxLength={16}
-          className="w-full rounded-xl bg-ink-100 ring-1 ring-ink-400 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-600 focus:outline-none focus:ring-mint-500"
+          className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-500 focus:outline-none focus:border-ink-950"
         />
 
-        {error && <p className="text-xs text-crimson-400 px-1">{error}</p>}
+        {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
 
         <button
           onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
           disabled={!canSubmit}
-          className="w-full rounded-xl bg-mint-500 text-white font-semibold py-3 shadow-card active:scale-[0.98] transition-transform disabled:opacity-40"
+          className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3 active:scale-[0.98] transition-transform disabled:opacity-40"
         >
           {saving ? "保存中…" : submitLabel}
         </button>

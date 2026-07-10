@@ -36,7 +36,7 @@ export default function PricingPage() {
     <div className="min-h-screen">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
-          <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GTO POKER</div>
+          <div className="text-[11px] tracking-[0.25em] text-gold-600 font-semibold">POKER ART</div>
           <Link href="/" className="text-[12px] text-ink-600 hover:text-ink-900">
             戻る
           </Link>
@@ -57,7 +57,7 @@ export default function PricingPage() {
           <ul className="space-y-2.5 mb-5">
             {FEATURES.map((f) => (
               <li key={f} className="flex items-start gap-2 text-[13px] text-ink-800">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4 shrink-0 mt-0.5 text-mint-500">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4 shrink-0 mt-0.5 text-ink-950">
                   <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {f}

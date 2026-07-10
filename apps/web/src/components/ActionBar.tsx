@@ -169,7 +169,7 @@ export function ActionBar({
           <button
             disabled={raiseDisabled}
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 shadow-card active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+            className="flex-1 rounded-xl bg-ink-950 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
             {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
           </button>
@@ -184,14 +184,14 @@ export function ActionBar({
                 if (Number.isNaN(bb)) return;
                 setRaiseTo(clampToRange(Math.round(bb * bigBlind)));
               }}
-              className="w-16 rounded-xl bg-navy-800 text-navy-100 text-sm text-center tabular-nums ring-1 ring-navy-600/60 focus:outline-none focus:ring-mint-500"
+              className="w-16 rounded-xl bg-navy-800 text-navy-100 text-sm text-center tabular-nums ring-1 ring-navy-600/60 focus:outline-none focus:ring-gold-500"
             />
           )}
         </div>
 
         <button
           onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-          className="w-full rounded-xl bg-mint-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
+          className="w-full rounded-xl bg-gold-500 text-ink-950 text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
         >
           {canCheck ? "チェック" : `コール ${formatBb(toCall, bigBlind)}`}
         </button>
@@ -199,7 +199,7 @@ export function ActionBar({
         {!canCheck && (
           <button
             onClick={() => onAction({ kind: "fold" })}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-transparent ring-1 ring-navy-600 text-navy-200 text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
           >
             フォールド
           </button>

@@ -86,7 +86,7 @@ export function Seat({
             : folded
               ? "bg-navy-850/40"
               : "bg-navy-850/90 backdrop-blur ring-1 ring-navy-600/60 shadow-seat"
-        } ${isActingSeat ? "ring-2 ring-mint-400" : ""}`}
+        } ${isActingSeat ? "ring-2 ring-gold-500" : ""}`}
       >
         {!isEmpty && (
           <>
@@ -97,7 +97,7 @@ export function Seat({
               </div>
               <div className="flex items-center gap-1 mt-[1px]">
                 {position && (
-                  <span className="rounded bg-mint-500 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
+                  <span className="rounded bg-gold-500 text-ink-950 text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
                     {position}
                   </span>
                 )}
