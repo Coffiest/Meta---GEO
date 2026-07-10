@@ -69,6 +69,8 @@ export class MttSession implements GameSession {
   private entryCount = 0;
   private prizeStructure: PayoutPlace[] = [];
   private bustedOrder: string[] = [];
+  /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
+  private readonly pendingForcedEliminations = new Set<string>();
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private levelEndsAt = 0;
   private tableRotation = 0;
@@ -234,11 +236,22 @@ export class MttSession implements GameSession {
     const human = this.humans.get(userId);
     if (!human || this.finished || human.left) return;
     human.left = true;
-    if (this.hand && human.currentTableId === this.activeTableId) {
+
+    // チップを破棄しての離脱は即敗退扱いにする(自動フォールドで生き残らせない)。ロックステップ
+    // 進行(同時に1ハンドしか動かない)なので、離脱した席の卓がまさに今ハンド進行中でなければ
+    // その場で座席を解放して敗退確定できる。進行中なら、そのハンドを安全に精算し終えた直後
+    // (finishHand側)で確実に処理する。
+    const midHandOnTheirTable = Boolean(this.hand) && !this.hand!.isHandComplete() && human.currentTableId === this.activeTableId;
+    if (midHandOnTheirTable) {
       const seatIndex = this.seatIndexOf(userId);
-      if (seatIndex !== null && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
+      if (seatIndex !== null && this.hand!.getActingSeatIndex() === seatIndex) {
         this.handleAction(seatIndex, { kind: "fold" });
       }
+      this.pendingForcedEliminations.add(userId);
+    } else {
+      this.mtt?.forceEliminate(userId);
+      if (!this.bustedOrder.includes(userId)) this.bustedOrder.push(userId);
+      void this.recordHumanFinish(human);
     }
   }
 
@@ -491,6 +504,17 @@ export class MttSession implements GameSession {
         const human = this.humans.get(playerId);
         if (human && !human.done) await this.recordHumanFinish(human);
       }
+    }
+
+    // このハンド中に離脱した人間は、通常のバスト判定(スタック0)を待たず、ここで確実に敗退確定する。
+    for (const playerId of [...this.pendingForcedEliminations]) {
+      const human = this.humans.get(playerId);
+      if (!human || human.currentTableId !== tableId) continue;
+      this.pendingForcedEliminations.delete(playerId);
+      if (human.done) continue;
+      mtt.forceEliminate(playerId);
+      if (!this.bustedOrder.includes(playerId)) this.bustedOrder.push(playerId);
+      await this.recordHumanFinish(human);
     }
 
     this.hand = null;
