@@ -17,7 +17,6 @@ import {
 import { GeoSettingsModal } from "@/components/geo/GeoSettingsModal";
 import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
 import { PositionActionRow } from "@/components/geo/PositionActionRow";
-import { PositionActionList } from "@/components/geo/PositionActionList";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
@@ -43,7 +42,6 @@ function bucketLabelFor(street: Street, bucket: string): string {
 
 export default function GeoPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [actionPanelOpen, setActionPanelOpen] = useState(false);
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
 
@@ -153,7 +151,6 @@ export default function GeoPage() {
     const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
     setDismissedStreet(null);
     setJustPickedBoard(false);
-    setActionPanelOpen(false);
     if (street === "preflop") {
       setPreflopLine((prev) => [...prev, step]);
     } else {
@@ -163,7 +160,6 @@ export default function GeoPage() {
 
   function handleTruncate(streetKey: Street, lineIndex: number) {
     setDismissedStreet(null);
-    setActionPanelOpen(false);
     if (streetKey === "preflop") {
       setPreflopLine((prev) => prev.slice(0, lineIndex));
       setBoard([]);
@@ -276,26 +272,15 @@ export default function GeoPage() {
                 <PositionPillBar
                   items={items}
                   onTruncate={handleTruncate}
-                  onActivateTap={() => setActionPanelOpen((v) => !v)}
+                  activeOptions={node?.position ? node.options : undefined}
+                  activeSampleSize={node?.position ? node.sampleSize : undefined}
+                  bucketLabels={bucketLabels}
+                  onSelect={selectBucket}
                 />
               </div>
             </div>
           }
         />
-
-        <AnimatePresence>
-          {actionPanelOpen && node && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="px-5 pb-3"
-            >
-              <PositionActionList node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-28">

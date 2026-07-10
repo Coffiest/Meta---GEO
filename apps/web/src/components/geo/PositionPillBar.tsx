@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { bucketColor } from "./colors";
+import { bucketColor, bucketOrderIndex } from "./colors";
+import type { ActionOption } from "@/lib/geoApi";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type PostflopStreet = "flop" | "turn" | "river";
@@ -43,17 +44,28 @@ function suitTextClass(card: string): string {
  * GTO Wizard型の横スクロール式ポジションバー。プリフロップの全ポジション+
  * (進行していれば)FLOP/TURN/RIVERのマーカーとその後のポジション、を1本の連続した
  * タイムラインとして表示する。決定済みのピルはタップでその地点まで巻き戻せる。
+ * 手番中(state === "active")のピルは、GTO Wizardの画面そのままに、そのピル自体の中に
+ * Fold/Raise.../Allinを縦に並べて直接タップ選択できる(別パネルを開く一段を挟まない)。
  */
 export function PositionPillBar({
   items,
   onTruncate,
-  onActivateTap,
+  activeOptions,
+  activeSampleSize,
+  bucketLabels,
+  onSelect,
 }: {
   items: PillBarItem[];
   onTruncate: (street: Street, lineIndex: number) => void;
-  /** 手番中(state === "active")のピルをタップしたときに呼ばれる。GTO Wizard風にその場でアクションを選べるパネルを開閉する用途。 */
-  onActivateTap?: () => void;
+  /** 手番中ポジションの選択肢。無ければそのピルは「選択中」表示のみ(サンプルなし等)。 */
+  activeOptions?: ActionOption[];
+  activeSampleSize?: number;
+  bucketLabels?: Record<string, string>;
+  onSelect?: (bucket: string) => void;
 }) {
+  const sortedActiveOptions = activeOptions
+    ? [...activeOptions].sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket))
+    : [];
   return (
     <div className="flex items-stretch gap-1.5 overflow-x-auto no-scrollbar">
       {items.map((item, i) =>
@@ -82,25 +94,49 @@ export function PositionPillBar({
               ))}
             </div>
           </motion.div>
+        ) : item.state === "active" ? (
+          <motion.div
+            key={`${item.street}-${item.position}-${i}`}
+            layout
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", damping: 24, stiffness: 320 }}
+            className="shrink-0 rounded-xl bg-navy-900 ring-2 ring-gold-500 overflow-hidden min-w-[90px]"
+          >
+            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-bold tracking-wide text-gold-400">{item.position}</div>
+            {sortedActiveOptions.length === 0 ? (
+              <div className="px-2.5 pb-1.5 text-[11px] font-medium text-navy-500">
+                {activeSampleSize === 0 ? "サンプルなし" : "…"}
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {sortedActiveOptions.map((opt) => (
+                  <button
+                    key={opt.bucket}
+                    onClick={() => onSelect?.(opt.bucket)}
+                    className="px-2.5 py-1 text-left text-[11px] font-semibold truncate hover:bg-navy-800 active:bg-navy-700"
+                    style={{ color: bucketColor(opt.bucket, opt.geometricRatio) }}
+                  >
+                    {bucketLabels?.[opt.bucket] ?? opt.bucket}
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
         ) : (
           <motion.button
             key={`${item.street}-${item.position}-${i}`}
             layout
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            whileTap={item.lineIndex !== undefined || item.state === "active" ? { scale: 0.94 } : undefined}
+            whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
             transition={{ type: "spring", damping: 24, stiffness: 320 }}
             disabled={item.state === "future"}
-            onClick={() => {
-              if (item.lineIndex !== undefined) onTruncate(item.street, item.lineIndex);
-              else if (item.state === "active") onActivateTap?.();
-            }}
+            onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
             className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
-              item.state === "active"
-                ? "bg-navy-900 ring-2 ring-gold-500"
-                : item.state === "decided"
-                  ? "bg-navy-900 ring-1 ring-navy-600/60"
-                  : "bg-navy-950 ring-1 ring-navy-800 opacity-50"
+              item.state === "decided"
+                ? "bg-navy-900 ring-1 ring-navy-600/60"
+                : "bg-navy-950 ring-1 ring-navy-800 opacity-50"
             }`}
           >
             <div className="text-[9px] font-bold tracking-wide text-navy-400">{item.position}</div>
@@ -111,17 +147,6 @@ export function PositionPillBar({
               >
                 {item.actionLabel}
               </div>
-            ) : item.state === "active" ? (
-              <motion.div
-                animate={{ opacity: [1, 0.5, 1] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-                className="flex items-center gap-0.5 text-[11px] font-medium text-gold-400"
-              >
-                選択中
-                <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 shrink-0" fill="none">
-                  <path d="M2.5 3.5 5 6l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </motion.div>
             ) : (
               <div className="text-[11px] font-medium text-navy-500">—</div>
             )}
