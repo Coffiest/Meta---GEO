@@ -251,14 +251,13 @@ export default function GeoPage() {
     remainingActiveCount(street) >= 2;
 
   return (
-    <div className="min-h-screen bg-navy-950">
+    <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto">
         <Header
-          tone="dark"
           left={
             <div className="w-full">
-              <p className="text-[10px] tracking-[0.25em] text-gold-500 font-medium mb-2">
-                GEO DATABASE <span className="text-navy-500">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
+              <p className="text-[10px] tracking-[0.25em] text-ink-950 font-bold mb-2">
+                GEO DATABASE <span className="text-ink-500 font-medium">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
               </p>
               <div className="flex items-center gap-2.5">
                 <motion.button
@@ -285,7 +284,7 @@ export default function GeoPage() {
 
       <div className="max-w-3xl mx-auto px-4 pb-28">
         {error && (
-          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-300 text-sm px-4 py-3 mb-4">{error}</div>
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3 mb-4">{error}</div>
         )}
 
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
@@ -356,7 +355,6 @@ export default function GeoPage() {
       </AnimatePresence>
 
       <Footer
-        tone="dark"
         activeKey={null}
         centerActive
         items={[

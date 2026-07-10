@@ -69,24 +69,31 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
   return (
     <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
       <svg width={width} height={CHART_HEIGHT + 22} className="block">
-        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#d1d5db" strokeWidth={1} strokeDasharray="3,3" />
-        <path d={linePath} fill="none" stroke="#d4910a" strokeWidth={1.5} strokeOpacity={0.5} />
+        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#d4d4d4" strokeWidth={1} strokeDasharray="3,3" />
+        <path d={linePath} fill="none" stroke="#0a0a0a" strokeWidth={1.6} />
         {points.map((p, i) => {
           const cx = xFor(i);
           const cy = yFor(p.pnl);
-          const color = p.pnl > 0 ? "#22c55e" : p.pnl < 0 ? "#e5484d" : "#9ca3af";
+          const itm = p.pnl >= 0;
           const date = new Date(p.finishedAt);
           const dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
           return (
             <g key={p.tournamentId} onClick={() => setSelected(selected === i ? null : i)} className="cursor-pointer">
               <circle cx={cx} cy={cy} r={16} fill="transparent" />
-              <circle cx={cx} cy={cy} r={9} fill={color} stroke="white" strokeWidth={1.5} />
-              {p.finishPosition != null && (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={9}
+                fill={itm ? "#0a0a0a" : "#ffffff"}
+                stroke={itm ? "#ffffff" : "#0a0a0a"}
+                strokeWidth={itm ? 1.5 : 1.5}
+              />
+              {itm && p.finishPosition != null && (
                 <text x={cx} y={cy + 3} textAnchor="middle" fontSize={8} fontWeight={700} fill="white">
                   {p.finishPosition}
                 </text>
               )}
-              <text x={cx} y={CHART_HEIGHT + 16} textAnchor="middle" fontSize={9} fill="#6b7280">
+              <text x={cx} y={CHART_HEIGHT + 16} textAnchor="middle" fontSize={9} fill="#737373">
                 {dateLabel}
               </text>
             </g>
@@ -192,48 +199,45 @@ export function RRRatingCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 overflow-hidden shadow-card"
+      className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 overflow-hidden"
     >
-      <div className="relative bg-gradient-to-br from-gold-500 to-gold-600 px-5 pt-4 pb-5 overflow-hidden">
-        <div className="pointer-events-none absolute -top-10 -right-8 h-40 w-40 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-white/5" />
-
-        <div className="relative flex items-center gap-2.5 mb-4">
-          <Avatar avatarKey={avatarKey} displayName={displayName} size={34} />
-          <p className="text-sm font-bold text-white truncate min-w-0">{displayName}</p>
-        </div>
-
-        <div className="relative flex items-center justify-between mb-3">
-          <p className="text-[11px] font-bold tracking-[0.1em] uppercase text-white/70">トナメ偏差値</p>
+      <div className="relative px-5 pt-4 pb-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Avatar avatarKey={avatarKey} displayName={displayName} size={34} />
+            <p className="text-sm font-bold text-ink-950 truncate min-w-0">{displayName}</p>
+          </div>
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setInfoOpen((v) => !v)}
             aria-label="トナメ偏差値について"
-            className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center text-white/85"
+            className="h-[22px] w-[22px] shrink-0 rounded-full border border-ink-950 flex items-center justify-center text-ink-800"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3">
               <circle cx="12" cy="12" r="9" />
               <path d="M12 11v5.5M12 8v.01" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </motion.button>
         </div>
 
-        <div className="relative flex items-end gap-2.5">
+        <p className="text-[11px] font-bold tracking-[0.1em] uppercase text-ink-500 mb-2">トナメ偏差値</p>
+
+        <div className="flex items-end gap-2.5">
           {!data || data.tournamentsPlayed === 0 ? (
-            <p className="text-4xl font-black text-white/75 tracking-tight">集計中</p>
+            <p className="text-4xl font-black text-ink-400 tracking-tight">集計中</p>
           ) : (
             <>
               <motion.p
                 key={data.rrRating}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-5xl font-black text-white tracking-tight tabular-nums"
+                className="text-5xl font-black text-ink-950 tracking-tight tabular-nums"
               >
                 {displayRating(data.rrRating)}
               </motion.p>
               {data.nationalRank != null && (
-                <div className="mb-1.5 rounded-full bg-black/20 px-2.5 py-1">
-                  <p className="text-xs font-bold text-white">全国{data.nationalRank.toLocaleString()}位</p>
+                <div className="mb-1.5 rounded-full bg-ink-100 px-2.5 py-1">
+                  <p className="text-xs font-bold text-ink-800">全国{data.nationalRank.toLocaleString()}位</p>
                 </div>
               )}
             </>
@@ -247,7 +251,7 @@ export function RRRatingCard({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.97 }}
               transition={{ duration: 0.2 }}
-              className="relative mt-3 rounded-xl bg-white/95 p-3 text-[11px] leading-relaxed text-ink-800"
+              className="mt-3 rounded-xl bg-ink-100 border border-ink-300 p-3 text-[11px] leading-relaxed text-ink-700"
             >
               ROIをもとにトーナメントの実力を偏差値(平均50)で表したもの。参加数が少ないうちは変動しにくく、参加すればするほど実力に近い値になります。
             </motion.div>

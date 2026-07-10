@@ -9,7 +9,7 @@
 html,
 body {
   height: 100%;
-  background: #fffbf5;
+  background: #ffffff;
 }
 
 body {
@@ -31,4 +31,23 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* リキッドグラス: ヘッダー/フッター共通の半透明ぼかしパネル。 */
+.header-glass-light {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 18px -6px rgba(10, 10, 10, 0.12);
+}
+
+.footer-glass-light {
+  background: linear-gradient(0deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.5));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -4px 18px -6px rgba(10, 10, 10, 0.1);
 }

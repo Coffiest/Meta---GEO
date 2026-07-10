@@ -815,15 +815,15 @@ export function Lobby({
               onViewHistory={() => setTab("tournaments")}
             />
 
-            <PlayButton games={GAMES} onJoin={onJoin} />
-
             <div className="text-center space-y-2 pt-2">
               <p className="text-[10px] text-ink-500 leading-relaxed px-2">
-                GTO Poker (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
+                Poker ART (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
               </p>
-              <p className="text-[10px] text-ink-500">GTO Poker v{APP_VERSION} ・ 作成者: Coffiest</p>
-              <p className="text-[10px] text-ink-400">© 2026 GTO Poker</p>
+              <p className="text-[10px] text-ink-500">Poker ART v{APP_VERSION} ・ 作成者: Coffiest</p>
+              <p className="text-[10px] text-ink-400">© 2026 Poker ART</p>
             </div>
+            {/* プレイボタンは下の固定バーに常時表示されるため、ここでは末尾に余白だけ確保する */}
+            <div className="h-20" aria-hidden />
           </motion.div>
         )}
 
@@ -896,7 +896,7 @@ export function Lobby({
                       <div className="space-y-6">
                         <SingleLineChart
                           title="ROI"
-                          color="#D4910A"
+                          color="#D4910A" /* 唯一のアクセントカラー使用箇所として意図的にgoldのまま */
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
                           baseline={100}
                           formatValue={(v) => `${v.toFixed(1)}%`}
@@ -904,7 +904,7 @@ export function Lobby({
                         />
                         <SingleLineChart
                           title="収支"
-                          color="#22c55e"
+                          color="#0a0a0a"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
                           baseline={0}
                           formatValue={(v) => formatSigned(v)}
@@ -912,7 +912,7 @@ export function Lobby({
                         />
                         <SingleLineChart
                           title="得た金額"
-                          color="#a855f7"
+                          color="#0a0a0a"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativePayout }))}
                           baseline={0}
                           formatValue={(v) => v.toLocaleString()}
@@ -1170,6 +1170,15 @@ export function Lobby({
         </AnimatePresence>
 
       </main>
+
+      {tab === "home" && (
+        <div
+          className="fixed inset-x-0 z-10 flex justify-center px-4"
+          style={{ bottom: "calc(64px + env(safe-area-inset-bottom))" }}
+        >
+          <PlayButton games={GAMES} onJoin={onJoin} />
+        </div>
+      )}
 
       <Footer
         tone="light"
