@@ -47,9 +47,12 @@ function suitTextClass(card: string): string {
 export function PositionPillBar({
   items,
   onTruncate,
+  onActivateTap,
 }: {
   items: PillBarItem[];
   onTruncate: (street: Street, lineIndex: number) => void;
+  /** 手番中(state === "active")のピルをタップしたときに呼ばれる。GTO Wizard風にその場でアクションを選べるパネルを開閉する用途。 */
+  onActivateTap?: () => void;
 }) {
   return (
     <div className="flex items-stretch gap-1.5 overflow-x-auto no-scrollbar">
@@ -85,10 +88,13 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
+            whileTap={item.lineIndex !== undefined || item.state === "active" ? { scale: 0.94 } : undefined}
             transition={{ type: "spring", damping: 24, stiffness: 320 }}
-            disabled={item.state === "future" || item.lineIndex === undefined}
-            onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
+            disabled={item.state === "future"}
+            onClick={() => {
+              if (item.lineIndex !== undefined) onTruncate(item.street, item.lineIndex);
+              else if (item.state === "active") onActivateTap?.();
+            }}
             className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
               item.state === "active"
                 ? "bg-navy-900 ring-2 ring-gold-500"
@@ -109,9 +115,12 @@ export function PositionPillBar({
               <motion.div
                 animate={{ opacity: [1, 0.5, 1] }}
                 transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-                className="text-[11px] font-medium text-gold-400"
+                className="flex items-center gap-0.5 text-[11px] font-medium text-gold-400"
               >
                 選択中
+                <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 shrink-0" fill="none">
+                  <path d="M2.5 3.5 5 6l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </motion.div>
             ) : (
               <div className="text-[11px] font-medium text-navy-500">—</div>

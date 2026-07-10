@@ -42,6 +42,7 @@ function bucketLabelFor(street: Street, bucket: string): string {
 
 export default function GeoPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [actionPanelOpen, setActionPanelOpen] = useState(false);
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
 
@@ -151,6 +152,7 @@ export default function GeoPage() {
     const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
     setDismissedStreet(null);
     setJustPickedBoard(false);
+    setActionPanelOpen(false);
     if (street === "preflop") {
       setPreflopLine((prev) => [...prev, step]);
     } else {
@@ -160,6 +162,7 @@ export default function GeoPage() {
 
   function handleTruncate(streetKey: Street, lineIndex: number) {
     setDismissedStreet(null);
+    setActionPanelOpen(false);
     if (streetKey === "preflop") {
       setPreflopLine((prev) => prev.slice(0, lineIndex));
       setBoard([]);
@@ -269,11 +272,31 @@ export default function GeoPage() {
                 >
                   <Icon name="settings" className="h-5 w-5 text-navy-950" />
                 </motion.button>
-                <PositionPillBar items={items} onTruncate={handleTruncate} />
+                <PositionPillBar
+                  items={items}
+                  onTruncate={handleTruncate}
+                  onActivateTap={() => setActionPanelOpen((v) => !v)}
+                />
               </div>
             </div>
           }
         />
+
+        <AnimatePresence>
+          {actionPanelOpen && node && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="overflow-hidden px-4"
+            >
+              <div className="pb-3 pt-1">
+                <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-28">
