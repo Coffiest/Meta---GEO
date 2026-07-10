@@ -54,7 +54,7 @@ export function HeaderLogo({ tone = "light" }: { tone?: "light" | "dark" }) {
   return (
     <div className={`flex items-center gap-2 text-[18px] font-semibold ${WORDMARK_TONE_CLASS[tone]}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoSrc} alt="Poker ART" className="h-[60px] w-[60px] shrink-0 rounded-2xl object-contain" />
+      <img src={logoSrc} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
       <span>
         Poker<span className="text-gold-600">ART</span>
       </span>

@@ -13,7 +13,7 @@ import { Footer } from "./Footer";
 import { Icon } from "./Icon";
 import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
-import { GAME_TYPE_LABEL, RRRatingCard, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
+import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -106,17 +106,17 @@ function signedClass(n: number): string {
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-ink-100 ring-1 ring-ink-400 p-4">{children}</div>;
+  return <div className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4">{children}</div>;
 }
 
-/** RRPokerのhistory-card風、rounded-3xlの白カード。フェードアップで順にstagger表示する。 */
+/** ホーム画面のRRRatingCardと同じ、黒フチ+白背景のSwissカード。フェードアップで順にstagger表示する。 */
 function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-4"
+      className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4"
     >
       {children}
     </motion.div>
@@ -139,7 +139,7 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay }}
         onClick={() => setOpen(true)}
-        className="w-full text-left rounded-2xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-3.5"
+        className="w-full text-left rounded-[18px] bg-white ring-[1.5px] ring-ink-950 p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
           <div className="min-w-0">
@@ -840,7 +840,7 @@ export function Lobby({
               stats ? (
                 <>
                   <AnimatedCard delay={0.06}>
-                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">収支</div>
+                    <div className="mb-3"><RuleLabel>収支</RuleLabel></div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-4">
                       <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
                       <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
@@ -860,7 +860,7 @@ export function Lobby({
                   </AnimatedCard>
 
                   <AnimatedCard delay={0.1}>
-                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">トーナメント成績</div>
+                    <div className="mb-3"><RuleLabel>トーナメント成績</RuleLabel></div>
                     <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                       <StatTile
                         label="参加トナメ数"
@@ -873,7 +873,7 @@ export function Lobby({
                   </AnimatedCard>
 
                   <AnimatedCard delay={0.14}>
-                    <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">プレイスタイル</div>
+                    <div className="mb-3"><RuleLabel>プレイスタイル</RuleLabel></div>
                     <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                       <StatTile
                         label="VPIP"

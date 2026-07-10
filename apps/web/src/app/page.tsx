@@ -219,28 +219,13 @@ function GameScreen({
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {timeBank && !spectating && !tournamentOver && (
-            <button
-              onClick={() => armTimeBank(!timeBank.armed)}
-              className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-medium transition-colors ${
-                timeBank.armed ? "bg-gold-500 text-ink-950" : "bg-navy-900/80 text-navy-300 ring-1 ring-navy-700/50"
-              }`}
-            >
-              <span className={`h-3 w-3 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-ink-950/20" : "ring-1 ring-navy-500"}`}>
-                {timeBank.armed ? "✓" : ""}
-              </span>
-              タイムバンク ({timeBank.cards})
-            </button>
-          )}
-          <button
-            onClick={() => setSettingsOpen((v) => !v)}
-            className="h-8 w-8 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 flex items-center justify-center text-navy-300"
-            aria-label="設定"
-          >
-            ⚙
-          </button>
-        </div>
+        <button
+          onClick={() => setSettingsOpen((v) => !v)}
+          className="shrink-0 h-8 w-8 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 flex items-center justify-center text-navy-300"
+          aria-label="設定"
+        >
+          ⚙
+        </button>
         {settingsOpen && (
           <SettingsPopover
             onShowStructure={() => setStructureOpen(true)}
@@ -270,6 +255,8 @@ function GameScreen({
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
             turnTimer={turnTimer}
+            timeBank={!tournamentOver ? timeBank : null}
+            onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
           />
         )}
       </main>
