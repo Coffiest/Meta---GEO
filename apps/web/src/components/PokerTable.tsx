@@ -161,7 +161,10 @@ export function PokerTable({
   const spr = state && state.potTotal > 0 ? effectiveStack / state.potTotal : null;
 
   return (
-    <div className="relative w-full max-w-md max-h-full aspect-[3/4] mx-auto">
+    <div
+      className="no-image-actions relative w-full max-w-md max-h-full aspect-[3/4] mx-auto"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <TableFelt />
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
