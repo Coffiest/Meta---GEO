@@ -185,7 +185,11 @@ function GameScreen({
   const toCall = state && yourSeat ? Math.max(0, state.currentBetToMatch - yourSeat.streetContribution) : 0;
   const maxRaiseToAmount = yourSeat ? yourSeat.streetContribution + yourSeat.stack : 0;
   const minRaiseToAmount = state ? Math.min(maxRaiseToAmount, state.currentBetToMatch + state.lastFullRaiseSize) : 0;
-  const bigBlind = level?.bigBlind ?? 0;
+  // トーナメントのレベルはハンドの途中で上がることがあるが、進行中のハンドのミニマムベット/
+  // bb換算は常にそのハンド開始時点のビッグブラインド(state.bigBlind)を基準にする。
+  // 「現在表示中のレベル」のbbで再計算すると、レベルがハンドの途中で上がった瞬間に
+  // 最小ベットが1bb未満に見えてしまう(TDAルール: ブラインド変更は次のハンドから適用)。
+  const bigBlind = state?.bigBlind ?? level?.bigBlind ?? 0;
 
   // 公開する手札: ハンド終了後はhandEndedのもの、オールインランアウト中(handEndedより前)は
   // showdownRevealで先にテーブルアップされたものを表示する。

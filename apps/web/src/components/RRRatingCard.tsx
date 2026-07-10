@@ -14,16 +14,22 @@ export interface RRRatingData {
 
 export interface TournamentHistoryPoint {
   tournamentId: string;
+  gameType: string;
   finishedAt: string;
   buyIn: number;
   payout: number;
   /** 賞金 − バイイン */
   pnl: number;
   finishPosition: number | null;
+  seatCount: number;
+  rrRatingAfter: number;
+  rrRatingDelta: number | null;
 }
 
+export const GAME_TYPE_LABEL: Record<string, string> = { sng: "Sit & Go", mtt: "MTT" };
+
 /** RRPokerと同じく、下位帯(50未満で目安45未満)は細かい数値を伏せて「< 45」とだけ表示する。 */
-function displayRating(rr: number): string {
+export function displayRating(rr: number): string {
   return rr < 45 ? "< 45" : rr.toFixed(2);
 }
 
@@ -88,23 +94,64 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
         })}
       </svg>
       <AnimatePresence>
-        {selected != null && points[selected] && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="rounded-xl bg-ink-200/70 px-3 py-2 mt-1 text-[11px] text-ink-800 flex items-center justify-between"
-          >
-            <span>
-              {new Date(points[selected]!.finishedAt).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
-              {points[selected]!.finishPosition != null && ` ・ ${points[selected]!.finishPosition}位`}
-            </span>
-            <span className={points[selected]!.pnl >= 0 ? "text-mint-600 font-bold" : "text-crimson-500 font-bold"}>
-              {formatSigned(points[selected]!.pnl)}
-            </span>
-          </motion.div>
-        )}
+        {selected != null && points[selected] && (() => {
+          const p = points[selected]!;
+          const date = new Date(p.finishedAt);
+          const pnlClass = p.pnl > 0 ? "text-mint-600" : p.pnl < 0 ? "text-crimson-500" : "text-ink-700";
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              className="rounded-2xl bg-white ring-1 ring-ink-300 shadow-panel mt-1.5 overflow-hidden"
+            >
+              <div className="flex items-start justify-between px-3.5 pt-3 pb-2.5 border-b border-ink-200">
+                <div>
+                  <p className="text-[13px] font-bold text-ink-950">{GAME_TYPE_LABEL[p.gameType] ?? p.gameType}</p>
+                  <p className="text-[10px] text-ink-600 mt-0.5">
+                    {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {p.seatCount}人卓
+                  </p>
+                </div>
+                {p.finishPosition != null && (
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shrink-0">
+                    <span className="text-[11px] font-black text-white">{p.finishPosition}位</span>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-px bg-ink-200">
+                <div className="bg-white px-1.5 py-2 text-center">
+                  <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
+                  <p className="text-[12px] font-bold text-ink-950 tabular-nums">{p.buyIn.toLocaleString()}</p>
+                </div>
+                <div className="bg-white px-1.5 py-2 text-center">
+                  <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
+                  <p className="text-[12px] font-bold text-ink-950 tabular-nums">{p.payout.toLocaleString()}</p>
+                </div>
+                <div className="bg-white px-1.5 py-2 text-center">
+                  <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
+                  <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(p.pnl)}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-[11px] font-semibold text-gold-700">トナメ偏差値</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13px] font-black text-gold-700 tabular-nums">{displayRating(p.rrRatingAfter)}</span>
+                  {p.rrRatingDelta != null && Math.abs(p.rrRatingDelta) >= 0.01 && (
+                    <span
+                      className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
+                        p.rrRatingDelta >= 0 ? "text-mint-700 bg-mint-500/10" : "text-crimson-700 bg-crimson-500/10"
+                      }`}
+                    >
+                      {p.rrRatingDelta >= 0 ? "+" : ""}
+                      {p.rrRatingDelta.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

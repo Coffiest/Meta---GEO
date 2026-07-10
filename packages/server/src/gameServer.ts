@@ -450,6 +450,9 @@ export class TableSession implements GameSession {
     const seat = state.seats.find((s) => s.seatIndex === seatIndex)!;
     const holeCards = hand.getSeatHoleCards(seatIndex);
     if (holeCards.length !== 2) return { kind: "fold" };
+    const activeOpponentCount = state.seats.filter(
+      (s) => s.seatIndex !== seatIndex && (s.status === "active" || s.status === "allIn"),
+    ).length;
     return decideBotAction({
       street: state.street,
       holeCards: holeCards as unknown as readonly [Card, Card],
@@ -460,6 +463,7 @@ export class TableSession implements GameSession {
       potBefore: state.potTotal,
       stack: seat.stack,
       canRaise: !seat.hasActedThisStreet,
+      activeOpponentCount,
     });
   }
 

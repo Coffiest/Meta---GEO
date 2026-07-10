@@ -1,5 +1,6 @@
 import { type Card, computeAllInEquity, parseCard } from "@meta-geo/engine";
 import { prisma } from "./client.js";
+import { RR_RATING_SHRINKAGE_K, computeRRRatingPopulationStats, ratingFromAdjustedRoi } from "./rrRating.js";
 
 /**
  * 収支(バンクロール)はTenFourPokerと同様の「±方式」: 残高という疑似通貨を貯める仕組みではなく、
@@ -272,37 +273,71 @@ export async function getBankrollGraph(userId: string, limit = 1000): Promise<Ba
 
 export interface TournamentHistoryPoint {
   tournamentId: string;
+  gameType: string;
   finishedAt: Date;
   buyIn: number;
   payout: number;
   /** 賞金 − バイイン */
   pnl: number;
   finishPosition: number | null;
+  seatCount: number;
+  /**
+   * このトナメを終えた時点でのトナメ偏差値(近似値)。母集団のmu/sigmaは現在値を使い、
+   * 本人の累計ROIだけをそのトナメまでのプレフィックスに絞って再計算する。RRPokerのように
+   * 完了時点のmu/sigmaをスナップショット保存してはいないため、厳密な過去再現ではなく
+   * 「その時点までの自分の成績で見た偏差値」の近似トレンドである点に留意。
+   */
+  rrRatingAfter: number;
+  /** 直前のトナメからのrrRatingAfterの変動(先頭の1件はnull)。 */
+  rrRatingDelta: number | null;
 }
 
 /**
  * ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用に、終了済み
- * トーナメントごとの個別損益(累計ではない)を古い順に返す。
+ * トーナメントごとの個別損益(累計ではない)と、そのトナメ終了時点の偏差値推移を古い順に返す。
  */
 export async function getTournamentHistory(userId: string, limit = 20): Promise<TournamentHistoryPoint[]> {
-  const entriesDesc = await prisma.tournamentEntry.findMany({
-    where: { userId, tournament: { status: "finished" } },
-    orderBy: { tournament: { createdAt: "desc" } },
-    take: limit,
-    select: {
-      payout: true,
-      finishPosition: true,
-      tournament: { select: { id: true, buyIn: true, finishedAt: true, createdAt: true } },
-    },
+  const [entriesDesc, populationStats] = await Promise.all([
+    prisma.tournamentEntry.findMany({
+      where: { userId, tournament: { status: "finished" } },
+      orderBy: { tournament: { createdAt: "desc" } },
+      take: limit,
+      select: {
+        payout: true,
+        finishPosition: true,
+        tournament: { select: { id: true, gameType: true, buyIn: true, seatCount: true, finishedAt: true, createdAt: true } },
+      },
+    }),
+    computeRRRatingPopulationStats(),
+  ]);
+
+  const entriesAsc = entriesDesc.reverse();
+  let cumBuyIns = 0;
+  let cumPayouts = 0;
+  let prevRating: number | null = null;
+
+  return entriesAsc.map((e, i) => {
+    cumBuyIns += e.tournament.buyIn;
+    cumPayouts += e.payout;
+    const roi = cumBuyIns > 0 ? cumPayouts / cumBuyIns : 0;
+    const n = i + 1;
+    const adjustedRoi = (n / (n + RR_RATING_SHRINKAGE_K)) * roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * populationStats.mu;
+    const rrRatingAfter = ratingFromAdjustedRoi(adjustedRoi, populationStats);
+    const rrRatingDelta = prevRating === null ? null : Number((rrRatingAfter - prevRating).toFixed(2));
+    prevRating = rrRatingAfter;
+    return {
+      tournamentId: e.tournament.id,
+      gameType: e.tournament.gameType,
+      finishedAt: e.tournament.finishedAt ?? e.tournament.createdAt,
+      buyIn: e.tournament.buyIn,
+      payout: e.payout,
+      pnl: e.payout - e.tournament.buyIn,
+      finishPosition: e.finishPosition,
+      seatCount: e.tournament.seatCount,
+      rrRatingAfter,
+      rrRatingDelta,
+    };
   });
-  return entriesDesc.reverse().map((e) => ({
-    tournamentId: e.tournament.id,
-    finishedAt: e.tournament.finishedAt ?? e.tournament.createdAt,
-    buyIn: e.tournament.buyIn,
-    payout: e.payout,
-    pnl: e.payout - e.tournament.buyIn,
-    finishPosition: e.finishPosition,
-  }));
 }
 
 export interface HandProfitPoint {

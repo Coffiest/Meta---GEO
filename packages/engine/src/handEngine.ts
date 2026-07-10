@@ -75,6 +75,14 @@ export interface PublicHandState {
   readonly buttonFixedPos: number;
   readonly seats: readonly PublicSeatState[];
   readonly isComplete: boolean;
+  /**
+   * このハンドに固定されたビッグブラインド額(チップ)。トーナメントのレベルはハンドの途中で
+   * 上がることがあるが、そのハンドのミニマムベット/レイズや表示上のbb換算は、常に
+   * このハンド開始時点のビッグブラインドを基準にしなければならない(TDAルール: ブラインド変更は
+   * 次のハンドから適用)。クライアント側で「現在表示中のレベル」のbbを使って再計算すると、
+   * レベルが進行中のハンドの途中で上がった瞬間に最小ベットが1bb未満に見えてしまう。
+   */
+  readonly bigBlind: number;
 }
 
 const STREET_ORDER: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -509,6 +517,7 @@ export class HandEngine {
       actingSeatIndex: this.actingSeatIndex,
       buttonFixedPos: this.buttonFixedPos,
       isComplete: this.isHandComplete(),
+      bigBlind: this.bigBlind,
       seats: [...this.seats.values()]
         .sort((a, b) => a.seatIndex - b.seatIndex)
         .map((s) => ({

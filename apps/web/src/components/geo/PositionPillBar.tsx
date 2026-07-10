@@ -114,9 +114,12 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.bucket)}
-                    className="px-2.5 py-1 text-left text-[11px] font-semibold truncate hover:bg-navy-800 active:bg-navy-700"
-                    style={{ color: bucketColor(opt.bucket, opt.geometricRatio) }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-white truncate hover:bg-navy-800 active:bg-navy-700"
                   >
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+                    />
                     {bucketLabels?.[opt.bucket] ?? opt.bucket}
                   </button>
                 ))}
@@ -141,10 +144,11 @@ export function PositionPillBar({
           >
             <div className="text-[9px] font-bold tracking-wide text-navy-400">{item.position}</div>
             {item.state === "decided" ? (
-              <div
-                className="text-[11px] font-semibold truncate max-w-[90px]"
-                style={{ color: bucketColor(item.bucket ?? "", item.geometricRatio) }}
-              >
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-white truncate max-w-[90px]">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: bucketColor(item.bucket ?? "", item.geometricRatio) }}
+                />
                 {item.actionLabel}
               </div>
             ) : (

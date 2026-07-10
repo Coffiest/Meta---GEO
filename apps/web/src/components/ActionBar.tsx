@@ -196,12 +196,14 @@ export function ActionBar({
           {canCheck ? "チェック" : `コール ${formatBb(toCall, bigBlind)}`}
         </button>
 
-        <button
-          onClick={() => onAction({ kind: "fold" })}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
-        >
-          フォールド
-        </button>
+        {!canCheck && (
+          <button
+            onClick={() => onAction({ kind: "fold" })}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
+          >
+            フォールド
+          </button>
+        )}
       </div>
     </div>
   );

@@ -11,8 +11,9 @@ import { BlindStructureSheet } from "./BlindStructureSheet";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { Footer } from "./Footer";
 import { Icon } from "./Icon";
+import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
-import { RRRatingCard, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
+import { GAME_TYPE_LABEL, RRRatingCard, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -87,11 +88,13 @@ const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; det
   },
 ];
 
-export type Tab = "home" | "stats" | "leaderboard" | "history";
+export type Tab = "home" | "stats" | "leaderboard" | "history" | "tournaments";
 
 /** URLの?tabクエリから有効なタブ名だけを取り出す(それ以外はnull)。/geo等の他画面からの遷移用。 */
 export function tabFromQuery(value: string | null): Tab | null {
-  return value === "home" || value === "stats" || value === "leaderboard" || value === "history" ? value : null;
+  return value === "home" || value === "stats" || value === "leaderboard" || value === "history" || value === "tournaments"
+    ? value
+    : null;
 }
 
 function formatSigned(n: number): string {
@@ -120,13 +123,116 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+/**
+ * RRPokerの/home/tournaments一覧カードと同じ構成(名前・日付→着順バッジ→バイイン/獲得/収支)。
+ * タップするとトナメ偏差値の推移(その回の変動)まで含めた詳細シートが開く。
+ */
+function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryPoint; delay?: number }) {
+  const [open, setOpen] = useState(false);
+  const date = new Date(point.finishedAt);
+  const pnlClass = point.pnl > 0 ? "text-mint-600" : point.pnl < 0 ? "text-crimson-500" : "text-ink-700";
+
   return (
-    <button onClick={onClick} className="flex items-center gap-1 text-ink-700 -ml-1 pr-2 py-1" aria-label="ホームに戻る">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-        <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
+    <>
+      <motion.button
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay }}
+        onClick={() => setOpen(true)}
+        className="w-full text-left rounded-2xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-3.5"
+      >
+        <div className="flex items-start justify-between mb-2.5">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
+            <p className="text-[10px] text-ink-600 mt-0.5">
+              {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {point.seatCount}人卓
+            </p>
+          </div>
+          {point.finishPosition != null && (
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shrink-0">
+              <span className="text-[11px] font-black text-white">{point.finishPosition}位</span>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+            <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
+            <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+            <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
+            <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+            <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
+            <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
+          </div>
+        </div>
+        <div className="text-right text-[10px] text-ink-500">タップで詳細 →</div>
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setOpen(false)}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-sm rounded-t-3xl bg-white pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[16px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
+                <button onClick={() => setOpen(false)} className="text-[13px] text-ink-500">
+                  閉じる
+                </button>
+              </div>
+              <p className="text-[12px] text-ink-600 mb-4">
+                {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {point.seatCount}人卓
+                {point.finishPosition != null && ` ・ ${point.finishPosition}位`}
+              </p>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                  <p className="text-[10px] text-ink-600 mb-1">バイイン</p>
+                  <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                  <p className="text-[10px] text-ink-600 mb-1">獲得</p>
+                  <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                  <p className="text-[10px] text-ink-600 mb-1">収支</p>
+                  <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-gold-500/10 px-3.5 py-3">
+                <span className="text-[12px] font-semibold text-gold-700">トナメ偏差値</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
+                  {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
+                    <span
+                      className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
+                        point.rrRatingDelta >= 0 ? "text-mint-700 bg-mint-500/10" : "text-crimson-700 bg-crimson-500/10"
+                      }`}
+                    >
+                      {point.rrRatingDelta >= 0 ? "+" : ""}
+                      {point.rrRatingDelta.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -643,7 +749,7 @@ export function Lobby({
 
   useEffect(() => {
     if (!accessToken) return;
-    fetch(`${SERVER_URL}/api/lobby/tournament-history`, { headers: { authorization: `Bearer ${accessToken}` } })
+    fetch(`${SERVER_URL}/api/lobby/tournament-history?limit=200`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<TournamentHistoryPoint[]>) : null))
       .then((json) => json && setTournamentHistory(json))
       .catch(() => {});
@@ -686,7 +792,7 @@ export function Lobby({
         }
       />
 
-      <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-5">
+      <main className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-5">
         <AnimatePresence mode="wait">
         {tab === "home" && (
           <motion.div
@@ -697,39 +803,6 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="rounded-3xl bg-ink-100 ring-1 ring-ink-400 shadow-card p-4"
-            >
-              <div className="flex items-center justify-between mb-3 px-0.5">
-                <p className="text-[13px] font-bold text-ink-950">プレイする</p>
-                <p className="text-[10px] tracking-[0.15em] text-ink-500 font-medium">6-MAX TOURNAMENT</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {GAMES.map((game, i) => (
-                  <motion.button
-                    key={game.key}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: 0.1 + i * 0.06 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => onJoin(game.key)}
-                    className="rounded-2xl bg-ink-50 ring-1 ring-ink-300 p-3.5 text-center"
-                  >
-                    <div className="text-ink-950 text-base font-bold tracking-wide leading-tight">{game.title}</div>
-                    {game.caption && <div className="text-ink-600 text-[10px] font-medium mt-0.5">{game.caption}</div>}
-                    <div className="text-ink-600 text-[10px] mt-1.5 flex items-center justify-center gap-1">
-                      <Icon name="seat" className="h-3 w-3" />
-                      {game.detail}
-                    </div>
-                    <div className="text-gold-600 text-[10px] font-semibold mt-1">バイイン {game.buyIn.toLocaleString()}</div>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-
             <RRRatingCard
               displayName={displayName}
               avatarKey={avatarKey}
@@ -739,8 +812,10 @@ export function Lobby({
               totalPayouts={stats?.totalPayouts ?? 0}
               history={tournamentHistory}
               onViewLeaderboard={() => setTab("leaderboard")}
-              onViewHistory={() => setTab("history")}
+              onViewHistory={() => setTab("tournaments")}
             />
+
+            <PlayButton games={GAMES} onJoin={onJoin} />
 
             <div className="text-center space-y-2 pt-2">
               <p className="text-[10px] text-ink-500 leading-relaxed px-2">
@@ -761,32 +836,9 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-3"
           >
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-1">
-                <BackButton onClick={() => setTab("home")} />
-                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
-                  <Icon name="stats" className="h-4 w-4" /> Stats
-                </div>
-              </div>
-              <button onClick={() => setTab("leaderboard")} className="text-ink-700" aria-label="ランキングへ">
-                <Icon name="trophy" className="h-4 w-4" />
-              </button>
-            </div>
             {accessToken ? (
               stats ? (
                 <>
-                  {stats.nationalRank != null && (
-                    <AnimatedCard delay={0.02}>
-                      <div className="flex items-center justify-center gap-1.5 py-1">
-                        <Icon name="trophy" className="h-4 w-4 text-gold-500" />
-                        <span className="text-sm text-ink-850">
-                          全国 <span className="text-base font-bold text-ink-950 tabular-nums">{stats.nationalRank.toLocaleString()}</span> 位 /{" "}
-                          {stats.totalRankedPlayers.toLocaleString()} 人中
-                        </span>
-                      </div>
-                    </AnimatedCard>
-                  )}
-
                   <AnimatedCard delay={0.06}>
                     <div className="text-[10px] tracking-[0.2em] text-gold-600 font-semibold mb-2">収支</div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-4">
@@ -907,14 +959,11 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
+            <div className="text-center mb-4">
+              <h1 className="text-[20px] font-semibold text-ink-950">Leaderboard</h1>
+              <p className="text-[11px] text-ink-600 mt-1">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
+            </div>
             <SectionCard>
-              <div className="flex items-center gap-1 mb-1">
-                <BackButton onClick={() => setTab("home")} />
-                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
-                  <Icon name="trophy" className="h-4 w-4" /> Leaderboard
-                </div>
-              </div>
-              <p className="text-[11px] text-ink-600 mb-3">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
               {leaderboard === null ? (
                 <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
               ) : leaderboard.length === 0 ? (
@@ -963,13 +1012,10 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
+            <div className="text-center mb-4">
+              <h1 className="text-[20px] font-semibold text-ink-950">Hand History</h1>
+            </div>
             <SectionCard>
-              <div className="flex items-center gap-1 mb-3">
-                <BackButton onClick={() => setTab("home")} />
-                <div className="flex items-center gap-2 text-ink-950 font-semibold text-sm">
-                  <Icon name="layers" className="h-4 w-4" /> Hand History
-                </div>
-              </div>
               {!accessToken ? (
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
               ) : history === null ? (
@@ -1066,6 +1112,59 @@ export function Lobby({
                 </>
               )}
             </SectionCard>
+          </motion.div>
+        )}
+
+        {tab === "tournaments" && (
+          <motion.div
+            key="tournaments"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="text-center mb-4">
+              <h1 className="text-[20px] font-semibold text-ink-950">Tournament History</h1>
+            </div>
+            {!accessToken ? (
+              <SectionCard>
+                <div className="py-10 text-center text-ink-700 text-sm">トーナメント履歴の記録にはログインが必要です。</div>
+              </SectionCard>
+            ) : tournamentHistory === null ? (
+              <SectionCard>
+                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+              </SectionCard>
+            ) : tournamentHistory.length === 0 ? (
+              <SectionCard>
+                <div className="py-10 text-center text-ink-700 text-sm">トーナメントに参加すると履歴が表示されます。</div>
+              </SectionCard>
+            ) : (
+              <>
+                <AnimatedCard delay={0.02}>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <StatTile label="参加数" value={tournamentHistory.length.toLocaleString()} />
+                    <StatTile
+                      label="インマネ回数"
+                      value={tournamentHistory.filter((t) => t.finishPosition != null).length.toLocaleString()}
+                      valueClass="text-gold-600"
+                    />
+                    <StatTile
+                      label="インマネ率"
+                      value={`${Math.round(
+                        (tournamentHistory.filter((t) => t.finishPosition != null).length / tournamentHistory.length) * 100,
+                      )}%`}
+                      valueClass="text-gold-600"
+                    />
+                  </div>
+                </AnimatedCard>
+
+                <div className="space-y-2.5 mt-3">
+                  {[...tournamentHistory].reverse().map((t, i) => (
+                    <TournamentHistoryCard key={t.tournamentId} point={t} delay={Math.min(i * 0.03, 0.4)} />
+                  ))}
+                </div>
+              </>
+            )}
           </motion.div>
         )}
         </AnimatePresence>

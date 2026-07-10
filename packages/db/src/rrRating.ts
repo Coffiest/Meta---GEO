@@ -13,7 +13,56 @@ import { prisma } from "./client.js";
  * を母集団として毎回その場で計算する(RRPoker同様、キャッシュテーブルは持たない)。
  */
 
-const SHRINKAGE_K = 20;
+export const RR_RATING_SHRINKAGE_K = 20;
+
+export interface RRRatingPopulationStats {
+  mu: number;
+  sigma: number;
+}
+
+/**
+ * 母集団(終了済みトーナメントに1回以上参加した全実プレイヤー)のROI分布の平均・標準偏差。
+ * getTournamentHistory(bankroll.ts)がトナメごとの偏差値推移(近似値)を計算する際にも使う。
+ */
+export async function computeRRRatingPopulationStats(): Promise<RRRatingPopulationStats> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    select: { payout: true, tournament: { select: { buyIn: true } }, userId: true },
+  });
+
+  const byUser = new Map<string, { totalBuyIns: number; totalPayouts: number; plays: number }>();
+  for (const e of entries) {
+    let row = byUser.get(e.userId);
+    if (!row) {
+      row = { totalBuyIns: 0, totalPayouts: 0, plays: 0 };
+      byUser.set(e.userId, row);
+    }
+    row.totalBuyIns += e.tournament.buyIn;
+    row.totalPayouts += e.payout;
+    row.plays += 1;
+  }
+
+  const players = [...byUser.values()]
+    .filter((p) => p.totalBuyIns > 0)
+    .map((p) => ({ ...p, roi: p.totalPayouts / p.totalBuyIns }));
+
+  const mu = players.length > 0 ? players.reduce((sum, p) => sum + p.roi, 0) / players.length : 0;
+  const withAdjustedRoi = players.map((p) => {
+    const n = p.plays;
+    const adjustedROI = (n / (n + RR_RATING_SHRINKAGE_K)) * p.roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * mu;
+    return adjustedROI;
+  });
+  const sigma = Math.sqrt(withAdjustedRoi.reduce((sum, roi) => sum + Math.pow(roi - mu, 2), 0) / (withAdjustedRoi.length || 1));
+
+  return { mu, sigma };
+}
+
+/** 母集団のmu/sigmaを固定した上で、adjustedROIから単発のトナメ偏差値を計算する。 */
+export function ratingFromAdjustedRoi(adjustedRoi: number, stats: RRRatingPopulationStats): number {
+  return stats.sigma !== 0 ? Number((50 + 10 * ((adjustedRoi - stats.mu) / stats.sigma)).toFixed(2)) : 50;
+}
+
+const SHRINKAGE_K = RR_RATING_SHRINKAGE_K;
 
 export interface RRRatingEntry {
   userId: string;

@@ -135,8 +135,9 @@ export function HandClassMatrix({
                 .map(([bucket, count]) => {
                   const pct = Math.round((count / hover.cell.count) * 100);
                   return (
-                    <div key={bucket} className="flex items-center gap-2">
-                      <span className="w-24 shrink-0 text-[10px] font-semibold truncate" style={{ color: bucketColor(bucket) }}>
+                    <div key={bucket} className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: bucketColor(bucket) }} />
+                      <span className="w-[74px] shrink-0 text-[10px] font-bold text-white truncate">
                         {bucketLabels[bucket] ?? bucket}
                       </span>
                       <div className="flex-1 h-2 rounded-full bg-navy-800 overflow-hidden">
