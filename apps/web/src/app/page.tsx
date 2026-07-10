@@ -23,9 +23,9 @@ const SUIT_BADGE_CLASS: Record<string, string> = {
 };
 
 function HandHistoryPill({ entry, bigBlind }: { entry: HandHistoryEntry; bigBlind: number }) {
-  const deltaClass = entry.deltaChips > 0 ? "text-mint-400" : entry.deltaChips < 0 ? "text-crimson-400" : "text-navy-400";
+  const deltaClass = entry.deltaChips > 0 ? "text-mint-600" : entry.deltaChips < 0 ? "text-crimson-500" : "text-ink-500";
   return (
-    <div className="flex items-center gap-1 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 px-1.5 py-1 shrink-0">
+    <div className="flex items-center gap-1 rounded-full bg-white border border-ink-950 px-1.5 py-1 shrink-0">
       {entry.cards.map((c, i) => {
         const rank = c.slice(0, -1);
         const suit = c.slice(-1);
@@ -93,19 +93,19 @@ function SettingsPopover({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-navy-900 ring-1 ring-navy-700 shadow-panel p-2 space-y-1">
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-white border border-ink-950 p-2 space-y-1">
         <button
           onClick={() => {
             onClose();
             onShowStructure();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-navy-200 hover:bg-navy-800 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
         >
           ブラインドストラクチャを見る
         </button>
         {confirmingLeave ? (
-          <div className="rounded-xl bg-navy-800 p-3 space-y-2">
-            <p className="text-xs text-navy-300">チップを破棄して離脱します。この操作は取り消せません。</p>
+          <div className="rounded-xl bg-ink-100 p-3 space-y-2">
+            <p className="text-xs text-ink-600">チップを破棄して離脱します。この操作は取り消せません。</p>
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
@@ -115,7 +115,7 @@ function SettingsPopover({
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
-                className="flex-1 rounded-lg bg-navy-700 text-navy-200 text-xs py-2"
+                className="flex-1 rounded-lg bg-ink-200 text-ink-800 text-xs py-2"
               >
                 やめる
               </button>
@@ -124,7 +124,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-400 hover:bg-navy-800 transition-colors"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-colors"
           >
             チップを破棄してゲームから離脱
           </button>
@@ -199,17 +199,17 @@ function GameScreen({
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-navy-950">
+    <div className="min-h-screen flex flex-col bg-white">
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
         {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示) */}
-        <div className="shrink-0 rounded-xl bg-navy-900/80 ring-1 ring-navy-700/50 px-2.5 py-1.5 leading-tight">
-          <div className="text-[11px] font-semibold text-navy-100 tabular-nums">
+        <div className="shrink-0 rounded-xl bg-white border border-ink-950 px-2.5 py-1.5 leading-tight">
+          <div className="text-[11px] font-semibold text-ink-950 tabular-nums">
             {level ? `Lv.${level.level}  ${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "Lv.-"}
-            {level && level.bbAnte > 0 && <span className="text-navy-400"> ({level.bbAnte.toLocaleString()})</span>}
+            {level && level.bbAnte > 0 && <span className="text-ink-500"> ({level.bbAnte.toLocaleString()})</span>}
           </div>
-          <div className="text-[10px] text-navy-400 tabular-nums">
-            次のレベルまで <span className="text-mint-400 font-medium">{countdown}</span>
-            {gameKey === "mtt" && <span className="ml-1 text-navy-500">MTT</span>}
+          <div className="text-[10px] text-ink-500 tabular-nums">
+            次のレベルまで <span className="text-ink-950 font-semibold">{countdown}</span>
+            {gameKey === "mtt" && <span className="ml-1 text-ink-400">MTT</span>}
           </div>
         </div>
 
@@ -221,7 +221,7 @@ function GameScreen({
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-8 w-8 rounded-full bg-navy-900/80 ring-1 ring-navy-700/50 flex items-center justify-center text-navy-300"
+          className="shrink-0 h-8 w-8 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800"
           aria-label="設定"
         >
           ⚙
@@ -240,7 +240,7 @@ function GameScreen({
 
       <main className="flex-1 flex flex-col justify-center px-2">
         {spectating ? (
-          <div className="text-center text-navy-400 text-sm py-20">
+          <div className="text-center text-ink-500 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
           </div>
         ) : (
@@ -268,21 +268,21 @@ function GameScreen({
             initial={{ opacity: 0, y: 12, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl bg-navy-900 ring-1 ring-navy-700 shadow-panel p-3.5"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl bg-white border border-ink-950 p-3.5"
           >
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
-              <div className="text-xs font-semibold text-navy-50">
+              <div className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+              <div className="text-xs font-semibold text-ink-950">
                 {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "開始まで待機中…"}
               </div>
             </div>
-            <div className="text-[11px] text-navy-400 mt-1.5">
+            <div className="text-[11px] text-ink-600 mt-1.5">
               {matching ? `${matching.registered} / ${matching.needed} 人集まりました` : `${waiting!.registered} / ${waiting!.needed} 人登録済み`}
             </div>
             {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-navy-500 mt-0.5">残り{matchingSecondsLeft}秒でBOTが自動補充されます</div>
+              <div className="text-[11px] text-ink-500 mt-0.5">残り{matchingSecondsLeft}秒でBOTが自動補充されます</div>
             )}
-            {waiting && <div className="text-[11px] text-navy-500 mt-0.5">4人集まり次第すぐに開始します</div>}
+            {waiting && <div className="text-[11px] text-ink-500 mt-0.5">4人集まり次第すぐに開始します</div>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -293,7 +293,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/15 ring-1 ring-crimson-500/40 text-crimson-300 text-xs px-4 py-1.5 text-center"
+            className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/10 ring-1 ring-crimson-500/40 text-crimson-600 text-xs px-4 py-1.5 text-center"
           >
             {actionError ?? joinError}
           </motion.div>
@@ -305,11 +305,11 @@ function GameScreen({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-30 flex items-center justify-center bg-navy-950/90 backdrop-blur px-6"
+            className="fixed inset-0 z-30 flex items-center justify-center bg-white/95 backdrop-blur px-6"
           >
             <div className="text-center space-y-4">
-              <div className="text-gold-500 text-xs tracking-[0.3em]">TOURNAMENT RESULT</div>
-              <div className="text-3xl font-bold text-navy-50">
+              <div className="text-ink-500 text-xs tracking-[0.3em] font-semibold">TOURNAMENT RESULT</div>
+              <div className="text-3xl font-bold text-ink-950">
                 {tournamentOver.yourFinishPosition === 1
                   ? "優勝 🏆"
                   : tournamentOver.yourFinishPosition !== null
@@ -317,11 +317,11 @@ function GameScreen({
                     : "トーナメント終了"}
               </div>
               {tournamentOver.yourPayout > 0 && (
-                <div className="text-mint-400 text-lg font-semibold tabular-nums">賞金 +{tournamentOver.yourPayout.toLocaleString()}</div>
+                <div className="text-mint-600 text-lg font-semibold tabular-nums">賞金 +{tournamentOver.yourPayout.toLocaleString()}</div>
               )}
               <button
                 onClick={onExit}
-                className="mt-2 rounded-xl bg-gold-500 text-ink-950 text-sm font-semibold px-8 py-3 active:scale-[0.97] transition-transform"
+                className="mt-2 rounded-xl bg-ink-950 text-white text-sm font-semibold px-8 py-3 active:scale-[0.97] transition-transform"
               >
                 ロビーへ戻る
               </button>

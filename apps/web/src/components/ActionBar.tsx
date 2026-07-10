@@ -111,8 +111,8 @@ export function ActionBar({
 
   if (!isYourTurn) {
     return (
-      <div className="safe-area-bottom px-4 pb-4 pt-3">
-        <div className="mx-auto max-w-md rounded-2xl bg-navy-900/70 ring-1 ring-navy-700/50 py-3 text-center text-xs text-navy-400 tracking-wide">
+      <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
+        <div className="mx-auto max-w-md rounded-2xl bg-ink-100 py-3 text-center text-xs text-ink-500 tracking-wide">
           相手のアクションを待っています…
         </div>
       </div>
@@ -127,7 +127,7 @@ export function ActionBar({
   const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
   return (
-    <div className="safe-area-bottom px-4 pb-4 pt-3">
+    <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
       <div className="mx-auto max-w-md space-y-2">
         {!raiseDisabled && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
@@ -135,10 +135,10 @@ export function ActionBar({
               <button
                 key={preset.label}
                 onClick={() => setRaiseTo(preset.toAmount)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums transition-colors ${
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums border transition-colors ${
                   raiseTo === preset.toAmount
-                    ? "bg-navy-100 text-navy-950"
-                    : "bg-navy-800 text-navy-200 ring-1 ring-navy-600/60"
+                    ? "bg-ink-950 text-white border-ink-950"
+                    : "bg-white text-ink-800 border-ink-950"
                 }`}
               >
                 {preset.label}
@@ -146,7 +146,7 @@ export function ActionBar({
             ))}
             <button
               onClick={() => setShowCustom((v) => !v)}
-              className="shrink-0 rounded-full h-8 w-8 flex items-center justify-center bg-navy-800 text-navy-300 ring-1 ring-navy-600/60"
+              className="shrink-0 rounded-full h-8 w-8 flex items-center justify-center bg-white text-ink-800 border border-ink-950"
               aria-label="カスタム額を指定"
             >
               {showCustom ? "︿" : "︾"}
@@ -169,7 +169,7 @@ export function ActionBar({
           <button
             disabled={raiseDisabled}
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 rounded-xl bg-ink-950 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
             {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
           </button>
@@ -184,14 +184,14 @@ export function ActionBar({
                 if (Number.isNaN(bb)) return;
                 setRaiseTo(clampToRange(Math.round(bb * bigBlind)));
               }}
-              className="w-16 rounded-xl bg-navy-800 text-navy-100 text-sm text-center tabular-nums ring-1 ring-navy-600/60 focus:outline-none focus:ring-gold-500"
+              className="w-16 rounded-xl bg-white text-ink-950 text-sm text-center tabular-nums border border-ink-950 focus:outline-none"
             />
           )}
         </div>
 
         <button
           onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-          className="w-full rounded-xl bg-gold-500 text-ink-950 text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
+          className="w-full rounded-xl bg-mint-600 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
         >
           {canCheck ? "チェック" : `コール ${formatBb(toCall, bigBlind)}`}
         </button>
@@ -199,7 +199,7 @@ export function ActionBar({
         {!canCheck && (
           <button
             onClick={() => onAction({ kind: "fold" })}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-transparent ring-1 ring-navy-600 text-navy-200 text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
           >
             フォールド
           </button>

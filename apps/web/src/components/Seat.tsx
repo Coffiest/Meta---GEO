@@ -18,7 +18,7 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   raise: "bg-crimson-500 text-white",
   lose: "bg-crimson-500 text-white",
   // フォールドは他のアクションに比べて目立たせる意味が無いため、控えめな地味トーンにする
-  fold: "bg-navy-700/70 text-navy-400",
+  fold: "bg-white border border-ink-300 text-ink-500",
 };
 
 export interface SeatViewProps {
@@ -84,28 +84,28 @@ export function Seat({
           isEmpty
             ? "bg-transparent"
             : folded
-              ? "bg-navy-850/40"
-              : "bg-navy-850/90 backdrop-blur ring-1 ring-navy-600/60 shadow-seat"
-        } ${isActingSeat ? "ring-2 ring-gold-500" : ""}`}
+              ? "bg-white/50 border border-ink-950/30"
+              : "bg-white border border-ink-950 shadow-seat"
+        } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
       >
         {!isEmpty && (
           <>
             <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
             <div className="text-left min-w-0">
-              <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-navy-100`}>
+              <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-ink-950`}>
                 {name}
               </div>
               <div className="flex items-center gap-1 mt-[1px]">
                 {position && (
-                  <span className="rounded bg-gold-500 text-ink-950 text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
+                  <span className="rounded bg-ink-950 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
                     {position}
                   </span>
                 )}
-                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} font-semibold text-navy-100 tabular-nums`}>
+                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} font-semibold text-ink-800 tabular-nums`}>
                   {formatBb(stack, bigBlind)}
                 </span>
               </div>
-              {status === "allIn" && <div className="text-[9px] text-crimson-400 font-medium">ALL IN</div>}
+              {status === "allIn" && <div className="text-[9px] text-crimson-500 font-medium">ALL IN</div>}
             </div>
           </>
         )}
@@ -131,7 +131,7 @@ export function Seat({
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.6 }}
-              className="rounded-full bg-navy-800/90 ring-1 ring-navy-600/60 px-2.5 py-0.5 text-[10px] font-medium text-navy-200 tabular-nums"
+              className="rounded-full bg-white border border-ink-950 px-2.5 py-0.5 text-[10px] font-semibold text-ink-800 tabular-nums"
             >
               {formatBb(streetContribution, bigBlind)}
             </motion.div>

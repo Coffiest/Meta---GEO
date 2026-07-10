@@ -77,7 +77,7 @@ function DealerButton({ displaySlot }: { displaySlot: number }) {
   return (
     <motion.div
       layout
-      className={`absolute z-20 h-7 w-7 rounded-full bg-white text-ink-950 text-[12px] font-black flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.5)] ring-2 ring-gold-500 ${layout}`}
+      className={`absolute z-20 h-7 w-7 rounded-full bg-white text-ink-950 text-[12px] font-black flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.5)] ring-2 ring-ink-950 ${layout}`}
       transition={{ type: "spring", stiffness: 300, damping: 26 }}
     >
       D
@@ -188,11 +188,11 @@ export function PokerTable({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={onToggleTimeBank}
-          className={`absolute z-20 bottom-[6%] left-[2%] flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors ${
-            timeBank.armed ? "bg-gold-500 text-ink-950" : "bg-white text-navy-900 ring-1 ring-black/10"
+          className={`absolute z-20 bottom-[6%] left-[2%] flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors border ${
+            timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
           }`}
         >
-          <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-ink-950/20" : "ring-1 ring-navy-400"}`}>
+          <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
             {timeBank.armed ? "✓" : ""}
           </span>
           タイムバンク({timeBank.cards})
