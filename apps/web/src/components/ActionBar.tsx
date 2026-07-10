@@ -102,11 +102,9 @@ export function ActionBar({
   onAction: (action: PlayerAction) => void;
 }) {
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
-  const [showCustom, setShowCustom] = useState(false);
 
   useEffect(() => {
     setRaiseTo(minRaiseToAmount);
-    setShowCustom(false);
   }, [minRaiseToAmount, isYourTurn]);
 
   if (!isYourTurn) {
@@ -125,6 +123,8 @@ export function ActionBar({
   const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
   const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind });
   const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
+  const sliderRange = Math.max(1, maxRaiseToAmount - minRaiseToAmount);
+  const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
 
   return (
     <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
@@ -144,36 +144,20 @@ export function ActionBar({
                 {preset.label}
               </button>
             ))}
-            <button
-              onClick={() => setShowCustom((v) => !v)}
-              className="shrink-0 rounded-full h-8 w-8 flex items-center justify-center bg-white text-ink-800 border border-ink-950"
-              aria-label="カスタム額を指定"
-            >
-              {showCustom ? "︿" : "︾"}
-            </button>
           </div>
         )}
 
-        {showCustom && !raiseDisabled && (
-          <input
-            type="range"
-            min={minRaiseToAmount}
-            max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
-            value={raiseTo}
-            onChange={(e) => setRaiseTo(Number(e.target.value))}
-            className="w-full accent-crimson-500"
-          />
-        )}
-
-        <div className="flex gap-2">
-          <button
-            disabled={raiseDisabled}
-            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
-          >
-            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
-          </button>
-          {!raiseDisabled && (
+        {!raiseDisabled && (
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={minRaiseToAmount}
+              max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
+              value={raiseTo}
+              onChange={(e) => setRaiseTo(Number(e.target.value))}
+              className="bet-slider flex-1"
+              style={{ background: `linear-gradient(to right, #0a0a0a ${sliderPct}%, #e5e5e5 ${sliderPct}%)` }}
+            />
             <input
               type="number"
               inputMode="decimal"
@@ -184,9 +168,19 @@ export function ActionBar({
                 if (Number.isNaN(bb)) return;
                 setRaiseTo(clampToRange(Math.round(bb * bigBlind)));
               }}
-              className="w-16 rounded-xl bg-white text-ink-950 text-sm text-center tabular-nums border border-ink-950 focus:outline-none"
+              className="w-16 shrink-0 rounded-xl bg-white text-ink-950 text-sm text-center tabular-nums border border-ink-950 focus:outline-none"
             />
-          )}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            disabled={raiseDisabled}
+            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
+            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+          >
+            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
+          </button>
         </div>
 
         <button
