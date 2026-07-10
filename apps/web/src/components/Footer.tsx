@@ -13,14 +13,14 @@ export interface FooterNavItem {
 
 const FOOTER_TONE = {
   light: {
-    bar: "border-ink-300 bg-ink-50/95",
-    active: "text-gold-600",
-    activePill: "bg-gold-500/10",
+    bar: "footer-glass-light border-ink-300/60",
+    active: "text-ink-950",
+    activePill: "bg-ink-950/[0.06]",
     inactive: "text-ink-500",
-    dbRing: "ring-ink-50",
+    dbRing: "ring-white",
   },
   dark: {
-    bar: "border-navy-800 bg-navy-950/95",
+    bar: "border-navy-800 bg-navy-950/95 backdrop-blur",
     active: "text-gold-400",
     activePill: "bg-gold-500/10",
     inactive: "text-navy-500",
@@ -74,8 +74,9 @@ function FooterButton({ item, active, tone }: { item: FooterNavItem; active: boo
   const c = FOOTER_TONE[tone];
   const content = (
     <>
-      <div className={`h-7 w-7 rounded-full flex items-center justify-center transition-colors ${active ? c.activePill : ""}`}>
+      <div className={`relative h-7 w-7 rounded-full flex items-center justify-center transition-colors ${active ? c.activePill : ""}`}>
         <Icon name={item.icon} className="h-[18px] w-[18px]" />
+        {active && <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-current" />}
       </div>
       <span className="text-[9px] font-semibold">{item.label}</span>
     </>

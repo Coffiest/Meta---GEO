@@ -20,7 +20,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="relative flex justify-center py-2" style={{ minHeight: 76 }}>
+    <div className="relative flex justify-center py-2" style={{ minHeight: 86 }}>
       <AnimatePresence mode="popLayout">
         {!expanded ? (
           <motion.button
@@ -32,9 +32,9 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", damping: 20, stiffness: 260 }}
             onClick={() => setExpanded(true)}
-            className="relative flex h-[64px] w-[220px] items-center justify-center rounded-full bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600 shadow-panel"
+            className="relative flex h-[76px] w-[260px] items-center justify-center rounded-[26px] bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600 shadow-[0_10px_32px_-8px_rgba(212,145,10,0.55),0_2px_8px_rgba(0,0,0,0.15)]"
           >
-            <span className="text-[17px] font-bold tracking-wide text-navy-950">プレイする</span>
+            <span className="text-[19px] font-black tracking-wide text-ink-950">プレイする</span>
           </motion.button>
         ) : (
           <motion.div key="split" className="flex items-center gap-4">
