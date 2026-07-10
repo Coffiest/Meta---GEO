@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatBb } from "@/lib/format";
+import type { TimeBankInfo } from "@/lib/socket";
 
 interface Preset {
   label: string;
@@ -88,6 +90,8 @@ export function ActionBar({
   canRaise,
   bigBlind,
   onAction,
+  timeBank,
+  onToggleTimeBank,
 }: {
   isYourTurn: boolean;
   street: string;
@@ -100,6 +104,11 @@ export function ActionBar({
   canRaise: boolean;
   bigBlind: number;
   onAction: (action: PlayerAction) => void;
+  /** タイムバンク。テーブル上の座席と同じ領域に浮かせて配置すると表示名の長さや
+   * ディーラーボタンの位置次第でどうしても干渉してしまうため、干渉しようがない
+   * アクションバー側の専用行に置く。 */
+  timeBank?: TimeBankInfo | null;
+  onToggleTimeBank?: () => void;
 }) {
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
 
@@ -107,11 +116,28 @@ export function ActionBar({
     setRaiseTo(minRaiseToAmount);
   }, [minRaiseToAmount, isYourTurn]);
 
+  const timeBankRow = timeBank && (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      onClick={onToggleTimeBank}
+      className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border ${
+        timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
+      }`}
+    >
+      <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
+        {timeBank.armed ? "✓" : ""}
+      </span>
+      タイムバンクを使用({timeBank.cards})
+    </motion.button>
+  );
+
   if (!isYourTurn) {
     return (
       <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
-        <div className="mx-auto max-w-md rounded-2xl bg-ink-100 py-3 text-center text-xs text-ink-500 tracking-wide">
-          相手のアクションを待っています…
+        <div className="mx-auto max-w-md space-y-2">
+          {timeBankRow}
+          <div className="rounded-2xl bg-ink-100 py-3 text-center text-xs text-ink-500 tracking-wide">相手のアクションを待っています…</div>
         </div>
       </div>
     );
@@ -129,6 +155,8 @@ export function ActionBar({
   return (
     <div className="safe-area-bottom px-4 pb-4 pt-3 bg-white border-t border-ink-200">
       <div className="mx-auto max-w-md space-y-2">
+        {timeBankRow}
+
         {!raiseDisabled && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
             {presets.map((preset) => (
@@ -177,27 +205,27 @@ export function ActionBar({
           <button
             disabled={raiseDisabled}
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 rounded-xl bg-crimson-500 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+            className="flex-1 rounded-xl bg-crimson-500 text-white text-[13px] font-semibold py-3 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
-            {raiseTo >= maxRaiseToAmount ? "オールイン" : `${isRaiseLabel ? "レイズ" : "ベット"} ${formatBb(raiseTo, bigBlind)}`}
+            {raiseTo >= maxRaiseToAmount ? "All In" : `${isRaiseLabel ? "Raise" : "Bet"} ${formatBb(raiseTo, bigBlind)}`}
           </button>
-        </div>
 
-        <button
-          onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-          className="w-full rounded-xl bg-mint-600 text-white text-sm font-semibold py-3.5 active:scale-[0.97] transition-transform"
-        >
-          {canCheck ? "チェック" : `コール ${formatBb(toCall, bigBlind)}`}
-        </button>
-
-        {!canCheck && (
           <button
-            onClick={() => onAction({ kind: "fold" })}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-azure-500 text-white text-sm font-medium py-3.5 active:scale-[0.97] transition-transform"
+            onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
+            className="flex-1 rounded-xl bg-mint-600 text-white text-[13px] font-semibold py-3 active:scale-[0.97] transition-transform"
           >
-            フォールド
+            {canCheck ? "Check" : `Call ${formatBb(toCall, bigBlind)}`}
           </button>
-        )}
+
+          {!canCheck && (
+            <button
+              onClick={() => onAction({ kind: "fold" })}
+              className="flex-1 rounded-xl bg-azure-500 text-white text-[13px] font-medium py-3 active:scale-[0.97] transition-transform"
+            >
+              Fold
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
