@@ -27,7 +27,7 @@ function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
   if (size === "sm") return "h-[38px] w-[27px] text-[10px]";
   if (size === "md") return "h-14 w-10 text-sm";
   if (size === "lg") return "h-20 w-14 text-lg";
-  if (size === "xl") return "h-28 w-20 text-2xl";
+  if (size === "xl") return "h-16 w-[46px] text-base";
   // ボードカード: 親セル(felt.pngの破線スロット幅に合わせた%幅)いっぱいに、カード画像
   // 本来の比率(744x1039)で描画する。枠の比率を画像と一致させることでobject-containの
   // レターボックス(=カードが枠より小さく見える問題)を無くす。

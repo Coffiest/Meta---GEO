@@ -164,23 +164,6 @@ export function PokerTable({
     <div className="relative w-full max-w-md max-h-full aspect-[3/4] mx-auto">
       <TableFelt />
 
-      {/* タイムバンク: 自分の席(常にスロット0=画面下)のすぐ左に、初見でもわかるよう常駐表示 */}
-      {timeBank && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          onClick={onToggleTimeBank}
-          className={`absolute z-20 bottom-[6%] left-[2%] flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors border ${
-            timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-          }`}
-        >
-          <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
-            {timeBank.armed ? "✓" : ""}
-          </span>
-          タイムバンクを使用({timeBank.cards})
-        </motion.button>
-      )}
-
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
       <div className="absolute inset-x-0 top-[33%] flex justify-center">
         <AnimatePresence mode="popLayout">
@@ -226,31 +209,67 @@ export function PokerTable({
             ? { endsAt: turnTimer.endsAt, durationMs: turnTimer.durationMs }
             : null;
 
+        const seatNode = (
+          <Seat
+            name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
+            avatarKey={player?.avatarKey ?? null}
+            position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
+            stack={seat?.stack ?? 0}
+            streetContribution={seat?.streetContribution ?? 0}
+            bigBlind={bigBlind}
+            status={status}
+            isActingSeat={state?.actingSeatIndex === seatIndex}
+            isHero={isHero}
+            holeCards={isHero ? (yourCards.length ? yourCards : [null, null]) : revealed ? revealed : [null, null]}
+            revealCards={isHero || Boolean(revealed)}
+            timer={timerForSeat}
+            size={isHero ? "lg" : "sm"}
+            isButton={state?.buttonFixedPos === seatIndex}
+            badge={badgeForSeat({
+              seatIndex,
+              seatStatus: status,
+              lastActionBySeat,
+              lastHandDeltaBySeat,
+              bigBlind,
+            })}
+          />
+        );
+
+        // 自分の席(スロット0)だけは、タイムバンクボタンを同じ行のgridセルに置く。
+        // 独立した絶対座標同士だと表示名の長さ次第でどうしても衝突するため、
+        // グリッドで並べて「レイアウト上ぶつかり得ない」構造にする(ディーラーボタンの
+        // 修正と同じ考え方)。
+        if (slot === 0) {
+          return (
+            <div key={seatIndex} className="absolute inset-x-2 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-1">
+              <div className="flex justify-start pb-1">
+                {timeBank && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={onToggleTimeBank}
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold shadow-card transition-colors border whitespace-nowrap ${
+                      timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
+                    }`}
+                  >
+                    <span
+                      className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}
+                    >
+                      {timeBank.armed ? "✓" : ""}
+                    </span>
+                    タイムバンクを使用({timeBank.cards})
+                  </motion.button>
+                )}
+              </div>
+              {seatNode}
+              <div />
+            </div>
+          );
+        }
+
         return (
           <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[slot]}`}>
-            <Seat
-              name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
-              avatarKey={player?.avatarKey ?? null}
-              position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
-              stack={seat?.stack ?? 0}
-              streetContribution={seat?.streetContribution ?? 0}
-              bigBlind={bigBlind}
-              status={status}
-              isActingSeat={state?.actingSeatIndex === seatIndex}
-              isHero={isHero}
-              holeCards={isHero ? (yourCards.length ? yourCards : [null, null]) : revealed ? revealed : [null, null]}
-              revealCards={isHero || Boolean(revealed)}
-              timer={timerForSeat}
-              size={isHero ? "lg" : "sm"}
-              isButton={state?.buttonFixedPos === seatIndex}
-              badge={badgeForSeat({
-                seatIndex,
-                seatStatus: status,
-                lastActionBySeat,
-                lastHandDeltaBySeat,
-                bigBlind,
-              })}
-            />
+            {seatNode}
           </div>
         );
       })}
