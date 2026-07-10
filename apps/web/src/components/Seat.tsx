@@ -90,11 +90,11 @@ export function Seat({
             ? "bg-transparent"
             : folded
               ? "bg-white/50 border border-ink-950/30"
-              : "bg-white border border-ink-950 shadow-seat"
+              : "bg-white border border-ink-950"
         } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
       >
         {isButton && !isEmpty && (
-          <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950 shadow-card">
+          <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950">
             D
           </div>
         )}
@@ -129,7 +129,7 @@ export function Seat({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            className={`rounded-full px-3 py-1 text-[12px] font-bold tabular-nums shadow-lg ring-2 ring-white/20 ${BADGE_TONE_CLASS[badge.tone]}`}
+            className={`rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ring-ink-950 ${BADGE_TONE_CLASS[badge.tone]}`}
           >
             {badge.text}
           </motion.div>

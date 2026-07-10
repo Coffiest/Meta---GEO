@@ -97,7 +97,7 @@ function FooterButton({ item, active, tone }: { item: FooterNavItem; active: boo
 }
 
 function CenterButton({ href, active, ringClass }: { href?: string; active: boolean; ringClass: string }) {
-  const className = `absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ${ringClass} shadow-panel flex flex-col items-center justify-center text-ink-950 transition-transform ${
+  const className = `absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-ink-800 via-ink-950 to-black ring-4 ${ringClass} shadow-panel flex flex-col items-center justify-center text-white transition-transform ${
     active ? "scale-105" : "active:scale-95"
   }`;
   const content = (
