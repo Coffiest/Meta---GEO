@@ -72,4 +72,29 @@ describe("Tournament", () => {
     const winnerSeat = tournament.getSeats().find((s) => s.playerId === winnerId)!;
     expect(winnerSeat.stack).toBe(600);
   });
+
+  it("forceEliminate immediately busts a seat instead of letting it survive by folding", () => {
+    const tournament = new Tournament({
+      seatCount: 6,
+      players: [
+        { playerId: "P0", displayName: "P0", seatIndex: 0 },
+        { playerId: "P1", displayName: "P1", seatIndex: 1 },
+        { playerId: "P2", displayName: "P2", seatIndex: 2 },
+      ],
+      startingStack: 20_000,
+    });
+
+    // P1が離脱: 即バスト扱いになり、以降occupiedSeats(=次のハンドの対象)から外れる。
+    tournament.forceEliminate(1);
+    const seat1 = tournament.getSeats().find((s) => s.playerId === "P1")!;
+    expect(seat1.bustedAtHand).not.toBeNull();
+
+    const hand = tournament.startNextHand();
+    expect(hand.getPublicState().seats.some((s) => s.seatIndex === 1)).toBe(false);
+
+    // 既にバスト済みの席へ再度呼んでも上書きしない(handNumberが進んでも値は変わらない)。
+    const bustedAtHandBefore = seat1.bustedAtHand;
+    tournament.forceEliminate(1);
+    expect(seat1.bustedAtHand).toBe(bustedAtHandBefore);
+  });
 });

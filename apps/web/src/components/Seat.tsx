@@ -37,6 +37,10 @@ export interface SeatViewProps {
   /** 手番の残り時間(アバター周囲のリングで表示)。この席がアクティブなときだけ渡す。 */
   timer?: { endsAt: number; durationMs: number } | null;
   size?: "sm" | "lg";
+  /** ディーラーボタン。座席の識別ピルに直接アタッチすることで、名前の長さに関わらず
+   * 手札やピルと絶対に重ならないようにする(絶対座標のフリー配置は席ごとに表示名の長さが
+   * 変わるため、どこかのポジションで必ず干渉してしまっていた)。 */
+  isButton?: boolean;
 }
 
 export function Seat({
@@ -54,6 +58,7 @@ export function Seat({
   badge,
   timer,
   size = "sm",
+  isButton = false,
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
@@ -66,7 +71,7 @@ export function Seat({
         folded ? "opacity-35" : "opacity-100"
       }`}
     >
-      <div className="flex gap-1">
+      <div className="relative z-30 flex gap-1">
         {showCards &&
           holeCards.map((c, i) => (
             <PlayingCard
@@ -88,6 +93,11 @@ export function Seat({
               : "bg-white border border-ink-950 shadow-seat"
         } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
       >
+        {isButton && !isEmpty && (
+          <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950 shadow-card">
+            D
+          </div>
+        )}
         {!isEmpty && (
           <>
             <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />

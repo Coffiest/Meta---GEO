@@ -296,6 +296,8 @@ export class TableSession implements GameSession {
     const [seatIndex, human] = entry;
     if (human.left) return;
     human.left = true;
+    // チップを破棄しての離脱は即敗退扱いにする(自動フォールドで生き残らせない)。
+    this.tournament?.forceEliminate(seatIndex);
     if (this.hand && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
       this.handlePlayerAction(seatIndex, { kind: "fold" });
     }

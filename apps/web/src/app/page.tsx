@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey, type HandHistoryEntry } from "@/lib/socket";
+import { usePokerSocket, type GameKey } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
-import { formatSignedBb } from "@/lib/format";
 import { useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -14,34 +13,6 @@ import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
 
 const SEAT_COUNT = 6;
-
-const SUIT_BADGE_CLASS: Record<string, string> = {
-  s: "bg-navy-500",
-  h: "bg-crimson-500",
-  d: "bg-azure-500",
-  c: "bg-mint-500",
-};
-
-function HandHistoryPill({ entry, bigBlind }: { entry: HandHistoryEntry; bigBlind: number }) {
-  const deltaClass = entry.deltaChips > 0 ? "text-mint-600" : entry.deltaChips < 0 ? "text-crimson-500" : "text-ink-500";
-  return (
-    <div className="flex items-center gap-1 rounded-full bg-white border border-ink-950 px-1.5 py-1 shrink-0">
-      {entry.cards.map((c, i) => {
-        const rank = c.slice(0, -1);
-        const suit = c.slice(-1);
-        return (
-          <span
-            key={i}
-            className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white ${SUIT_BADGE_CLASS[suit] ?? "bg-navy-500"}`}
-          >
-            {rank}
-          </span>
-        );
-      })}
-      <span className={`text-[10px] font-medium tabular-nums pr-0.5 ${deltaClass}`}>{formatSignedBb(entry.deltaChips, bigBlind)}</span>
-    </div>
-  );
-}
 
 /** 次のレベルまでの残り時間(mm:ss)。毎秒更新。 */
 function useLevelCountdown(endsAt: number | null): string {
@@ -158,7 +129,6 @@ function GameScreen({
     tournamentOver,
     actionError,
     players,
-    handHistory,
     lastActionBySeat,
     lastHandDeltaBySeat,
     turnTimer,
@@ -199,25 +169,22 @@ function GameScreen({
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
-        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示) */}
-        <div className="shrink-0 rounded-xl bg-white border border-ink-950 px-2.5 py-1.5 leading-tight">
-          <div className="text-[11px] font-semibold text-ink-950 tabular-nums">
-            {level ? `Lv.${level.level}  ${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "Lv.-"}
-            {level && level.bbAnte > 0 && <span className="text-ink-500"> ({level.bbAnte.toLocaleString()})</span>}
+    <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
+      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
+        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示) */}
+        <button
+          onClick={() => setStructureOpen(true)}
+          className="shrink-0 rounded-xl bg-ink-950 text-white px-3.5 py-2 leading-tight text-left active:scale-[0.97] transition-transform"
+        >
+          <div className="text-[13px] font-black tabular-nums">
+            Lv.{level?.level ?? "-"} {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : ""}
+            {level && level.bbAnte > 0 && <span className="text-white/60"> ({level.bbAnte.toLocaleString()})</span>}
           </div>
-          <div className="text-[10px] text-ink-500 tabular-nums">
-            次のレベルまで <span className="text-ink-950 font-semibold">{countdown}</span>
-            {gameKey === "mtt" && <span className="ml-1 text-ink-400">MTT</span>}
+          <div className="text-[11px] text-white/70 tabular-nums">
+            次のレベルまで <span className="text-white font-bold">{countdown}</span>
+            {gameKey === "mtt" && <span className="ml-1 text-white/50">MTT</span>}
           </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {handHistory.map((entry, i) => (
-            <HandHistoryPill key={i} entry={entry} bigBlind={bigBlind} />
-          ))}
-        </div>
+        </button>
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
@@ -238,7 +205,7 @@ function GameScreen({
         )}
       </header>
 
-      <main className="flex-1 flex flex-col justify-center px-2">
+      <main className="flex-1 min-h-0 flex flex-col justify-center px-2 overflow-hidden">
         {spectating ? (
           <div className="text-center text-ink-500 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。

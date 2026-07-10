@@ -134,6 +134,24 @@ export class MultiTableTournament {
   }
 
   /**
+   * チップを破棄しての離脱など、ハンドの結果によらず強制的にその席を今バストした扱いにする。
+   * バスト時と同じ経路(座席解放+テーブルバランス)を通す。呼び出し側は、対象の卓で
+   * ハンドが進行中でないタイミング(ハンド精算の直後など)でのみ呼ぶこと — 進行中のハンドの
+   * 座席をここで削除すると、そのハンドの実行中状態と食い違ってしまう。
+   */
+  forceEliminate(playerId: string): void {
+    for (const table of this.tables) {
+      for (const [seatIndex, seat] of table.seats) {
+        if (seat.playerId !== playerId) continue;
+        table.seats.delete(seatIndex);
+        this.events.push({ type: "handFinished", tableId: table.id, handNumber: this.handNumber, bustedPlayerIds: [playerId] });
+        this.rebalanceTables();
+        return;
+      }
+    }
+  }
+
+  /**
    * レイトレジストレーション: 進行中のトーナメントに開始スタックで途中参加させる。
    * ハンドとハンドの間(どの卓もハンド進行中でないタイミング)で呼び出すこと。
    * 空席のある卓のうち最も人数が少ない卓に着席し、満席なら新しい卓を増設する。

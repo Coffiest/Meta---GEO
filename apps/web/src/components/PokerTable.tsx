@@ -28,15 +28,6 @@ const SEAT_LAYOUT: Record<number, string> = {
   5: "top-[55%] right-[4%]",
 };
 
-const DEALER_LAYOUT: Record<number, string> = {
-  0: "bottom-[23%] left-1/2 translate-x-9",
-  1: "top-[58%] left-[22%]",
-  2: "top-[25%] left-[24%]",
-  3: "top-[14%] left-1/2 translate-x-11",
-  4: "top-[25%] right-[24%]",
-  5: "top-[58%] right-[22%]",
-};
-
 /**
  * `public/table/felt.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ現行の
  * 楕円グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
@@ -68,20 +59,6 @@ function TableFelt() {
       )}
       {showFrame && <div className="absolute inset-3 rounded-[46%] ring-1 ring-white/[0.04]" />}
     </div>
-  );
-}
-
-function DealerButton({ displaySlot }: { displaySlot: number }) {
-  const layout = DEALER_LAYOUT[displaySlot];
-  if (!layout) return null;
-  return (
-    <motion.div
-      layout
-      className={`absolute z-20 h-7 w-7 rounded-full bg-white text-ink-950 text-[12px] font-black flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.5)] ring-2 ring-ink-950 ${layout}`}
-      transition={{ type: "spring", stiffness: 300, damping: 26 }}
-    >
-      D
-    </motion.div>
   );
 }
 
@@ -177,10 +154,8 @@ export function PokerTable({
   const spr = state && state.potTotal > 0 ? effectiveStack / state.potTotal : null;
 
   return (
-    <div className="relative w-full aspect-[3/4] max-w-md mx-auto">
+    <div className="relative w-full max-w-md max-h-full aspect-[3/4] mx-auto">
       <TableFelt />
-
-      {state && <DealerButton displaySlot={displaySlotOf(state.buttonFixedPos)} />}
 
       {/* タイムバンク: 自分の席(常にスロット0=画面下)のすぐ左に、初見でもわかるよう常駐表示 */}
       {timeBank && (
@@ -195,7 +170,7 @@ export function PokerTable({
           <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
             {timeBank.armed ? "✓" : ""}
           </span>
-          タイムバンク({timeBank.cards})
+          タイムバンクを使用({timeBank.cards})
         </motion.button>
       )}
 
@@ -260,6 +235,7 @@ export function PokerTable({
               revealCards={isHero || Boolean(revealed)}
               timer={timerForSeat}
               size={isHero ? "lg" : "sm"}
+              isButton={state?.buttonFixedPos === seatIndex}
               badge={badgeForSeat({
                 seatIndex,
                 seatStatus: status,
