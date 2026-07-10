@@ -76,6 +76,11 @@ export function Avatar({
   const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
   const initial = (displayName?.trim()?.[0] ?? "?").toUpperCase();
   const bgClass = INITIAL_BG_CLASSES[hashToIndex(displayName ?? "?", INITIAL_BG_CLASSES.length)];
+  // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
+  // width/heightがコンテナいっぱいのまま縮まらず(right/bottomのinsetが無視される)リングと
+  // 中心がズレる原因になっていたため、top/left/width/heightをすべてpx値で明示する。
+  const pad = timer ? 6 : 3;
+  const innerBoxStyle = { top: pad, left: pad, width: size - pad * 2, height: size - pad * 2 };
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -85,12 +90,13 @@ export function Avatar({
           src={avatarKey}
           alt=""
           draggable={false}
-          className={`absolute rounded-full object-cover select-none ring-1 ring-black/20 ${timer ? "inset-[6px]" : "inset-[3px]"}`}
+          className="absolute rounded-full object-cover select-none ring-1 ring-black/20"
+          style={innerBoxStyle}
         />
       ) : (
         <div
-          className={`absolute rounded-full ${bgClass} flex items-center justify-center select-none ring-1 ring-black/20 text-white font-bold ${timer ? "inset-[6px]" : "inset-[3px]"}`}
-          style={{ fontSize: size * 0.4 }}
+          className={`absolute rounded-full ${bgClass} flex items-center justify-center select-none ring-1 ring-black/20 text-white font-bold`}
+          style={{ ...innerBoxStyle, fontSize: size * 0.4 }}
         >
           {initial}
         </div>
