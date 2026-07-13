@@ -34,16 +34,28 @@ function AppleIcon() {
   );
 }
 
+type Mode = "login" | "signup";
+
 /**
- * ログイン / 新規登録画面。丸いソーシャルアイコン(Apple/Google)+メールリンクの構成。
- * Supabase Authはサインアップとログインを区別しない(存在しなければ自動作成)ため、
- * 1画面で新規登録とログインの両方を兼ねる。
+ * ログイン / 新規登録画面。Supabase Authはサインアップとログインを区別しない(存在しなければ
+ * 自動作成)ため、実際の認証手段(Apple/Google/メールリンク)はどちらのモードでも全く同じだが、
+ * UI上は見出し・ボタン文言・下部リンクだけをモードに応じて出し分け、通常のログイン/新規登録
+ * 二画面フローに見えるようにしてある。
  */
 export function LoginScreen({ auth }: { auth: AuthState }) {
+  const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
+  const isLogin = mode === "login";
+
+  const switchMode = () => {
+    setMode(isLogin ? "signup" : "login");
+    setSent(false);
+    setError(null);
+  };
 
   const handleSendLink = async () => {
     if (!email.trim()) return;
@@ -56,74 +68,95 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 gap-8 bg-white">
-      <div className="text-center space-y-2">
-        <div className="flex items-center justify-center gap-1.5">
-          <span className="rounded-md border border-ink-950 px-1.5 py-0.5 text-[13px] font-black text-ink-950">A♠</span>
-          <span className="rounded-md border border-ink-950 px-1.5 py-0.5 text-[13px] font-black text-ink-950">R♥</span>
-        </div>
-        <div className="text-[13px] tracking-[0.3em] text-ink-500 font-semibold">
-          POKER <span className="text-gold-600">ART</span>
-        </div>
-        <h1 className="text-2xl font-semibold text-ink-950">ログイン / 新規登録</h1>
-        <p className="text-sm text-ink-700 max-w-xs mx-auto">
-          バーチャルチップのみで遊べるトーナメントです。実際の金銭のやり取りはありません。
-        </p>
-      </div>
-
-      <div className="w-full max-w-xs space-y-4">
-        <div className="flex items-center justify-center gap-4">
-          <button
-            onClick={() => auth.signInWithApple()}
-            aria-label="Appleでログイン"
-            className="h-14 w-14 rounded-full bg-ink-950 flex items-center justify-center active:scale-90 transition-transform"
-          >
-            <AppleIcon />
-          </button>
-          <button
-            onClick={() => auth.signInWithGoogle()}
-            aria-label="Googleでログイン"
-            className="h-14 w-14 rounded-full bg-white border border-ink-950 flex items-center justify-center active:scale-90 transition-transform"
-          >
-            <GoogleIcon />
-          </button>
-        </div>
-
-        <p className="text-[10px] text-ink-600 text-center leading-relaxed">
-          同じメールアドレスのApple/Googleアカウントは、同じプレイヤーアカウントとして扱われます。
-        </p>
-
-        <div className="flex items-center gap-3 py-1">
-          <div className="h-px flex-1 bg-ink-300" />
-          <span className="text-[11px] text-ink-600">または メールで続ける</span>
-          <div className="h-px flex-1 bg-ink-300" />
-        </div>
-
-        {sent ? (
-          <div className="rounded-xl bg-ink-100 border border-ink-300 px-4 py-4 text-sm text-ink-850 text-center">
-            <span className="font-semibold text-ink-950">{email}</span> 宛にログインリンクを送りました。
-            メール内のリンクを開くとログインできます。
+    <div className="min-h-screen flex items-center justify-center px-5 py-10 bg-ink-100">
+      <div className="w-full max-w-sm rounded-[28px] bg-white ring-[1.5px] ring-ink-950 overflow-hidden">
+        {/* ヒーロー部: 北欧風デザインの黒地+波カーブをごく一部だけ引用。下端をborder-radiusの
+            楕円カーブ(50% 28px)で一峰の波型に切る(SVGの絶対配置による重ね合わせより
+            確実に描画できる)。 */}
+        <div
+          className="bg-ink-950 pt-8 pb-11 px-6 text-center"
+          style={{ borderBottomLeftRadius: "50% 28px", borderBottomRightRadius: "50% 28px" }}
+        >
+          <div className="flex items-center justify-center gap-1.5 mb-3">
+            <span className="rounded-md border border-white/40 px-1.5 py-0.5 text-[12px] font-black text-white">A♠</span>
+            <span className="rounded-md border border-white/40 px-1.5 py-0.5 text-[12px] font-black text-white">R♥</span>
           </div>
-        ) : (
-          <>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
-              type="email"
-              placeholder="メールアドレス"
-              className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-500 focus:outline-none focus:border-ink-950"
-            />
-            {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
-            <button
-              onClick={handleSendLink}
-              disabled={sending || !email.trim()}
-              className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3 active:scale-[0.98] transition-transform disabled:opacity-40"
-            >
-              {sending ? "送信中…" : "ログインリンクを送る"}
+          <h1 className="text-[26px] font-black text-white tracking-tight">{isLogin ? "ログイン" : "新規登録"}</h1>
+          <p className="text-[12px] text-white/60 mt-1">バーチャルチップ専用。実際の金銭のやり取りはありません。</p>
+        </div>
+
+        <div className="px-6 pt-8 pb-7 space-y-5">
+          <div>
+            <p className="text-[11px] font-bold text-ink-600 text-center mb-3 tracking-wide">
+              {isLogin ? "アカウントで続ける" : "アカウントを作成"}
+            </p>
+            <div className="flex items-center justify-center gap-6">
+              <button
+                onClick={() => auth.signInWithApple()}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <span className="h-14 w-14 rounded-full bg-ink-950 flex items-center justify-center">
+                  <AppleIcon />
+                </span>
+                <span className="text-[11px] font-semibold text-ink-800">Apple</span>
+              </button>
+              <button
+                onClick={() => auth.signInWithGoogle()}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <span className="h-14 w-14 rounded-full bg-white border border-ink-950 flex items-center justify-center">
+                  <GoogleIcon />
+                </span>
+                <span className="text-[11px] font-semibold text-ink-800">Google</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-ink-300" />
+            <span className="text-[11px] text-ink-500 shrink-0">または メールで続ける</span>
+            <div className="h-px flex-1 bg-ink-300" />
+          </div>
+
+          {sent ? (
+            <div className="rounded-xl bg-ink-100 border border-ink-300 px-4 py-4 text-sm text-ink-850 text-center">
+              <span className="font-semibold text-ink-950">{email}</span> 宛に{isLogin ? "ログイン" : "登録"}リンクを送りました。
+              メール内のリンクを開くと{isLogin ? "ログイン" : "登録"}できます。
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-[12px] font-bold text-ink-800 mb-1.5">メールアドレス</label>
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
+                  type="email"
+                  placeholder="mail@example.com"
+                  className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-ink-950"
+                />
+              </div>
+              {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
+              <button
+                onClick={handleSendLink}
+                disabled={sending || !email.trim()}
+                className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3.5 active:scale-[0.98] transition-transform disabled:opacity-40"
+              >
+                {sending ? "送信中…" : isLogin ? "ログインリンクを送る" : "登録リンクを送る"}
+              </button>
+            </>
+          )}
+
+          <p className="text-[10px] text-ink-500 text-center leading-relaxed">
+            同じメールアドレスのApple/Googleアカウントは、同じプレイヤーアカウントとして扱われます。
+          </p>
+
+          <p className="text-center text-[13px] pt-1">
+            <button onClick={switchMode} className="text-ink-950 font-semibold underline decoration-dashed underline-offset-4">
+              {isLogin ? "アカウントをお持ちでない方はこちら" : "すでにアカウントをお持ちの方はこちら"}
             </button>
-          </>
-        )}
+          </p>
+        </div>
       </div>
     </div>
   );
