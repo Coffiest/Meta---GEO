@@ -34,129 +34,151 @@ function AppleIcon() {
   );
 }
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "reset";
 
-/**
- * ログイン / 新規登録画面。Supabase Authはサインアップとログインを区別しない(存在しなければ
- * 自動作成)ため、実際の認証手段(Apple/Google/メールリンク)はどちらのモードでも全く同じだが、
- * UI上は見出し・ボタン文言・下部リンクだけをモードに応じて出し分け、通常のログイン/新規登録
- * 二画面フローに見えるようにしてある。
- */
+/** ログイン / 新規登録画面。参考デザイン(タイトル→ソーシャルログイン→メール/パスワード入力
+ * →送信ボタン→下部リンク)を元に、実際に配線されている認証手段だけで構成している。
+ * メール+パスワードでのログイン・新規登録はSupabase Authが別々のAPIを持つため、ここでは
+ * ログイン/新規登録を見た目だけでなく実際に別の処理として扱う(以前のマジックリンク方式とは
+ * 異なり、両モードは完全に別物)。 */
 export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const isLogin = mode === "login";
-
-  const switchMode = () => {
-    setMode(isLogin ? "signup" : "login");
-    setSent(false);
+  const resetFeedback = () => {
     setError(null);
+    setInfo(null);
   };
 
-  const handleSendLink = async () => {
+  const goTo = (next: Mode) => {
+    setMode(next);
+    resetFeedback();
+  };
+
+  const handleSubmit = async () => {
     if (!email.trim()) return;
-    setSending(true);
-    setError(null);
-    const { error } = await auth.sendMagicLink(email.trim());
-    setSending(false);
-    if (error) setError(error);
-    else setSent(true);
+    if (mode !== "reset" && !password) return;
+
+    setSubmitting(true);
+    resetFeedback();
+
+    if (mode === "login") {
+      const { error } = await auth.signInWithPassword(email.trim(), password);
+      if (error) setError(error);
+    } else if (mode === "signup") {
+      const { error, needsConfirmation } = await auth.signUpWithPassword(email.trim(), password);
+      if (error) setError(error);
+      else if (needsConfirmation) setInfo(`${email} 宛に確認メールを送りました。メール内のリンクを開くと登録が完了します。`);
+    } else {
+      const { error } = await auth.resetPassword(email.trim());
+      if (error) setError(error);
+      else setInfo(`${email} 宛にパスワード再設定用のリンクを送りました。`);
+    }
+
+    setSubmitting(false);
   };
+
+  const title = mode === "login" ? "ログイン" : mode === "signup" ? "新規登録" : "パスワードの再設定";
+  const submitLabel = mode === "login" ? "ログイン" : mode === "signup" ? "新規登録" : "リセットリンクを送る";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-5 py-10 bg-ink-100">
-      <div className="w-full max-w-sm rounded-[28px] bg-white ring-[1.5px] ring-ink-950 overflow-hidden">
-        {/* ヒーロー部: 北欧風デザインの黒地+波カーブをごく一部だけ引用。下端をborder-radiusの
-            楕円カーブ(50% 28px)で一峰の波型に切る(SVGの絶対配置による重ね合わせより
-            確実に描画できる)。 */}
-        <div
-          className="bg-ink-950 pt-8 pb-11 px-6 text-center"
-          style={{ borderBottomLeftRadius: "50% 28px", borderBottomRightRadius: "50% 28px" }}
-        >
-          <div className="flex items-center justify-center gap-1.5 mb-3">
-            <span className="rounded-md border border-white/40 px-1.5 py-0.5 text-[12px] font-black text-white">A♠</span>
-            <span className="rounded-md border border-white/40 px-1.5 py-0.5 text-[12px] font-black text-white">R♥</span>
-          </div>
-          <h1 className="text-[26px] font-black text-white tracking-tight">{isLogin ? "ログイン" : "新規登録"}</h1>
-          <p className="text-[12px] text-white/60 mt-1">バーチャルチップ専用。実際の金銭のやり取りはありません。</p>
-        </div>
+    <div className="min-h-screen flex flex-col items-center px-5 pt-14 pb-10 bg-white">
+      <h1 className="text-2xl font-bold text-ink-950 mb-6">{title}</h1>
 
-        <div className="px-6 pt-8 pb-7 space-y-5">
-          <div>
-            <p className="text-[11px] font-bold text-ink-600 text-center mb-3 tracking-wide">
-              {isLogin ? "アカウントで続ける" : "アカウントを作成"}
-            </p>
-            <div className="flex items-center justify-center gap-6">
+      <div className="w-full max-w-sm rounded-2xl border border-ink-300 p-6 space-y-5">
+        {mode !== "reset" && (
+          <>
+            <div className="flex items-center justify-center gap-8">
+              <button
+                onClick={() => auth.signInWithGoogle()}
+                className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
+              >
+                <span className="h-14 w-14 rounded-full border border-ink-300 flex items-center justify-center">
+                  <GoogleIcon />
+                </span>
+                <span className="text-[12px] text-ink-800">Google</span>
+              </button>
               <button
                 onClick={() => auth.signInWithApple()}
-                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+                className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
               >
                 <span className="h-14 w-14 rounded-full bg-ink-950 flex items-center justify-center">
                   <AppleIcon />
                 </span>
-                <span className="text-[11px] font-semibold text-ink-800">Apple</span>
-              </button>
-              <button
-                onClick={() => auth.signInWithGoogle()}
-                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
-              >
-                <span className="h-14 w-14 rounded-full bg-white border border-ink-950 flex items-center justify-center">
-                  <GoogleIcon />
-                </span>
-                <span className="text-[11px] font-semibold text-ink-800">Google</span>
+                <span className="text-[12px] text-ink-800">Apple</span>
               </button>
             </div>
+
+            <div className="h-px bg-ink-200" />
+          </>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[13px] font-semibold text-ink-950 mb-1.5">メールアドレス</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !password && mode === "reset" && handleSubmit()}
+              type="email"
+              placeholder="mail@example.com"
+              className="w-full rounded-lg border border-ink-300 px-3.5 py-2.5 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-ink-950"
+            />
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-ink-300" />
-            <span className="text-[11px] text-ink-500 shrink-0">または メールで続ける</span>
-            <div className="h-px flex-1 bg-ink-300" />
-          </div>
-
-          {sent ? (
-            <div className="rounded-xl bg-ink-100 border border-ink-300 px-4 py-4 text-sm text-ink-850 text-center">
-              <span className="font-semibold text-ink-950">{email}</span> 宛に{isLogin ? "ログイン" : "登録"}リンクを送りました。
-              メール内のリンクを開くと{isLogin ? "ログイン" : "登録"}できます。
+          {mode !== "reset" && (
+            <div>
+              <label className="block text-[13px] font-semibold text-ink-950 mb-1.5">パスワード</label>
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                type="password"
+                placeholder="8文字以上"
+                className="w-full rounded-lg border border-ink-300 px-3.5 py-2.5 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-ink-950"
+              />
             </div>
-          ) : (
-            <>
-              <div>
-                <label className="block text-[12px] font-bold text-ink-800 mb-1.5">メールアドレス</label>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
-                  type="email"
-                  placeholder="mail@example.com"
-                  className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:border-ink-950"
-                />
-              </div>
-              {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
-              <button
-                onClick={handleSendLink}
-                disabled={sending || !email.trim()}
-                className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3.5 active:scale-[0.98] transition-transform disabled:opacity-40"
-              >
-                {sending ? "送信中…" : isLogin ? "ログインリンクを送る" : "登録リンクを送る"}
-              </button>
-            </>
           )}
 
-          <p className="text-[10px] text-ink-500 text-center leading-relaxed">
-            同じメールアドレスのApple/Googleアカウントは、同じプレイヤーアカウントとして扱われます。
-          </p>
-
-          <p className="text-center text-[13px] pt-1">
-            <button onClick={switchMode} className="text-ink-950 font-semibold underline decoration-dashed underline-offset-4">
-              {isLogin ? "アカウントをお持ちでない方はこちら" : "すでにアカウントをお持ちの方はこちら"}
+          {mode === "login" && (
+            <button onClick={() => goTo("reset")} className="text-[12px] text-ink-600 underline underline-offset-2">
+              パスワードを忘れた方
             </button>
-          </p>
+          )}
         </div>
+
+        {error && <p className="text-[12px] text-crimson-500">{error}</p>}
+        {info && <p className="text-[12px] text-mint-700">{info}</p>}
+
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || !email.trim() || (mode !== "reset" && !password)}
+          className="w-full rounded-lg bg-ink-950 text-white font-semibold py-3 active:scale-[0.98] transition-transform disabled:opacity-40"
+        >
+          {submitting ? "処理中…" : submitLabel}
+        </button>
+      </div>
+
+      <div className="mt-6 text-[13px]">
+        {mode === "login" && (
+          <button onClick={() => goTo("signup")} className="text-ink-950 underline underline-offset-2">
+            会員登録はこちら
+          </button>
+        )}
+        {mode === "signup" && (
+          <button onClick={() => goTo("login")} className="text-ink-950 underline underline-offset-2">
+            ログインはこちら
+          </button>
+        )}
+        {mode === "reset" && (
+          <button onClick={() => goTo("login")} className="text-ink-950 underline underline-offset-2">
+            ログイン画面に戻る
+          </button>
+        )}
       </div>
     </div>
   );
