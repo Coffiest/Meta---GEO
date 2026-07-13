@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 /**
  * アプリ全体で共有するヘッダー。RRPoker(components/HomeHeader.tsx)のヘッダーと
  * 全く同じ寸法・デザインパターンに揃えている: sticky+リキッドグラス(背景ぼかし+彩度強調)の
@@ -39,24 +37,17 @@ export function Header({
   );
 }
 
-/** メインロゴ画像4種(スート違い)。ホーム等のヘッダーは画面を開く/更新するたびにランダムで1つ表示する。 */
-const LOGO_VARIANTS = ["/logos/Logo_c.png", "/logos/Logo_d.png", "/logos/Logo_h.png", "/logos/Logo_s.png"];
+/** メインロゴ画像。 */
+const LOGO_SRC = "/logos/Logo_s.png";
 
 /** RRPokerのロゴ(60x60画像+ワードマーク)と全く同じ寸法のロゴ枠。 */
 export function HeaderLogo({ tone = "light" }: { tone?: "light" | "dark" }) {
-  // SSR/初回クライアント描画は固定(Logo_s)にしてハイドレーション不整合を避け、
-  // マウント後にランダムな1枚へ差し替える(画面を開く/更新するたびに変わる)。
-  const [logoSrc, setLogoSrc] = useState(LOGO_VARIANTS[3]);
-  useEffect(() => {
-    setLogoSrc(LOGO_VARIANTS[Math.floor(Math.random() * LOGO_VARIANTS.length)]);
-  }, []);
-
   return (
     <div className={`flex items-center gap-2 text-[18px] font-semibold ${WORDMARK_TONE_CLASS[tone]}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoSrc} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
+      <img src={LOGO_SRC} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
       <span>
-        Poker<span className="text-gold-600">ART</span>
+        Poker<span className="text-ink-950">ART</span>
       </span>
     </div>
   );
