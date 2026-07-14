@@ -15,6 +15,7 @@ import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
+import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -968,7 +969,11 @@ export function Lobby({
 
                   <AnimatedCard delay={0.18}>
                     {bankrollGraph === null ? (
-                      <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
+                      <div className="space-y-6">
+                        <ChartSkeleton />
+                        <ChartSkeleton />
+                        <ChartSkeleton />
+                      </div>
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
@@ -1016,7 +1021,7 @@ export function Lobby({
                   </AnimatedCard>
                 </>
               ) : (
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               )
             ) : (
               <div className="py-10 text-center text-ink-700 text-sm">スタッツの記録にはログインが必要です。</div>
@@ -1067,7 +1072,7 @@ export function Lobby({
             <SectionCard>
               {(() => {
                 if (leaderboards === null) {
-                  return <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>;
+                  return <ListSkeleton />;
                 }
                 const rows = [...leaderboards[lbPeriod]].sort((a, b) => {
                   const av = a[lbMetric];
@@ -1137,7 +1142,7 @@ export function Lobby({
               {!accessToken ? (
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
               ) : history === null ? (
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               ) : (
                 <>
                   <div className="flex gap-1.5 mb-3">
@@ -1248,7 +1253,7 @@ export function Lobby({
               </SectionCard>
             ) : tournamentHistory === null ? (
               <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               </SectionCard>
             ) : tournamentHistory.length === 0 ? (
               <SectionCard>
