@@ -11,6 +11,8 @@ export interface AuthState {
   session: Session | null;
   /** Google/AppleログインのコールバックURLにエラーが付いて戻ってきた場合のメッセージ */
   oauthError: string | null;
+  /** oauthErrorの元になった、Supabase/Googleが返した生のエラー文字列(原因特定用) */
+  oauthErrorRaw: string | null;
   clearOauthError: () => void;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
@@ -42,7 +44,7 @@ function translateAuthError(message: string): string {
  * Google/AppleのOAuthコールバック後にURLへ付与されるエラー情報(?error=...や#error=...)を読み取る。
  * PKCEフローではクエリ文字列、実装によってはハッシュフラグメントに載るため両方見る。
  */
-function readOauthErrorFromLocation(): string | null {
+function readOauthErrorFromLocation(): { translated: string; raw: string } | null {
   if (typeof window === "undefined") return null;
   const search = new URLSearchParams(window.location.search);
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -54,7 +56,8 @@ function readOauthErrorFromLocation(): string | null {
   const cleanUrl = window.location.pathname;
   window.history.replaceState({}, "", cleanUrl);
 
-  return translateAuthError(description ?? code ?? "");
+  const raw = description ?? code ?? "";
+  return { translated: translateAuthError(raw), raw };
 }
 
 export function useAuth(): AuthState {
@@ -62,9 +65,12 @@ export function useAuth(): AuthState {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthErrorRaw, setOauthErrorRaw] = useState<string | null>(null);
 
   useEffect(() => {
-    setOauthError(readOauthErrorFromLocation());
+    const result = readOauthErrorFromLocation();
+    setOauthError(result?.translated ?? null);
+    setOauthErrorRaw(result?.raw ?? null);
   }, []);
 
   useEffect(() => {
@@ -89,7 +95,11 @@ export function useAuth(): AuthState {
     loading,
     session,
     oauthError,
-    clearOauthError: () => setOauthError(null),
+    oauthErrorRaw,
+    clearOauthError: () => {
+      setOauthError(null);
+      setOauthErrorRaw(null);
+    },
     signInWithPassword: async (email: string, password: string) => {
       if (!supabase) return { error: "認証機能が設定されていません" };
       const { error } = await supabase.auth.signInWithPassword({ email, password });
