@@ -66,6 +66,11 @@ export default function ReviewTournamentPage() {
           </div>
         ) : data ? (
           <>
+            {/* 課金予告(現在は完全無料。将来の有料化を予告するシーム)。 */}
+            <div className="rounded-xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[11px] px-3 py-2 mb-3">
+              現在すべて無料でご利用いただけます。近日、1日2回目以降のトーナメント解析は有料（月額¥980・無制限）になる予定です。
+            </div>
+
             <div className="rounded-2xl border border-ink-950 bg-white p-4 mb-4">
               <div className="flex items-end justify-between">
                 <p className="text-4xl font-black text-ink-950 tabular-nums leading-none">
