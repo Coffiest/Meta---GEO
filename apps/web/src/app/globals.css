@@ -17,6 +17,32 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* a11y: キーボード操作時のみフォーカスリングを出す(マウス/タップ時は出さない)。
+   ink-950の実線リングで、どのインタラクティブ要素にも一貫して適用する。 */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #0a0a0a;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* a11y: モーション低減設定を尊重し、アニメーション/トランジションを実質無効化する。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 * {
   -webkit-font-smoothing: antialiased;
 }
