@@ -10,7 +10,7 @@ Deploy成功確認 → 本ログに追記 → 次サイクルを予約。朝(JST
 
 ## バックログ（優先度順・随時更新）
 - [ ] ローディングの「読み込み中…」テキストを、上質なスケルトンローダーへ置換（Stats/History/Leaderboard/GEO）
-- [ ] Stats等の主要数値にカウントアップ演出（結果画面のuseCountUpを共通化）
+- [x] Stats等の主要数値にカウントアップ演出（結果画面のuseCountUpを共通化）
 - [ ] 各タブの空状態（データ0件）を、気の利いたコピー＋アイコンで丁寧に
 - [ ] キーボードフォーカス可視化（focus-visible）とタップ領域の見直し（a11y）
 - [ ] GEO集計 fetchRawHands のTTLメモリキャッシュ（無駄な全件再取得の抑制）
@@ -23,3 +23,6 @@ Deploy成功確認 → 本ログに追記 → 次サイクルを予約。朝(JST
   スケルトン（Skeleton / ChartSkeleton / ListSkeleton）へ置換。Statsのグラフ読み込み、
   Leaderboard/History/Tournamentsの一覧読み込み、Statsタブ全体の読み込みに適用。体感速度と
   完成度を向上。
+- **v1.75.0 — 主要数値のカウントアップ演出**: 結果画面のuseCountUpを `@/lib/useCountUp` へ共通化し、
+  Statsの収支/ROI/かけた金額/得た金額/参加トナメ数/インマネ回数・率/VPIP/PFR/3Betが 0→実値へ
+  easeOutCubicでカウントアップするように。数字が動く上質な体験に。

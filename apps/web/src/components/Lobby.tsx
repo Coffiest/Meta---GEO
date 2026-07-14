@@ -16,6 +16,7 @@ import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
+import { useCountUp } from "@/lib/useCountUp";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -316,12 +317,19 @@ function StatTile({
   value,
   valueClass,
   onInfo,
+  countTo,
+  format,
 }: {
   label: string;
   value: string;
   valueClass?: string;
   onInfo?: () => void;
+  /** 指定すると 0→countTo をカウントアップ表示する(表示は format で整形)。 */
+  countTo?: number;
+  format?: (n: number) => string;
 }) {
+  const animated = useCountUp(0, countTo ?? 0, 1100, 200);
+  const display = countTo !== undefined && format ? format(animated) : value;
   return (
     <div>
       <div className="flex items-center gap-1 text-[11px] text-ink-700">
@@ -332,7 +340,7 @@ function StatTile({
           </button>
         )}
       </div>
-      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{value}</div>
+      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{display}</div>
     </div>
   );
 }
@@ -920,17 +928,33 @@ export function Lobby({
                   <AnimatedCard delay={0.06}>
                     <div className="mb-3"><RuleLabel>収支</RuleLabel></div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-                      <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
-                      <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
+                      <StatTile
+                        label="かけた金額"
+                        value={stats.totalBuyIns.toLocaleString()}
+                        countTo={stats.totalBuyIns}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("buyIns")}
+                      />
+                      <StatTile
+                        label="得た金額"
+                        value={stats.totalPayouts.toLocaleString()}
+                        countTo={stats.totalPayouts}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("payouts")}
+                      />
                       <StatTile
                         label="収支"
                         value={formatSigned(stats.profit)}
+                        countTo={stats.profit}
+                        format={(n) => formatSigned(Math.round(n))}
                         valueClass={signedClass(stats.profit)}
                         onInfo={() => setInfoKey("profit")}
                       />
                       <StatTile
                         label="ROI"
                         value={`${(stats.roi * 100).toFixed(1)}%`}
+                        countTo={stats.roi * 100}
+                        format={(n) => `${n.toFixed(1)}%`}
                         valueClass={signedClass(stats.roi * 100 - 100)}
                         onInfo={() => setInfoKey("roi")}
                       />
@@ -943,10 +967,24 @@ export function Lobby({
                       <StatTile
                         label="参加トナメ数"
                         value={stats.tournamentsPlayed.toLocaleString()}
+                        countTo={stats.tournamentsPlayed}
+                        format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("tournamentsPlayed")}
                       />
-                      <StatTile label="インマネ回数" value={stats.itmCount.toLocaleString()} onInfo={() => setInfoKey("itmCount")} />
-                      <StatTile label="インマネ率" value={`${(stats.itmRate * 100).toFixed(1)}%`} onInfo={() => setInfoKey("itmRate")} />
+                      <StatTile
+                        label="インマネ回数"
+                        value={stats.itmCount.toLocaleString()}
+                        countTo={stats.itmCount}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("itmCount")}
+                      />
+                      <StatTile
+                        label="インマネ率"
+                        value={`${(stats.itmRate * 100).toFixed(1)}%`}
+                        countTo={stats.itmRate * 100}
+                        format={(n) => `${n.toFixed(1)}%`}
+                        onInfo={() => setInfoKey("itmRate")}
+                      />
                     </div>
                   </AnimatedCard>
 
@@ -956,12 +994,22 @@ export function Lobby({
                       <StatTile
                         label="VPIP"
                         value={`${(stats.vpipRate * 100).toFixed(0)}%`}
+                        countTo={stats.vpipRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("vpip")}
                       />
-                      <StatTile label="PFR" value={`${(stats.pfrRate * 100).toFixed(0)}%`} onInfo={() => setInfoKey("pfr")} />
+                      <StatTile
+                        label="PFR"
+                        value={`${(stats.pfrRate * 100).toFixed(0)}%`}
+                        countTo={stats.pfrRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
+                        onInfo={() => setInfoKey("pfr")}
+                      />
                       <StatTile
                         label="3Bet"
                         value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
+                        countTo={stats.threeBetRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("threeBet")}
                       />
                     </div>
