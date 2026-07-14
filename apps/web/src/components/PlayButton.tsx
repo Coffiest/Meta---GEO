@@ -46,13 +46,9 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             aria-label="プレイする"
             className="relative h-[100px] w-[260px] overflow-hidden rounded-[28px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
           >
-            {/* トランプ札の意匠。黒い札に、文字と同色(白)の内枠(額縁)を持たせ、その枠を
-                大きく傾けた「Play」がしっかり突き破って(上下ともはみ出して)いく。overflow-hidden
-                で札の外(白背景)には出さず、内枠だけを突破させることで札インデックス風に見せる。 */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-[10px] rounded-[20px] border-2 border-white/90"
-            />
+            {/* トランプ札の意匠。黒い札に大きく傾けた「Play」を置き、内枠より外側を黒で塗りつぶす
+                マスクを重ねることで、枠からはみ出した部分を隠す(=Playの一部が黒に隠れて覗く)。
+                内枠のフチがそのまま黒い枠線になる。overflow-hiddenでマスクは札の内側にとどまる。 */}
             <span
               className="pointer-events-none absolute left-1/2 top-1/2 z-[2] select-none whitespace-nowrap font-black text-white"
               style={{
@@ -65,6 +61,11 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             >
               Play
             </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-[10px] z-[3] rounded-[20px]"
+              style={{ boxShadow: "0 0 0 200px #0a0a0a" }}
+            />
           </motion.button>
         ) : (
           <motion.div key="split" className="flex items-center gap-4">

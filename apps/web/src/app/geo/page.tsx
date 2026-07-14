@@ -22,6 +22,37 @@ import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { GeoComingSoon } from "@/components/geo/GeoComingSoon";
+
+const GEO_UNLOCK_KEY = "poker-art-geo-unlocked";
+
+/**
+ * /geo のゲート。通常は「近日公開」プロモ画面(GeoComingSoon)を表示し、隠しパスコード(2357)で
+ * 解錠されたときだけ本物のGEO DATABASE(GeoDatabase)を表示する。解錠状態はlocalStorageに保存。
+ */
+export default function GeoPage() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setUnlocked(localStorage.getItem(GEO_UNLOCK_KEY) === "1");
+    setReady(true);
+  }, []);
+
+  // localStorage判定が済むまでは何も出さない(解錠済みユーザーにプロモが一瞬見えるのを防ぐ)。
+  if (!ready) return <div className="min-h-[100dvh] bg-white" />;
+  if (!unlocked) {
+    return (
+      <GeoComingSoon
+        onUnlock={() => {
+          localStorage.setItem(GEO_UNLOCK_KEY, "1");
+          setUnlocked(true);
+        }}
+      />
+    );
+  }
+  return <GeoDatabase />;
+}
 
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
@@ -40,7 +71,7 @@ function bucketLabelFor(street: Street, bucket: string): string {
   return table[bucket] ?? bucket;
 }
 
-export default function GeoPage() {
+function GeoDatabase() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
