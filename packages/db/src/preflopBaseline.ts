@@ -73,7 +73,24 @@ const RFI_RANGES: Record<string, Set<string>> = Object.fromEntries(
 );
 
 /** RFIで開くときのオープンサイズバケット(v1は一律)。 */
-const OPEN_BUCKET = "raise2-2.5";
+export const OPEN_BUCKET = "raise2-2.5";
+
+/** 2枚のホールカードを169ハンドクラスのラベル(例 "AKs"/"77"/"AQo")へ変換する。 */
+export function handClassLabel(holeCards: readonly string[]): string | null {
+  if (holeCards.length !== 2) return null;
+  const rank = (c: string) => {
+    const r = c.slice(0, -1);
+    return r === "10" ? "T" : r;
+  };
+  const r1 = rankIdx(rank(holeCards[0]!));
+  const r2 = rankIdx(rank(holeCards[1]!));
+  if (r1 < 0 || r2 < 0) return null;
+  const suited = holeCards[0]!.slice(-1) === holeCards[1]!.slice(-1);
+  const hi = Math.min(r1, r2);
+  const lo = Math.max(r1, r2);
+  if (hi === lo) return `${RANKS[hi]}${RANKS[hi]}`;
+  return suited ? `${RANKS[hi]}${RANKS[lo]}s` : `${RANKS[hi]}${RANKS[lo]}o`;
+}
 
 /** そのハンドクラスのコンボ数(ペア6/スーテッド4/オフスート12)。 */
 function combosOf(label: string): number {

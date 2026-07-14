@@ -4,6 +4,7 @@ import { Lobby } from "./lobby.js";
 import { handleGeoTreeApiRequest } from "./geoTreeApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
+import { handleReviewApiRequest } from "./reviewApi.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -20,8 +21,11 @@ const httpServer = createServer((req, res) => {
       if (handledSub) return;
       handleGeoTreeApiRequest(req, res).then((handled2) => {
         if (handled2) return;
-        res.writeHead(404);
-        res.end();
+        handleReviewApiRequest(req, res).then((handled3) => {
+          if (handled3) return;
+          res.writeHead(404);
+          res.end();
+        });
       });
     });
   });
