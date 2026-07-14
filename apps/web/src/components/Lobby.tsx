@@ -46,13 +46,52 @@ interface BankrollGraphPoint {
   roi: number;
 }
 
-interface LeaderboardRow {
+interface LeaderboardUser {
   userId: string;
   displayName: string;
   avatarKey: string | null;
   profit: number;
   roi: number;
+  itmRate: number;
+  rrRating: number;
   tournamentsPlayed: number;
+}
+
+interface Leaderboards {
+  weekly: LeaderboardUser[];
+  allTime: LeaderboardUser[];
+  last10: LeaderboardUser[];
+  minTournaments: number;
+}
+
+type LbPeriod = "weekly" | "allTime" | "last10";
+type LbMetric = "profit" | "roi" | "rrRating" | "itmRate";
+
+const LB_PERIODS: { key: LbPeriod; label: string }[] = [
+  { key: "weekly", label: "Weekly" },
+  { key: "allTime", label: "All Time" },
+  { key: "last10", label: "直近10" },
+];
+
+const LB_METRICS: { key: LbMetric; label: string }[] = [
+  { key: "profit", label: "収支" },
+  { key: "roi", label: "ROI" },
+  { key: "rrRating", label: "偏差値" },
+  { key: "itmRate", label: "インマネ率" },
+];
+
+/** 指標に応じた表示値の整形。 */
+function formatLbMetric(u: LeaderboardUser, metric: LbMetric): string {
+  switch (metric) {
+    case "profit":
+      return formatSigned(u.profit);
+    case "roi":
+      return `${(u.roi * 100).toFixed(0)}%`;
+    case "rrRating":
+      return u.rrRating.toFixed(1);
+    case "itmRate":
+      return `${(u.itmRate * 100).toFixed(1)}%`;
+  }
 }
 
 interface HistoryRow {
@@ -717,7 +756,9 @@ export function Lobby({
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[] | null>(null);
+  const [leaderboards, setLeaderboards] = useState<Leaderboards | null>(null);
+  const [lbPeriod, setLbPeriod] = useState<LbPeriod>("allTime");
+  const [lbMetric, setLbMetric] = useState<LbMetric>("profit");
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
   const [structureOpen, setStructureOpen] = useState(false);
@@ -767,12 +808,12 @@ export function Lobby({
   }, [accessToken, tab, graphRangeKey]);
 
   useEffect(() => {
-    if (tab !== "leaderboard" || leaderboard) return;
-    fetch(`${SERVER_URL}/api/lobby/leaderboard`)
-      .then((res) => (res.ok ? (res.json() as Promise<LeaderboardRow[]>) : null))
-      .then((json) => json && setLeaderboard(json))
+    if (tab !== "leaderboard" || leaderboards) return;
+    fetch(`${SERVER_URL}/api/lobby/leaderboards`)
+      .then((res) => (res.ok ? (res.json() as Promise<Leaderboards>) : null))
+      .then((json) => json && setLeaderboards(json))
       .catch(() => {});
-  }, [tab, leaderboard]);
+  }, [tab, leaderboards]);
 
   useEffect(() => {
     if (tab !== "history" || history || !accessToken) return;
@@ -970,45 +1011,97 @@ export function Lobby({
           >
             <div className="text-center mb-4">
               <h1 className="text-[20px] font-semibold text-ink-950">Leaderboard</h1>
-              <p className="text-[11px] text-ink-600 mt-1">収支ランキング(実プレイヤーのみ・BOTは含まれません)</p>
+              <p className="text-[11px] text-ink-600 mt-1">
+                実プレイヤーのみ・BOT除外。最低{leaderboards?.minTournaments ?? 10}トーナメント参加でランクイン
+              </p>
             </div>
+
+            {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}
+            <div className="mb-3 flex rounded-xl border border-ink-950 p-1">
+              {LB_PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setLbPeriod(p.key)}
+                  className={`flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
+                    lbPeriod === p.key ? "bg-ink-950 text-white" : "text-ink-600"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 指標セレクタ(収支 / ROI / 偏差値 / インマネ率)。 */}
+            <div className="mb-4 grid grid-cols-4 gap-1.5">
+              {LB_METRICS.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => setLbMetric(m.key)}
+                  className={`rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
+                    lbMetric === m.key ? "border-ink-950 bg-ink-950 text-white" : "border-ink-200 text-ink-600"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
             <SectionCard>
-              {leaderboard === null ? (
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
-              ) : leaderboard.length === 0 ? (
-                <div className="py-10 text-center text-ink-700 text-sm">まだランキングデータがありません。</div>
-              ) : (
-                <div className="space-y-2">
-                  {leaderboard.map((row, i) => {
-                    const isYou = userId != null && row.userId === userId;
-                    return (
-                      <motion.div
-                        key={row.userId}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                          isYou ? "bg-gold-500/10 ring-1 ring-gold-500/40" : "bg-ink-300/70"
-                        }`}
-                      >
-                        <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
-                        <Avatar avatarKey={row.avatarKey} size={30} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-ink-900 truncate">
-                            {row.displayName}
-                            {isYou && <span className="text-gold-600 text-[10px] ml-1">(あなた)</span>}
+              {(() => {
+                if (leaderboards === null) {
+                  return <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>;
+                }
+                const rows = [...leaderboards[lbPeriod]].sort((a, b) => {
+                  const av = a[lbMetric];
+                  const bv = b[lbMetric];
+                  return bv - av;
+                });
+                if (rows.length === 0) {
+                  return (
+                    <div className="py-10 text-center text-ink-700 text-sm">
+                      この期間はまだランキングデータがありません。
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    {rows.map((row, i) => {
+                      const isYou = userId != null && row.userId === userId;
+                      const primary = formatLbMetric(row, lbMetric);
+                      const primaryClass =
+                        lbMetric === "profit" ? signedClass(row.profit) : "text-ink-950";
+                      return (
+                        <motion.div
+                          key={row.userId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
+                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                            isYou ? "bg-gold-500/10 ring-1 ring-gold-500/40" : "bg-ink-300/70"
+                          }`}
+                        >
+                          <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
+                          <Avatar avatarKey={row.avatarKey} size={30} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-ink-900 truncate">
+                              {row.displayName}
+                              {isYou && <span className="text-gold-600 text-[10px] ml-1">(あなた)</span>}
+                            </div>
+                            <div className="text-[10px] text-ink-600 tabular-nums">{row.tournamentsPlayed} トーナメント</div>
                           </div>
-                          <div className="text-[10px] text-ink-600">{row.tournamentsPlayed} トーナメント</div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-sm font-bold tabular-nums ${signedClass(row.profit)}`}>{formatSigned(row.profit)}</div>
-                          <div className="text-[10px] text-ink-600 tabular-nums">ROI {(row.roi * 100).toFixed(0)}%</div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              )}
+                          <div className="text-right">
+                            <div className={`text-sm font-bold tabular-nums ${primaryClass}`}>{primary}</div>
+                            <div className="text-[10px] text-ink-600 tabular-nums">
+                              {lbMetric !== "profit" && `収支 ${formatSigned(row.profit)}`}
+                              {lbMetric === "profit" && `ROI ${(row.roi * 100).toFixed(0)}%`}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </SectionCard>
           </motion.div>
         )}

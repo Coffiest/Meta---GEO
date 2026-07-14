@@ -3,6 +3,7 @@ import {
   completeOnboarding,
   getBankrollGraph,
   getLeaderboard,
+  getLeaderboards,
   getOrCreateUserByAuthId,
   getPlayerStats,
   getPlayerNote,
@@ -136,6 +137,12 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
     // ランキングは公開情報(BOTは含まれない)
     if (url.pathname === "/api/lobby/leaderboard") {
       sendJson(res, 200, await getLeaderboard(50));
+      return true;
+    }
+
+    // リーダーボード: 収支/ROI/偏差値/インマネ率 × Weekly/All Time/直近10トナメ(最低10トナメ)。
+    if (url.pathname === "/api/lobby/leaderboards") {
+      sendJson(res, 200, await getLeaderboards());
       return true;
     }
 
