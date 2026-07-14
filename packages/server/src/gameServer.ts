@@ -530,6 +530,7 @@ export class TableSession implements GameSession {
             startingStack: startingStacks.get(p.seatIndex) ?? 0,
             isSmallBlind: p.seatIndex === smallBlindSeat,
             isBigBlind: p.seatIndex === bigBlindSeat,
+            wasAway: this.humansBySeat.get(p.seatIndex)?.away ?? false,
           })),
         hand,
       }).catch((err) => console.error("[sng] recordHand failed:", err));

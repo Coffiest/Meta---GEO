@@ -519,6 +519,7 @@ export class MttSession implements GameSession {
           startingStack: occupancy.find((o) => o.seatIndex === s.seatIndex)?.stack ?? 0,
           isSmallBlind: s.seatIndex === started.smallBlindSeat,
           isBigBlind: s.seatIndex === started.bigBlindSeat,
+          wasAway: this.humans.get(s.playerId)?.away ?? false,
         })),
         hand,
       }).catch((err) => console.error("[mtt] recordHand failed:", err));

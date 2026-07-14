@@ -103,7 +103,7 @@ const RAW_HAND_SELECT = {
     },
   },
   seats: {
-    select: { seatIndex: true, startingStack: true, holeCards: true, user: { select: { isBot: true } } },
+    select: { seatIndex: true, startingStack: true, holeCards: true, wasAway: true, user: { select: { isBot: true } } },
   },
   actions: {
     orderBy: { sequenceNumber: "asc" as const },
@@ -345,7 +345,8 @@ export async function getPreflopNode(params: {
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
-    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot).map((s) => [s.seatIndex, s.holeCards]));
+    // 離席中(wasAway)の席はGEO戦略分析の集計から除外する(本人の意思決定ではないため)。
+    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot && !s.wasAway).map((s) => [s.seatIndex, s.holeCards]));
     if (humanSeats.size === 0) continue;
 
     const decisions = replayPreflopDecisions(hand, humanSeats);
@@ -492,7 +493,8 @@ export async function getPostflopNode(params: {
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
-    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot).map((s) => [s.seatIndex, s.holeCards]));
+    // 離席中(wasAway)の席はGEO戦略分析の集計から除外する(本人の意思決定ではないため)。
+    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot && !s.wasAway).map((s) => [s.seatIndex, s.holeCards]));
     if (humanSeats.size === 0) continue;
 
     const preflopDecisions = replayPreflopDecisions(hand, humanSeats);

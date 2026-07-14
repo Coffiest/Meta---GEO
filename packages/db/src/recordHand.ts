@@ -8,6 +8,8 @@ export interface RecordHandSeatInput {
   readonly startingStack: number;
   readonly isSmallBlind: boolean;
   readonly isBigBlind: boolean;
+  /** そのハンド中、このプレイヤーが離席状態だったか。GEO集計から除外するために記録する。 */
+  readonly wasAway?: boolean;
 }
 
 export interface RecordHandInput {
@@ -59,6 +61,7 @@ export async function recordHand(input: RecordHandInput): Promise<string> {
         isSmallBlind: s.isSmallBlind,
         isBigBlind: s.isBigBlind,
         resultStackDelta: (finalStacks.get(s.seatIndex) ?? s.startingStack) - s.startingStack,
+        wasAway: s.wasAway ?? false,
       })),
     });
 
