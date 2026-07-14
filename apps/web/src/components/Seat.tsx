@@ -85,6 +85,8 @@ export interface SeatViewProps {
   chatBubble?: string | null;
   /** 自分の席のとき、カード右側にチャット入力ボタンを出すためのハンドラ。 */
   onChatClick?: () => void;
+  /** 自分の席のとき、現在成立している役(例: 「ツーペア」)を手札の直下に表示する。 */
+  handRankLabel?: string | null;
 }
 
 export function Seat({
@@ -107,6 +109,7 @@ export function Seat({
   markingColor = null,
   chatBubble = null,
   onChatClick,
+  handRankLabel = null,
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
@@ -115,10 +118,43 @@ export function Seat({
 
   return (
     <div
-      className={`flex flex-col items-center gap-1 transition-opacity duration-300 ${size === "lg" ? "w-32" : "w-24"} ${
+      className={`relative flex flex-col items-center gap-1 transition-opacity duration-300 ${size === "lg" ? "w-32" : "w-24"} ${
         folded ? "opacity-35" : "opacity-100"
       }`}
     >
+      {/* 同卓チャットの吹き出し。手札(中央上)と干渉しないよう座席の左上に出し、尻尾(三角)を
+          アバター方向(右下)へ向ける。数秒表示。 */}
+      <AnimatePresence>
+        {chatBubble && !isEmpty && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 480, damping: 26 }}
+            className="pointer-events-none absolute bottom-full right-1/2 z-40 mb-1 mr-[-14px] max-w-[150px] break-words rounded-2xl border border-ink-950 bg-white px-2.5 py-1 text-[11px] font-bold leading-snug text-ink-950 shadow-[0_2px_6px_-1px_rgba(10,10,10,0.3)]"
+          >
+            {chatBubble}
+            {/* 尻尾: 黒枠の三角の上に白の三角を重ねて縁取り付きにする */}
+            <span
+              aria-hidden
+              className="absolute top-full right-4 h-0 w-0"
+              style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #0a0a0a" }}
+            />
+            <span
+              aria-hidden
+              className="absolute top-full right-4 h-0 w-0"
+              style={{
+                marginTop: "-1.5px",
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderTop: "7px solid #fff",
+                transform: "translateX(1px)",
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="relative z-30 flex gap-1">
         {showCards &&
           holeCards.map((c, i) => (
@@ -131,6 +167,19 @@ export function Seat({
             />
           ))}
       </div>
+
+      {/* 自分の現在の役(手札の直下)。ボードが進むたびに更新される。 */}
+      {handRankLabel && showCards && (
+        <motion.div
+          key={handRankLabel}
+          initial={{ opacity: 0, y: -3, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 460, damping: 24 }}
+          className="z-30 -mt-0.5 rounded-full bg-ink-950 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-[0_1px_4px_-1px_rgba(10,10,10,0.5)]"
+        >
+          {handRankLabel}
+        </motion.div>
+      )}
 
       <div
         className={`relative flex items-center gap-1.5 rounded-full pr-3 pl-1 py-1 transition-all duration-300 ${
@@ -149,21 +198,6 @@ export function Seat({
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
-
-        {/* 同卓チャットの吹き出し(アバターの上に数秒表示)。 */}
-        <AnimatePresence>
-          {chatBubble && (
-            <motion.div
-              initial={{ opacity: 0, y: 6, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 480, damping: 26 }}
-              className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 max-w-[180px] -translate-x-1/2 break-words rounded-2xl border border-ink-950 bg-white px-2.5 py-1 text-[11px] font-bold leading-snug text-ink-950"
-            >
-              {chatBubble}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* 自分の席: カード右側の丸いチャット入力ボタン。 */}
         {onChatClick && (
