@@ -256,17 +256,23 @@ export default function GeoPage() {
         <Header
           left={
             <div className="w-full">
-              <p className="text-[10px] tracking-[0.25em] text-ink-950 font-bold mb-2">
-                GEO DATABASE <span className="text-ink-500 font-medium">· {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}</span>
-              </p>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">
+                  GEO Database
+                </p>
+                <span className="text-[10px] font-semibold tracking-wide text-ink-400">
+                  {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
+                </span>
+              </div>
               <div className="flex items-center gap-2.5">
                 <motion.button
                   onClick={() => setSettingsOpen(true)}
-                  whileTap={{ scale: 0.9 }}
-                  className="shrink-0 h-11 w-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 shadow-panel flex items-center justify-center"
+                  whileTap={{ scale: 0.92 }}
+                  className="shrink-0 h-11 w-11 rounded-full border border-ink-950 bg-white flex items-center justify-center text-ink-900 active:bg-ink-50 transition-colors"
                   aria-label="詳細設定"
                 >
-                  <Icon name="settings" className="h-5 w-5 text-navy-950" />
+                  <Icon name="settings" className="h-[18px] w-[18px]" />
                 </motion.button>
                 <PositionPillBar
                   items={items}
@@ -291,18 +297,21 @@ export default function GeoPage() {
 
         <div className="mt-3">
           {loading ? (
-            <div className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-8 text-center text-sm text-navy-400">読み込み中…</div>
+            <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-center text-sm text-ink-500">
+              <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+              読み込み中…
+            </div>
           ) : noBoardData ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+              className="rounded-2xl border border-ink-950 bg-white p-6 text-center"
             >
-              <p className="text-sm text-navy-300 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
+              <p className="text-sm text-ink-700 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={retryBoard}
-                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2"
+                className="rounded-full bg-ink-950 text-white text-[12px] font-bold px-5 py-2.5"
               >
                 板面を選び直す
               </motion.button>
@@ -311,16 +320,16 @@ export default function GeoPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-6 text-center"
+              className="rounded-2xl border border-ink-950 bg-white p-6 text-center"
             >
-              <p className="text-sm text-navy-300 mb-3">次のストリートに進むにはボードを選択してください。</p>
+              <p className="text-sm text-ink-700 mb-3">次のストリートに進むにはボードを選択してください。</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setDismissedStreet(null);
                   setPendingStreet(nextStreetOf(street));
                 }}
-                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-semibold px-4 py-2"
+                className="rounded-full bg-ink-950 text-white text-[12px] font-bold px-5 py-2.5"
               >
                 ボードを選択
               </motion.button>

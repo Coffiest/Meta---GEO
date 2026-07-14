@@ -38,25 +38,25 @@ export function GeoSettingsModal({
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
         transition={{ type: "spring", damping: 28, stiffness: 320 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-navy-900 ring-1 ring-navy-700 p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-ink-950 bg-white p-4"
       >
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold text-navy-100">詳細設定</p>
-          <button onClick={onClose} className="text-navy-400 text-xs">
+          <p className="text-sm font-extrabold tracking-tight text-ink-950">詳細設定</p>
+          <button onClick={onClose} className="text-ink-500 text-xs font-semibold">
             閉じる
           </button>
         </div>
 
         <div className="mb-5">
-          <p className="text-[11px] tracking-wide text-navy-400 uppercase font-semibold mb-2">エフェクティブスタック</p>
+          <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">エフェクティブスタック</p>
           <div className="flex flex-wrap gap-1.5">
             {STACK_BUCKETS.map((bucket) => (
               <motion.button
                 key={bucket}
                 whileTap={{ scale: 0.94 }}
                 onClick={() => onChangeStackBucket(bucket)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums transition-colors ${
-                  stackBucket === bucket ? "bg-gold-500 text-navy-950" : "bg-navy-800 text-navy-300 ring-1 ring-navy-600/60"
+                className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
+                  stackBucket === bucket ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
                 }`}
               >
                 {STACK_BUCKET_LABELS[bucket]}
@@ -66,15 +66,15 @@ export function GeoSettingsModal({
         </div>
 
         <div>
-          <p className="text-[11px] tracking-wide text-navy-400 uppercase font-semibold mb-2">ICM設定(インマネまでの残り人数)</p>
+          <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">ICM設定(インマネまでの残り人数)</p>
           <div className="flex flex-wrap gap-1.5">
             {BUBBLE_STAGES.map((stage) => (
               <motion.button
                 key={stage}
                 whileTap={{ scale: 0.94 }}
                 onClick={() => onChangeBubbleStage(stage)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                  bubbleStage === stage ? "bg-gold-500 text-navy-950" : "bg-navy-800 text-navy-300 ring-1 ring-navy-600/60"
+                className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
+                  bubbleStage === stage ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
                 }`}
               >
                 {BUBBLE_STAGE_LABELS[stage]}
