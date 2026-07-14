@@ -1167,10 +1167,16 @@ export function Lobby({
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
                                       <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                                      <Link
+                                        href={`/review/${h.handId}`}
+                                        className="ml-auto rounded bg-ink-950 px-2 py-[2px] text-[9px] font-black tracking-wide text-white active:opacity-80"
+                                      >
+                                        局後検討
+                                      </Link>
                                       <button
                                         onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
                                         aria-label={h.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
-                                        className="ml-auto text-gold-500"
+                                        className="text-gold-500"
                                       >
                                         <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
                                       </button>
