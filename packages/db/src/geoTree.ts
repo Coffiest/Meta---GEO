@@ -202,21 +202,21 @@ interface ReplayedDecision {
   stackBb: number;
   isGeometric: boolean;
   holeCards: string[];
-  /** そのアクションを打ったのが人間プレイヤーか(bot席は集計対象外だが、ポジション順の整合性のため
-   * シーケンス自体には含める。詳細はreplayPreflopDecisionsのコメント参照)。 */
-  isHuman: boolean;
+  /** そのアクションを集計対象(離席していない=trackedSeatsに含まれる席)として数えるか。
+   * 離席(wasAway)・偏差値レンジ外の席はfalseになり、シーケンス整合のため系列には含めるが集計しない。 */
+  isTracked: boolean;
 }
 
 /**
  * ハンド1件のプリフロップ意思決定を、座席→ポジション変換・スタック深度(bb)算出・
  * bb倍率バケット分類までまとめて時系列に並べる。ブラインド(postBlind/postAnte)は除外する。
  *
- * bot席のアクションも(isHuman: falseとして)シーケンスに含める。人間だけを間引くと、
- * bot混在卓(実運用でごく一般的)でシーケンスのインデックスと実際のポジション順がズレてしまい、
- * 例えば「line=[]の次の意思決定」が本来UTGであるべきなのに、たまたま最初に人間が座っていた
- * ポジション(例: BB)にすり替わってしまう。集計(サンプル数・options)はisHumanで人間分のみに絞る。
- */
-function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>): ReplayedDecision[] {
+ * 集計対象外の席(離席・レンジ外)も(isTracked: falseとして)シーケンスに含める。対象席だけを
+ * 間引くと、シーケンスのインデックスと実際のポジション順がズレてしまい、例えば「line=[]の次の
+ * 意思決定」が本来UTGであるべきなのに別ポジションにすり替わってしまう。集計(サンプル数・options)は
+ * isTrackedで対象席のみに絞る。なおGEO DBは「実際にプレイされた全ハンド・全プレイヤー(bot含む・
+ * 離席除く)」の実測データを反映する方針のため、bot席も既定で集計対象に含める。 */
+function replayPreflopDecisions(hand: RawHand, trackedSeats: Map<number, string[]>): ReplayedDecision[] {
   const seatCount = 6;
   const bigBlind = hand.levelBigBlind;
   const startingStackBySeat = new Map(hand.seats.map((s) => [s.seatIndex, s.startingStack]));
@@ -254,8 +254,8 @@ function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>
       bucket,
       stackBb,
       isGeometric: false,
-      holeCards: humanSeats.get(action.seatIndex) ?? [],
-      isHuman: humanSeats.has(action.seatIndex),
+      holeCards: trackedSeats.get(action.seatIndex) ?? [],
+      isTracked: trackedSeats.has(action.seatIndex),
     });
 
     // toAmountはそのストリート内の累計拠出額そのもの(handEngine.commit()と同じ意味論)なので、
@@ -365,12 +365,12 @@ export async function getPreflopNode(params: {
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
     // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
-    const humanSeats = new Map(
-      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    const trackedSeats = new Map(
+      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (humanSeats.size === 0) continue;
+    if (trackedSeats.size === 0) continue;
 
-    const decisions = replayPreflopDecisions(hand, humanSeats);
+    const decisions = replayPreflopDecisions(hand, trackedSeats);
     if (!linesMatch(decisions, params.line)) continue;
     const next = decisions[params.line.length];
     if (!next) continue;
@@ -378,7 +378,7 @@ export async function getPreflopNode(params: {
     // 後続のハンドで無条件に上書きすると、万一データに異常のあるハンドが1件混ざっただけで
     // 正しい大多数の結果が塗り替えられてしまう)。
     if (expectedPosition === null) expectedPosition = next.position;
-    if (next.isHuman) nextDecisions.push(next);
+    if (next.isTracked) nextDecisions.push(next);
   }
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
@@ -394,7 +394,7 @@ interface ReplayedPostflopDecision extends ReplayedDecision {
  */
 function replayPostflopDecisions(
   hand: RawHand,
-  humanSeats: Map<number, string[]>,
+  trackedSeats: Map<number, string[]>,
   foldedSeats: Set<number>,
 ): ReplayedPostflopDecision[] {
   const seatCount = 6;
@@ -425,8 +425,8 @@ function replayPostflopDecisions(
     // foldedSeatsへの追加は判定・記録の後に行う(そうしないとfold自体が記録されなくなる)。
     const wasAlreadyFolded = foldedSeats.has(action.seatIndex);
 
-    // bot席も(isHuman: falseとして)シーケンスに含める。理由はreplayPreflopDecisionsのコメント参照
-    // (人間だけを間引くとポジション順とシーケンスのインデックスがズレるため)。
+    // 集計対象外の席(離席・レンジ外)も(isTracked: falseとして)シーケンスに含める。理由は
+    // replayPreflopDecisionsのコメント参照(対象席だけを間引くとポジション順とインデックスがズレるため)。
     if (currentStreet !== "preflop" && !wasAlreadyFolded) {
       const priorStreetContribution = streetContribution.get(action.seatIndex) ?? 0;
       const priorHandContribution = handContribution.get(action.seatIndex) ?? 0;
@@ -468,8 +468,8 @@ function replayPostflopDecisions(
         bucket,
         stackBb: bigBlind > 0 ? behindStack / bigBlind : 0,
         isGeometric,
-        holeCards: humanSeats.get(action.seatIndex) ?? [],
-        isHuman: humanSeats.has(action.seatIndex),
+        holeCards: trackedSeats.get(action.seatIndex) ?? [],
+        isTracked: trackedSeats.has(action.seatIndex),
         street: currentStreet,
       });
     }
@@ -516,18 +516,18 @@ export async function getPostflopNode(params: {
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
     // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
-    const humanSeats = new Map(
-      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    const trackedSeats = new Map(
+      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (humanSeats.size === 0) continue;
+    if (trackedSeats.size === 0) continue;
 
-    const preflopDecisions = replayPreflopDecisions(hand, humanSeats);
+    const preflopDecisions = replayPreflopDecisions(hand, trackedSeats);
     if (!linesMatch(preflopDecisions, params.preflopLine)) continue;
 
     // フォールド済み座席は「実際のハンドで起きた全プリフロップフォールド」を対象にする
     // (要求ラインの範囲内だけではない。ライン一致判定と実際のゲーム進行は別物)。
     const foldedSeats = new Set(preflopDecisions.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
-    const allPostflop = replayPostflopDecisions(hand, humanSeats, foldedSeats);
+    const allPostflop = replayPostflopDecisions(hand, trackedSeats, foldedSeats);
     const streetDecisions = allPostflop.filter((d) => d.street === params.street);
     if (!linesMatch(streetDecisions, params.postflopLine)) continue;
 
@@ -535,7 +535,7 @@ export async function getPostflopNode(params: {
     if (!next) continue;
     // getPreflopNodeと同じ理由で、最初に一致したハンドの値のみ採用する。
     if (expectedPosition === null) expectedPosition = next.position;
-    if (next.isHuman) nextDecisions.push(next);
+    if (next.isTracked) nextDecisions.push(next);
   }
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
