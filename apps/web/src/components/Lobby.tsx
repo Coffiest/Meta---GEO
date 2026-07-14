@@ -76,7 +76,7 @@ const LB_PERIODS: { key: LbPeriod; label: string }[] = [
 const LB_METRICS: { key: LbMetric; label: string }[] = [
   { key: "profit", label: "収支" },
   { key: "roi", label: "ROI" },
-  { key: "rrRating", label: "偏差値" },
+  { key: "rrRating", label: "トナメ偏差値" },
   { key: "itmRate", label: "インマネ率" },
 ];
 
@@ -860,14 +860,6 @@ export function Lobby({
             />
 
             <div className="pt-1">
-              <div className="flex items-center gap-2.5">
-                <div className="h-px flex-1 bg-ink-200" />
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Virtual chips only</span>
-                <div className="h-px flex-1 bg-ink-200" />
-              </div>
-              <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-500 px-2">
-                Poker ART(トーナメント版)— バーチャルチップ専用。実際の金銭を賭けることはできません。
-              </p>
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-ink-400">
                 v{APP_VERSION} ・ 作成者: Coffiest ・ © 2026 Poker ART
               </p>
@@ -987,10 +979,6 @@ export function Lobby({
                       ))}
                     </div>
                   </AnimatedCard>
-
-                  <p className="text-[11px] text-ink-600 px-1">
-                    収支はTenFour方式のプラスマイナス表示です(バイインが−、賞金が+として累計されます)。実額ベースで、bb換算は行いません。
-                  </p>
                 </>
               ) : (
                 <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
@@ -1011,9 +999,6 @@ export function Lobby({
           >
             <div className="text-center mb-4">
               <h1 className="text-[20px] font-semibold text-ink-950">Leaderboard</h1>
-              <p className="text-[11px] text-ink-600 mt-1">
-                実プレイヤーのみ・BOT除外。最低{leaderboards?.minTournaments ?? 10}トーナメント参加でランクイン
-              </p>
             </div>
 
             {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}

@@ -383,7 +383,7 @@ function GameScreen({
       <AnimatePresence>
         {tappedPlayer && (
           <PlayerDetailModal
-            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey }}
+            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey, isBot: tappedPlayer.isBot }}
             accessToken={accessToken}
             onClose={() => setTappedPlayer(null)}
             onSaved={handleMarkingSaved}

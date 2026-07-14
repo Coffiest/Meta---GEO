@@ -12,6 +12,42 @@ export interface SeatBadge {
   tone: SeatBadgeTone;
 }
 
+/**
+ * オールイン中のアバターの周囲でメラメラと揺れる炎エフェクト。複数の放射状グラデーションを
+ * 重ね、フレームごとにopacity/scaleをランダムに揺らして「燃えている」印象を出す。
+ * SVG/CSSのみで実装(画像・絵文字不使用)。
+ */
+function AllInFlame({ size }: { size: number }) {
+  const box = size * 1.62;
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2"
+      style={{ width: box, height: box }}
+    >
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              i === 2
+                ? "radial-gradient(circle, rgba(255,240,150,0.9) 0%, rgba(255,150,20,0.55) 38%, rgba(230,40,20,0.0) 70%)"
+                : "radial-gradient(circle, rgba(255,180,40,0.85) 0%, rgba(240,70,20,0.6) 42%, rgba(200,20,10,0.0) 72%)",
+            filter: "blur(3px)",
+          }}
+          animate={{
+            scale: i === 0 ? [1, 1.12, 0.96, 1.08, 1] : i === 1 ? [1.05, 0.94, 1.1, 0.98, 1.05] : [0.9, 1.04, 0.92, 1, 0.9],
+            opacity: i === 2 ? [0.7, 1, 0.75, 0.95, 0.7] : [0.85, 0.6, 0.95, 0.7, 0.85],
+            rotate: i === 1 ? [0, 6, -4, 3, 0] : [0, -5, 4, -2, 0],
+          }}
+          transition={{ duration: 0.9 + i * 0.25, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+    </div>
+  );
+}
+
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   call: "bg-mint-500 text-white",
   win: "bg-mint-500 text-white",
@@ -115,7 +151,10 @@ export function Seat({
         {!isEmpty && (
           <>
             <div className="relative">
-              <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+              {status === "allIn" && <AllInFlame size={size === "lg" ? 44 : 34} />}
+              <div className="relative z-10">
+                <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+              </div>
               {markingColor && (
                 <span
                   aria-hidden

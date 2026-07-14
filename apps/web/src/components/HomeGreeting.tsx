@@ -27,11 +27,7 @@ export function HomeGreeting({ displayName }: { displayName: string }) {
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="px-1 pt-1"
     >
-      <div className="flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
-        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Poker ART · Tournament</span>
-      </div>
-      <h1 className="mt-2 text-[26px] font-black leading-tight tracking-tight text-ink-950">
+      <h1 className="text-[26px] font-black leading-tight tracking-tight text-ink-950">
         {greeting ? `${greeting}、` : ""}
         <span className="break-all">{displayName}</span>
         <span className="text-gold-500">.</span>

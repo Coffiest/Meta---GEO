@@ -8,12 +8,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  */
 function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationMs: number; size: number }) {
   const [fraction, setFraction] = useState(1);
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.ceil(Math.max(0, endsAt - Date.now()) / 1000));
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
     const tick = () => {
       const remaining = Math.max(0, endsAt - Date.now());
       setFraction(Math.min(1, remaining / durationMs));
+      setSecondsLeft(Math.ceil(remaining / 1000));
       if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -26,20 +28,33 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
   const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
 
   return (
-    <svg width={size} height={size} className="absolute inset-0 -rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(10,10,10,0.12)" strokeWidth={stroke} />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference * (1 - fraction)}
-      />
-    </svg>
+    <>
+      <svg width={size} height={size} className="absolute inset-0 -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(10,10,10,0.12)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - fraction)}
+        />
+      </svg>
+      {/* 残り秒数をアイコン中央に数字表示(SunVy/ポーカーチェイス方式)。黒フチ白抜きで視認性確保。 */}
+      <div
+        className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center font-black tabular-nums"
+        style={{
+          fontSize: Math.round(size * 0.42),
+          color,
+          textShadow: "0 1px 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.9)",
+        }}
+      >
+        {secondsLeft}
+      </div>
+    </>
   );
 }
 

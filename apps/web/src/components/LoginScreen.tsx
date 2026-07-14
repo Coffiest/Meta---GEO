@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import type { AuthState } from "@/lib/useAuth";
+import { Header, HeaderLogo } from "./Header";
 
 function GoogleIcon() {
   return (
@@ -109,6 +110,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -136,6 +138,16 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
       const { error } = await auth.signInWithPassword(email.trim(), password);
       if (error) setError(error);
     } else if (mode === "signup") {
+      if (password.length < 6) {
+        setError("パスワードは6文字以上で入力してください。");
+        setSubmitting(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("パスワードが一致しません。確認用と同じパスワードを入力してください。");
+        setSubmitting(false);
+        return;
+      }
       const { error, needsConfirmation } = await auth.signUpWithPassword(email.trim(), password);
       if (error) setError(error);
       else if (needsConfirmation) setInfo(`${email} 宛に確認メールを送りました。メール内のリンクを開くと登録が完了します。`);
@@ -164,26 +176,22 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-ink-900/[0.04] blur-3xl" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-md px-6 pt-10 pb-12">
+      {/* ホーム画面と同じ共有ヘッダー(ロゴ+ワードマーク)に差し替え。 */}
+      <div className="relative">
+        <Header left={<HeaderLogo />} />
+      </div>
+
+      <div className="relative mx-auto w-full max-w-md px-6 pt-6 pb-12">
         {/* ヒーロー(コンパクトに。すぐ下に認証カードが来る) */}
         <motion.div initial="hidden" animate="show" variants={container}>
-          <motion.div variants={item} className="flex items-center gap-2.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-gold-500" />
-            <span className="text-[13px] font-extrabold tracking-[0.22em] uppercase">Poker ART</span>
-            <span className="ml-auto rounded-full border border-ink-300 px-2.5 py-0.5 text-[10px] font-bold tracking-[0.22em] uppercase text-ink-500">
-              GEO
-            </span>
-          </motion.div>
-
-          <motion.h1 variants={item} className="mt-8 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
+          <motion.h1 variants={item} className="mt-4 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
             GTOを、
             <br />
             超えていけ<span className="text-gold-500">.</span>
           </motion.h1>
 
           <motion.p variants={item} className="mt-3.5 text-[13px] leading-relaxed text-ink-600">
-            バーチャルチップ専用のNLHトーナメントと、GTOの先を行く
-            <span className="font-semibold text-ink-900">GEO戦略データベース</span>。
+            GTOの先を行く<span className="font-semibold text-ink-900">GEO戦略データベース</span>。
           </motion.p>
         </motion.div>
 
@@ -250,9 +258,29 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   type="password"
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  placeholder="8文字以上"
+                  placeholder="6文字以上"
                   className="w-full rounded-xl border border-ink-300 px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
                 />
+              </div>
+            )}
+
+            {mode === "signup" && (
+              <div>
+                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">パスワード(確認)</label>
+                <input
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="もう一度入力"
+                  className={`w-full rounded-xl border px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-950/5 ${
+                    confirmPassword && confirmPassword !== password ? "border-crimson-500" : "border-ink-300 focus:border-ink-950"
+                  }`}
+                />
+                {confirmPassword && confirmPassword !== password && (
+                  <p className="mt-1 text-[11px] text-crimson-500">パスワードが一致しません。</p>
+                )}
               </div>
             )}
 
@@ -275,7 +303,12 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
           <button
             onClick={handleSubmit}
-            disabled={submitting || !email.trim() || (mode !== "reset" && !password)}
+            disabled={
+              submitting ||
+              !email.trim() ||
+              (mode !== "reset" && !password) ||
+              (mode === "signup" && (!confirmPassword || confirmPassword !== password))
+            }
             className="mt-5 w-full rounded-xl bg-ink-950 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
           >
             {submitting ? "処理中…" : submitLabel}
@@ -338,10 +371,6 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             ))}
           </motion.ul>
         </div>
-
-        <p className="mt-6 text-center text-[11px] tracking-wide text-ink-400">
-          Poker ART · バーチャルチップ専用 · リアルマネー非対応
-        </p>
       </div>
     </div>
   );
