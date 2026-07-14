@@ -4,6 +4,7 @@ import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, typ
 import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS } from "@meta-geo/db";
 import { decideBotAction } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { activeGames } from "./activeGames.js";
 
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3500;
@@ -612,6 +613,13 @@ export class TableSession implements GameSession {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+    });
+    // 離席/切断中に終了した場合に備えて結果を保存(復帰時に結果サジェスト表示)。
+    activeGames.recordResult(human.userId, {
+      winnerPlayerId: place === 1 ? human.userId : null,
+      yourFinishPosition: place,
+      yourPayout: payout,
+      gameKey: "sng",
     });
   }
 

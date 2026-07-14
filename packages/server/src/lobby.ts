@@ -4,6 +4,7 @@ import { authAvailable, verifyAccessToken } from "./auth.js";
 import type { GameSession, HumanPlayer } from "./gameServer.js";
 import { SngMatchmaker } from "./sngMatchmaker.js";
 import { MttScheduler } from "./mttScheduler.js";
+import { activeGames } from "./activeGames.js";
 
 export type GameKey = "sng" | "mtt";
 
@@ -33,7 +34,10 @@ export class Lobby {
   constructor(io: Server) {
     this.io = io;
     this.sngMatchmaker = new SngMatchmaker(io, (session, humanUserIds) => {
-      for (const userId of humanUserIds) this.activeSessions.set(userId, session);
+      for (const userId of humanUserIds) {
+        this.activeSessions.set(userId, session);
+        activeGames.setActive(userId, "sng");
+      }
     });
     this.mttScheduler = new MttScheduler(io);
   }
@@ -50,6 +54,7 @@ export class Lobby {
       const userId = socket.data["userId"] as string | undefined;
       if (!userId) return;
       this.sngMatchmaker.leaveQueue(userId);
+      activeGames.clearActive(userId);
       const session = this.activeSessions.get(userId);
       if (session) {
         session.leave(userId);
@@ -111,6 +116,7 @@ export class Lobby {
     try {
       const session = await this.mttScheduler.register(player, socket);
       this.activeSessions.set(resolved.userId, session);
+      activeGames.setActive(resolved.userId, "mtt");
     } catch (err) {
       socket.emit("joinGameError", { message: err instanceof Error ? err.message : "参加処理に失敗しました" });
     }

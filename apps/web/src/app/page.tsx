@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey, type SeatPlayerInfo } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
@@ -418,6 +418,40 @@ export default function Page() {
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
+  const [resultSuggestion, setResultSuggestion] = useState<TournamentOverInfo | null>(null);
+  const [resumeChecked, setResumeChecked] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken || !profile?.onboarded || gameKey || resumeChecked) return;
+    setResumeChecked(true);
+    const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+    void fetch(`${serverUrl}/api/lobby/active-game`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { gameKey?: string; result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number } } | null) => {
+        if (!data) return;
+        if (data.gameKey === "sng" || data.gameKey === "mtt") {
+          // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
+          setGameKey(data.gameKey);
+        } else if (data.result) {
+          setResultSuggestion({
+            winnerPlayerId: data.result.winnerPlayerId,
+            yourFinishPosition: data.result.yourFinishPosition,
+            yourPayout: data.result.yourPayout,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [accessToken, profile?.onboarded, gameKey, resumeChecked]);
+
+  // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setResumeChecked(false);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
   if (!auth.authAvailable) {
@@ -486,19 +520,32 @@ export default function Page() {
     (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
 
   return (
-    <Lobby
-      displayName={profile.displayName}
-      avatarKey={profile.avatarKey}
-      email={profile.email}
-      providers={providers}
-      userId={profile.id}
-      accessToken={accessToken}
-      onJoin={setGameKey}
-      onEditProfile={() => setEditingProfile(true)}
-      onSignOut={() => {
-        setGameKey(null);
-        void auth.signOut();
-      }}
-    />
+    <>
+      <Lobby
+        displayName={profile.displayName}
+        avatarKey={profile.avatarKey}
+        email={profile.email}
+        providers={providers}
+        userId={profile.id}
+        accessToken={accessToken}
+        onJoin={setGameKey}
+        onEditProfile={() => setEditingProfile(true)}
+        onSignOut={() => {
+          setGameKey(null);
+          void auth.signOut();
+        }}
+      />
+      {/* 離席中に終わったゲームの結果サジェスト(復帰時に1回だけ表示)。 */}
+      <AnimatePresence>
+        {resultSuggestion && (
+          <TournamentResultScreen
+            info={resultSuggestion}
+            accessToken={accessToken}
+            statsBefore={null}
+            onExit={() => setResultSuggestion(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
