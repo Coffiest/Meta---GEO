@@ -62,7 +62,7 @@ export interface LineStep {
   bucket: string;
 }
 
-function stackBucketOf(stackBb: number): StackBucket {
+export function stackBucketOf(stackBb: number): StackBucket {
   if (stackBb <= 5) return "0-5";
   if (stackBb <= 10) return "5-10";
   if (stackBb <= 15) return "10-15";
@@ -72,7 +72,7 @@ function stackBucketOf(stackBb: number): StackBucket {
 }
 
 /** プリフロップのレイズ額(bb)をバケットへ丸める。fold/call/allInは呼び出し側で先に判定する。 */
-function bucketPreflopRaiseBb(raiseBb: number): PreflopBucket {
+export function bucketPreflopRaiseBb(raiseBb: number): PreflopBucket {
   if (raiseBb < 2.5) return "raise2-2.5";
   if (raiseBb < 3) return "raise2.5-3";
   if (raiseBb < 4) return "raise3-4";
@@ -80,7 +80,7 @@ function bucketPreflopRaiseBb(raiseBb: number): PreflopBucket {
 }
 
 /** ポストフロップのベット/レイズ額(ポット比%)をバケットへ丸める。fold/checkOrCall/allInは呼び出し側で先に判定する。 */
-function bucketPostflopPct(pct: number): PostflopBucket {
+export function bucketPostflopPct(pct: number): PostflopBucket {
   if (pct < 40) return "bet20-40";
   if (pct < 60) return "bet40-60";
   if (pct < 80) return "bet60-80";

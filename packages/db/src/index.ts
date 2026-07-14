@@ -8,3 +8,5 @@ export * from "./playerNotes.js";
 export * from "./leaderboard.js";
 export * from "./solverSpot.js";
 export * from "./reviewClassify.js";
+export * from "./reviewExtract.js";
+export * from "./preflopBaseline.js";
