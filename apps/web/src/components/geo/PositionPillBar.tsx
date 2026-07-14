@@ -37,7 +37,7 @@ function suitTextClass(card: string): string {
   if (card.endsWith("h")) return "text-crimson-500";
   if (card.endsWith("d")) return "text-azure-500";
   if (card.endsWith("c")) return "text-mint-500";
-  return "text-navy-950";
+  return "text-ink-950";
 }
 
 /**
@@ -76,9 +76,9 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.9, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="shrink-0 flex items-center gap-1.5 rounded-xl bg-navy-900 ring-1 ring-navy-700 px-2.5 py-1.5"
+            className="shrink-0 flex items-center gap-1.5 rounded-xl border border-ink-950 bg-white px-2.5 py-1.5"
           >
-            <span className="text-[9px] font-bold tracking-widest text-gold-500">{STREET_LABEL[item.street]}</span>
+            <span className="text-[9px] font-black tracking-widest text-gold-600">{STREET_LABEL[item.street]}</span>
             <div className="flex gap-0.5">
               {item.cards.map((c) => (
                 <motion.div
@@ -86,7 +86,7 @@ export function PositionPillBar({
                   initial={{ opacity: 0, rotateY: 90 }}
                   animate={{ opacity: 1, rotateY: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="h-7 w-5 rounded-sm bg-navy-50 flex flex-col items-center justify-center text-[8px] font-bold leading-none"
+                  className="h-7 w-5 rounded-sm border border-ink-300 bg-white flex flex-col items-center justify-center text-[8px] font-bold leading-none"
                 >
                   <span className={suitTextClass(c)}>{c.slice(0, -1)}</span>
                   <span className={suitTextClass(c)}>{suitSymbol(c)}</span>
@@ -101,11 +101,11 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", damping: 24, stiffness: 320 }}
-            className="shrink-0 rounded-xl bg-navy-900 ring-2 ring-gold-500 overflow-hidden min-w-[90px]"
+            className="shrink-0 rounded-xl border-2 border-gold-500 bg-white overflow-hidden min-w-[90px]"
           >
-            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-bold tracking-wide text-gold-400">{item.position}</div>
+            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-gold-600">{item.position}</div>
             {sortedActiveOptions.length === 0 ? (
-              <div className="px-2.5 pb-1.5 text-[11px] font-medium text-navy-500">
+              <div className="px-2.5 pb-1.5 text-[11px] font-medium text-ink-400">
                 {activeSampleSize === 0 ? "サンプルなし" : "…"}
               </div>
             ) : (
@@ -114,7 +114,7 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.bucket)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-white truncate hover:bg-navy-800 active:bg-navy-700"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-ink-950 truncate hover:bg-ink-100 active:bg-ink-200"
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -136,15 +136,15 @@ export function PositionPillBar({
             transition={{ type: "spring", damping: 24, stiffness: 320 }}
             disabled={item.state === "future"}
             onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
-            className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
+            className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] border ${
               item.state === "decided"
-                ? "bg-navy-900 ring-1 ring-navy-600/60"
-                : "bg-navy-950 ring-1 ring-navy-800 opacity-50"
+                ? "bg-white border-ink-950"
+                : "bg-ink-50 border-ink-200 opacity-60"
             }`}
           >
-            <div className="text-[9px] font-bold tracking-wide text-navy-400">{item.position}</div>
+            <div className="text-[9px] font-black tracking-wide text-ink-500">{item.position}</div>
             {item.state === "decided" ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-white truncate max-w-[90px]">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-ink-950 truncate max-w-[90px]">
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ background: bucketColor(item.bucket ?? "", item.geometricRatio) }}
@@ -152,7 +152,7 @@ export function PositionPillBar({
                 {item.actionLabel}
               </div>
             ) : (
-              <div className="text-[11px] font-medium text-navy-500">—</div>
+              <div className="text-[11px] font-medium text-ink-400">—</div>
             )}
           </motion.button>
         ),
