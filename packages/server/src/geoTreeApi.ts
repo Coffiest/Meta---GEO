@@ -2,12 +2,52 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   getPreflopNode,
   getPostflopNode,
+  buildPreflopGtoNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
   type BubbleStage,
   type LineStep,
 } from "@meta-geo/db";
+
+/** プリフロップの行動順(UTGが最初)。GTOのRFIノード判定に使う。 */
+const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+
+/**
+ * GTOタブ用ノードを NodeResult 形へ変換する。v1はRFI(全員フォールドで回ってきた最初の開き手)のみ対応。
+ * lineに非フォールドが含まれる(=フェイス)場合や、算出ポジションがGTOレンジ未整備の場合は
+ * sampleSize=0(UIは「データ未整備」を表示)。
+ */
+function buildGtoNodeResult(line: LineStep[]) {
+  const facedRaise = line.some((s) => s.bucket !== "fold");
+  const heroPos = PREFLOP_ORDER[line.length] ?? "";
+  if (facedRaise || heroPos === "" || heroPos === "BB") {
+    return { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+  }
+  const gto = buildPreflopGtoNode({ heroPos, line });
+  if (gto.unsupported) {
+    return { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+  }
+  const total = gto.matrix.totalSamples;
+  return {
+    node: {
+      position: gto.position,
+      sampleSize: total,
+      isGto: true,
+      options: gto.options.map((o) => ({
+        bucket: o.bucket,
+        count: Math.round(o.frequency * total),
+        frequency: o.frequency,
+        geometricRatio: o.geometricRatio,
+        evBb: o.evBb,
+      })),
+    },
+    matrix: {
+      cells: gto.matrix.cells.map((row) => row.map((c) => ({ label: c.label, count: c.count, byBucket: c.byBucket }))),
+      totalSamples: total,
+    },
+  };
+}
 
 /**
  * GEO DATABASE(GTO Wizard型シーケンシャル・アクションツリー)のREST API。
@@ -93,6 +133,17 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       }
       const ratingRange = parseRatingRange(body["ratingRange"]);
       sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line, ratingRange }));
+      return true;
+    }
+
+    if (url.pathname === "/api/geo-tree/gto-node" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const line = parseLine(body["line"] ?? []);
+      if (line === null) {
+        sendJson(res, 400, { error: "invalid line" });
+        return true;
+      }
+      sendJson(res, 200, buildGtoNodeResult(line));
       return true;
     }
 

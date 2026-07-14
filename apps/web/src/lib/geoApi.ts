@@ -73,12 +73,16 @@ export interface ActionOption {
   count: number;
   frequency: number;
   geometricRatio: number;
+  /** GTOノードのみ: そのアクションのEV(bb)。GEO(実測)ノードでは未設定。 */
+  evBb?: number;
 }
 
 export interface TreeNode {
   position: string | null;
   sampleSize: number;
   options: ActionOption[];
+  /** GTO(ソルバー計算)ノードなら true。表示(件数を隠す等)を切り替えるために使う。 */
+  isGto?: boolean;
 }
 
 export interface HandClassCell {
@@ -126,4 +130,6 @@ export const geoTreeApi = {
     postflopLine: LineStep[];
     ratingRange?: RatingRange;
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
+  /** GTOタブ用: 自社計算したGTO解のノード。v1はプリフロップRFIのみ対応。 */
+  gtoNode: (params: { line: LineStep[] }) => postJson<NodeResult>("/api/geo-tree/gto-node", params),
 };

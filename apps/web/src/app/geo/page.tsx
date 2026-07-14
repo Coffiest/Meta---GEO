@@ -42,6 +42,8 @@ function bucketLabelFor(street: Street, bucket: string): string {
 
 export default function GeoPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
+  const [mode, setMode] = useState<"geo" | "gto">("geo");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
@@ -109,7 +111,9 @@ export default function GeoPage() {
     setError(null);
 
     const request =
-      street === "preflop"
+      mode === "gto"
+        ? geoTreeApi.gtoNode({ line: preflopLine })
+        : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
             stackBucket,
@@ -137,11 +141,13 @@ export default function GeoPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
+  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
   useEffect(() => {
+    // GTOモード(v1)はプリフロップのみ対応。ポストフロップへの自動遷移は行わない。
+    if (mode === "gto") return;
     if (!node || node.position !== null || pendingStreet || justPickedBoard) return;
     const next = nextStreetOf(street);
     if (!next) return;
@@ -150,6 +156,19 @@ export default function GeoPage() {
     setPendingStreet(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node, street, pendingStreet, dismissedStreet, justPickedBoard, preflopLine, streetLines, board]);
+
+  function switchMode(next: "geo" | "gto") {
+    if (next === mode) return;
+    // 切替時はラインをリセットしてプリフロップ先頭へ戻す。
+    setMode(next);
+    setStreet("preflop");
+    setPreflopLine([]);
+    setBoard([]);
+    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
+    setPendingStreet(null);
+    setDismissedStreet(null);
+    setJustPickedBoard(false);
+  }
 
   function selectBucket(bucket: string) {
     if (!node?.position) return;
@@ -262,11 +281,25 @@ export default function GeoPage() {
         <Header
           left={
             <div className="w-full">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
-                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">
-                  GEO Database
-                </p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">Database</p>
+                </div>
+                {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
+                <div className="flex rounded-lg border border-ink-950 overflow-hidden text-[10px] font-black">
+                  {(["geo", "gto"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => switchMode(m)}
+                      className={`px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
+                        mode === m ? "bg-ink-950 text-white" : "bg-white text-ink-500 active:bg-ink-50"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
               {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
               <div className="flex items-stretch gap-2.5">
@@ -304,6 +337,18 @@ export default function GeoPage() {
       <div className="max-w-3xl mx-auto px-4 pb-28">
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3 mb-4">{error}</div>
+        )}
+
+        {mode === "gto" && (
+          <div className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[12px] leading-relaxed px-4 py-3 mb-3">
+            <p className="font-black text-ink-950 mb-1">GTO(自社計算・検証用)</p>
+            <p>
+              自力で計算したGTO解です。GTO Wizardと見比べて一致を確認するためのビューア(v1)。現在は
+              <span className="font-bold">プリフロップのRFI(全員フォールドで回ってきた最初の開き)</span>
+              のみ対応。フォールドで手番を進めると各ポジションのオープンレンジを確認できます。
+              エクスプロイト検出は母集団データ蓄積後に解禁予定。
+            </p>
+          </div>
         )}
 
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>

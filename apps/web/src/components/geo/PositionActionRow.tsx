@@ -56,7 +56,11 @@ export function PositionActionRow({
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
         <p className="text-[11px] tracking-[0.2em] text-ink-800 uppercase font-black">{node.position}</p>
-        <p className="text-[10px] text-ink-400 tabular-nums">n={node.sampleSize}</p>
+        {node.isGto ? (
+          <p className="text-[10px] text-gold-500 tabular-nums font-black tracking-[0.15em]">GTO</p>
+        ) : (
+          <p className="text-[10px] text-ink-400 tabular-nums">n={node.sampleSize}</p>
+        )}
       </div>
       {/* 横スクロール1行(グリッドの折り返しに頼らない): 強→弱の順で並べているため、
           行が折り返されても崩れないよう、最も激しいアクションが常に一番左(スクロール起点)に
@@ -79,7 +83,18 @@ export function PositionActionRow({
               <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
                 {Math.round(opt.frequency * 100)}%
               </div>
-              <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
+              {node.isGto ? (
+                opt.evBb !== undefined && opt.evBb !== 0 ? (
+                  <div className="text-[9px] text-white/70 tabular-nums">
+                    EV {opt.evBb >= 0 ? "+" : ""}
+                    {opt.evBb.toFixed(2)}bb
+                  </div>
+                ) : (
+                  <div className="text-[9px] text-white/40 tabular-nums">&nbsp;</div>
+                )
+              ) : (
+                <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
+              )}
             </motion.button>
           ))}
         </AnimatePresence>
