@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type SeatPlayerInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
@@ -12,6 +12,8 @@ import { Onboarding } from "@/components/Onboarding";
 import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
+import { PlayerDetailModal } from "@/components/PlayerDetailModal";
+import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 
 const SEAT_COUNT = 6;
 
@@ -158,6 +160,9 @@ function GameScreen({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
+  // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
+  const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
 
@@ -165,6 +170,36 @@ function GameScreen({
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
     [state, yourSeatIndex],
   );
+
+  // 着席中の相手(非BOT)のマーキングをまとめて取得し、テーブルの席ドットに反映する。
+  const opponentUserIds = useMemo(
+    () =>
+      Object.values(players)
+        .filter((p) => !p.isBot && Boolean(p.userId))
+        .map((p) => p.userId),
+    [players],
+  );
+  const opponentIdsKey = opponentUserIds.join(",");
+  useEffect(() => {
+    if (!accessToken || opponentUserIds.length === 0) return;
+    let alive = true;
+    void fetchPlayerNotes(accessToken, opponentUserIds).then((map) => {
+      if (!alive) return;
+      const hexMap: Record<string, string | null> = {};
+      for (const [uid, n] of Object.entries(map)) {
+        hexMap[uid] = n.color ? PLAYER_NOTE_COLOR_HEX[n.color] : null;
+      }
+      setMarkingBySeat((prev) => ({ ...prev, ...hexMap }));
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, opponentIdsKey]);
+
+  const handleMarkingSaved = (userId: string, color: PlayerNoteColor | null) => {
+    setMarkingBySeat((prev) => ({ ...prev, [userId]: color ? PLAYER_NOTE_COLOR_HEX[color] : null }));
+  };
 
   const isYourTurn = yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex && !state.isComplete;
   const toCall = state && yourSeat ? Math.max(0, state.currentBetToMatch - yourSeat.streetContribution) : 0;
@@ -254,6 +289,8 @@ function GameScreen({
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
             turnTimer={turnTimer}
+            onPlayerTap={(info) => setTappedPlayer(info)}
+            markingBySeat={markingBySeat}
           />
         )}
       </main>
@@ -339,6 +376,18 @@ function GameScreen({
       <AnimatePresence>
         {historyOpen && (
           <GameHandHistorySheet records={gameHandHistory} bigBlind={bigBlind} onClose={() => setHistoryOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* 相手タップで開くプレイヤー詳細モーダル(スタッツ+偏差値+5色マーキング+メモ)。 */}
+      <AnimatePresence>
+        {tappedPlayer && (
+          <PlayerDetailModal
+            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey }}
+            accessToken={accessToken}
+            onClose={() => setTappedPlayer(null)}
+            onSaved={handleMarkingSaved}
+          />
         )}
       </AnimatePresence>
 

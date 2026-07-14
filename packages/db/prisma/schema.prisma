@@ -59,6 +59,27 @@ model GeoViewUsage {
   @@unique([userId, date])
 }
 
+/// プレイヤーメモ&マーキング。あるユーザー(author)が対戦相手(target)につける
+/// 色分類(赤/橙/黄/青/紫)+自由記述メモ。GTO WizardやTenFourのHUD的な「相手ノート」機能。
+/// author×targetで一意(1相手につき1メモ)。
+model PlayerNote {
+  id           String   @id @default(uuid())
+  /// メモを付けた本人のUser.id
+  authorUserId String
+  /// メモの対象プレイヤーのUser.id
+  targetUserId String
+  /// 色分類。"red"|"orange"|"yellow"|"blue"|"purple" のいずれか、未設定はnull。
+  color        String?
+  /// 自由記述メモ本文。
+  note         String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([authorUserId, targetUserId])
+  @@index([authorUserId])
+  @@index([targetUserId])
+}
+
 /// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
 /// (別に「現在残高」フィールドをキャッシュしない。導出元は常にこの台帳の1本にする)。
 model BankrollTransaction {

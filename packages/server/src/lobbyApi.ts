@@ -5,12 +5,16 @@ import {
   getLeaderboard,
   getOrCreateUserByAuthId,
   getPlayerStats,
+  getPlayerNote,
+  getPlayerNotesForTargets,
   getHandProfitGraph,
   getRRRating,
   getTournamentHistory,
   getUserHandHistory,
   prisma,
   setHandFavorite,
+  upsertPlayerNote,
+  type PlayerNoteColor,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 
@@ -223,6 +227,85 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
       const limitParam = Number(url.searchParams.get("limit") ?? 1000);
       sendJson(res, 200, user ? await getHandProfitGraph(user.id, limitParam) : []);
+      return true;
+    }
+
+    // 対戦相手の公開プロフィール(収支/ROI/インマネ率/VPIP/PFR/3bet/偏差値/全国順位)。
+    // 相手をタップしたときのプレイヤー詳細モーダル用。ログイン必須(?userId=対象User.id)。
+    if (url.pathname === "/api/lobby/player") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const targetUserId = url.searchParams.get("userId");
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      const target = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, displayName: true, avatarKey: true, isBot: true },
+      });
+      if (!target || target.isBot) {
+        sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      const [stats, rr] = await Promise.all([getPlayerStats(target.id), getRRRating(target.id)]);
+      sendJson(res, 200, {
+        id: target.id,
+        displayName: target.displayName,
+        avatarKey: target.avatarKey,
+        stats,
+        rrRating: rr,
+      });
+      return true;
+    }
+
+    // プレイヤーメモ&マーキング(自分が相手につけたノート)。GET ?userId= で取得、POSTで保存。
+    if (url.pathname === "/api/lobby/player-note") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const author = await resolveDbUser(verified);
+
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const targetUserId = typeof body["targetUserId"] === "string" ? body["targetUserId"] : null;
+        if (!targetUserId) {
+          sendJson(res, 400, { error: "targetUserId is required" });
+          return true;
+        }
+        const color = (typeof body["color"] === "string" ? body["color"] : null) as PlayerNoteColor | null;
+        const note = typeof body["note"] === "string" ? body["note"] : "";
+        const saved = await upsertPlayerNote(author.id, targetUserId, color, note);
+        sendJson(res, 200, saved);
+        return true;
+      }
+
+      const targetUserId = url.searchParams.get("userId");
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      sendJson(res, 200, await getPlayerNote(author.id, targetUserId));
+      return true;
+    }
+
+    // 複数相手のマーキング&メモをまとめて取得(テーブル上の全席のマーキングドット描画用)。
+    // GET ?userIds=id1,id2,... → { [userId]: { color, note } }
+    if (url.pathname === "/api/lobby/player-notes") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const author = await resolveDbUser(verified);
+      const idsParam = url.searchParams.get("userIds") ?? "";
+      const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
+      sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
       return true;
     }
 
