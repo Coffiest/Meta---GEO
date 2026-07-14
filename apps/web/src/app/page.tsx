@@ -503,12 +503,24 @@ export default function Page() {
 
   useEffect(() => {
     if (!accessToken || !profile?.onboarded || gameKey || resumeChecked) return;
-    setResumeChecked(true);
     const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
-    void fetch(`${serverUrl}/api/lobby/active-game`, { headers: { authorization: `Bearer ${accessToken}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { gameKey?: string; result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number } } | null) => {
-        if (!data) return;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // 進行中ゲームの有無を「確定」するまで諦めない。ネットワーク断/サーバー起動待ち等で失敗した
+    // 場合でも resumeChecked を立てず、指数バックオフで再試行し続ける。これにより、リフレッシュや
+    // 一時的な回線断で進行中ゲームを取りこぼしてホームに取り残されることを厳密に防ぐ。
+    const check = async (attempt: number): Promise<void> => {
+      try {
+        const r = await fetch(`${serverUrl}/api/lobby/active-game`, {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        const data = (await r.json()) as {
+          gameKey?: string;
+          result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number };
+        };
+        if (cancelled) return;
         if (data.gameKey === "sng" || data.gameKey === "mtt") {
           // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
           setGameKey(data.gameKey);
@@ -519,8 +531,17 @@ export default function Page() {
             yourPayout: data.result.yourPayout,
           });
         }
-      })
-      .catch(() => {});
+        setResumeChecked(true); // 確定応答を得たときだけ確定にする。
+      } catch {
+        if (cancelled) return;
+        retryTimer = setTimeout(() => void check(attempt + 1), Math.min(8000, 1000 * 2 ** attempt));
+      }
+    };
+    void check(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [accessToken, profile?.onboarded, gameKey, resumeChecked]);
 
   // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
@@ -591,6 +612,10 @@ export default function Page() {
       />
     );
   }
+
+  // 進行中ゲームの有無が確定するまではホームを出さない。リフレッシュ直後にホームが一瞬見えたり、
+  // 進行中ゲームがあるのに新規ゲームを開始できてしまうことを防ぐ(確定するまで check() が再試行し続ける)。
+  if (!resumeChecked) return <LoadingScreen />;
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
