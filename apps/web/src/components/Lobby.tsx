@@ -16,6 +16,7 @@ import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
+import { EmptyState } from "./EmptyState";
 import { useCountUp } from "@/lib/useCountUp";
 
 interface PlayerStats {
@@ -1129,9 +1130,11 @@ export function Lobby({
                 });
                 if (rows.length === 0) {
                   return (
-                    <div className="py-10 text-center text-ink-700 text-sm">
-                      この期間はまだランキングデータがありません。
-                    </div>
+                    <EmptyState
+                      icon="trophy"
+                      title="まだランキングがありません"
+                      subtitle="この指標・期間で規定トナメ数(10)を満たすプレイヤーが揃うと表示されます。"
+                    />
                   );
                 }
                 return (
@@ -1216,10 +1219,18 @@ export function Lobby({
                   {(() => {
                     const rows = historySubTab === "favorites" ? history.filter((h) => h.isFavorite) : history;
                     if (rows.length === 0) {
-                      return (
-                        <div className="py-10 text-center text-ink-700 text-sm">
-                          {historySubTab === "favorites" ? "お気に入りのハンドはまだありません。" : "まだプレイしたハンドがありません。"}
-                        </div>
+                      return historySubTab === "favorites" ? (
+                        <EmptyState
+                          icon="star"
+                          title="お気に入りのハンドはまだありません"
+                          subtitle="ハンド履歴の星マークをタップすると、あとで見返したい局面をここに集められます。"
+                        />
+                      ) : (
+                        <EmptyState
+                          icon="cards"
+                          title="まだプレイしたハンドがありません"
+                          subtitle="トーナメントを一度プレイすると、全ハンドの履歴がここに並びます。"
+                        />
                       );
                     }
                     const groups: { tournamentId: string; tournamentLabel: string; rows: HistoryRow[] }[] = [];
@@ -1305,7 +1316,11 @@ export function Lobby({
               </SectionCard>
             ) : tournamentHistory.length === 0 ? (
               <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">トーナメントに参加すると履歴が表示されます。</div>
+                <EmptyState
+                  icon="chart"
+                  title="まだトーナメント成績がありません"
+                  subtitle="SNGやMTTに参加して結果が出ると、収支・着順の履歴がここに並びます。"
+                />
               </SectionCard>
             ) : (
               <>
