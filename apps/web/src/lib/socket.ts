@@ -65,6 +65,23 @@ export interface TurnTimerInfo {
   durationMs: number;
 }
 
+export interface PrizePlace {
+  place: number;
+  amount: number;
+}
+
+/** トーナメントクロック画面用の集計情報(サーバーのbroadcastTournamentInfoから)。 */
+export interface TournamentInfo {
+  /** 生き残っている人数。 */
+  remaining: number;
+  /** 総エントリー数。 */
+  total: number;
+  /** アベレージスタック(生存者の平均持ち点)。 */
+  averageStack: number;
+  /** プライズ(ペイアウト)構造。 */
+  prizePool: PrizePlace[];
+}
+
 export interface TournamentOverInfo {
   winnerPlayerId: string | null;
   yourFinishPosition: number | null;
@@ -99,6 +116,8 @@ export interface PokerSocketState {
   level: LevelInfo | null;
   /** 現在のブラインドレベルが終わる時刻(ms epoch)。次レベルまでのカウントダウン表示用。 */
   levelEndsAt: number | null;
+  /** トーナメントクロック画面用の集計情報(残り人数/アベレージ/プライズ)。 */
+  tournamentInfo: TournamentInfo | null;
   tournamentOver: TournamentOverInfo | null;
   actionError: string | null;
   players: Record<number, SeatPlayerInfo>;
@@ -180,6 +199,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     lastHandEnded: null,
     level: null,
     levelEndsAt: null,
+    tournamentInfo: null,
     tournamentOver: null,
     actionError: null,
     players: {},
@@ -292,6 +312,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
       setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
     );
+    socket.on("tournamentInfo", (payload: TournamentInfo) => setData((d) => ({ ...d, tournamentInfo: payload })));
     socket.on("tournamentOver", (payload: TournamentOverInfo) =>
       setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null })),
     );

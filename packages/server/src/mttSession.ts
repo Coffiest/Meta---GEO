@@ -215,6 +215,7 @@ export class MttSession implements GameSession {
     }
     if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
     socket.emit("levelUp", { level: this.mtt!.getCurrentLevel(), endsAt: this.levelEndsAt });
+    this.broadcastTournamentInfo();
     socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand && human.currentTableId === this.activeTableId) {
       socket.emit("state", this.hand.getPublicState());
@@ -678,8 +679,28 @@ export class MttSession implements GameSession {
     this.io.to(this.tableRoom(tableId)).emit("players", { players });
   }
 
+  /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を全卓に配信。 */
+  private broadcastTournamentInfo(): void {
+    const mtt = this.mtt;
+    if (!mtt) return;
+    let remaining = 0;
+    let totalChips = 0;
+    for (const tid of mtt.getTableIds()) {
+      for (const o of mtt.getTableOccupancy(tid)) {
+        remaining += 1;
+        totalChips += o.stack;
+      }
+    }
+    const averageStack = remaining > 0 ? Math.round(totalChips / remaining) : 0;
+    const prizePool = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn).places;
+    this.io
+      .to([...mtt.getTableIds()].map((id) => this.tableRoom(id)))
+      .emit("tournamentInfo", { remaining, total: this.entryCount, averageStack, prizePool });
+  }
+
   private broadcastState(): void {
     if (!this.hand || this.activeTableId === null) return;
+    this.broadcastTournamentInfo();
     this.io.to(this.tableRoom(this.activeTableId)).emit("state", this.hand.getPublicState());
   }
 

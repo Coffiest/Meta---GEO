@@ -140,6 +140,7 @@ function GameScreen({
     lastHandEnded,
     level,
     levelEndsAt,
+    tournamentInfo,
     tournamentOver,
     actionError,
     players,
@@ -373,7 +374,16 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {structureOpen && <BlindStructureSheet currentLevel={level?.level} onClose={() => setStructureOpen(false)} />}
+      {structureOpen && (
+        <BlindStructureSheet
+          currentLevel={level?.level}
+          level={level}
+          levelEndsAt={levelEndsAt}
+          tournamentInfo={tournamentInfo}
+          gameLabel={gameKey === "mtt" ? "MTT トーナメント" : "Sit & Go"}
+          onClose={() => setStructureOpen(false)}
+        />
+      )}
 
       <AnimatePresence>
         {historyOpen && (

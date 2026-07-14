@@ -303,6 +303,7 @@ export class TableSession implements GameSession {
 
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
     if (this.tournament) socket.emit("levelUp", { level: this.tournament.getCurrentLevel(), endsAt: this.levelEndsAt });
+    this.broadcastTournamentInfo();
     socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand) {
       socket.emit("state", this.hand.getPublicState());
@@ -335,6 +336,22 @@ export class TableSession implements GameSession {
     }));
   }
 
+  /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を配信する。 */
+  private broadcastTournamentInfo(): void {
+    if (!this.tournament) return;
+    const seats = this.tournament.getSeats();
+    const alive = seats.filter((s) => s.bustedAtHand === null);
+    const remaining = alive.length;
+    const totalChips = alive.reduce((sum, s) => sum + s.stack, 0);
+    const averageStack = remaining > 0 ? Math.round(totalChips / remaining) : 0;
+    this.io.to(this.roomId).emit("tournamentInfo", {
+      remaining,
+      total: seats.length,
+      averageStack,
+      prizePool: SNG_PAYOUTS,
+    });
+  }
+
   private isAccelerated(): boolean {
     return this.allHumansDone();
   }
@@ -345,6 +362,7 @@ export class TableSession implements GameSession {
     const level = tournament.getCurrentLevel();
     this.levelEndsAt = Date.now() + level.durationMinutes * 60_000;
     this.io.to(this.roomId).emit("levelUp", { level, endsAt: this.levelEndsAt });
+    this.broadcastTournamentInfo();
     setTimeout(() => {
       if (!this.tournament || this.tournament.isTournamentOver() || this.finished) return;
       this.tournament.advanceToNextLevel();
@@ -360,6 +378,7 @@ export class TableSession implements GameSession {
     }
     this.hand = this.tournament.startNextHand();
     this.broadcastState();
+    this.broadcastTournamentInfo();
     this.scheduleTurn();
   }
 
