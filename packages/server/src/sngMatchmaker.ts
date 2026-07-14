@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import { TableSession, SNG_SEAT_COUNT, type HumanPlayer, type GameSession } from "./gameServer.js";
 
-const MATCH_TIMEOUT_MS = 60_000;
+const MATCH_TIMEOUT_MS = 30_000;
 
 interface QueuedPlayer extends HumanPlayer {
   socket: Socket;

@@ -193,10 +193,16 @@ function GameScreen({
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-9 w-9 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800 text-[15px] active:scale-95 transition-transform"
+          className="shrink-0 h-9 w-9 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800 active:scale-95 transition-transform"
           aria-label="設定"
         >
-          ⚙
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[18px] w-[18px]">
+            <circle cx="12" cy="12" r="3.2" />
+            <path
+              d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
         {settingsOpen && (
           <SettingsPopover
@@ -278,10 +284,17 @@ function GameScreen({
             className="fixed inset-0 z-30 flex items-center justify-center bg-white/95 backdrop-blur px-6"
           >
             <div className="text-center space-y-4">
+              {tournamentOver.yourFinishPosition === 1 && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 text-gold-500">
+                  <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" />
+                  <path d="M7 5.4H4.4A2.6 2.6 0 0 0 7 8.6M17 5.4h2.6A2.6 2.6 0 0 1 17 8.6" />
+                  <path d="M12 13.5v3.5M8.5 21h7M9.5 21v-1.2a2.5 2.5 0 0 1 5 0V21" />
+                </svg>
+              )}
               <div className="text-ink-500 text-xs tracking-[0.3em] font-semibold">TOURNAMENT RESULT</div>
               <div className="text-3xl font-bold text-ink-950">
                 {tournamentOver.yourFinishPosition === 1
-                  ? "優勝 🏆"
+                  ? "優勝"
                   : tournamentOver.yourFinishPosition !== null
                     ? `${tournamentOver.yourFinishPosition}位`
                     : "トーナメント終了"}

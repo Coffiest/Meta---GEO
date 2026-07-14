@@ -172,8 +172,11 @@ export function Onboarding({
                 />
               </motion.svg>
               <Avatar avatarKey={avatarKey} displayName={name} size={84} />
-              <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-ink-950 text-[13px] text-white ring-2 ring-white">
-                📷
+              <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-ink-950 text-white ring-2 ring-white">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-3.5 w-3.5">
+                  <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2l1.2-1.6a1 1 0 0 1 .8-.4h3a1 1 0 0 1 .8.4L13.5 7h2A1.5 1.5 0 0 1 17 8.5v7A1.5 1.5 0 0 1 15.5 17h-11A1.5 1.5 0 0 1 3 15.5v-7Z" strokeLinejoin="round" />
+                  <circle cx="10" cy="11.5" r="2.6" />
+                </svg>
               </div>
             </button>
             <input
