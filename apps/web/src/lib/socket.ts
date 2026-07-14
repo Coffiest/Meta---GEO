@@ -41,6 +41,8 @@ export interface SeatPlayerInfo {
   displayName: string;
   avatarKey: string | null;
   isBot: boolean;
+  /** 離席中(自動チェック/フォールド)。全員の座席に「離席中」を表示するため。 */
+  away: boolean;
 }
 
 export interface TurnTimerInfo {
@@ -216,13 +218,15 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     );
     socket.on(
       "players",
-      (payload: { players: { seatIndex: number; displayName: string; avatarKey?: string | null; isBot?: boolean }[] }) =>
+      (payload: {
+        players: { seatIndex: number; displayName: string; avatarKey?: string | null; isBot?: boolean; away?: boolean }[];
+      }) =>
         setData((d) => ({
           ...d,
           players: Object.fromEntries(
             payload.players.map((p) => [
               p.seatIndex,
-              { displayName: p.displayName, avatarKey: p.avatarKey ?? null, isBot: p.isBot ?? false },
+              { displayName: p.displayName, avatarKey: p.avatarKey ?? null, isBot: p.isBot ?? false, away: p.away ?? false },
             ]),
           ),
         })),
@@ -284,5 +288,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     setData((d) => (d.timeBank ? { ...d, timeBank: { ...d.timeBank, armed } } : d));
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank };
+  /** 離席のON/OFFをサーバーに通知する(全員の座席に「離席中」を表示するため)。 */
+  const setAway = useCallback((away: boolean) => {
+    socketRef.current?.emit("sitOut", { away });
+  }, []);
+
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway };
 }

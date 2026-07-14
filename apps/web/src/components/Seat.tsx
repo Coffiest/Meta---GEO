@@ -41,6 +41,8 @@ export interface SeatViewProps {
    * 手札やピルと絶対に重ならないようにする(絶対座標のフリー配置は席ごとに表示名の長さが
    * 変わるため、どこかのポジションで必ず干渉してしまっていた)。 */
   isButton?: boolean;
+  /** 離席中(自分・他プレイヤー双方に表示)。 */
+  away?: boolean;
 }
 
 export function Seat({
@@ -59,6 +61,7 @@ export function Seat({
   timer,
   size = "sm",
   isButton = false,
+  away = false,
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
@@ -124,6 +127,12 @@ export function Seat({
                 </span>
               </div>
               {status === "allIn" && <div className="text-[9px] text-crimson-500 font-medium">ALL IN</div>}
+              {away && status !== "allIn" && (
+                <div className="flex items-center gap-1 text-[9px] font-bold text-ink-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-ink-400" />
+                  離席中
+                </div>
+              )}
             </div>
           </>
         )}

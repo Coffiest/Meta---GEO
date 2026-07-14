@@ -11,6 +11,19 @@ interface Preset {
   toAmount: number;
 }
 
+/** 補助トグルのチェック表示。ON時は白角丸に黒チェックのSVG、OFF時は空の枠線。絵文字は使わない。 */
+function ToggleDot({ on }: { on: boolean }) {
+  return (
+    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] ${on ? "bg-white" : "ring-1 ring-ink-400"}`}>
+      {on && (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} className="h-2.5 w-2.5 text-ink-950">
+          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 // ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
 
@@ -98,6 +111,7 @@ export function ActionBar({
   onAction,
   timeBank,
   onToggleTimeBank,
+  onToggleAway,
 }: {
   isYourTurn: boolean;
   street: string;
@@ -118,6 +132,8 @@ export function ActionBar({
    * アクションバー側の専用行に置く。 */
   timeBank?: TimeBankInfo | null;
   onToggleTimeBank?: () => void;
+  /** 離席状態をサーバーに通知する(全員の座席に「離席中」を表示するため)。 */
+  onToggleAway?: (away: boolean) => void;
 }) {
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
   // 「チェック/フォールドを予約」: 手番でない間にONにしておくと、次に手番が来た瞬間に
@@ -145,63 +161,74 @@ export function ActionBar({
     }
   }, [isYourTurn, away, checkFoldArmed, canCheck, onAction]);
 
+  // タイムバンク: 残り枚数を文字ではなくピップ(丸ドット)で視覚的に示す。
+  // ドット数=残りカード数。armed時は反転色。
   const timeBankRow = timeBank && (
     <motion.button
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
+      whileTap={{ scale: 0.96 }}
       onClick={onToggleTimeBank}
-      className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border ${
+      className={`flex items-center gap-2 rounded-full pl-3 pr-3 h-9 text-[11px] font-bold transition-colors border ${
         timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
       }`}
     >
-      <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${timeBank.armed ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
-        {timeBank.armed ? "✓" : ""}
+      <span>タイムバンク</span>
+      <span className="flex items-center gap-1">
+        {timeBank.cards > 0 ? (
+          Array.from({ length: timeBank.cards }).map((_, i) => (
+            <span key={i} className={`h-1.5 w-1.5 rounded-full ${timeBank.armed ? "bg-white" : "bg-ink-950"}`} />
+          ))
+        ) : (
+          <span className="text-[10px] opacity-60">残0</span>
+        )}
       </span>
-      タイムバンクを使用({timeBank.cards})
     </motion.button>
   );
 
-  // 「離席」トグル: 席替えボタンなど座席側の要素と同じ空間に置くと表示名の長さ次第で干渉するため、
-  // タイムバンクと同じアクションバー側の行に、同じピル型トグルの見た目で並べて配置する。
+  // 「離席」トグル: ONでサーバーへ通知し、全員の座席に「離席中」を表示する。
   const awayRow = (
     <motion.button
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      onClick={() => setAway((v) => !v)}
-      className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border shrink-0 ${
+      whileTap={{ scale: 0.96 }}
+      onClick={() =>
+        setAway((v) => {
+          const next = !v;
+          onToggleAway?.(next);
+          return next;
+        })
+      }
+      className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-9 text-[11px] font-bold transition-colors border shrink-0 ${
         away ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
       }`}
     >
-      <span className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${away ? "bg-white/20" : "ring-1 ring-ink-400"}`}>
-        {away ? "✓" : ""}
-      </span>
+      <ToggleDot on={away} />
       離席
     </motion.button>
   );
 
   if (!isYourTurn) {
     return (
-      <div className="safe-area-bottom px-4 pb-6 pt-3 bg-white border-t border-ink-200">
+      <div className="safe-area-bottom px-4 pb-8 pt-3 bg-white border-t border-ink-200">
         <div className="mx-auto max-w-md space-y-2">
           <div className="flex items-center gap-2">
             {timeBankRow}
             {awayRow}
-          </div>
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={() => setCheckFoldArmed((v) => !v)}
-            className={`flex items-center gap-1.5 rounded-full px-2.5 h-8 text-[11px] font-semibold transition-colors border ${
-              checkFoldArmed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-            }`}
-          >
-            <span
-              className={`h-3.5 w-3.5 rounded-sm flex items-center justify-center shrink-0 ${checkFoldArmed ? "bg-white/20" : "ring-1 ring-ink-400"}`}
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setCheckFoldArmed((v) => !v)}
+              aria-label="チェック/フォールドを予約"
+              className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-9 text-[11px] font-black tabular-nums transition-colors border shrink-0 ${
+                checkFoldArmed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
+              }`}
             >
-              {checkFoldArmed ? "✓" : ""}
-            </span>
-            チェック/フォールドを予約
-          </motion.button>
+              <ToggleDot on={checkFoldArmed} />
+              x / f
+            </motion.button>
+          </div>
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 py-3 text-xs font-medium tracking-wide text-ink-500">
             <span className="flex gap-1">
               {[0, 1, 2].map((i) => (
@@ -230,9 +257,9 @@ export function ActionBar({
   const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
 
   return (
-    <div className="safe-area-bottom px-4 pb-6 pt-3 bg-white border-t border-ink-200">
-      <div className="mx-auto max-w-md space-y-2">
-        <div className="flex items-center gap-2">
+    <div className="safe-area-bottom px-4 pb-8 pt-3 bg-white border-t border-ink-200">
+      <div className="mx-auto max-w-md space-y-2.5">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {timeBankRow}
           {awayRow}
         </div>

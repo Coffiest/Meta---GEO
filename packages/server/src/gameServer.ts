@@ -132,6 +132,9 @@ interface HumanSeat {
   socket: Socket | null;
   timeBankCards: number;
   timeBankArmed: boolean;
+  /** 離席中(自動チェック/フォールド)。他プレイヤーの画面にも「離席中」を表示するため
+   * サーバーが状態を保持しplayersペイロードでブロードキャストする。 */
+  away: boolean;
   left: boolean;
   done: boolean;
   disconnectTimer: ReturnType<typeof setTimeout> | null;
@@ -200,6 +203,7 @@ export class TableSession implements GameSession {
         socket: null,
         timeBankCards: SNG_TIME_BANK_CARDS,
         timeBankArmed: false,
+        away: false,
         left: false,
         done: false,
         disconnectTimer: null,
@@ -272,6 +276,11 @@ export class TableSession implements GameSession {
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
       human.timeBankArmed = Boolean(payload?.armed);
     });
+    socket.on("sitOut", (payload: { away?: boolean }) => {
+      human.away = Boolean(payload?.away);
+      // 離席状態は全員の画面に反映する(座席に「離席中」を表示するため)。
+      this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+    });
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
       human.socket = null;
@@ -303,12 +312,13 @@ export class TableSession implements GameSession {
     }
   }
 
-  private playersPayload(): { seatIndex: number; displayName: string; avatarKey: string | null; isBot: boolean }[] {
+  private playersPayload(): { seatIndex: number; displayName: string; avatarKey: string | null; isBot: boolean; away: boolean }[] {
     return [...this.players.values()].map((p) => ({
       seatIndex: p.seatIndex,
       displayName: p.displayName,
       avatarKey: p.avatarKey,
       isBot: p.isBot,
+      away: this.humansBySeat.get(p.seatIndex)?.away ?? false,
     }));
   }
 

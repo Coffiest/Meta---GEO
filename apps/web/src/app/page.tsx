@@ -140,6 +140,7 @@ function GameScreen({
     sendAction,
     leaveGame,
     armTimeBank,
+    setAway,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
@@ -336,6 +337,7 @@ function GameScreen({
           onAction={sendAction}
           timeBank={timeBank}
           onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
+          onToggleAway={setAway}
         />
       )}
     </div>
