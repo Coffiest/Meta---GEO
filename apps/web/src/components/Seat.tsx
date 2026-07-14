@@ -43,6 +43,8 @@ export interface SeatViewProps {
   isButton?: boolean;
   /** 離席中(自分・他プレイヤー双方に表示)。 */
   away?: boolean;
+  /** プレイヤーメモのマーキング色(HEX)。設定時はアバター右上に小さなドットを出す。 */
+  markingColor?: string | null;
 }
 
 export function Seat({
@@ -62,6 +64,7 @@ export function Seat({
   size = "sm",
   isButton = false,
   away = false,
+  markingColor = null,
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
@@ -111,7 +114,16 @@ export function Seat({
         )}
         {!isEmpty && (
           <>
-            <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+            <div className="relative">
+              <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+              {markingColor && (
+                <span
+                  aria-hidden
+                  className="absolute -top-0.5 -right-0.5 z-20 h-3 w-3 rounded-full ring-[1.5px] ring-white"
+                  style={{ backgroundColor: markingColor }}
+                />
+              )}
+            </div>
             <div className="text-left min-w-0">
               <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-ink-950`}>
                 {name}

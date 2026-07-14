@@ -627,9 +627,12 @@ export class MttSession implements GameSession {
       const info = this.playersById.get(o.playerId);
       return {
         seatIndex: o.seatIndex,
+        // MTTではplayerId=User.id。BOTの合成IDはクライアントでisBot判定して詳細を引かない。
+        userId: o.playerId,
         displayName: info?.displayName ?? o.playerId,
         avatarKey: info?.avatarKey ?? null,
         isBot: info?.isBot ?? true,
+        away: false,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });

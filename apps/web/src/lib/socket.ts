@@ -50,6 +50,8 @@ export interface SeatAction {
 }
 
 export interface SeatPlayerInfo {
+  /** 対象プレイヤーのUser.id。相手タップ時の詳細モーダル/メモ取得に使う。BOTは合成ID。 */
+  userId: string;
   displayName: string;
   avatarKey: string | null;
   isBot: boolean;
@@ -234,14 +236,20 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socket.on(
       "players",
       (payload: {
-        players: { seatIndex: number; displayName: string; avatarKey?: string | null; isBot?: boolean; away?: boolean }[];
+        players: { seatIndex: number; userId?: string; displayName: string; avatarKey?: string | null; isBot?: boolean; away?: boolean }[];
       }) =>
         setData((d) => ({
           ...d,
           players: Object.fromEntries(
             payload.players.map((p) => [
               p.seatIndex,
-              { displayName: p.displayName, avatarKey: p.avatarKey ?? null, isBot: p.isBot ?? false, away: p.away ?? false },
+              {
+                userId: p.userId ?? "",
+                displayName: p.displayName,
+                avatarKey: p.avatarKey ?? null,
+                isBot: p.isBot ?? false,
+                away: p.away ?? false,
+              },
             ]),
           ),
         })),

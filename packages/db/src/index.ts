@@ -4,3 +4,4 @@ export * from "./bankroll.js";
 export * from "./geoTree.js";
 export * from "./subscriptions.js";
 export * from "./rrRating.js";
+export * from "./playerNotes.js";

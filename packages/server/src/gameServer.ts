@@ -299,9 +299,11 @@ export class TableSession implements GameSession {
     }
   }
 
-  private playersPayload(): { seatIndex: number; displayName: string; avatarKey: string | null; isBot: boolean; away: boolean }[] {
+  private playersPayload(): { seatIndex: number; userId: string; displayName: string; avatarKey: string | null; isBot: boolean; away: boolean }[] {
     return [...this.players.values()].map((p) => ({
       seatIndex: p.seatIndex,
+      // BOTのuserIdは合成IDなのでクライアント側では詳細スタッツを引かない(isBotで判定)。
+      userId: p.userId,
       displayName: p.displayName,
       avatarKey: p.avatarKey,
       isBot: p.isBot,

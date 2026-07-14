@@ -135,6 +135,8 @@ export function PokerTable({
   lastActionBySeat,
   lastHandDeltaBySeat,
   turnTimer,
+  onPlayerTap,
+  markingBySeat,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -146,6 +148,10 @@ export function PokerTable({
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
   turnTimer: TurnTimerInfo | null;
+  /** 相手(自分以外・非BOT)の席タップ時に呼ばれる。プレイヤー詳細モーダルを開く。 */
+  onPlayerTap?: (info: SeatPlayerInfo) => void;
+  /** 席ごとのマーキング色(HEX)。プレイヤーメモで色付けした相手の席に小さなドットを出す。 */
+  markingBySeat?: Record<string, string | null>;
 }) {
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
 
@@ -219,10 +225,15 @@ export function PokerTable({
             ? { endsAt: turnTimer.endsAt, durationMs: turnTimer.durationMs }
             : null;
 
+        // 相手(自分以外・非BOT・userIdあり)の席はタップで詳細モーダルを開ける。
+        const tappable = Boolean(!isHero && player && !player.isBot && player.userId && onPlayerTap);
+        const markingColor = player?.userId ? markingBySeat?.[player.userId] ?? null : null;
+
         const seatNode = (
           <Seat
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
+            markingColor={markingColor}
             position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
             stack={seat?.stack ?? 0}
             streetContribution={seat?.streetContribution ?? 0}
@@ -248,7 +259,18 @@ export function PokerTable({
 
         return (
           <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[slot]}`}>
-            {seatNode}
+            {tappable && player ? (
+              <button
+                type="button"
+                onClick={() => onPlayerTap?.(player)}
+                className="cursor-pointer appearance-none bg-transparent p-0 active:scale-[0.97] transition-transform"
+                aria-label={`${player.displayName}の詳細`}
+              >
+                {seatNode}
+              </button>
+            ) : (
+              seatNode
+            )}
           </div>
         );
       })}
