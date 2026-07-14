@@ -215,20 +215,22 @@ describe("HandEngine — incomplete raise re-opening rule (TDA Rule 47)", () => 
 
 describe("HandEngine — short-stacked BB posts less than the SB (regression)", () => {
   it("sets currentBetToMatch to the larger of the two actual posted amounts, not just the BB's", () => {
-    // Heads-up: BB's whole stack (300) is smaller than the SB's post (500), which can happen
-    // once blinds have escalated far beyond a short stack. currentBetToMatch must reflect the
-    // larger of what was actually posted, or the SB would illegally be allowed to "check" a bet
-    // that doesn't match their own contribution (and downstream chip accounting breaks).
+    // BB's whole stack (300) is smaller than the SB's post (500), which can happen once blinds have
+    // escalated far beyond a short stack. currentBetToMatch must reflect the larger of what was
+    // actually posted, or a player would illegally be allowed to "check"/"call" a smaller amount.
+    // 3人卓にしているのは、まだチップを持つ席が2つ残ってベッティングが継続する状態にし、
+    // (オールイン・ランナウトで即座に潰れず)このプリフロップ不変条件を観測できるようにするため。
     const deck = fixedDeck();
     const engine = new HandEngine({
       seats: [
-        { seatIndex: 0, playerId: "SB", stack: 5000 },
-        { seatIndex: 1, playerId: "BB", stack: 300 },
+        { seatIndex: 0, playerId: "UTG", stack: 5000 },
+        { seatIndex: 1, playerId: "SB", stack: 5000 },
+        { seatIndex: 2, playerId: "BB", stack: 300 },
       ],
-      seatCount: 2,
+      seatCount: 3,
       buttonFixedPos: 0,
-      smallBlindSeat: 0,
-      bigBlindSeat: 1,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
       smallBlind: 500,
       bigBlind: 1000,
       bbAnte: 0,
@@ -238,21 +240,97 @@ describe("HandEngine — short-stacked BB posts less than the SB (regression)", 
     const state = engine.getPublicState();
     expect(state.currentBetToMatch).toBe(500);
 
-    const bbSeat = state.seats.find((s) => s.seatIndex === 1)!;
+    const bbSeat = state.seats.find((s) => s.seatIndex === 2)!;
     expect(bbSeat.status).toBe("allIn");
     expect(bbSeat.streetContribution).toBe(300);
 
-    // SB already matches currentBetToMatch (500 == 500), so checking must be legal.
+    // UTG faces the larger posted amount (500), not the BB's short all-in (300): it cannot check,
+    // and a call must be for 500. This verifies currentBetToMatch reflects the true amount to match.
     expect(engine.getActingSeatIndex()).toBe(0);
-    expect(() => engine.applyAction(0, { kind: "check" })).not.toThrow();
+    expect(() => engine.applyAction(0, { kind: "check" })).toThrow();
+    engine.applyAction(0, { kind: "call" });
+    const utg = engine.getPublicState().seats.find((s) => s.seatIndex === 0)!;
+    expect(utg.streetContribution).toBe(500);
+  });
+});
 
-    // BB is all-in, but SB still has chips behind, so SB must check down every remaining street.
-    while (!engine.isHandComplete()) {
-      expect(engine.getActingSeatIndex()).toBe(0);
-      engine.applyAction(0, { kind: "check" });
-    }
+describe("HandEngine — all-in call runout (regression)", () => {
+  it("残り1人だけがチップを持つ状況では、コール成立後に手番を尋ねず一気にランナウトする", () => {
+    // ヘッズアップ: SB(ボタン)がショートで、プリフロップにオールインシューブ。BBは大きくチップを
+    // 残したままコールする。この瞬間「自発的にベットできる」プレイヤーはBB1人だけになり、賭ける
+    // 相手(SB)はオールインで応じられない。したがってフロップ以降はノーアクションで全て開くべき。
+    const deck = fixedDeck();
+    const engine = new HandEngine({
+      seats: [
+        { seatIndex: 0, playerId: "SB", stack: 1000 },
+        { seatIndex: 1, playerId: "BB", stack: 5000 },
+      ],
+      seatCount: 2,
+      buttonFixedPos: 0,
+      smallBlindSeat: 0,
+      bigBlindSeat: 1,
+      smallBlind: 50,
+      bigBlind: 100,
+      bbAnte: 0,
+      deck,
+    });
+
+    // HUプリフロップはボタン(SB)から。SBがオールインシューブ。
+    expect(engine.getActingSeatIndex()).toBe(0);
+    engine.applyAction(0, { kind: "allIn" });
+
+    // BBはまだ未応答(ベットに直面)なので、コール/フォールドの手番が回る。
+    expect(engine.getActingSeatIndex()).toBe(1);
+    expect(engine.isHandComplete()).toBe(false);
+
+    // BBがコール(チップを残す)→ ここで betting はクローズ。以降は一切手番を尋ねずランナウト。
+    engine.applyAction(1, { kind: "call" });
+
+    expect(engine.isHandComplete()).toBe(true);
+    expect(engine.getActingSeatIndex()).toBeNull();
+    expect(engine.getPublicState().board).toHaveLength(5);
+
+    // チップ保存則(6000)。
+    const stacks = engine.getStacks();
+    expect([...stacks.values()].reduce((a, b) => a + b, 0)).toBe(6000);
+  });
+
+  it("3人でショートがオールイン→1人フォールド→残る1人がチップを残してコールしても、以降ランナウト", () => {
+    const deck = fixedDeck();
+    const engine = new HandEngine({
+      seats: [
+        { seatIndex: 0, playerId: "UTG", stack: 5000 }, // 深い(最終的にコールして勝負)
+        { seatIndex: 1, playerId: "SB", stack: 5000 }, // フォールドする
+        { seatIndex: 2, playerId: "BB", stack: 800 }, // ショート
+      ],
+      seatCount: 3,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 50,
+      bigBlind: 100,
+      bbAnte: 0,
+      deck,
+    });
+
+    // preflopOrder = [0(UTG), 1(SB), 2(BB)]
+    expect(engine.getActingSeatIndex()).toBe(0);
+    engine.applyAction(0, { kind: "call" }); // UTG リンプ 100
+    expect(engine.getActingSeatIndex()).toBe(1);
+    engine.applyAction(1, { kind: "fold" }); // SB フォールド
+    expect(engine.getActingSeatIndex()).toBe(2);
+    engine.applyAction(2, { kind: "allIn" }); // BB(ショート)オールイン 800
+
+    // UTG はベットに直面しているのでコール/フォールドの手番が回る。
+    expect(engine.getActingSeatIndex()).toBe(0);
+    engine.applyAction(0, { kind: "call" }); // UTG コール(チップを残す)
+
+    // BB オールイン・UTG チップあり・SB フォールド → 以降ランナウト、手番なし。
+    expect(engine.isHandComplete()).toBe(true);
+    expect(engine.getActingSeatIndex()).toBeNull();
+    expect(engine.getPublicState().board).toHaveLength(5);
 
     const stacks = engine.getStacks();
-    expect([...stacks.values()].reduce((a, b) => a + b, 0)).toBe(5300);
+    expect([...stacks.values()].reduce((a, b) => a + b, 0)).toBe(10800);
   });
 });
