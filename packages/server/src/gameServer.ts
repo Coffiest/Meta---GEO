@@ -4,6 +4,7 @@ import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, typ
 import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS } from "@meta-geo/db";
 import { decideBotAction } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { activeGames } from "./activeGames.js";
 
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3500;
@@ -112,6 +113,22 @@ export interface HumanPlayer {
   readonly avatarKey: string | null;
 }
 
+/** 同卓チャットの1メッセージ。プレイヤーカードの吹き出し表示・チャットログ表示に使う。 */
+export interface ChatMessage {
+  seatIndex: number;
+  userId: string;
+  displayName: string;
+  text: string;
+  ts: number;
+}
+
+/** チャット本文の正規化(前後空白除去・改行を空白化・最大120文字)。空なら null。 */
+export function sanitizeChatText(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/\s+/g, " ").trim().slice(0, 120);
+  return text.length > 0 ? text : null;
+}
+
 interface HumanSeat {
   readonly userId: string;
   readonly displayName: string;
@@ -164,6 +181,8 @@ export class TableSession implements GameSession {
   private dbTournamentId: string | null = null;
   private players = new Map<number, SeatPlayer>();
   private humansBySeat = new Map<number, HumanSeat>();
+  /** 同卓チャットのログ(直近50件)。再接続時にまとめて送る。 */
+  private chatLog: ChatMessage[] = [];
   private finished = false;
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private levelEndsAt = 0;
@@ -287,6 +306,14 @@ export class TableSession implements GameSession {
       // 離席状態は全員の画面に反映する(座席に「離席中」を表示するため)。
       this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
     });
+    socket.on("chat", (payload: { text?: string }) => {
+      const text = sanitizeChatText(payload?.text);
+      if (!text) return;
+      const msg: ChatMessage = { seatIndex, userId: human.userId, displayName: human.displayName, text, ts: Date.now() };
+      this.chatLog.push(msg);
+      if (this.chatLog.length > 50) this.chatLog.shift();
+      this.io.to(this.roomId).emit("chat", msg);
+    });
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
       human.socket = null;
@@ -304,6 +331,7 @@ export class TableSession implements GameSession {
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
     if (this.tournament) socket.emit("levelUp", { level: this.tournament.getCurrentLevel(), endsAt: this.levelEndsAt });
     this.broadcastTournamentInfo();
+    if (this.chatLog.length > 0) socket.emit("chatLog", { messages: this.chatLog });
     socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand) {
       socket.emit("state", this.hand.getPublicState());
@@ -612,6 +640,13 @@ export class TableSession implements GameSession {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+    });
+    // 離席/切断中に終了した場合に備えて結果を保存(復帰時に結果サジェスト表示)。
+    activeGames.recordResult(human.userId, {
+      winnerPlayerId: place === 1 ? human.userId : null,
+      yourFinishPosition: place,
+      yourPayout: payout,
+      gameKey: "sng",
     });
   }
 

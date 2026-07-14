@@ -82,6 +82,15 @@ export interface TournamentInfo {
   prizePool: PrizePlace[];
 }
 
+/** 同卓チャットの1メッセージ。 */
+export interface ChatMessage {
+  seatIndex: number;
+  userId: string;
+  displayName: string;
+  text: string;
+  ts: number;
+}
+
 export interface TournamentOverInfo {
   winnerPlayerId: string | null;
   yourFinishPosition: number | null;
@@ -118,6 +127,10 @@ export interface PokerSocketState {
   levelEndsAt: number | null;
   /** トーナメントクロック画面用の集計情報(残り人数/アベレージ/プライズ)。 */
   tournamentInfo: TournamentInfo | null;
+  /** 同卓チャットのログ(古い順)。設定→チャットログ表示に使う。 */
+  chatLog: ChatMessage[];
+  /** 座席ごとの直近チャット吹き出し(数秒で自動消去)。 */
+  seatBubbles: Record<number, { text: string; ts: number }>;
   tournamentOver: TournamentOverInfo | null;
   actionError: string | null;
   players: Record<number, SeatPlayerInfo>;
@@ -200,6 +213,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     level: null,
     levelEndsAt: null,
     tournamentInfo: null,
+    chatLog: [],
+    seatBubbles: {},
     tournamentOver: null,
     actionError: null,
     players: {},
@@ -313,6 +328,26 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
     );
     socket.on("tournamentInfo", (payload: TournamentInfo) => setData((d) => ({ ...d, tournamentInfo: payload })));
+    socket.on("chatLog", (payload: { messages: ChatMessage[] }) =>
+      setData((d) => ({ ...d, chatLog: payload.messages })),
+    );
+    socket.on("chat", (msg: ChatMessage) => {
+      setData((d) => ({
+        ...d,
+        chatLog: [...d.chatLog, msg].slice(-100),
+        seatBubbles: { ...d.seatBubbles, [msg.seatIndex]: { text: msg.text, ts: msg.ts } },
+      }));
+      // 吹き出しは5秒で自動消去(同じtsのままなら消す)。
+      setTimeout(() => {
+        setData((d) => {
+          const cur = d.seatBubbles[msg.seatIndex];
+          if (!cur || cur.ts !== msg.ts) return d;
+          const next = { ...d.seatBubbles };
+          delete next[msg.seatIndex];
+          return { ...d, seatBubbles: next };
+        });
+      }, 5000);
+    });
     socket.on("tournamentOver", (payload: TournamentOverInfo) =>
       setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null })),
     );
@@ -348,5 +383,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socketRef.current?.emit("sitOut", { away });
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway };
+  const sendChat = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (trimmed.length > 0) socketRef.current?.emit("chat", { text: trimmed });
+  }, []);
+
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat };
 }

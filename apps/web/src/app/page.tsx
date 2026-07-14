@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey, type SeatPlayerInfo } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
@@ -13,6 +13,7 @@ import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
 import { TournamentResultScreen, fetchResultSnapshot, type ResultStatsSnapshot } from "@/components/TournamentResultScreen";
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
+import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 
@@ -58,11 +59,13 @@ function useMatchingCountdown(secondsLeft: number | null): number | null {
 function SettingsPopover({
   onShowStructure,
   onShowHistory,
+  onShowChatLog,
   onLeave,
   onClose,
 }: {
   onShowStructure: () => void;
   onShowHistory: () => void;
+  onShowChatLog: () => void;
   onLeave: () => void;
   onClose: () => void;
 }) {
@@ -88,6 +91,15 @@ function SettingsPopover({
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
         >
           ブラインドストラクチャを見る
+        </button>
+        <button
+          onClick={() => {
+            onClose();
+            onShowChatLog();
+          }}
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+        >
+          チャットログ
         </button>
         {confirmingLeave ? (
           <div className="rounded-xl bg-ink-100 p-3 space-y-2">
@@ -157,11 +169,17 @@ function GameScreen({
     leaveGame,
     armTimeBank,
     setAway,
+    sendChat,
+    chatLog,
+    seatBubbles,
     gameHandHistory,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [chatLogOpen, setChatLogOpen] = useState(false);
+  const [chatInputOpen, setChatInputOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
   const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
   // ゲーム開始時点のスタッツ(結果画面でbefore→afterの増減を表示するため)。一度だけ取得。
   const [statsBefore, setStatsBefore] = useState<ResultStatsSnapshot | null>(null);
@@ -277,6 +295,7 @@ function GameScreen({
           <SettingsPopover
             onShowStructure={() => setStructureOpen(true)}
             onShowHistory={() => setHistoryOpen(true)}
+            onShowChatLog={() => setChatLogOpen(true)}
             onLeave={() => {
               leaveGame();
               onExit();
@@ -305,9 +324,54 @@ function GameScreen({
             turnTimer={turnTimer}
             onPlayerTap={(info) => setTappedPlayer(info)}
             markingBySeat={markingBySeat}
+            seatBubbles={seatBubbles}
+            onHeroChatClick={() => setChatInputOpen(true)}
           />
         )}
       </main>
+
+      {/* チャット入力バー(自分のカードの吹き出しボタンから開く)。エンター送信で自席から吹き出し表示。 */}
+      <AnimatePresence>
+        {chatInputOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end bg-black/30"
+            onClick={() => setChatInputOpen(false)}
+          >
+            <motion.form
+              initial={{ y: 40 }}
+              animate={{ y: 0 }}
+              exit={{ y: 40 }}
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const t = chatDraft.trim();
+                if (t) sendChat(t);
+                setChatDraft("");
+                setChatInputOpen(false);
+              }}
+              className="safe-area-bottom flex w-full items-center gap-2 border-t border-ink-200 bg-white px-4 pb-6 pt-3"
+            >
+              <input
+                autoFocus
+                value={chatDraft}
+                onChange={(e) => setChatDraft(e.target.value)}
+                maxLength={120}
+                placeholder="メッセージを入力…"
+                className="flex-1 rounded-full border border-ink-950 bg-white px-4 py-2.5 text-sm text-ink-950 outline-none placeholder:text-ink-300"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-full bg-ink-950 px-5 py-2.5 text-sm font-black text-white active:scale-95 transition-transform"
+              >
+                送信
+              </button>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。右下にトースト風に表示する */}
       <AnimatePresence>
@@ -371,6 +435,12 @@ function GameScreen({
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {chatLogOpen && (
+          <ChatLogSheet messages={chatLog} yourSeatIndex={yourSeatIndex} onClose={() => setChatLogOpen(false)} />
+        )}
+      </AnimatePresence>
+
       {/* 相手タップで開くプレイヤー詳細モーダル(スタッツ+偏差値+5色マーキング+メモ)。 */}
       <AnimatePresence>
         {tappedPlayer && (
@@ -418,6 +488,40 @@ export default function Page() {
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
+  const [resultSuggestion, setResultSuggestion] = useState<TournamentOverInfo | null>(null);
+  const [resumeChecked, setResumeChecked] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken || !profile?.onboarded || gameKey || resumeChecked) return;
+    setResumeChecked(true);
+    const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+    void fetch(`${serverUrl}/api/lobby/active-game`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { gameKey?: string; result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number } } | null) => {
+        if (!data) return;
+        if (data.gameKey === "sng" || data.gameKey === "mtt") {
+          // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
+          setGameKey(data.gameKey);
+        } else if (data.result) {
+          setResultSuggestion({
+            winnerPlayerId: data.result.winnerPlayerId,
+            yourFinishPosition: data.result.yourFinishPosition,
+            yourPayout: data.result.yourPayout,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [accessToken, profile?.onboarded, gameKey, resumeChecked]);
+
+  // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setResumeChecked(false);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
   if (!auth.authAvailable) {
@@ -486,19 +590,32 @@ export default function Page() {
     (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
 
   return (
-    <Lobby
-      displayName={profile.displayName}
-      avatarKey={profile.avatarKey}
-      email={profile.email}
-      providers={providers}
-      userId={profile.id}
-      accessToken={accessToken}
-      onJoin={setGameKey}
-      onEditProfile={() => setEditingProfile(true)}
-      onSignOut={() => {
-        setGameKey(null);
-        void auth.signOut();
-      }}
-    />
+    <>
+      <Lobby
+        displayName={profile.displayName}
+        avatarKey={profile.avatarKey}
+        email={profile.email}
+        providers={providers}
+        userId={profile.id}
+        accessToken={accessToken}
+        onJoin={setGameKey}
+        onEditProfile={() => setEditingProfile(true)}
+        onSignOut={() => {
+          setGameKey(null);
+          void auth.signOut();
+        }}
+      />
+      {/* 離席中に終わったゲームの結果サジェスト(復帰時に1回だけ表示)。 */}
+      <AnimatePresence>
+        {resultSuggestion && (
+          <TournamentResultScreen
+            info={resultSuggestion}
+            accessToken={accessToken}
+            statsBefore={null}
+            onExit={() => setResultSuggestion(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }

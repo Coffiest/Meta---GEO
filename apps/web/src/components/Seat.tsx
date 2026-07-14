@@ -81,6 +81,10 @@ export interface SeatViewProps {
   away?: boolean;
   /** プレイヤーメモのマーキング色(HEX)。設定時はアバター右上に小さなドットを出す。 */
   markingColor?: string | null;
+  /** 同卓チャットの直近吹き出し(数秒表示)。 */
+  chatBubble?: string | null;
+  /** 自分の席のとき、カード右側にチャット入力ボタンを出すためのハンドラ。 */
+  onChatClick?: () => void;
 }
 
 export function Seat({
@@ -101,6 +105,8 @@ export function Seat({
   isButton = false,
   away = false,
   markingColor = null,
+  chatBubble = null,
+  onChatClick,
 }: SeatViewProps) {
   const isEmpty = status === "empty";
   const folded = status === "folded";
@@ -142,6 +148,35 @@ export function Seat({
             animate={{ opacity: [0.55, 0, 0.55], scale: [1, 1.14, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
           />
+        )}
+
+        {/* 同卓チャットの吹き出し(アバターの上に数秒表示)。 */}
+        <AnimatePresence>
+          {chatBubble && (
+            <motion.div
+              initial={{ opacity: 0, y: 6, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+              className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 max-w-[180px] -translate-x-1/2 break-words rounded-2xl border border-ink-950 bg-white px-2.5 py-1 text-[11px] font-bold leading-snug text-ink-950"
+            >
+              {chatBubble}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 自分の席: カード右側の丸いチャット入力ボタン。 */}
+        {onChatClick && (
+          <button
+            type="button"
+            onClick={onChatClick}
+            aria-label="チャット"
+            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-ink-950 bg-white text-ink-800 transition-transform active:scale-90"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5">
+              <path d="M4 5h16v11H8l-4 3z" strokeLinejoin="round" />
+            </svg>
+          </button>
         )}
         {isButton && !isEmpty && (
           <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950">

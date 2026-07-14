@@ -268,13 +268,14 @@ export default function GeoPage() {
                   GEO Database
                 </p>
               </div>
-              <div className="flex items-center gap-2.5">
+              {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
+              <div className="flex items-stretch gap-2.5">
                 {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
-                    UTG等のアクションタブと同じ寸法・スタイル(rounded-xl・上ラベル+値の2段)に揃える。 */}
+                    高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
                 <motion.button
                   onClick={() => setSettingsOpen(true)}
                   whileTap={{ scale: 0.94 }}
-                  className="shrink-0 rounded-xl border border-ink-950 bg-white px-3 py-1.5 text-left active:bg-ink-50 transition-colors"
+                  className="shrink-0 flex flex-col justify-center rounded-xl border border-ink-950 bg-white px-3 py-1.5 text-left active:bg-ink-50 transition-colors"
                   aria-label="詳細設定を変更"
                 >
                   <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-ink-500">

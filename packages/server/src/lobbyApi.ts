@@ -18,6 +18,7 @@ import {
   type PlayerNoteColor,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { activeGames } from "./activeGames.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -119,6 +120,26 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         avatarKey: user.avatarKey,
         onboarded: user.onboarded,
         email: verified.email,
+      });
+      return true;
+    }
+
+    // アプリ復帰/ログイン時の進行中ゲーム確認。進行中なら gameKey を返して強制復帰させ、
+    // 離席中に終了していれば result(結果サジェスト)を1回だけ返す。
+    if (url.pathname === "/api/lobby/active-game") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      if (!user) {
+        sendJson(res, 200, { gameKey: null, result: null });
+        return true;
+      }
+      sendJson(res, 200, {
+        gameKey: activeGames.getActive(user.id),
+        result: activeGames.takeResult(user.id),
       });
       return true;
     }

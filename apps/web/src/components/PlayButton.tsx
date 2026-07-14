@@ -43,14 +43,17 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", damping: 20, stiffness: 260 }}
             onClick={() => setExpanded(true)}
-            className="relative flex h-[76px] w-[260px] items-center justify-center gap-2.5 rounded-[26px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
+            aria-label="プレイする"
+            className="relative flex h-[76px] w-[260px] items-center justify-center rounded-[26px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white">
-              <svg viewBox="0 0 24 24" className="ml-0.5 h-3 w-3 fill-ink-950">
-                <path d="M6 4l14 8-14 8z" />
-              </svg>
+            {/* トランプの大きな文字が10度傾いて枠からはみ出すテーマ。「Play」を大きく左に10度傾けて
+                ボタン枠から意図的にはみ出させる(overflow-visible)。 */}
+            <span
+              className="pointer-events-none select-none font-black leading-[0.8] tracking-tight text-white"
+              style={{ fontSize: 72, transform: "rotate(-10deg)", transformOrigin: "center" }}
+            >
+              Play
             </span>
-            <span className="text-[19px] font-black tracking-wide text-white">プレイする</span>
           </motion.button>
         ) : (
           <motion.div key="split" className="flex items-center gap-4">

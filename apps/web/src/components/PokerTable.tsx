@@ -137,6 +137,8 @@ export function PokerTable({
   turnTimer,
   onPlayerTap,
   markingBySeat,
+  seatBubbles,
+  onHeroChatClick,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -152,6 +154,10 @@ export function PokerTable({
   onPlayerTap?: (info: SeatPlayerInfo) => void;
   /** 席ごとのマーキング色(HEX)。プレイヤーメモで色付けした相手の席に小さなドットを出す。 */
   markingBySeat?: Record<string, string | null>;
+  /** 座席ごとの直近チャット吹き出し。 */
+  seatBubbles?: Record<number, { text: string; ts: number }>;
+  /** 自分の席のチャット入力ボタンを押したとき。 */
+  onHeroChatClick?: () => void;
 }) {
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
 
@@ -236,6 +242,8 @@ export function PokerTable({
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
             markingColor={markingColor}
+            chatBubble={seatBubbles?.[seatIndex]?.text ?? null}
+            onChatClick={isHero ? onHeroChatClick : undefined}
             position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
             stack={seat?.stack ?? 0}
             streetContribution={seat?.streetContribution ?? 0}

@@ -9,10 +9,13 @@ import {
   MTT_TIME_BANK_CARDS,
   ensureBotUsers,
   scheduleStagedRunout,
+  sanitizeChatText,
   type HumanPlayer,
   type GameSession,
+  type ChatMessage,
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { activeGames } from "./activeGames.js";
 
 const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3000;
@@ -65,6 +68,8 @@ export class MttSession implements GameSession {
   private activeTableId: number | null = null;
   private dbTournamentId: string | null = null;
   private readonly playersById = new Map<string, PlayerInfo>();
+  /** 卓ごとの同卓チャットログ(直近50件)。 */
+  private readonly chatLogByTable = new Map<number, ChatMessage[]>();
   private readonly humans = new Map<string, HumanEntry>();
   private pendingRegistrants: HumanPlayer[] = [];
   private started = false;
@@ -216,6 +221,10 @@ export class MttSession implements GameSession {
     if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
     socket.emit("levelUp", { level: this.mtt!.getCurrentLevel(), endsAt: this.levelEndsAt });
     this.broadcastTournamentInfo();
+    if (human.currentTableId !== null) {
+      const log = this.chatLogByTable.get(human.currentTableId);
+      if (log && log.length > 0) socket.emit("chatLog", { messages: log });
+    }
     socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand && human.currentTableId === this.activeTableId) {
       socket.emit("state", this.hand.getPublicState());
@@ -249,6 +258,20 @@ export class MttSession implements GameSession {
       if (!human) return;
       human.away = Boolean(payload?.away);
       if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+    });
+    socket.on("chat", (payload: { text?: string }) => {
+      const human = this.humans.get(userId);
+      const text = sanitizeChatText(payload?.text);
+      if (!human || human.currentTableId === null || !text) return;
+      const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex === null) return;
+      const tableId = human.currentTableId;
+      const msg: ChatMessage = { seatIndex, userId, displayName: human.displayName, text, ts: Date.now() };
+      const log = this.chatLogByTable.get(tableId) ?? [];
+      log.push(msg);
+      if (log.length > 50) log.shift();
+      this.chatLogByTable.set(tableId, log);
+      this.io.to(this.tableRoom(tableId)).emit("chat", msg);
     });
     socket.on("disconnect", () => {
       const human = this.humans.get(userId);
@@ -611,6 +634,13 @@ export class MttSession implements GameSession {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+    });
+    // 離席/切断中に終了した場合に備えて結果を保存(復帰時に結果サジェスト表示)。
+    activeGames.recordResult(human.userId, {
+      winnerPlayerId: place === 1 ? human.userId : null,
+      yourFinishPosition: place,
+      yourPayout: payout,
+      gameKey: "mtt",
     });
   }
 
