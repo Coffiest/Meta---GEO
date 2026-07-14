@@ -79,7 +79,7 @@ function SettingsPopover({
             onClose();
             onShowHistory();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           このゲームのハンド履歴
         </button>
@@ -88,7 +88,7 @@ function SettingsPopover({
             onClose();
             onShowStructure();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           ブラインドストラクチャを見る
         </button>
@@ -97,7 +97,7 @@ function SettingsPopover({
             onClose();
             onShowChatLog();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           チャットログ
         </button>
@@ -122,7 +122,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-colors"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
           >
             チップを破棄してゲームから離脱
           </button>
@@ -258,23 +258,32 @@ function GameScreen({
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
         {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
             Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
+        {/* ブラインドタイマー(トーナメントクロック)を縮小したミニ版。クロック画面と同じ意匠で、
+            gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-white text-ink-950 border border-ink-950 pl-3 pr-3.5 py-2 text-left active:scale-[0.97] transition-transform"
+          className="shrink-0 rounded-xl bg-white text-ink-950 border border-ink-950 px-3 py-1.5 text-left active:scale-[0.97] transition-transform"
         >
-          <div className="flex items-baseline gap-2">
-            <span className="text-[9px] font-black tracking-[0.16em] text-ink-400 uppercase tabular-nums">Lv.{level?.level ?? "-"}</span>
-            <span className="text-[14px] font-black tabular-nums leading-none text-ink-950">
-              {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
-            </span>
-            {level && level.bbAnte > 0 && (
-              <span className="text-[10px] font-bold text-ink-500 tabular-nums leading-none">ANTE {level.bbAnte.toLocaleString()}</span>
+          <div className="flex items-center gap-1.5 leading-none">
+            <span className="text-[8px] font-black uppercase tracking-[0.22em] text-gold-600 tabular-nums">Lv {level?.level ?? "-"}</span>
+            {gameKey === "mtt" && (
+              <span className="rounded bg-ink-950 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-[10px] tabular-nums">
-            <span className="font-bold tracking-[0.14em] text-ink-400 uppercase">Next</span>
-            <span className="font-black text-ink-950">{countdown}</span>
-            {gameKey === "mtt" && <span className="ml-1 rounded bg-ink-950 px-1 py-[1px] text-[8px] font-black tracking-widest text-white">MTT</span>}
+          <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
+          <div className="mt-1 flex items-end gap-2 leading-none">
+            <div>
+              <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Blind</span>
+              <span className="text-[11px] font-black tabular-nums text-ink-950">
+                {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
+              </span>
+            </div>
+            {level && level.bbAnte > 0 && (
+              <div className="border-l border-ink-200 pl-2">
+                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">ANTE</span>
+                <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
+              </div>
+            )}
           </div>
         </button>
 
@@ -494,12 +503,24 @@ export default function Page() {
 
   useEffect(() => {
     if (!accessToken || !profile?.onboarded || gameKey || resumeChecked) return;
-    setResumeChecked(true);
     const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
-    void fetch(`${serverUrl}/api/lobby/active-game`, { headers: { authorization: `Bearer ${accessToken}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { gameKey?: string; result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number } } | null) => {
-        if (!data) return;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // 進行中ゲームの有無を「確定」するまで諦めない。ネットワーク断/サーバー起動待ち等で失敗した
+    // 場合でも resumeChecked を立てず、指数バックオフで再試行し続ける。これにより、リフレッシュや
+    // 一時的な回線断で進行中ゲームを取りこぼしてホームに取り残されることを厳密に防ぐ。
+    const check = async (attempt: number): Promise<void> => {
+      try {
+        const r = await fetch(`${serverUrl}/api/lobby/active-game`, {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        const data = (await r.json()) as {
+          gameKey?: string;
+          result?: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number };
+        };
+        if (cancelled) return;
         if (data.gameKey === "sng" || data.gameKey === "mtt") {
           // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
           setGameKey(data.gameKey);
@@ -510,8 +531,17 @@ export default function Page() {
             yourPayout: data.result.yourPayout,
           });
         }
-      })
-      .catch(() => {});
+        setResumeChecked(true); // 確定応答を得たときだけ確定にする。
+      } catch {
+        if (cancelled) return;
+        retryTimer = setTimeout(() => void check(attempt + 1), Math.min(8000, 1000 * 2 ** attempt));
+      }
+    };
+    void check(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [accessToken, profile?.onboarded, gameKey, resumeChecked]);
 
   // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
@@ -582,6 +612,10 @@ export default function Page() {
       />
     );
   }
+
+  // 進行中ゲームの有無が確定するまではホームを出さない。リフレッシュ直後にホームが一瞬見えたり、
+  // 進行中ゲームがあるのに新規ゲームを開始できてしまうことを防ぐ(確定するまで check() が再試行し続ける)。
+  if (!resumeChecked) return <LoadingScreen />;
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。

@@ -44,7 +44,6 @@ interface HumanEntry {
   done: boolean;
   /** 連続タイムアウト回数。2回連続で時間切れになると自動離席。自分でアクションすると0にリセット。 */
   consecutiveTimeouts: number;
-  disconnectTimer: ReturnType<typeof setTimeout> | null;
   currentTableId: number | null;
 }
 
@@ -140,7 +139,6 @@ export class MttSession implements GameSession {
       left: false,
       done: false,
       consecutiveTimeouts: 0,
-      disconnectTimer: null,
       currentTableId: null,
     });
     this.playersById.set(player.userId, { ...player, isBot: false });
@@ -201,10 +199,6 @@ export class MttSession implements GameSession {
     const human = this.humans.get(userId);
     if (!human) return;
     human.socket = socket;
-    if (human.disconnectTimer) {
-      clearTimeout(human.disconnectTimer);
-      human.disconnectTimer = null;
-    }
     // 再接続したら離席状態を解除し、連続タイムアウトもリセット。
     human.consecutiveTimeouts = 0;
     if (human.away) {
@@ -277,14 +271,14 @@ export class MttSession implements GameSession {
       const human = this.humans.get(userId);
       if (!human || human.socket !== socket) return;
       human.socket = null;
-      // タスクキル/アプリ終了などで切断された場合は自動で離席状態にする。
+      // タスクキル/アプリ終了/リフレッシュなどで切断された場合は自動で離席状態にする。手番は
+      // 時間切れで自動処理されるが、席は保持し続ける。
       if (!human.away && !human.left) {
         human.away = true;
         if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
       }
-      human.disconnectTimer = setTimeout(() => {
-        if (!human.socket) this.leave(userId);
-      }, 60_000);
+      // 重要: 切断だけでは絶対にトーナメントから離脱させない(オーナー指示)。リフレッシュや一時的な
+      // 回線断でチップを失わないよう、離脱は「チップ破棄」ボタン(明示的なleaveGame)かバスト時のみ。
     });
   }
 

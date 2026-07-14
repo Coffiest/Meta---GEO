@@ -426,9 +426,27 @@ export class HandEngine {
     this.logEvent({ type: "dealStreet", street: nextStreet, board: [...this.board] });
   }
 
-  /** 全員オールイン(=これ以上アクションできる人がいない)なら、TDA同様に残りを一括ランナウトする */
+  /**
+   * これ以上ベッティングが成立し得ないなら(下記noFurtherBettingPossible)、TDA同様に残りの
+   * ストリートを一括ランナウトする。ポーカーのルール上、チップを持って自発的にベットできる
+   * プレイヤーが1人以下で、かつその1人がコールすべき額を持たない(現在のベット額に既に到達
+   * している)ときは、賭ける相手がいないためベッティングは終了。以降はノーアクションで一気に開く。
+   *
+   * 以前は「自発的に動ける人が0人(全員オールイン)」のみを条件にしていたため、1人だけチップを残して
+   * 相手が全員オールインの局面で、勝敗に無関係な手番を毎ストリート尋ねてしまう不具合があった。
+   * ただし「残り1人がまだ未応答のベットに直面している」場合(例: ブラインドで相手が自分より小さく
+   * オールインし、自分がまだコール/フォールドしていない)は、その1人の意思決定を飛ばしてはならない
+   * ため、streetContribution が currentBetToMatch に一致していることを必須条件にする。
+   */
+  private noFurtherBettingPossible(): boolean {
+    const canAct = this.seatsThatCanStillAct();
+    if (canAct.length === 0) return true;
+    if (canAct.length === 1) return canAct[0]!.streetContribution === this.currentBetToMatch;
+    return false;
+  }
+
   private maybeAutoRunOut(): void {
-    while (!this.isHandComplete() && this.seatsThatCanStillAct().length === 0 && this.activeContenderSeats().length > 1) {
+    while (!this.isHandComplete() && this.noFurtherBettingPossible() && this.activeContenderSeats().length > 1) {
       if (this.street === "river") {
         this.showdown();
         return;
@@ -463,6 +481,8 @@ export class HandEngine {
       showdownHands: new Map(),
       wonByFold: true,
     };
+    // ハンド完了後は手番を持たない。古い値が残ると完了後に手番が残存して見えるため明示的にnull化する。
+    this.actingSeatIndex = null;
     this.logEvent({ type: "handComplete", wonByFold: true, winner: winner.playerId });
   }
 
@@ -496,6 +516,8 @@ export class HandEngine {
       showdownHands: handRanks,
       wonByFold: false,
     };
+    // ハンド完了後は手番を持たない(上記awardUncontestedと同じ理由)。
+    this.actingSeatIndex = null;
     this.logEvent({ type: "handComplete", wonByFold: false });
   }
 

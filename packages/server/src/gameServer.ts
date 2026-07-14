@@ -144,7 +144,6 @@ interface HumanSeat {
   /** 連続タイムアウト回数。2回連続でアクションが時間切れになると自動で離席状態にする。
    * 自分でアクションすると0にリセット。 */
   consecutiveTimeouts: number;
-  disconnectTimer: ReturnType<typeof setTimeout> | null;
 }
 
 interface SeatPlayer {
@@ -216,7 +215,6 @@ export class TableSession implements GameSession {
         left: false,
         done: false,
         consecutiveTimeouts: 0,
-        disconnectTimer: null,
       });
     });
   }
@@ -277,10 +275,6 @@ export class TableSession implements GameSession {
     if (!entry) return;
     const [seatIndex, human] = entry;
     human.socket = socket;
-    if (human.disconnectTimer) {
-      clearTimeout(human.disconnectTimer);
-      human.disconnectTimer = null;
-    }
     // 再接続したら離席状態を解除し、連続タイムアウトもリセット(戻ってきたので通常プレイに復帰)。
     human.consecutiveTimeouts = 0;
     if (human.away) {
@@ -317,15 +311,15 @@ export class TableSession implements GameSession {
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
       human.socket = null;
-      // タスクキル/アプリ終了などで切断された場合は自動で離席状態にする(全員の画面に「離席中」表示)。
+      // タスクキル/アプリ終了/リフレッシュなどで切断された場合は自動で離席状態にする(全員の画面に
+      // 「離席中」表示)。手番は時間切れで自動チェック/フォールドされるが、席そのものは保持し続ける。
       if (!human.away && !human.left) {
         human.away = true;
         this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
       }
-      // 再接続されないまま60秒経ったら離脱扱いにする
-      human.disconnectTimer = setTimeout(() => {
-        if (!human.socket) this.leave(userId);
-      }, 60_000);
+      // 重要: 切断だけでは絶対にトーナメントから離脱させない(オーナー指示)。ページのリフレッシュや
+      // 一時的な回線断で持ちチップを失わないよう、離脱は「チップ破棄」ボタン(明示的なleaveGame)か
+      // バスト時のみとする。切断中もバストするまで席は残り、再接続すればいつでも卓へ戻れる。
     });
 
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });

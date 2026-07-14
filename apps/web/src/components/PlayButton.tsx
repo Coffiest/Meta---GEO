@@ -20,7 +20,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="relative flex justify-center py-2" style={{ minHeight: 86 }}>
+    <div className="relative flex justify-center py-2" style={{ minHeight: 112 }}>
       {expanded && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -44,16 +44,28 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             transition={{ type: "spring", damping: 20, stiffness: 260 }}
             onClick={() => setExpanded(true)}
             aria-label="プレイする"
-            className="relative flex h-[76px] w-[260px] items-center justify-center rounded-[26px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
+            className="relative h-[100px] w-[260px] overflow-hidden rounded-[28px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
           >
-            {/* トランプの大きな文字が10度傾いて枠からはみ出すテーマ。「Play」を大きく左に10度傾けて
-                ボタン枠から意図的にはみ出させる(overflow-visible)。 */}
+            {/* トランプ札の意匠。黒い札に大きく傾けた「Play」を置き、内枠より外側を黒で塗りつぶす
+                マスクを重ねることで、枠からはみ出した部分を隠す(=Playの一部が黒に隠れて覗く)。
+                内枠のフチがそのまま黒い枠線になる。overflow-hiddenでマスクは札の内側にとどまる。 */}
             <span
-              className="pointer-events-none select-none font-black leading-[0.8] tracking-tight text-white"
-              style={{ fontSize: 72, transform: "rotate(-10deg)", transformOrigin: "center" }}
+              className="pointer-events-none absolute left-1/2 top-1/2 z-[2] select-none whitespace-nowrap font-black text-white"
+              style={{
+                fontSize: 90,
+                lineHeight: 0.7,
+                letterSpacing: "-0.045em",
+                transform: "translate(-50%, -52%) rotate(-10deg)",
+                transformOrigin: "center",
+              }}
             >
               Play
             </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-[10px] z-[3] rounded-[20px]"
+              style={{ boxShadow: "0 0 0 200px #0a0a0a" }}
+            />
           </motion.button>
         ) : (
           <motion.div key="split" className="flex items-center gap-4">

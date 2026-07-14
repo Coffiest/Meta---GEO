@@ -15,6 +15,9 @@ import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
+import { ChartSkeleton, ListSkeleton } from "./Skeleton";
+import { EmptyState } from "./EmptyState";
+import { useCountUp } from "@/lib/useCountUp";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -149,6 +152,30 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4">{children}</div>;
 }
 
+/**
+ * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
+ * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
+ * ホーム画面のHomeGreetingと同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
+function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="mb-5 mt-1"
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
+        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">{eyebrow}</span>
+      </div>
+      <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-ink-950">
+        {title}
+        <span className="text-gold-500">.</span>
+      </h1>
+    </motion.div>
+  );
+}
+
 /** ホーム画面のRRRatingCardと同じ、黒フチ+白背景のSwissカード。フェードアップで順にstagger表示する。 */
 function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
@@ -178,6 +205,7 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay }}
+        whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
         className="w-full text-left rounded-[18px] bg-white ring-[1.5px] ring-ink-950 p-3.5"
       >
@@ -195,15 +223,15 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
@@ -239,20 +267,20 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
                 {point.finishPosition != null && ` ・ ${point.finishPosition}位`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">バイイン</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">獲得</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">収支</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-xl bg-gold-500/10 px-3.5 py-3">
+              <div className="flex items-center justify-between rounded-xl border border-gold-500 bg-white px-3.5 py-3">
                 <span className="text-[12px] font-semibold text-gold-700">トナメ偏差値</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
@@ -291,12 +319,19 @@ function StatTile({
   value,
   valueClass,
   onInfo,
+  countTo,
+  format,
 }: {
   label: string;
   value: string;
   valueClass?: string;
   onInfo?: () => void;
+  /** 指定すると 0→countTo をカウントアップ表示する(表示は format で整形)。 */
+  countTo?: number;
+  format?: (n: number) => string;
 }) {
+  const animated = useCountUp(0, countTo ?? 0, 1100, 200);
+  const display = countTo !== undefined && format ? format(animated) : value;
   return (
     <div>
       <div className="flex items-center gap-1 text-[11px] text-ink-700">
@@ -307,7 +342,7 @@ function StatTile({
           </button>
         )}
       </div>
-      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{value}</div>
+      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{display}</div>
     </div>
   );
 }
@@ -602,11 +637,20 @@ function SingleLineChart({
   const xTickIdx = pickTickIndices(points.length, 6);
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.y).toFixed(1)}`).join(" ");
+  // 面塗り: 折れ線の下をプロット下端まで塗り、色→透明のグラデーションで陰影を付ける。
+  const areaPath = `${linePath} L${toX(points.length - 1).toFixed(1)},${plotHeight} L${toX(0).toFixed(1)},${plotHeight} Z`;
+  const gradId = `area-grad-${color.replace("#", "")}`;
 
   return (
     <div>
       {header}
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 130 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {yTicks.map((tick) => (
           <g key={tick}>
             <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-ink-400" />
@@ -628,6 +672,7 @@ function SingleLineChart({
           className="text-ink-600"
         />
 
+        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
         <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
         {xTickIdx.map((i) => (
@@ -878,23 +923,40 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-3"
           >
+            <TabHeader eyebrow="Your numbers" title="Stats" />
             {accessToken ? (
               stats ? (
                 <>
                   <AnimatedCard delay={0.06}>
                     <div className="mb-3"><RuleLabel>収支</RuleLabel></div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-                      <StatTile label="かけた金額" value={stats.totalBuyIns.toLocaleString()} onInfo={() => setInfoKey("buyIns")} />
-                      <StatTile label="得た金額" value={stats.totalPayouts.toLocaleString()} onInfo={() => setInfoKey("payouts")} />
+                      <StatTile
+                        label="かけた金額"
+                        value={stats.totalBuyIns.toLocaleString()}
+                        countTo={stats.totalBuyIns}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("buyIns")}
+                      />
+                      <StatTile
+                        label="得た金額"
+                        value={stats.totalPayouts.toLocaleString()}
+                        countTo={stats.totalPayouts}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("payouts")}
+                      />
                       <StatTile
                         label="収支"
                         value={formatSigned(stats.profit)}
+                        countTo={stats.profit}
+                        format={(n) => formatSigned(Math.round(n))}
                         valueClass={signedClass(stats.profit)}
                         onInfo={() => setInfoKey("profit")}
                       />
                       <StatTile
                         label="ROI"
                         value={`${(stats.roi * 100).toFixed(1)}%`}
+                        countTo={stats.roi * 100}
+                        format={(n) => `${n.toFixed(1)}%`}
                         valueClass={signedClass(stats.roi * 100 - 100)}
                         onInfo={() => setInfoKey("roi")}
                       />
@@ -907,10 +969,24 @@ export function Lobby({
                       <StatTile
                         label="参加トナメ数"
                         value={stats.tournamentsPlayed.toLocaleString()}
+                        countTo={stats.tournamentsPlayed}
+                        format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("tournamentsPlayed")}
                       />
-                      <StatTile label="インマネ回数" value={stats.itmCount.toLocaleString()} onInfo={() => setInfoKey("itmCount")} />
-                      <StatTile label="インマネ率" value={`${(stats.itmRate * 100).toFixed(1)}%`} onInfo={() => setInfoKey("itmRate")} />
+                      <StatTile
+                        label="インマネ回数"
+                        value={stats.itmCount.toLocaleString()}
+                        countTo={stats.itmCount}
+                        format={(n) => Math.round(n).toLocaleString()}
+                        onInfo={() => setInfoKey("itmCount")}
+                      />
+                      <StatTile
+                        label="インマネ率"
+                        value={`${(stats.itmRate * 100).toFixed(1)}%`}
+                        countTo={stats.itmRate * 100}
+                        format={(n) => `${n.toFixed(1)}%`}
+                        onInfo={() => setInfoKey("itmRate")}
+                      />
                     </div>
                   </AnimatedCard>
 
@@ -920,12 +996,22 @@ export function Lobby({
                       <StatTile
                         label="VPIP"
                         value={`${(stats.vpipRate * 100).toFixed(0)}%`}
+                        countTo={stats.vpipRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("vpip")}
                       />
-                      <StatTile label="PFR" value={`${(stats.pfrRate * 100).toFixed(0)}%`} onInfo={() => setInfoKey("pfr")} />
+                      <StatTile
+                        label="PFR"
+                        value={`${(stats.pfrRate * 100).toFixed(0)}%`}
+                        countTo={stats.pfrRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
+                        onInfo={() => setInfoKey("pfr")}
+                      />
                       <StatTile
                         label="3Bet"
                         value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
+                        countTo={stats.threeBetRate * 100}
+                        format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("threeBet")}
                       />
                     </div>
@@ -933,7 +1019,11 @@ export function Lobby({
 
                   <AnimatedCard delay={0.18}>
                     {bankrollGraph === null ? (
-                      <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
+                      <div className="space-y-6">
+                        <ChartSkeleton />
+                        <ChartSkeleton />
+                        <ChartSkeleton />
+                      </div>
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
@@ -981,7 +1071,7 @@ export function Lobby({
                   </AnimatedCard>
                 </>
               ) : (
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               )
             ) : (
               <div className="py-10 text-center text-ink-700 text-sm">スタッツの記録にはログインが必要です。</div>
@@ -997,9 +1087,7 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Leaderboard</h1>
-            </div>
+            <TabHeader eyebrow="Ranking" title="Leaderboard" />
 
             {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}
             <div className="mb-3 flex rounded-xl border border-ink-950 p-1">
@@ -1034,7 +1122,7 @@ export function Lobby({
             <SectionCard>
               {(() => {
                 if (leaderboards === null) {
-                  return <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>;
+                  return <ListSkeleton />;
                 }
                 const rows = [...leaderboards[lbPeriod]].sort((a, b) => {
                   const av = a[lbMetric];
@@ -1043,9 +1131,11 @@ export function Lobby({
                 });
                 if (rows.length === 0) {
                   return (
-                    <div className="py-10 text-center text-ink-700 text-sm">
-                      この期間はまだランキングデータがありません。
-                    </div>
+                    <EmptyState
+                      icon="trophy"
+                      title="まだランキングがありません"
+                      subtitle="この指標・期間で規定トナメ数(10)を満たすプレイヤーが揃うと表示されます。"
+                    />
                   );
                 }
                 return (
@@ -1061,8 +1151,8 @@ export function Lobby({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                            isYou ? "bg-gold-500/10 ring-1 ring-gold-500/40" : "bg-ink-300/70"
+                          className={`flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 ${
+                            isYou ? "border-[1.5px] border-gold-500" : "border border-ink-200"
                           }`}
                         >
                           <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
@@ -1099,14 +1189,12 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Hand History</h1>
-            </div>
+            <TabHeader eyebrow="Every hand" title="Hand History" />
             <SectionCard>
               {!accessToken ? (
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
               ) : history === null ? (
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               ) : (
                 <>
                   <div className="flex gap-1.5 mb-3">
@@ -1132,10 +1220,18 @@ export function Lobby({
                   {(() => {
                     const rows = historySubTab === "favorites" ? history.filter((h) => h.isFavorite) : history;
                     if (rows.length === 0) {
-                      return (
-                        <div className="py-10 text-center text-ink-700 text-sm">
-                          {historySubTab === "favorites" ? "お気に入りのハンドはまだありません。" : "まだプレイしたハンドがありません。"}
-                        </div>
+                      return historySubTab === "favorites" ? (
+                        <EmptyState
+                          icon="star"
+                          title="お気に入りのハンドはまだありません"
+                          subtitle="ハンド履歴の星マークをタップすると、あとで見返したい局面をここに集められます。"
+                        />
+                      ) : (
+                        <EmptyState
+                          icon="cards"
+                          title="まだプレイしたハンドがありません"
+                          subtitle="トーナメントを一度プレイすると、全ハンドの履歴がここに並びます。"
+                        />
                       );
                     }
                     const groups: { tournamentId: string; tournamentLabel: string; rows: HistoryRow[] }[] = [];
@@ -1168,13 +1264,13 @@ export function Lobby({
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-                                    className="rounded-xl bg-ink-300/70 px-3 py-2.5"
+                                    className="rounded-xl border border-ink-200 bg-white px-3 py-2.5"
                                   >
                                     <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
                                       <span className="tabular-nums">
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
-                                      <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                                      <span className="rounded border border-ink-950 bg-white px-1.5 py-[1px] text-ink-950 font-semibold">{h.position}</span>
                                       <Link
                                         href={`/review/${h.handId}`}
                                         className="ml-auto rounded bg-ink-950 px-2 py-[2px] text-[9px] font-black tracking-wide text-white active:opacity-80"
@@ -1224,20 +1320,22 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Tournament History</h1>
-            </div>
+            <TabHeader eyebrow="Results" title="Tournaments" />
             {!accessToken ? (
               <SectionCard>
                 <div className="py-10 text-center text-ink-700 text-sm">トーナメント履歴の記録にはログインが必要です。</div>
               </SectionCard>
             ) : tournamentHistory === null ? (
               <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">読み込み中…</div>
+                <ListSkeleton />
               </SectionCard>
             ) : tournamentHistory.length === 0 ? (
               <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">トーナメントに参加すると履歴が表示されます。</div>
+                <EmptyState
+                  icon="chart"
+                  title="まだトーナメント成績がありません"
+                  subtitle="SNGやMTTに参加して結果が出ると、収支・着順の履歴がここに並びます。"
+                />
               </SectionCard>
             ) : (
               <>
