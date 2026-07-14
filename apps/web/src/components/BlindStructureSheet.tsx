@@ -18,7 +18,7 @@ export function BlindStructureSheet({ currentLevel, onClose }: { currentLevel?: 
           </button>
         </div>
         <p className="text-[11px] text-navy-400 mb-3">
-          開始スタック20,000点 / 1レベル5分 / BBアンテ方式(BBの席がBB額を追加で支払う)
+          開始スタック20,000点 / 1レベル5分 / BB ANTE方式(BBの席がBB額を追加で支払う)
         </p>
         <table className="w-full text-xs tabular-nums">
           <thead>
@@ -26,7 +26,7 @@ export function BlindStructureSheet({ currentLevel, onClose }: { currentLevel?: 
               <th className="text-left py-1.5 font-medium">Lv</th>
               <th className="text-right py-1.5 font-medium">SB</th>
               <th className="text-right py-1.5 font-medium">BB</th>
-              <th className="text-right py-1.5 font-medium">アンテ</th>
+              <th className="text-right py-1.5 font-medium">ANTE</th>
             </tr>
           </thead>
           <tbody>
