@@ -231,6 +231,7 @@ export function PokerTable({
             timer={timerForSeat}
             size={isHero ? "lg" : "sm"}
             isButton={state?.buttonFixedPos === seatIndex}
+            away={player?.away ?? false}
             badge={badgeForSeat({
               seatIndex,
               seatStatus: status,
