@@ -79,7 +79,7 @@ function SettingsPopover({
             onClose();
             onShowHistory();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           このゲームのハンド履歴
         </button>
@@ -88,7 +88,7 @@ function SettingsPopover({
             onClose();
             onShowStructure();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           ブラインドストラクチャを見る
         </button>
@@ -97,7 +97,7 @@ function SettingsPopover({
             onClose();
             onShowChatLog();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
           チャットログ
         </button>
@@ -122,7 +122,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-colors"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
           >
             チップを破棄してゲームから離脱
           </button>
