@@ -219,15 +219,15 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl bg-ink-200/70 p-2 text-center">
+          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
@@ -263,20 +263,20 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
                 {point.finishPosition != null && ` ・ ${point.finishPosition}位`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">バイイン</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">獲得</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl bg-ink-200/70 p-3 text-center">
+                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">収支</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-xl bg-gold-500/10 px-3.5 py-3">
+              <div className="flex items-center justify-between rounded-xl border border-gold-500 bg-white px-3.5 py-3">
                 <span className="text-[12px] font-semibold text-gold-700">トナメ偏差値</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
@@ -1084,8 +1084,8 @@ export function Lobby({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                            isYou ? "bg-gold-500/10 ring-1 ring-gold-500/40" : "bg-ink-300/70"
+                          className={`flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 ${
+                            isYou ? "border-[1.5px] border-gold-500" : "border border-ink-200"
                           }`}
                         >
                           <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
@@ -1181,13 +1181,13 @@ export function Lobby({
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-                                    className="rounded-xl bg-ink-300/70 px-3 py-2.5"
+                                    className="rounded-xl border border-ink-200 bg-white px-3 py-2.5"
                                   >
                                     <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
                                       <span className="tabular-nums">
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
-                                      <span className="rounded bg-ink-400 px-1.5 py-[1px] text-ink-850 font-semibold">{h.position}</span>
+                                      <span className="rounded border border-ink-950 bg-white px-1.5 py-[1px] text-ink-950 font-semibold">{h.position}</span>
                                       <button
                                         onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
                                         aria-label={h.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
