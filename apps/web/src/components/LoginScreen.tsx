@@ -153,9 +153,10 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         </div>
 
         {auth.oauthError && (
-          <p className="text-[12px] text-crimson-500">
-            Google/Appleログインに失敗しました: {auth.oauthError}
-          </p>
+          <div className="text-[12px] text-crimson-500 space-y-0.5">
+            <p>Google/Appleログインに失敗しました: {auth.oauthError}</p>
+            {auth.oauthErrorRaw && <p className="text-ink-400 break-all">詳細: {auth.oauthErrorRaw}</p>}
+          </div>
         )}
         {error && <p className="text-[12px] text-crimson-500">{error}</p>}
         {info && <p className="text-[12px] text-mint-700">{info}</p>}
