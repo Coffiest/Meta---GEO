@@ -205,6 +205,7 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay }}
+        whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
         className="w-full text-left rounded-[18px] bg-white ring-[1.5px] ring-ink-950 p-3.5"
       >
