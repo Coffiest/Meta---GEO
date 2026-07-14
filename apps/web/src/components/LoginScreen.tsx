@@ -52,6 +52,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const resetFeedback = () => {
     setError(null);
     setInfo(null);
+    auth.clearOauthError();
   };
 
   const goTo = (next: Mode) => {
@@ -151,6 +152,11 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           )}
         </div>
 
+        {auth.oauthError && (
+          <p className="text-[12px] text-crimson-500">
+            Google/Appleログインに失敗しました: {auth.oauthError}
+          </p>
+        )}
         {error && <p className="text-[12px] text-crimson-500">{error}</p>}
         {info && <p className="text-[12px] text-mint-700">{info}</p>}
 
