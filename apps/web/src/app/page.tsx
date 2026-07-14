@@ -11,6 +11,7 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
 import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
+import { TournamentResultScreen, fetchResultSnapshot, type ResultStatsSnapshot } from "@/components/TournamentResultScreen";
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
@@ -162,6 +163,8 @@ function GameScreen({
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
+  // ゲーム開始時点のスタッツ(結果画面でbefore→afterの増減を表示するため)。一度だけ取得。
+  const [statsBefore, setStatsBefore] = useState<ResultStatsSnapshot | null>(null);
   // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
@@ -201,6 +204,14 @@ function GameScreen({
   const handleMarkingSaved = (userId: string, color: PlayerNoteColor | null) => {
     setMarkingBySeat((prev) => ({ ...prev, [userId]: color ? PLAYER_NOTE_COLOR_HEX[color] : null }));
   };
+
+  // ゲーム開始時点のスタッツを一度だけ取得(結果画面の増減表示のbaseline)。
+  useEffect(() => {
+    if (!accessToken || statsBefore) return;
+    void fetchResultSnapshot(accessToken).then((snap) => {
+      if (snap) setStatsBefore(snap);
+    });
+  }, [accessToken, statsBefore]);
 
   const isYourTurn = yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex && !state.isComplete;
   const toCall = state && yourSeat ? Math.max(0, state.currentBetToMatch - yourSeat.streetContribution) : 0;
@@ -339,38 +350,7 @@ function GameScreen({
 
       <AnimatePresence>
         {tournamentOver && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-30 flex items-center justify-center bg-white/95 backdrop-blur px-6"
-          >
-            <div className="text-center space-y-4">
-              {tournamentOver.yourFinishPosition === 1 && (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 text-gold-500">
-                  <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" />
-                  <path d="M7 5.4H4.4A2.6 2.6 0 0 0 7 8.6M17 5.4h2.6A2.6 2.6 0 0 1 17 8.6" />
-                  <path d="M12 13.5v3.5M8.5 21h7M9.5 21v-1.2a2.5 2.5 0 0 1 5 0V21" />
-                </svg>
-              )}
-              <div className="text-ink-500 text-xs tracking-[0.3em] font-semibold">TOURNAMENT RESULT</div>
-              <div className="text-3xl font-bold text-ink-950">
-                {tournamentOver.yourFinishPosition === 1
-                  ? "優勝"
-                  : tournamentOver.yourFinishPosition !== null
-                    ? `${tournamentOver.yourFinishPosition}位`
-                    : "トーナメント終了"}
-              </div>
-              {tournamentOver.yourPayout > 0 && (
-                <div className="text-mint-600 text-lg font-semibold tabular-nums">賞金 +{tournamentOver.yourPayout.toLocaleString()}</div>
-              )}
-              <button
-                onClick={onExit}
-                className="mt-2 rounded-xl bg-ink-950 text-white text-sm font-semibold px-8 py-3 active:scale-[0.97] transition-transform"
-              >
-                ロビーへ戻る
-              </button>
-            </div>
-          </motion.div>
+          <TournamentResultScreen info={tournamentOver} accessToken={accessToken} statsBefore={statsBefore} onExit={onExit} />
         )}
       </AnimatePresence>
 
