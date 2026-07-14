@@ -46,6 +46,15 @@ function isBubbleStage(v: unknown): v is BubbleStage {
   return typeof v === "string" && (BUBBLE_STAGES as string[]).includes(v);
 }
 
+/** 偏差値レンジ { min, max } をパースする。未指定/不正なら undefined(=フィルタなし)。
+ * 全域(20〜80など)の場合もフィルタとして扱ってよいが、実害はないためそのまま渡す。 */
+function parseRatingRange(v: unknown): { min: number; max: number } | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const { min, max } = v as Record<string, unknown>;
+  if (typeof min !== "number" || typeof max !== "number" || Number.isNaN(min) || Number.isNaN(max)) return undefined;
+  return { min: Math.min(min, max), max: Math.max(min, max) };
+}
+
 function parseLine(v: unknown): LineStep[] | null {
   if (!Array.isArray(v)) return null;
   const line: LineStep[] = [];
@@ -82,7 +91,8 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         sendJson(res, 400, { error: "invalid stackBucket, bubbleStage, or line" });
         return true;
       }
-      sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line }));
+      const ratingRange = parseRatingRange(body["ratingRange"]);
+      sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line, ratingRange }));
       return true;
     }
 
@@ -106,10 +116,11 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         sendJson(res, 400, { error: "invalid request body" });
         return true;
       }
+      const ratingRange = parseRatingRange(body["ratingRange"]);
       sendJson(
         res,
         200,
-        await getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine }),
+        await getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine, ratingRange }),
       );
       return true;
     }

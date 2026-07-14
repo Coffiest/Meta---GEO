@@ -1,5 +1,23 @@
 import { prisma } from "./client.js";
 import { computeMttPrizeStructure, SNG_PAYOUTS } from "./bankroll.js";
+import { computeRRRatings } from "./rrRating.js";
+
+/** トナメ偏差値でGEO集計をフィルタする範囲。min〜maxのプレイヤーの意思決定だけを集計する。 */
+export interface RatingRange {
+  min: number;
+  max: number;
+}
+
+/** 偏差値レンジのフィルタ関数を作る。範囲未指定なら常にtrue。参加0件のユーザーは偏差値50扱い。 */
+async function buildRatingFilter(range?: RatingRange): Promise<(userId: string) => boolean> {
+  if (!range) return () => true;
+  const ratings = await computeRRRatings();
+  const byUser = new Map(ratings.map((r) => [r.userId, r.rrRating]));
+  return (userId: string) => {
+    const rating = byUser.get(userId) ?? 50;
+    return rating >= range.min && rating <= range.max;
+  };
+}
 
 /**
  * GEO DATABASE(GTO Wizard型シーケンシャル・アクションツリー)の集計。
@@ -103,7 +121,7 @@ const RAW_HAND_SELECT = {
     },
   },
   seats: {
-    select: { seatIndex: true, startingStack: true, holeCards: true, wasAway: true, user: { select: { isBot: true } } },
+    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true, user: { select: { isBot: true } } },
   },
   actions: {
     orderBy: { sequenceNumber: "asc" as const },
@@ -338,15 +356,18 @@ export async function getPreflopNode(params: {
   stackBucket: StackBucket;
   bubbleStage: BubbleStage;
   line: LineStep[];
+  ratingRange?: RatingRange | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
-  const hands = await fetchRawHands();
+  const [hands, ratingOk] = await Promise.all([fetchRawHands(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedDecision[] = [];
   let expectedPosition: string | null = null;
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
-    // 離席中(wasAway)の席はGEO戦略分析の集計から除外する(本人の意思決定ではないため)。
-    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot && !s.wasAway).map((s) => [s.seatIndex, s.holeCards]));
+    // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
+    const humanSeats = new Map(
+      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    );
     if (humanSeats.size === 0) continue;
 
     const decisions = replayPreflopDecisions(hand, humanSeats);
@@ -477,6 +498,7 @@ export async function getPostflopNode(params: {
   board: string[];
   street: "flop" | "turn" | "river";
   postflopLine: LineStep[];
+  ratingRange?: RatingRange | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
   const boardLenForStreet: Record<string, number> = { flop: 3, turn: 4, river: 5 };
   const requiredBoardLen = boardLenForStreet[params.street]!;
@@ -484,7 +506,7 @@ export async function getPostflopNode(params: {
     throw new Error(`board must have exactly ${requiredBoardLen} cards for street ${params.street}`);
   }
 
-  const hands = await fetchRawHands();
+  const [hands, ratingOk] = await Promise.all([fetchRawHands(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedPostflopDecision[] = [];
   let expectedPosition: string | null = null;
 
@@ -493,8 +515,10 @@ export async function getPostflopNode(params: {
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
-    // 離席中(wasAway)の席はGEO戦略分析の集計から除外する(本人の意思決定ではないため)。
-    const humanSeats = new Map(hand.seats.filter((s) => !s.user.isBot && !s.wasAway).map((s) => [s.seatIndex, s.holeCards]));
+    // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
+    const humanSeats = new Map(
+      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    );
     if (humanSeats.size === 0) continue;
 
     const preflopDecisions = replayPreflopDecisions(hand, humanSeats);

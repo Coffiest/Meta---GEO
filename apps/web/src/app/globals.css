@@ -98,6 +98,45 @@ body {
   box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
 }
 
+/* GEO偏差値レンジの2つまみスライダー。同じバー上に2本の<input range>を重ね、
+   トラックは透明(下地のdivを見せる)、つまみだけ操作可能(pointer-events)にする。 */
+.geo-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  cursor: pointer;
+}
+.geo-range::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 24px;
+}
+.geo-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 9999px;
+  background: #0a0a0a;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+}
+.geo-range::-moz-range-track {
+  background: transparent;
+  height: 24px;
+}
+.geo-range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: #0a0a0a;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+}
+
 /* テーブル画面の画像(felt/カード/アバター)は右クリック保存・ドラッグ選択の対象外にする。 */
 .no-image-actions img {
   -webkit-touch-callout: none;

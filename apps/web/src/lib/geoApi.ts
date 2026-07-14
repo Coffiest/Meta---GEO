@@ -108,8 +108,14 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** トナメ偏差値でGEO集計をフィルタする範囲(min〜max)。 */
+export interface RatingRange {
+  min: number;
+  max: number;
+}
+
 export const geoTreeApi = {
-  preflopNode: (params: { stackBucket: StackBucket; bubbleStage: BubbleStage; line: LineStep[] }) =>
+  preflopNode: (params: { stackBucket: StackBucket; bubbleStage: BubbleStage; line: LineStep[]; ratingRange?: RatingRange }) =>
     postJson<NodeResult>("/api/geo-tree/preflop-node", params),
   postflopNode: (params: {
     stackBucket: StackBucket;
@@ -118,5 +124,6 @@ export const geoTreeApi = {
     board: string[];
     street: "flop" | "turn" | "river";
     postflopLine: LineStep[];
+    ratingRange?: RatingRange;
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
 };
