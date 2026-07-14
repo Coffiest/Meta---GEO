@@ -44,7 +44,6 @@ interface HumanEntry {
   done: boolean;
   /** 連続タイムアウト回数。2回連続で時間切れになると自動離席。自分でアクションすると0にリセット。 */
   consecutiveTimeouts: number;
-  disconnectTimer: ReturnType<typeof setTimeout> | null;
   currentTableId: number | null;
 }
 
@@ -140,7 +139,6 @@ export class MttSession implements GameSession {
       left: false,
       done: false,
       consecutiveTimeouts: 0,
-      disconnectTimer: null,
       currentTableId: null,
     });
     this.playersById.set(player.userId, { ...player, isBot: false });
@@ -201,10 +199,6 @@ export class MttSession implements GameSession {
     const human = this.humans.get(userId);
     if (!human) return;
     human.socket = socket;
-    if (human.disconnectTimer) {
-      clearTimeout(human.disconnectTimer);
-      human.disconnectTimer = null;
-    }
     // 再接続したら離席状態を解除し、連続タイムアウトもリセット。
     human.consecutiveTimeouts = 0;
     if (human.away) {
