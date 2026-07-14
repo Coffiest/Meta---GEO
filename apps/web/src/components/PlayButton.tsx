@@ -52,10 +52,10 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             <span
               className="pointer-events-none absolute left-1/2 top-1/2 z-[2] select-none whitespace-nowrap font-black text-white"
               style={{
-                fontSize: 96,
+                fontSize: 90,
                 lineHeight: 0.7,
                 letterSpacing: "-0.045em",
-                transform: "translate(-50%, -50%) rotate(-10deg)",
+                transform: "translate(-50%, -52%) rotate(-10deg)",
                 transformOrigin: "center",
               }}
             >
