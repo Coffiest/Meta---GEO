@@ -84,7 +84,22 @@ function computePresets(params: {
     ];
   }
 
-  // それ以外(ポストフロップ全般、およびプリフロップの3ベット以降)はポット比率プリセット。
+  // 相手のベット/レイズに直面している場面(toCall > 0)は、相手のベット/レイズ額に対する
+  // 倍率(×2〜×6)でレイズサイズを選ぶ。currentBet(=このストリートの現在のベット額)に倍率を掛ける。
+  if (toCall > 0) {
+    const currentBet = toCall + streetContribution;
+    const byAmount = new Map<number, string>();
+    for (const mult of [2, 2.5, 3, 4, 5, 6]) {
+      const amt = clamp(Math.round(currentBet * mult));
+      if (!byAmount.has(amt)) byAmount.set(amt, `×${mult}`);
+    }
+    return [
+      ...[...byAmount.entries()].map(([toAmount, label]) => ({ label, toAmount })),
+      { label: "All in", toAmount: maxRaiseToAmount },
+    ];
+  }
+
+  // それ以外(ポストフロップで自分から先にベットする場面)はポット比率プリセット。
   // ラベルは金額(bb)ではなく比率(%)で表示する(TenFourPokerに合わせてある)。
   // 複数の比率が最小ベット額に丸め込まれて同額になった場合は、最初の比率だけを残す。
   const byAmount = new Map<number, number>();
@@ -307,20 +322,18 @@ export function ActionBar({
           </div>
         )}
 
+        {/* ボタン配置: 左=パッシブ(フォールド)、中央=コール/チェック、右=アクティブ(ベット/レイズ)。
+            アクティブなアクションほど右に集める。 */}
         <div className="flex gap-2">
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            disabled={raiseDisabled}
-            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-crimson-500 text-white ring-1 ring-inset ring-black/10 transition-transform disabled:opacity-30 disabled:pointer-events-none"
-          >
-            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
-              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
-            </span>
-            <span className="text-[15px] font-black tabular-nums leading-tight">
-              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
-            </span>
-          </motion.button>
+          {!canCheck && (
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onAction({ kind: "fold" })}
+              className="flex-1 min-h-[54px] flex items-center justify-center rounded-xl bg-azure-500 text-white ring-1 ring-inset ring-black/10 transition-transform"
+            >
+              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Fold</span>
+            </motion.button>
+          )}
 
           <motion.button
             whileTap={{ scale: 0.96 }}
@@ -337,15 +350,19 @@ export function ActionBar({
             )}
           </motion.button>
 
-          {!canCheck && (
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={() => onAction({ kind: "fold" })}
-              className="flex-1 min-h-[54px] flex items-center justify-center rounded-xl bg-azure-500 text-white ring-1 ring-inset ring-black/10 transition-transform"
-            >
-              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Fold</span>
-            </motion.button>
-          )}
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            disabled={raiseDisabled}
+            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
+            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-crimson-500 text-white ring-1 ring-inset ring-black/10 transition-transform disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
+            </span>
+            <span className="text-[15px] font-black tabular-nums leading-tight">
+              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
+            </span>
+          </motion.button>
         </div>
       </div>
     </div>

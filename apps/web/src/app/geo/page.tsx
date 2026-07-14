@@ -261,18 +261,23 @@ export default function GeoPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">
                   GEO Database
                 </p>
-                <span className="text-[10px] font-semibold tracking-wide text-ink-400">
-                  {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
-                </span>
               </div>
               <div className="flex items-center gap-2.5">
+                {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
+                    UTG等のアクションタブと同じ寸法・スタイル(rounded-xl・上ラベル+値の2段)に揃える。 */}
                 <motion.button
                   onClick={() => setSettingsOpen(true)}
-                  whileTap={{ scale: 0.92 }}
-                  className="shrink-0 h-11 w-11 rounded-full border border-ink-950 bg-white flex items-center justify-center text-ink-900 active:bg-ink-50 transition-colors"
-                  aria-label="詳細設定"
+                  whileTap={{ scale: 0.94 }}
+                  className="shrink-0 rounded-xl border border-ink-950 bg-white px-3 py-1.5 text-left active:bg-ink-50 transition-colors"
+                  aria-label="詳細設定を変更"
                 >
-                  <Icon name="settings" className="h-[18px] w-[18px]" />
+                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-ink-500">
+                    <Icon name="settings" className="h-3 w-3" />
+                    設定
+                  </div>
+                  <div className="text-[11px] font-bold text-ink-950 whitespace-nowrap">
+                    {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
+                  </div>
                 </motion.button>
                 <PositionPillBar
                   items={items}
