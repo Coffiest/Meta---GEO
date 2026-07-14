@@ -20,7 +20,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="relative flex justify-center py-2" style={{ minHeight: 86 }}>
+    <div className="relative flex justify-center py-2" style={{ minHeight: 112 }}>
       {expanded && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -44,13 +44,24 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             transition={{ type: "spring", damping: 20, stiffness: 260 }}
             onClick={() => setExpanded(true)}
             aria-label="プレイする"
-            className="relative flex h-[76px] w-[260px] items-center justify-center rounded-[26px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
+            className="relative h-[100px] w-[260px] overflow-hidden rounded-[28px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
           >
-            {/* トランプの大きな文字が10度傾いて枠からはみ出すテーマ。「Play」を大きく左に10度傾けて
-                ボタン枠から意図的にはみ出させる(overflow-visible)。 */}
+            {/* トランプ札の意匠。黒い札に、文字と同色(白)の内枠(額縁)を持たせ、その枠を
+                大きく傾けた「Play」がしっかり突き破って(上下ともはみ出して)いく。overflow-hidden
+                で札の外(白背景)には出さず、内枠だけを突破させることで札インデックス風に見せる。 */}
             <span
-              className="pointer-events-none select-none font-black leading-[0.8] tracking-tight text-white"
-              style={{ fontSize: 72, transform: "rotate(-10deg)", transformOrigin: "center" }}
+              aria-hidden
+              className="pointer-events-none absolute inset-[10px] rounded-[20px] border-2 border-white/90"
+            />
+            <span
+              className="pointer-events-none absolute left-1/2 top-1/2 z-[2] select-none whitespace-nowrap font-black text-white"
+              style={{
+                fontSize: 96,
+                lineHeight: 0.7,
+                letterSpacing: "-0.045em",
+                transform: "translate(-50%, -50%) rotate(-10deg)",
+                transformOrigin: "center",
+              }}
             >
               Play
             </span>

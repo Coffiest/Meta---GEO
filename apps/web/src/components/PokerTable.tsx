@@ -6,6 +6,7 @@ import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
 import { cardToString } from "@meta-geo/engine/src/types/card.js";
+import { describeMadeHand } from "@/lib/handRank";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabel } from "@/lib/position";
@@ -237,8 +238,15 @@ export function PokerTable({
         const tappable = Boolean(!isHero && player && onPlayerTap);
         const markingColor = player?.userId ? markingBySeat?.[player.userId] ?? null : null;
 
+        // 自分の席は、現在成立している役(ハンドランク)を手札の直下に表示する。
+        const heroHandLabel =
+          isHero && yourCards.length >= 2 && status !== "folded" && status !== "empty"
+            ? describeMadeHand(yourCards, (state?.board ?? []).map(cardToString))
+            : null;
+
         const seatNode = (
           <Seat
+            handRankLabel={heroHandLabel}
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
             markingColor={markingColor}
