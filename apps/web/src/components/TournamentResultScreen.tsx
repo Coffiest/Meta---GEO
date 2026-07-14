@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { TournamentOverInfo } from "@/lib/socket";
+import { useCountUp } from "@/lib/useCountUp";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -34,30 +35,6 @@ export async function fetchResultSnapshot(accessToken: string): Promise<ResultSt
 }
 
 /** target値まで滑らかにカウントアップするフック(before→afterのアニメ表示用)。 */
-function useCountUp(from: number, to: number, durationMs = 1200, startDelayMs = 300): number {
-  const [value, setValue] = useState(from);
-  const rafRef = useRef<number>(0);
-  useEffect(() => {
-    let start = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // easeOutCubic
-    const tick = (ts: number) => {
-      if (!start) start = ts;
-      const p = Math.min(1, (ts - start) / durationMs);
-      setValue(from + (to - from) * ease(p));
-      if (p < 1) rafRef.current = requestAnimationFrame(tick);
-    };
-    timer = setTimeout(() => {
-      rafRef.current = requestAnimationFrame(tick);
-    }, startDelayMs);
-    return () => {
-      clearTimeout(timer);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [from, to, durationMs, startDelayMs]);
-  return value;
-}
-
 type DeltaTone = "up" | "down" | "flat";
 
 /** 1つの指標カード: ラベル + カウントアップする現在値 + 「+OO / -OO」の増減バッジ。 */
