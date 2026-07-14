@@ -149,6 +149,30 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4">{children}</div>;
 }
 
+/**
+ * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
+ * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
+ * ホーム画面のHomeGreetingと同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
+function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="mb-5 mt-1"
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
+        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">{eyebrow}</span>
+      </div>
+      <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-ink-950">
+        {title}
+        <span className="text-gold-500">.</span>
+      </h1>
+    </motion.div>
+  );
+}
+
 /** ホーム画面のRRRatingCardと同じ、黒フチ+白背景のSwissカード。フェードアップで順にstagger表示する。 */
 function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
@@ -878,6 +902,7 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-3"
           >
+            <TabHeader eyebrow="Your numbers" title="Stats" />
             {accessToken ? (
               stats ? (
                 <>
@@ -997,9 +1022,7 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Leaderboard</h1>
-            </div>
+            <TabHeader eyebrow="Ranking" title="Leaderboard" />
 
             {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}
             <div className="mb-3 flex rounded-xl border border-ink-950 p-1">
@@ -1099,9 +1122,7 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Hand History</h1>
-            </div>
+            <TabHeader eyebrow="Every hand" title="Hand History" />
             <SectionCard>
               {!accessToken ? (
                 <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
@@ -1210,9 +1231,7 @@ export function Lobby({
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="text-center mb-4">
-              <h1 className="text-[20px] font-semibold text-ink-950">Tournament History</h1>
-            </div>
+            <TabHeader eyebrow="Results" title="Tournaments" />
             {!accessToken ? (
               <SectionCard>
                 <div className="py-10 text-center text-ink-700 text-sm">トーナメント履歴の記録にはログインが必要です。</div>
