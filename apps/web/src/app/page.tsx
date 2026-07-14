@@ -13,6 +13,7 @@ import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
 import { TournamentResultScreen, fetchResultSnapshot, type ResultStatsSnapshot } from "@/components/TournamentResultScreen";
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
+import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 
@@ -58,11 +59,13 @@ function useMatchingCountdown(secondsLeft: number | null): number | null {
 function SettingsPopover({
   onShowStructure,
   onShowHistory,
+  onShowChatLog,
   onLeave,
   onClose,
 }: {
   onShowStructure: () => void;
   onShowHistory: () => void;
+  onShowChatLog: () => void;
   onLeave: () => void;
   onClose: () => void;
 }) {
@@ -88,6 +91,15 @@ function SettingsPopover({
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
         >
           ブラインドストラクチャを見る
+        </button>
+        <button
+          onClick={() => {
+            onClose();
+            onShowChatLog();
+          }}
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+        >
+          チャットログ
         </button>
         {confirmingLeave ? (
           <div className="rounded-xl bg-ink-100 p-3 space-y-2">
@@ -157,11 +169,17 @@ function GameScreen({
     leaveGame,
     armTimeBank,
     setAway,
+    sendChat,
+    chatLog,
+    seatBubbles,
     gameHandHistory,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [chatLogOpen, setChatLogOpen] = useState(false);
+  const [chatInputOpen, setChatInputOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
   const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
   // ゲーム開始時点のスタッツ(結果画面でbefore→afterの増減を表示するため)。一度だけ取得。
   const [statsBefore, setStatsBefore] = useState<ResultStatsSnapshot | null>(null);
@@ -277,6 +295,7 @@ function GameScreen({
           <SettingsPopover
             onShowStructure={() => setStructureOpen(true)}
             onShowHistory={() => setHistoryOpen(true)}
+            onShowChatLog={() => setChatLogOpen(true)}
             onLeave={() => {
               leaveGame();
               onExit();
@@ -305,9 +324,54 @@ function GameScreen({
             turnTimer={turnTimer}
             onPlayerTap={(info) => setTappedPlayer(info)}
             markingBySeat={markingBySeat}
+            seatBubbles={seatBubbles}
+            onHeroChatClick={() => setChatInputOpen(true)}
           />
         )}
       </main>
+
+      {/* チャット入力バー(自分のカードの吹き出しボタンから開く)。エンター送信で自席から吹き出し表示。 */}
+      <AnimatePresence>
+        {chatInputOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end bg-black/30"
+            onClick={() => setChatInputOpen(false)}
+          >
+            <motion.form
+              initial={{ y: 40 }}
+              animate={{ y: 0 }}
+              exit={{ y: 40 }}
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const t = chatDraft.trim();
+                if (t) sendChat(t);
+                setChatDraft("");
+                setChatInputOpen(false);
+              }}
+              className="safe-area-bottom flex w-full items-center gap-2 border-t border-ink-200 bg-white px-4 pb-6 pt-3"
+            >
+              <input
+                autoFocus
+                value={chatDraft}
+                onChange={(e) => setChatDraft(e.target.value)}
+                maxLength={120}
+                placeholder="メッセージを入力…"
+                className="flex-1 rounded-full border border-ink-950 bg-white px-4 py-2.5 text-sm text-ink-950 outline-none placeholder:text-ink-300"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-full bg-ink-950 px-5 py-2.5 text-sm font-black text-white active:scale-95 transition-transform"
+              >
+                送信
+              </button>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。右下にトースト風に表示する */}
       <AnimatePresence>
@@ -368,6 +432,12 @@ function GameScreen({
       <AnimatePresence>
         {historyOpen && (
           <GameHandHistorySheet records={gameHandHistory} bigBlind={bigBlind} onClose={() => setHistoryOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {chatLogOpen && (
+          <ChatLogSheet messages={chatLog} yourSeatIndex={yourSeatIndex} onClose={() => setChatLogOpen(false)} />
         )}
       </AnimatePresence>
 
