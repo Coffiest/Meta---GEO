@@ -225,8 +225,10 @@ export function PokerTable({
             ? { endsAt: turnTimer.endsAt, durationMs: turnTimer.durationMs }
             : null;
 
-        // 相手(自分以外・非BOT・userIdあり)の席はタップで詳細モーダルを開ける。
-        const tappable = Boolean(!isHero && player && !player.isBot && player.userId && onPlayerTap);
+        // 相手(自分以外)の席はタップで詳細モーダルを開ける。BOT/未ログイン相手でも
+        // モーダル側で「統計なし」を出せるよう、ここではisBot/userIdでゲートしない
+        // (タップしても何も起きない、という不具合を防ぐ)。
+        const tappable = Boolean(!isHero && player && onPlayerTap);
         const markingColor = player?.userId ? markingBySeat?.[player.userId] ?? null : null;
 
         const seatNode = (

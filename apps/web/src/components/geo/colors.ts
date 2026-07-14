@@ -1,34 +1,42 @@
 import { PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
 
 /**
- * GTO Wizardの実際の配色を再現したアクションカラー(Fold=青、Call/Check=緑、ベット/レイズは
- * サイズが大きくなるほどオレンジ→赤→ローズ→ピンク→フューシャ、Allinは深いインディゴ)。
- * dataviz skillのvalidate_palette.jsで検証済み(暗背景 #0d0d10 に対し、明度帯・彩度下限・
- * CVD分離・コントラストの全チェックを通過)。
+ * GTO Wizardの配色に合わせたアクションカラー。ユーザー提供のGTO Wizardスクリーンショット
+ * (Actions凡例)から色を採取して一致させている:
+ *   Fold=ブルー / Call・Check=グリーン / Raise=レッド /
+ *   Small=オレンジ → Medium=クリムゾン → Large=マゼンタ → Overbet=パープル、Allin=ディープパープル。
+ * ベット/レイズはサイズが大きくなるほど オレンジ→赤→クリムゾン→マゼンタ→パープル と暖色から寒色へ推移。
  */
-const FOLD_COLOR = "#3B82F6";
-const CALL_COLOR = "#16A34A";
-const ALLIN_COLOR = "#4F46E5";
+const FOLD_COLOR = "#4C86C6"; // ブルー(Fold)
+const CALL_COLOR = "#57A64A"; // グリーン(Call/Check)
+const ALLIN_COLOR = "#4A1D96"; // ディープパープル(Allin)
 const GEOMETRIC_COLOR = "#8E24AA";
+
+// GTO Wizard凡例のサイズ色。
+const SMALL_ORANGE = "#E8823C";
+const RAISE_RED = "#E15361";
+const MEDIUM_CRIMSON = "#D42D6B";
+const LARGE_MAGENTA = "#A32BA0";
+const OVERBET_PURPLE = "#6D2BB0";
 
 export const PREFLOP_BUCKET_COLOR: Record<PreflopBucket, string> = {
   fold: FOLD_COLOR,
   call: CALL_COLOR,
-  "raise2-2.5": "#EA580C",
-  "raise2.5-3": "#DC2626",
-  "raise3-4": "#DB2777",
-  "raise4+": "#C026D3",
+  "raise2-2.5": SMALL_ORANGE,
+  "raise2.5-3": MEDIUM_CRIMSON,
+  "raise3-4": LARGE_MAGENTA,
+  "raise4+": OVERBET_PURPLE,
   allIn: ALLIN_COLOR,
 };
 
 export const POSTFLOP_BUCKET_COLOR: Record<PostflopBucket, string> = {
   fold: FOLD_COLOR,
   checkOrCall: CALL_COLOR,
-  "bet20-40": "#EA580C",
-  "bet40-60": "#DC2626",
-  "bet60-80": "#F43F5E",
-  "bet80-100": "#DB2777",
-  "bet100+": "#C026D3",
+  "bet20-40": SMALL_ORANGE,
+  "bet40-60": RAISE_RED,
+  "bet60-80": MEDIUM_CRIMSON,
+  "bet80-100": LARGE_MAGENTA,
+  "bet100+": OVERBET_PURPLE,
   allIn: ALLIN_COLOR,
 };
 

@@ -29,6 +29,25 @@ function Switch({ on }: { on: boolean }) {
   );
 }
 
+/** チェック/フォールド予約(x/f)のアイコン。チェック記号にスラッシュを重ねたモノクロSVG。 */
+function CheckFoldIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M4 12.5l4 4L20 5" />
+      <path d="M5 20L19 6" strokeWidth={1.6} />
+    </svg>
+  );
+}
+
+/** 離席(away)のアイコン。一時停止(pause)を表すモノクロSVG。 */
+function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className}>
+      <path d="M9 5v14M15 5v14" />
+    </svg>
+  );
+}
+
 // ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
 
@@ -84,7 +103,22 @@ function computePresets(params: {
     ];
   }
 
-  // それ以外(ポストフロップ全般、およびプリフロップの3ベット以降)はポット比率プリセット。
+  // 相手のベット/レイズに直面している場面(toCall > 0)は、相手のベット/レイズ額に対する
+  // 倍率(×2〜×6)でレイズサイズを選ぶ。currentBet(=このストリートの現在のベット額)に倍率を掛ける。
+  if (toCall > 0) {
+    const currentBet = toCall + streetContribution;
+    const byAmount = new Map<number, string>();
+    for (const mult of [2, 2.5, 3, 4, 5, 6]) {
+      const amt = clamp(Math.round(currentBet * mult));
+      if (!byAmount.has(amt)) byAmount.set(amt, `×${mult}`);
+    }
+    return [
+      ...[...byAmount.entries()].map(([toAmount, label]) => ({ label, toAmount })),
+      { label: "All in", toAmount: maxRaiseToAmount },
+    ];
+  }
+
+  // それ以外(ポストフロップで自分から先にベットする場面)はポット比率プリセット。
   // ラベルは金額(bb)ではなく比率(%)で表示する(TenFourPokerに合わせてある)。
   // 複数の比率が最小ベット額に丸め込まれて同額になった場合は、最初の比率だけを残す。
   const byAmount = new Map<number, number>();
@@ -210,36 +244,60 @@ export function ActionBar({
   );
 
   if (!isYourTurn) {
+    // 手番待ち中も、アクションボタンと同じ丸型ボタンを表示する(「待っています」テキストは廃止)。
+    // 左=x/f(チェック/フォールド予約)、中央=白い非活性プレースホルダ、右=離席トグル。
+    // 黒枠線+白のApple風で目立たない配色にし、手番が来たら下の色付きボタンに切り替わる。
     return (
       <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
         <div className="mx-auto max-w-md space-y-2.5">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            {timeBankRow}
-            {awayRow}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">{timeBankRow}</div>
+
+          <div className="flex gap-2.5">
+            {/* x/f 予約(普段フォールドがある左スロット) */}
             <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => setCheckFoldArmed((v) => !v)}
               aria-label="チェック/フォールドを予約"
-              className="flex items-center gap-1.5 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-black tabular-nums text-ink-900 shrink-0"
+              className={`flex-1 min-h-[60px] flex flex-col items-center justify-center gap-0.5 rounded-full border transition-colors ${
+                checkFoldArmed ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
+              }`}
             >
-              <Switch on={checkFoldArmed} />
-              x / f
+              <CheckFoldIcon className="h-[18px] w-[18px]" />
+              <span className="text-[11px] font-black tracking-wide">x / f</span>
             </motion.button>
-          </div>
-          <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 py-3 text-xs font-medium tracking-wide text-ink-500">
-            <span className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <motion.span
-                  key={i}
-                  className="h-1.5 w-1.5 rounded-full bg-ink-400"
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
-                />
-              ))}
-            </span>
-            相手のアクションを待っています
+
+            {/* 中央: 手番待ちの非活性プレースホルダ(真っ白・押せない) */}
+            <div className="flex-1 min-h-[60px] flex items-center justify-center rounded-full border border-ink-200 bg-white text-ink-300">
+              <span className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-ink-300"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                  />
+                ))}
+              </span>
+            </div>
+
+            {/* 離席トグル(普段レイズがある右スロット) */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() =>
+                setAway((v) => {
+                  const next = !v;
+                  onToggleAway?.(next);
+                  return next;
+                })
+              }
+              aria-label="離席"
+              className={`flex-1 min-h-[60px] flex flex-col items-center justify-center gap-0.5 rounded-full border transition-colors ${
+                away ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
+              }`}
+            >
+              <AwayIcon className="h-[18px] w-[18px]" />
+              <span className="text-[11px] font-black tracking-wide">離席</span>
+            </motion.button>
           </div>
         </div>
       </div>
@@ -307,45 +365,50 @@ export function ActionBar({
           </div>
         )}
 
-        <div className="flex gap-2">
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            disabled={raiseDisabled}
-            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-crimson-500 text-white ring-1 ring-inset ring-black/10 transition-transform disabled:opacity-30 disabled:pointer-events-none"
-          >
-            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
-              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
-            </span>
-            <span className="text-[15px] font-black tabular-nums leading-tight">
-              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
-            </span>
-          </motion.button>
+        {/* ボタン配置: 左=パッシブ(フォールド)、中央=コール/チェック、右=アクティブ(ベット/レイズ)。
+            丸型(rounded-full)+極太の黒枠+大胆なタイポのペルソナ5風。押下時は大きく弾ませる。 */}
+        <div className="flex gap-2.5">
+          {!canCheck && (
+            <motion.button
+              whileTap={{ scale: 0.88, rotate: -2 }}
+              transition={{ type: "spring", stiffness: 600, damping: 18 }}
+              onClick={() => onAction({ kind: "fold" })}
+              className="flex-1 min-h-[62px] flex items-center justify-center rounded-full bg-azure-500 text-white ring-2 ring-ink-950 transition-transform"
+            >
+              <span className="text-[16px] font-black uppercase tracking-[0.08em] leading-tight">Fold</span>
+            </motion.button>
+          )}
 
           <motion.button
-            whileTap={{ scale: 0.96 }}
+            whileTap={{ scale: 0.88, rotate: canCheck ? 0 : 2 }}
+            transition={{ type: "spring", stiffness: 600, damping: 18 }}
             onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-mint-600 text-white ring-1 ring-inset ring-black/10 transition-transform"
+            className="flex-1 min-h-[62px] flex flex-col items-center justify-center rounded-full bg-mint-600 text-white ring-2 ring-ink-950 transition-transform"
           >
             {canCheck ? (
-              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Check</span>
+              <span className="text-[16px] font-black uppercase tracking-[0.08em] leading-tight">Check</span>
             ) : (
               <>
-                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">Call</span>
-                <span className="text-[15px] font-black tabular-nums leading-tight">{formatBb(toCall, bigBlind)}</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">Call</span>
+                <span className="text-[16px] font-black tabular-nums leading-tight">{formatBb(toCall, bigBlind)}</span>
               </>
             )}
           </motion.button>
 
-          {!canCheck && (
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={() => onAction({ kind: "fold" })}
-              className="flex-1 min-h-[54px] flex items-center justify-center rounded-xl bg-azure-500 text-white ring-1 ring-inset ring-black/10 transition-transform"
-            >
-              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Fold</span>
-            </motion.button>
-          )}
+          <motion.button
+            whileTap={{ scale: 0.88, rotate: 2 }}
+            transition={{ type: "spring", stiffness: 600, damping: 18 }}
+            disabled={raiseDisabled}
+            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
+            className="flex-1 min-h-[62px] flex flex-col items-center justify-center rounded-full bg-crimson-500 text-white ring-2 ring-ink-950 transition-transform disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
+            </span>
+            <span className="text-[16px] font-black tabular-nums leading-tight">
+              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
+            </span>
+          </motion.button>
         </div>
       </div>
     </div>

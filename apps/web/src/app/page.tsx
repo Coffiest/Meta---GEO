@@ -230,19 +230,21 @@ function GameScreen({
             Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-ink-950 text-white pl-3 pr-3.5 py-2 text-left active:scale-[0.97] transition-transform"
+          className="shrink-0 rounded-xl bg-white text-ink-950 border border-ink-950 pl-3 pr-3.5 py-2 text-left active:scale-[0.97] transition-transform"
         >
           <div className="flex items-baseline gap-2">
-            <span className="text-[9px] font-black tracking-[0.16em] text-white/45 uppercase tabular-nums">Lv.{level?.level ?? "-"}</span>
-            <span className="text-[14px] font-black tabular-nums leading-none">
+            <span className="text-[9px] font-black tracking-[0.16em] text-ink-400 uppercase tabular-nums">Lv.{level?.level ?? "-"}</span>
+            <span className="text-[14px] font-black tabular-nums leading-none text-ink-950">
               {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
             </span>
-            {level && level.bbAnte > 0 && <span className="text-[10px] font-bold text-white/50 tabular-nums leading-none">a{level.bbAnte.toLocaleString()}</span>}
+            {level && level.bbAnte > 0 && (
+              <span className="text-[10px] font-bold text-ink-500 tabular-nums leading-none">ANTE {level.bbAnte.toLocaleString()}</span>
+            )}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-[10px] tabular-nums">
-            <span className="font-bold tracking-[0.14em] text-white/40 uppercase">Next</span>
-            <span className="font-black text-white">{countdown}</span>
-            {gameKey === "mtt" && <span className="ml-1 rounded bg-white/15 px-1 py-[1px] text-[8px] font-black tracking-widest text-white/70">MTT</span>}
+            <span className="font-bold tracking-[0.14em] text-ink-400 uppercase">Next</span>
+            <span className="font-black text-ink-950">{countdown}</span>
+            {gameKey === "mtt" && <span className="ml-1 rounded bg-ink-950 px-1 py-[1px] text-[8px] font-black tracking-widest text-white">MTT</span>}
           </div>
         </button>
 
@@ -383,7 +385,7 @@ function GameScreen({
       <AnimatePresence>
         {tappedPlayer && (
           <PlayerDetailModal
-            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey }}
+            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey, isBot: tappedPlayer.isBot }}
             accessToken={accessToken}
             onClose={() => setTappedPlayer(null)}
             onSaved={handleMarkingSaved}

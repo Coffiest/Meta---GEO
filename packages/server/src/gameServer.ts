@@ -124,6 +124,9 @@ interface HumanSeat {
   away: boolean;
   left: boolean;
   done: boolean;
+  /** 連続タイムアウト回数。2回連続でアクションが時間切れになると自動で離席状態にする。
+   * 自分でアクションすると0にリセット。 */
+  consecutiveTimeouts: number;
   disconnectTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -193,6 +196,7 @@ export class TableSession implements GameSession {
         away: false,
         left: false,
         done: false,
+        consecutiveTimeouts: 0,
         disconnectTimer: null,
       });
     });
@@ -258,8 +262,23 @@ export class TableSession implements GameSession {
       clearTimeout(human.disconnectTimer);
       human.disconnectTimer = null;
     }
+    // 再接続したら離席状態を解除し、連続タイムアウトもリセット(戻ってきたので通常プレイに復帰)。
+    human.consecutiveTimeouts = 0;
+    if (human.away) {
+      human.away = false;
+      this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+    }
     void socket.join(this.roomId);
-    socket.on("action", (action: PlayerAction) => this.handlePlayerAction(seatIndex, action));
+    socket.on("action", (action: PlayerAction) => {
+      // 自分でアクションしたら連続タイムアウトをリセット。タイムアウトで離席状態になっていた
+      // 場合は自動的に復帰させる(全員の画面の「離席中」も解除)。
+      human.consecutiveTimeouts = 0;
+      if (human.away) {
+        human.away = false;
+        this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+      }
+      this.handlePlayerAction(seatIndex, action);
+    });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
       human.timeBankArmed = Boolean(payload?.armed);
     });
@@ -271,6 +290,11 @@ export class TableSession implements GameSession {
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
       human.socket = null;
+      // タスクキル/アプリ終了などで切断された場合は自動で離席状態にする(全員の画面に「離席中」表示)。
+      if (!human.away && !human.left) {
+        human.away = true;
+        this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+      }
       // 再接続されないまま60秒経ったら離脱扱いにする
       human.disconnectTimer = setTimeout(() => {
         if (!human.socket) this.leave(userId);
@@ -439,6 +463,13 @@ export class TableSession implements GameSession {
         return;
       }
 
+      // 連続タイムアウトを数え、2回連続で時間切れになったら自動で離席状態にする。
+      human.consecutiveTimeouts += 1;
+      if (human.consecutiveTimeouts >= 2 && !human.away) {
+        human.away = true;
+        this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+      }
+
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
       this.handlePlayerAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
@@ -499,6 +530,7 @@ export class TableSession implements GameSession {
             startingStack: startingStacks.get(p.seatIndex) ?? 0,
             isSmallBlind: p.seatIndex === smallBlindSeat,
             isBigBlind: p.seatIndex === bigBlindSeat,
+            wasAway: this.humansBySeat.get(p.seatIndex)?.away ?? false,
           })),
         hand,
       }).catch((err) => console.error("[sng] recordHand failed:", err));

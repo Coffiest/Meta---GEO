@@ -166,6 +166,9 @@ model HandSeat {
   resultStackDelta Int
   /// Historyタブでプレイヤーが「お気に入り」登録したハンドかどうか。
   isFavorite       Boolean @default(false)
+  /// そのハンド中、このプレイヤーが離席状態(自動チェック/フォールド)だったか。
+  /// 離席中の意思決定は本人の戦略ではないため、GEO戦略分析の集計から除外する。
+  wasAway          Boolean @default(false)
 
   @@unique([handId, seatIndex])
   @@index([userId])

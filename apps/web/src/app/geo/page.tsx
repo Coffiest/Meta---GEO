@@ -14,7 +14,7 @@ import {
   type StackBucket,
   type TreeNode,
 } from "@/lib/geoApi";
-import { GeoSettingsModal } from "@/components/geo/GeoSettingsModal";
+import { GeoSettingsModal, RATING_MIN, RATING_MAX } from "@/components/geo/GeoSettingsModal";
 import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
 import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
@@ -44,6 +44,11 @@ export default function GeoPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
+  // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
+  const [ratingRange, setRatingRange] = useState({ min: RATING_MIN, max: RATING_MAX });
+  const ratingFilter =
+    ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX ? ratingRange : undefined;
+  const ratingActive = Boolean(ratingFilter);
 
   const [street, setStreet] = useState<Street>("preflop");
   const [preflopLine, setPreflopLine] = useState<LineStepWithMeta[]>([]);
@@ -105,7 +110,7 @@ export default function GeoPage() {
 
     const request =
       street === "preflop"
-        ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine })
+        ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
             stackBucket,
             bubbleStage,
@@ -113,6 +118,7 @@ export default function GeoPage() {
             board,
             street,
             postflopLine: streetLines[street],
+            ratingRange: ratingFilter,
           });
 
     request
@@ -131,7 +137,7 @@ export default function GeoPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stackBucket, bubbleStage, street, preflopLine, board, streetLines[street]]);
+  }, [stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -261,18 +267,24 @@ export default function GeoPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">
                   GEO Database
                 </p>
-                <span className="text-[10px] font-semibold tracking-wide text-ink-400">
-                  {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
-                </span>
               </div>
               <div className="flex items-center gap-2.5">
+                {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
+                    UTG等のアクションタブと同じ寸法・スタイル(rounded-xl・上ラベル+値の2段)に揃える。 */}
                 <motion.button
                   onClick={() => setSettingsOpen(true)}
-                  whileTap={{ scale: 0.92 }}
-                  className="shrink-0 h-11 w-11 rounded-full border border-ink-950 bg-white flex items-center justify-center text-ink-900 active:bg-ink-50 transition-colors"
-                  aria-label="詳細設定"
+                  whileTap={{ scale: 0.94 }}
+                  className="shrink-0 rounded-xl border border-ink-950 bg-white px-3 py-1.5 text-left active:bg-ink-50 transition-colors"
+                  aria-label="詳細設定を変更"
                 >
-                  <Icon name="settings" className="h-[18px] w-[18px]" />
+                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-ink-500">
+                    <Icon name="settings" className="h-3 w-3" />
+                    設定
+                  </div>
+                  <div className="text-[11px] font-bold text-ink-950 whitespace-nowrap">
+                    {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
+                    {ratingActive && ` · 偏差${ratingRange.min}-${ratingRange.max}`}
+                  </div>
                 </motion.button>
                 <PositionPillBar
                   items={items}
@@ -356,8 +368,10 @@ export default function GeoPage() {
           <GeoSettingsModal
             stackBucket={stackBucket}
             bubbleStage={bubbleStage}
+            ratingRange={ratingRange}
             onChangeStackBucket={setStackBucket}
             onChangeBubbleStage={setBubbleStage}
+            onChangeRatingRange={setRatingRange}
             onClose={() => setSettingsOpen(false)}
           />
         )}

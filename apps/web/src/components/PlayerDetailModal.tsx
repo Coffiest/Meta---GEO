@@ -23,7 +23,7 @@ export function PlayerDetailModal({
   onClose,
   onSaved,
 }: {
-  target: { userId: string; displayName: string; avatarKey: string | null };
+  target: { userId: string; displayName: string; avatarKey: string | null; isBot?: boolean };
   accessToken: string | undefined;
   onClose: () => void;
   /** メモ保存後、テーブル側のマーキング表示を更新するためのコールバック。 */
@@ -36,9 +36,13 @@ export function PlayerDetailModal({
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
+  // BOTや未ログイン相手(userId無し)は統計・メモを持たない。フェッチせず識別カードのみ表示。
+  const isBot = Boolean(target.isBot);
+  const hasProfile = !isBot && Boolean(target.userId);
+
   useEffect(() => {
     let alive = true;
-    if (!accessToken) {
+    if (!accessToken || !hasProfile) {
       setLoading(false);
       return;
     }
@@ -56,7 +60,7 @@ export function PlayerDetailModal({
     return () => {
       alive = false;
     };
-  }, [accessToken, target.userId]);
+  }, [accessToken, target.userId, hasProfile]);
 
   async function handleSave() {
     if (!accessToken || saving) return;
@@ -110,7 +114,16 @@ export function PlayerDetailModal({
           </button>
         </div>
 
-        {loading ? (
+        {isBot ? (
+          <div className="py-10 text-center">
+            <span className="inline-block rounded-full border border-ink-950 px-4 py-1.5 text-[12px] font-black uppercase tracking-[0.18em] text-ink-950">
+              BOT
+            </span>
+            <p className="mt-3 text-sm text-ink-500">BOTプレイヤーのため統計・メモはありません。</p>
+          </div>
+        ) : !hasProfile ? (
+          <p className="py-10 text-center text-sm text-ink-500">このプレイヤーの統計は取得できません。</p>
+        ) : loading ? (
           <div className="space-y-2 py-8">
             <div className="h-4 w-1/3 animate-pulse rounded bg-ink-100" />
             <div className="h-20 animate-pulse rounded-xl bg-ink-100" />

@@ -35,8 +35,12 @@ interface HumanEntry {
   socket: Socket | null;
   timeBankCards: number;
   timeBankArmed: boolean;
+  /** 離席中(自動チェック/フォールド)。全員の座席に「離席中」を表示するため保持。 */
+  away: boolean;
   left: boolean;
   done: boolean;
+  /** 連続タイムアウト回数。2回連続で時間切れになると自動離席。自分でアクションすると0にリセット。 */
+  consecutiveTimeouts: number;
   disconnectTimer: ReturnType<typeof setTimeout> | null;
   currentTableId: number | null;
 }
@@ -127,8 +131,10 @@ export class MttSession implements GameSession {
       socket,
       timeBankCards: MTT_TIME_BANK_CARDS,
       timeBankArmed: false,
+      away: false,
       left: false,
       done: false,
+      consecutiveTimeouts: 0,
       disconnectTimer: null,
       currentTableId: null,
     });
@@ -194,6 +200,12 @@ export class MttSession implements GameSession {
       clearTimeout(human.disconnectTimer);
       human.disconnectTimer = null;
     }
+    // 再接続したら離席状態を解除し、連続タイムアウトもリセット。
+    human.consecutiveTimeouts = 0;
+    if (human.away) {
+      human.away = false;
+      if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+    }
     this.wireHumanSocket(socket, userId);
     if (human.currentTableId !== null) void socket.join(this.tableRoom(human.currentTableId));
 
@@ -215,6 +227,15 @@ export class MttSession implements GameSession {
     socket.removeAllListeners("action");
     socket.removeAllListeners("timeBankArm");
     socket.on("action", (action: PlayerAction) => {
+      const human = this.humans.get(userId);
+      if (human) {
+        // 自分でアクションしたら連続タイムアウトをリセットし、離席状態なら復帰。
+        human.consecutiveTimeouts = 0;
+        if (human.away) {
+          human.away = false;
+          if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+        }
+      }
       const seatIndex = this.seatIndexOf(userId);
       if (seatIndex !== null) this.handleAction(seatIndex, action);
     });
@@ -222,10 +243,21 @@ export class MttSession implements GameSession {
       const human = this.humans.get(userId);
       if (human) human.timeBankArmed = Boolean(payload?.armed);
     });
+    socket.on("sitOut", (payload: { away?: boolean }) => {
+      const human = this.humans.get(userId);
+      if (!human) return;
+      human.away = Boolean(payload?.away);
+      if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+    });
     socket.on("disconnect", () => {
       const human = this.humans.get(userId);
       if (!human || human.socket !== socket) return;
       human.socket = null;
+      // タスクキル/アプリ終了などで切断された場合は自動で離席状態にする。
+      if (!human.away && !human.left) {
+        human.away = true;
+        if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+      }
       human.disconnectTimer = setTimeout(() => {
         if (!human.socket) this.leave(userId);
       }, 60_000);
@@ -426,6 +458,13 @@ export class MttSession implements GameSession {
         return;
       }
 
+      // 連続タイムアウトを数え、2回連続で時間切れになったら自動で離席状態にする。
+      human.consecutiveTimeouts += 1;
+      if (human.consecutiveTimeouts >= 2 && !human.away) {
+        human.away = true;
+        if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+      }
+
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
       this.handleAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
@@ -480,6 +519,7 @@ export class MttSession implements GameSession {
           startingStack: occupancy.find((o) => o.seatIndex === s.seatIndex)?.stack ?? 0,
           isSmallBlind: s.seatIndex === started.smallBlindSeat,
           isBigBlind: s.seatIndex === started.bigBlindSeat,
+          wasAway: this.humans.get(s.playerId)?.away ?? false,
         })),
         hand,
       }).catch((err) => console.error("[mtt] recordHand failed:", err));
@@ -632,7 +672,7 @@ export class MttSession implements GameSession {
         displayName: info?.displayName ?? o.playerId,
         avatarKey: info?.avatarKey ?? null,
         isBot: info?.isBot ?? true,
-        away: false,
+        away: this.humans.get(o.playerId)?.away ?? false,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });

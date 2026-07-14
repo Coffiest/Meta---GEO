@@ -48,12 +48,15 @@ interface UserAgg {
   entries: Entry[];
 }
 
-/** 与えられた「ユーザー→そのユーザーが対象とするentries」から4指標を計算し、偏差値を母集団内で付与する。 */
+/**
+ * 与えられた「ユーザー→そのユーザーが対象とするentries」から4指標を計算し、偏差値を付与する。
+ * 偏差値のT-scoreはRRRating(ホームタブのgetRRRating)と完全に一致させるため、母集団は
+ * 「その期間にbuyInがある全ユーザー」で計算する(最低参加数フィルタは表示リストにのみ適用)。
+ * こうしないとAll Time期間の偏差値がホームタブの値とズレる。
+ */
 function buildRanking(perUser: { user: UserAgg; entries: Entry[] }[]): LeaderboardUser[] {
-  // 最低参加数を満たすユーザーのみ対象。
-  const eligible = perUser.filter((p) => p.entries.length >= MIN_TOURNAMENTS);
-
-  const base = eligible.map(({ user, entries }) => {
+  // まず全ユーザーの指標を計算(偏差値の母集団はここから作る)。
+  const all = perUser.map(({ user, entries }) => {
     const totalBuyIns = entries.reduce((s, e) => s + e.buyIn, 0);
     const totalPayouts = entries.reduce((s, e) => s + e.payout, 0);
     const itmCount = entries.filter((e) => e.payout > 0).length;
@@ -66,23 +69,30 @@ function buildRanking(perUser: { user: UserAgg; entries: Entry[] }[]): Leaderboa
       roi,
       itmRate: entries.length > 0 ? itmCount / entries.length : 0,
       tournamentsPlayed: entries.length,
-      _plays: entries.length,
+      totalBuyIns,
+      plays: entries.length,
     };
   });
 
-  // 偏差値: RRRatingと同じく、参加数で母平均へ収縮させたadjustedROIのT-score。
-  const mu = base.length > 0 ? base.reduce((s, p) => s + p.roi, 0) / base.length : 0;
-  const adjusted = base.map((p) => {
-    const n = p._plays;
-    const adjustedRoi = (n / (n + RR_RATING_SHRINKAGE_K)) * p.roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * mu;
-    return { ...p, adjustedRoi };
-  });
-  const sigma = Math.sqrt(adjusted.reduce((s, p) => s + Math.pow(p.adjustedRoi - mu, 2), 0) / (adjusted.length || 1));
+  // 偏差値の母集団: buyInがある全ユーザー(getRRRating.computeRRRatingsと同一定義)。
+  const population = all.filter((p) => p.totalBuyIns > 0);
+  const mu = population.length > 0 ? population.reduce((s, p) => s + p.roi, 0) / population.length : 0;
+  const adjustedRoiOf = (roi: number, n: number) =>
+    (n / (n + RR_RATING_SHRINKAGE_K)) * roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * mu;
+  const sigma = Math.sqrt(
+    population.reduce((s, p) => s + Math.pow(adjustedRoiOf(p.roi, p.plays) - mu, 2), 0) / (population.length || 1),
+  );
 
-  return adjusted.map(({ _plays, adjustedRoi, ...rest }) => ({
-    ...rest,
-    rrRating: sigma !== 0 ? Number((50 + 10 * ((adjustedRoi - mu) / sigma)).toFixed(2)) : 50,
-  }));
+  // 表示は最低参加数を満たすユーザーのみ。偏差値は上の母集団統計で算出。
+  return all
+    .filter((p) => p.plays >= MIN_TOURNAMENTS)
+    .map(({ totalBuyIns: _totalBuyIns, plays, ...rest }) => {
+      const adjustedRoi = adjustedRoiOf(rest.roi, plays);
+      return {
+        ...rest,
+        rrRating: sigma !== 0 ? Number((50 + 10 * ((adjustedRoi - mu) / sigma)).toFixed(2)) : 50,
+      };
+    });
 }
 
 export async function getLeaderboards(): Promise<Leaderboards> {
