@@ -27,12 +27,16 @@ function computeGeometricToAmount(params: {
   street: string;
   potTotal: number;
   streetContribution: number;
-  maxRaiseToAmount: number;
+  effectiveStackBehind: number;
 }): number | null {
-  const { street, potTotal, streetContribution, maxRaiseToAmount } = params;
+  const { street, potTotal, streetContribution, effectiveStackBehind } = params;
   const streetsRemaining = STREETS_REMAINING[street];
   if (!streetsRemaining || potTotal <= 0) return null;
-  const behindStack = maxRaiseToAmount - streetContribution;
+  // 「まだ賭けられる有効スタック」= ハンドに残っている全プレイヤーのうち最小の残りスタック
+  // (=エフェクティブスタック)。これがリバーでちょうどオールインになる比率を求める。
+  // 自分のスタックではなく相手を含めた最小スタックを使うことで、相手が自分より短い場合に
+  // 過大なベットにならず、正しく「二人が同時にオールインになる」サイズになる。
+  const behindStack = effectiveStackBehind;
   if (behindStack <= 0) return null;
 
   const growthFactor = (potTotal + 2 * behindStack) / potTotal;
@@ -48,8 +52,9 @@ function computePresets(params: {
   potTotal: number;
   streetContribution: number;
   bigBlind: number;
+  effectiveStackBehind: number;
 }): Preset[] {
-  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind } = params;
+  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind } = params;
   const clamp = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
   // プリフロップでまだ誰もレイズしていない(オープンレイズ想定の)スポットは、bbの倍数プリセット。
@@ -71,7 +76,7 @@ function computePresets(params: {
   }
   const pctPresets: Preset[] = [...byAmount.entries()].map(([amt, pct]) => ({ label: `${Math.round(pct * 100)}%`, toAmount: amt }));
 
-  const geoAmount = computeGeometricToAmount({ street, potTotal, streetContribution, maxRaiseToAmount });
+  const geoAmount = computeGeometricToAmount({ street, potTotal, streetContribution, effectiveStackBehind });
   const geoPreset: Preset[] =
     geoAmount !== null && !byAmount.has(clamp(geoAmount)) ? [{ label: "ジオメトリック", toAmount: clamp(geoAmount) }] : [];
 
@@ -89,6 +94,7 @@ export function ActionBar({
   streetContribution,
   canRaise,
   bigBlind,
+  effectiveStackBehind,
   onAction,
   timeBank,
   onToggleTimeBank,
@@ -103,6 +109,9 @@ export function ActionBar({
   streetContribution: number;
   canRaise: boolean;
   bigBlind: number;
+  /** ハンドに残っている全プレイヤーのうち最小の残りスタック(=エフェクティブスタック)。
+   * ジオメトリックサイズをこの値基準で計算する。 */
+  effectiveStackBehind: number;
   onAction: (action: PlayerAction) => void;
   /** タイムバンク。テーブル上の座席と同じ領域に浮かせて配置すると表示名の長さや
    * ディーラーボタンの位置次第でどうしても干渉してしまうため、干渉しようがない
@@ -215,7 +224,7 @@ export function ActionBar({
   const isRaiseLabel = street === "preflop" || toCall > 0;
   const canGoAllIn = maxRaiseToAmount > 0;
   const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
-  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind });
+  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind });
   const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
   const sliderRange = Math.max(1, maxRaiseToAmount - minRaiseToAmount);
   const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));

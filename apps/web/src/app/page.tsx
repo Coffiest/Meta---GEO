@@ -161,6 +161,11 @@ function GameScreen({
   // 最小ベットが1bb未満に見えてしまう(TDAルール: ブラインド変更は次のハンドから適用)。
   const bigBlind = state?.bigBlind ?? level?.bigBlind ?? 0;
 
+  // エフェクティブスタック(まだ賭けられる有効スタック)= ハンドに残っている全アクティブ
+  // プレイヤーのうち最小の残りスタック。ジオメトリックサイズはこの値を基準に計算する。
+  const activeStacksBehind = (state?.seats ?? []).filter((s) => s.status === "active").map((s) => s.stack);
+  const effectiveStackBehind = activeStacksBehind.length ? Math.min(...activeStacksBehind) : yourSeat?.stack ?? 0;
+
   // 公開する手札: ハンド終了後はhandEndedのもの、オールインランアウト中(handEndedより前)は
   // showdownRevealで先にテーブルアップされたものを表示する。
   const shownHoleCards = lastHandEnded?.holeCards ?? runoutHoleCards;
@@ -327,6 +332,7 @@ function GameScreen({
           streetContribution={yourSeat?.streetContribution ?? 0}
           canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
           bigBlind={bigBlind}
+          effectiveStackBehind={effectiveStackBehind}
           onAction={sendAction}
           timeBank={timeBank}
           onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
