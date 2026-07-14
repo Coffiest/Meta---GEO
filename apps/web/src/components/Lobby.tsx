@@ -14,6 +14,7 @@ import { Icon } from "./Icon";
 import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
+import { HomeGreeting } from "./HomeGreeting";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -803,6 +804,8 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
+            <HomeGreeting displayName={displayName} />
+
             <RRRatingCard
               displayName={displayName}
               avatarKey={avatarKey}
@@ -815,12 +818,18 @@ export function Lobby({
               onViewHistory={() => setTab("tournaments")}
             />
 
-            <div className="text-center space-y-2 pt-2">
-              <p className="text-[10px] text-ink-500 leading-relaxed px-2">
-                Poker ART (トーナメント版) — バーチャルチップ専用。実際の金銭を賭けることはできません。
+            <div className="pt-1">
+              <div className="flex items-center gap-2.5">
+                <div className="h-px flex-1 bg-ink-200" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Virtual chips only</span>
+                <div className="h-px flex-1 bg-ink-200" />
+              </div>
+              <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-500 px-2">
+                Poker ART(トーナメント版)— バーチャルチップ専用。実際の金銭を賭けることはできません。
               </p>
-              <p className="text-[10px] text-ink-500">Poker ART v{APP_VERSION} ・ 作成者: Coffiest</p>
-              <p className="text-[10px] text-ink-400">© 2026 Poker ART</p>
+              <p className="mt-1.5 text-center text-[10px] tabular-nums text-ink-400">
+                v{APP_VERSION} ・ 作成者: Coffiest ・ © 2026 Poker ART
+              </p>
             </div>
             {/* プレイボタンは下の固定バーに常時表示されるため、ここでは末尾に余白だけ確保する */}
             <div className="h-20" aria-hidden />
