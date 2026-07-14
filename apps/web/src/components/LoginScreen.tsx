@@ -102,7 +102,8 @@ const item: Variants = {
 };
 
 /** ログイン / 新規登録画面。Swiss(モノクロ + ゴールドの単一アクセント)を保ったまま、
- * ヒーロー・流れるキーワード帯・機能インデックスでアプリの価値を提示し、下部に認証カードを置く。
+ * ヒーロー見出しの直下に認証カードを置き、スクロールせずログインできるようにしている。
+ * その下に流れるキーワード帯・機能インデックスでアプリの価値を提示する。
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
 export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
@@ -163,8 +164,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-ink-900/[0.04] blur-3xl" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-md px-6 pt-12 pb-12">
-        {/* ヒーロー */}
+      <div className="relative mx-auto w-full max-w-md px-6 pt-10 pb-12">
+        {/* ヒーロー(コンパクトに。すぐ下に認証カードが来る) */}
         <motion.div initial="hidden" animate="show" variants={container}>
           <motion.div variants={item} className="flex items-center gap-2.5">
             <span className="h-2.5 w-2.5 rounded-full bg-gold-500" />
@@ -174,64 +175,24 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             </span>
           </motion.div>
 
-          <motion.h1 variants={item} className="mt-11 text-[44px] font-extrabold leading-[1.0] tracking-tight text-balance">
+          <motion.h1 variants={item} className="mt-8 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
             GTOを、
             <br />
             超えていけ<span className="text-gold-500">.</span>
           </motion.h1>
 
-          <motion.p variants={item} className="mt-5 text-[14px] leading-relaxed text-ink-600">
+          <motion.p variants={item} className="mt-3.5 text-[13px] leading-relaxed text-ink-600">
             バーチャルチップ専用のNLHトーナメントと、GTOの先を行く
             <span className="font-semibold text-ink-900">GEO戦略データベース</span>。
-            今日から、勝ち方を設計する。
           </motion.p>
         </motion.div>
 
-        {/* 流れるキーワード帯 */}
-        <div className="relative mt-9 -mx-6 overflow-hidden border-y border-ink-200 py-2.5">
-          <motion.div
-            className="flex w-max gap-7 whitespace-nowrap px-6"
-            animate={reduce ? undefined : { x: ["0%", "-50%"] }}
-            transition={{ duration: 24, ease: "linear", repeat: Infinity }}
-          >
-            {[...KEYWORDS, ...KEYWORDS].map((k, i) => (
-              <span key={i} className="text-[11px] font-bold tracking-[0.28em] text-ink-400">
-                {k}
-              </span>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* 機能インデックス */}
-        <motion.ul
-          initial="hidden"
-          animate="show"
-          variants={container}
-          className="mt-8 border-t border-ink-200"
-        >
-          {FEATURES.map((f) => (
-            <motion.li
-              key={f.n}
-              variants={item}
-              whileTap={reduce ? undefined : { scale: 0.99 }}
-              className="flex gap-4 border-b border-ink-200 py-4"
-            >
-              <span className="w-6 pt-0.5 text-[11px] font-bold tabular-nums text-gold-500">{f.n}</span>
-              <span className="mt-0.5 text-ink-900">{f.icon}</span>
-              <div className="flex-1">
-                <div className="text-[15px] font-bold tracking-tight">{f.title}</div>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-600">{f.body}</p>
-              </div>
-            </motion.li>
-          ))}
-        </motion.ul>
-
-        {/* 認証カード */}
+        {/* 認証カード(ヒーロー直下 = ノースクロールで到達) */}
         <motion.div
-          initial={{ opacity: 0, y: 22 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28, duration: 0.6, ease: EASE }}
-          className="mt-10 rounded-2xl border border-ink-200 bg-white p-6 shadow-panel"
+          transition={{ delay: 0.22, duration: 0.55, ease: EASE }}
+          className="mt-6 rounded-2xl border border-ink-200 bg-white p-6 shadow-panel"
         >
           <div className="mb-5 flex items-baseline justify-between">
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
@@ -340,6 +301,43 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             )}
           </div>
         </motion.div>
+
+        {/* 流れるキーワード帯 */}
+        <div className="relative mt-10 -mx-6 overflow-hidden border-y border-ink-200 py-2.5">
+          <motion.div
+            className="flex w-max gap-7 whitespace-nowrap px-6"
+            animate={reduce ? undefined : { x: ["0%", "-50%"] }}
+            transition={{ duration: 24, ease: "linear", repeat: Infinity }}
+          >
+            {[...KEYWORDS, ...KEYWORDS].map((k, i) => (
+              <span key={i} className="text-[11px] font-bold tracking-[0.28em] text-ink-400">
+                {k}
+              </span>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* 機能インデックス(何ができるか) */}
+        <div className="mt-8">
+          <p className="mb-1 text-[11px] font-bold tracking-[0.22em] text-ink-400 uppercase">What you can do</p>
+          <motion.ul initial="hidden" whileInView="show" viewport={{ once: true, margin: "-40px" }} variants={container} className="border-t border-ink-200">
+            {FEATURES.map((f) => (
+              <motion.li
+                key={f.n}
+                variants={item}
+                whileTap={reduce ? undefined : { scale: 0.99 }}
+                className="flex gap-4 border-b border-ink-200 py-4"
+              >
+                <span className="w-6 pt-0.5 text-[11px] font-bold tabular-nums text-gold-500">{f.n}</span>
+                <span className="mt-0.5 text-ink-900">{f.icon}</span>
+                <div className="flex-1">
+                  <div className="text-[15px] font-bold tracking-tight">{f.title}</div>
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink-600">{f.body}</p>
+                </div>
+              </motion.li>
+            ))}
+          </motion.ul>
+        </div>
 
         <p className="mt-6 text-center text-[11px] tracking-wide text-ink-400">
           Poker ART · バーチャルチップ専用 · リアルマネー非対応
