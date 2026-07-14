@@ -24,27 +24,14 @@ export const SHOWDOWN_TABLE_PAUSE_MS = 1400;
 /** オールインランアウト: ストリート1つ開くごとの待ち時間 */
 export const RUNOUT_STREET_PAUSE_MS = 1100;
 
+// BOTの5キャラクター。1卓に最大5体入っても全員別名になる。MTTの卓移動/追加補充では
+// (offset+i) % 5 で循環参照するため、無限に生成しても破綻しない(別卓では同名が出てよい)。
 export const BOT_PROFILES = [
-  { name: "BOT-Akira", avatarKey: "bot1" },
-  { name: "BOT-Yuki", avatarKey: "bot2" },
-  { name: "BOT-Sora", avatarKey: "bot3" },
-  { name: "BOT-Rin", avatarKey: "bot4" },
-  { name: "BOT-Kai", avatarKey: "bot5" },
-  { name: "BOT-Hana", avatarKey: "bot6" },
-  { name: "BOT-Ren", avatarKey: "bot1" },
-  { name: "BOT-Mio", avatarKey: "bot2" },
-  { name: "BOT-Gen", avatarKey: "bot3" },
-  { name: "BOT-Tsumugi", avatarKey: "bot4" },
-  { name: "BOT-Jin", avatarKey: "bot5" },
-  { name: "BOT-Nagi", avatarKey: "bot6" },
-  { name: "BOT-Kaede", avatarKey: "bot1" },
-  { name: "BOT-Shun", avatarKey: "bot2" },
-  { name: "BOT-Aoi", avatarKey: "bot3" },
-  { name: "BOT-Riku", avatarKey: "bot4" },
-  { name: "BOT-Nao", avatarKey: "bot5" },
-  { name: "BOT-Sen", avatarKey: "bot6" },
-  { name: "BOT-Ichi", avatarKey: "bot1" },
-  { name: "BOT-Roku", avatarKey: "bot2" },
+  { name: "ラフくん", avatarKey: "bot1" },
+  { name: "バリィ", avatarKey: "bot2" },
+  { name: "ターンデットくん", avatarKey: "bot3" },
+  { name: "リバーに住む魔物", avatarKey: "bot4" },
+  { name: "ラフ&バリィ", avatarKey: "bot5" },
 ] as const;
 
 export interface StagedRunoutParams {
@@ -476,6 +463,7 @@ export class TableSession implements GameSession {
       stack: seat.stack,
       canRaise: !seat.hasActedThisStreet,
       activeOpponentCount,
+      bigBlind: this.tournament?.getCurrentLevel().bigBlind,
     });
   }
 
