@@ -93,6 +93,14 @@ export function Seat({
               : "bg-white border border-ink-950"
         } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
       >
+        {isActingSeat && (
+          <motion.span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-ink-950"
+            animate={{ opacity: [0.55, 0, 0.55], scale: [1, 1.14, 1] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          />
+        )}
         {isButton && !isEmpty && (
           <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950">
             D

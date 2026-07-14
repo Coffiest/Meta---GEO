@@ -193,7 +193,19 @@ export function ActionBar({
             </span>
             チェック/フォールドを予約
           </motion.button>
-          <div className="rounded-2xl bg-ink-100 py-3 text-center text-xs text-ink-500 tracking-wide">相手のアクションを待っています…</div>
+          <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 py-3 text-xs font-medium tracking-wide text-ink-500">
+            <span className="flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <motion.span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full bg-ink-400"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                />
+              ))}
+            </span>
+            相手のアクションを待っています
+          </div>
         </div>
       </div>
     );
@@ -261,28 +273,43 @@ export function ActionBar({
         )}
 
         <div className="flex gap-2">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.96 }}
             disabled={raiseDisabled}
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 rounded-xl bg-crimson-500 text-white text-[13px] font-semibold py-3 active:scale-[0.97] transition-transform disabled:opacity-30 disabled:pointer-events-none"
+            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-crimson-500 text-white ring-1 ring-inset ring-black/10 transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
-            {raiseTo >= maxRaiseToAmount ? "All In" : `${isRaiseLabel ? "Raise" : "Bet"} ${formatBb(raiseTo, bigBlind)}`}
-          </button>
+            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
+            </span>
+            <span className="text-[15px] font-black tabular-nums leading-tight">
+              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
+            </span>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileTap={{ scale: 0.96 }}
             onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-            className="flex-1 rounded-xl bg-mint-600 text-white text-[13px] font-semibold py-3 active:scale-[0.97] transition-transform"
+            className="flex-1 min-h-[54px] flex flex-col items-center justify-center rounded-xl bg-mint-600 text-white ring-1 ring-inset ring-black/10 transition-transform"
           >
-            {canCheck ? "Check" : `Call ${formatBb(toCall, bigBlind)}`}
-          </button>
+            {canCheck ? (
+              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Check</span>
+            ) : (
+              <>
+                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/70">Call</span>
+                <span className="text-[15px] font-black tabular-nums leading-tight">{formatBb(toCall, bigBlind)}</span>
+              </>
+            )}
+          </motion.button>
 
           {!canCheck && (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               onClick={() => onAction({ kind: "fold" })}
-              className="flex-1 rounded-xl bg-azure-500 text-white text-[13px] font-medium py-3 active:scale-[0.97] transition-transform"
+              className="flex-1 min-h-[54px] flex items-center justify-center rounded-xl bg-azure-500 text-white ring-1 ring-inset ring-black/10 transition-transform"
             >
-              Fold
-            </button>
+              <span className="text-[15px] font-black uppercase tracking-[0.06em] leading-tight">Fold</span>
+            </motion.button>
           )}
         </div>
       </div>

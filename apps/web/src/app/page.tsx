@@ -171,24 +171,29 @@ function GameScreen({
   return (
     <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
-        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示) */}
+        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
+            Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-ink-950 text-white px-3.5 py-2 leading-tight text-left active:scale-[0.97] transition-transform"
+          className="shrink-0 rounded-xl bg-ink-950 text-white pl-3 pr-3.5 py-2 text-left active:scale-[0.97] transition-transform"
         >
-          <div className="text-[13px] font-black tabular-nums">
-            Lv.{level?.level ?? "-"} {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : ""}
-            {level && level.bbAnte > 0 && <span className="text-white/60"> ({level.bbAnte.toLocaleString()})</span>}
+          <div className="flex items-baseline gap-2">
+            <span className="text-[9px] font-black tracking-[0.16em] text-white/45 uppercase tabular-nums">Lv.{level?.level ?? "-"}</span>
+            <span className="text-[14px] font-black tabular-nums leading-none">
+              {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
+            </span>
+            {level && level.bbAnte > 0 && <span className="text-[10px] font-bold text-white/50 tabular-nums leading-none">a{level.bbAnte.toLocaleString()}</span>}
           </div>
-          <div className="text-[11px] text-white/70 tabular-nums">
-            次のレベルまで <span className="text-white font-bold">{countdown}</span>
-            {gameKey === "mtt" && <span className="ml-1 text-white/50">MTT</span>}
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] tabular-nums">
+            <span className="font-bold tracking-[0.14em] text-white/40 uppercase">Next</span>
+            <span className="font-black text-white">{countdown}</span>
+            {gameKey === "mtt" && <span className="ml-1 rounded bg-white/15 px-1 py-[1px] text-[8px] font-black tracking-widest text-white/70">MTT</span>}
           </div>
         </button>
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-8 w-8 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800"
+          className="shrink-0 h-9 w-9 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800 text-[15px] active:scale-95 transition-transform"
           aria-label="設定"
         >
           ⚙

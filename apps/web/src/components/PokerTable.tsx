@@ -163,19 +163,26 @@ export function PokerTable({
     >
       <TableFelt />
 
-      {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある */}
+      {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
+          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。 */}
       <div className="absolute inset-x-0 top-[33%] flex justify-center">
         <AnimatePresence mode="popLayout">
           {state && state.potTotal > 0 && (
             <motion.div
               key={state.potTotal}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="rounded-full bg-black/40 backdrop-blur px-3 py-1 text-xs font-medium text-navy-100 tabular-nums ring-1 ring-navy-600/40"
+              initial={{ opacity: 0, y: -6, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 520, damping: 24 }}
+              className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
             >
-              <span className="italic">Pot</span> {formatBb(state.potTotal, bigBlind)}
-              {spr !== null && <span className="text-navy-400"> (SPR {spr.toFixed(1)})</span>}
+              <span className="text-[8px] font-black tracking-[0.22em] text-ink-400 uppercase">Pot</span>
+              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatBb(state.potTotal, bigBlind)}</span>
+              {spr !== null && (
+                <span className="text-[10px] font-bold text-ink-400 tabular-nums leading-none border-l border-ink-200 pl-2">
+                  SPR {spr.toFixed(1)}
+                </span>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
