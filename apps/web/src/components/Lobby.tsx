@@ -626,11 +626,20 @@ function SingleLineChart({
   const xTickIdx = pickTickIndices(points.length, 6);
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.y).toFixed(1)}`).join(" ");
+  // 面塗り: 折れ線の下をプロット下端まで塗り、色→透明のグラデーションで陰影を付ける。
+  const areaPath = `${linePath} L${toX(points.length - 1).toFixed(1)},${plotHeight} L${toX(0).toFixed(1)},${plotHeight} Z`;
+  const gradId = `area-grad-${color.replace("#", "")}`;
 
   return (
     <div>
       {header}
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height: 130 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {yTicks.map((tick) => (
           <g key={tick}>
             <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-ink-400" />
@@ -652,6 +661,7 @@ function SingleLineChart({
           className="text-ink-600"
         />
 
+        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
         <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
         {xTickIdx.map((i) => (
