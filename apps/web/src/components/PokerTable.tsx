@@ -28,9 +28,13 @@ const SEAT_LAYOUT: Record<number, string> = {
   5: "top-[55%] right-[4%]",
 };
 
+// テーブルデザイン画像。felt.pngと同一比率(1000×1500=2:3)・同一内部レイアウトで、
+// 実線の外枠を追加したtable_v2.pngへ差し替え(座席/ボード/ポットの位置校正はそのまま合う)。
+const TABLE_IMAGE_SRC = "/table/table_v2.png";
+
 /**
- * `public/table/felt.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ現行の
- * 楕円グラデーション描画にフォールバックする(詳細は public/table/README.md 参照)。
+ * `public/table/table_v2.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ
+ * 白地+黒枠のフォールバック描画にする(詳細は public/table/README.md 参照)。
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -56,7 +60,7 @@ function TableFelt() {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           ref={imgRef}
-          src="/table/felt.png"
+          src={TABLE_IMAGE_SRC}
           alt=""
           draggable={false}
           onLoad={() => setLoaded(true)}
