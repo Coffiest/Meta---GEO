@@ -1148,7 +1148,15 @@ export function Lobby({
                       <div className="space-y-4">
                         {groups.map((group) => (
                           <div key={group.tournamentId}>
-                            <p className="text-[11px] font-semibold text-ink-600 mb-1.5 px-0.5">{group.tournamentLabel}</p>
+                            <div className="flex items-center justify-between mb-1.5 px-0.5">
+                              <p className="text-[11px] font-semibold text-ink-600">{group.tournamentLabel}</p>
+                              <Link
+                                href={`/review/tournament/${group.tournamentId}`}
+                                className="rounded-full bg-ink-950 px-2.5 py-[3px] text-[9px] font-black tracking-wide text-white active:opacity-80"
+                              >
+                                一括解析
+                              </Link>
+                            </div>
                             <div className="space-y-2">
                               {group.rows.map((h, i) => {
                                 const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
