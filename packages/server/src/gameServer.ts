@@ -144,7 +144,6 @@ interface HumanSeat {
   /** 連続タイムアウト回数。2回連続でアクションが時間切れになると自動で離席状態にする。
    * 自分でアクションすると0にリセット。 */
   consecutiveTimeouts: number;
-  disconnectTimer: ReturnType<typeof setTimeout> | null;
 }
 
 interface SeatPlayer {
@@ -216,7 +215,6 @@ export class TableSession implements GameSession {
         left: false,
         done: false,
         consecutiveTimeouts: 0,
-        disconnectTimer: null,
       });
     });
   }
@@ -277,10 +275,6 @@ export class TableSession implements GameSession {
     if (!entry) return;
     const [seatIndex, human] = entry;
     human.socket = socket;
-    if (human.disconnectTimer) {
-      clearTimeout(human.disconnectTimer);
-      human.disconnectTimer = null;
-    }
     // 再接続したら離席状態を解除し、連続タイムアウトもリセット(戻ってきたので通常プレイに復帰)。
     human.consecutiveTimeouts = 0;
     if (human.away) {
