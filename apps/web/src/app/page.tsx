@@ -11,6 +11,7 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
 import { Lobby } from "@/components/Lobby";
 import { BlindStructureSheet } from "@/components/BlindStructureSheet";
+import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 
 const SEAT_COUNT = 6;
 
@@ -53,10 +54,12 @@ function useMatchingCountdown(secondsLeft: number | null): number | null {
 
 function SettingsPopover({
   onShowStructure,
+  onShowHistory,
   onLeave,
   onClose,
 }: {
   onShowStructure: () => void;
+  onShowHistory: () => void;
   onLeave: () => void;
   onClose: () => void;
 }) {
@@ -65,6 +68,15 @@ function SettingsPopover({
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-white border border-ink-950 p-2 space-y-1">
+        <button
+          onClick={() => {
+            onClose();
+            onShowHistory();
+          }}
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-colors"
+        >
+          このゲームのハンド履歴
+        </button>
         <button
           onClick={() => {
             onClose();
@@ -141,9 +153,11 @@ function GameScreen({
     leaveGame,
     armTimeBank,
     setAway,
+    gameHandHistory,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
 
@@ -213,6 +227,7 @@ function GameScreen({
         {settingsOpen && (
           <SettingsPopover
             onShowStructure={() => setStructureOpen(true)}
+            onShowHistory={() => setHistoryOpen(true)}
             onLeave={() => {
               leaveGame();
               onExit();
@@ -320,6 +335,12 @@ function GameScreen({
       </AnimatePresence>
 
       {structureOpen && <BlindStructureSheet currentLevel={level?.level} onClose={() => setStructureOpen(false)} />}
+
+      <AnimatePresence>
+        {historyOpen && (
+          <GameHandHistorySheet records={gameHandHistory} bigBlind={bigBlind} onClose={() => setHistoryOpen(false)} />
+        )}
+      </AnimatePresence>
 
       {!spectating && !tournamentOver && (
         <ActionBar

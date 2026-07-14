@@ -11,15 +11,20 @@ interface Preset {
   toAmount: number;
 }
 
-/** 補助トグルのチェック表示。ON時は白角丸に黒チェックのSVG、OFF時は空の枠線。絵文字は使わない。 */
-function ToggleDot({ on }: { on: boolean }) {
+/** iOS風のトグルスイッチ(黒枠線・非シェーディング)。ON時は黒トラック+白ノブが右へ、
+ * OFF時は白トラック+グレーノブが左。補助機能のON/OFFを一目で分かるようにする。 */
+function Switch({ on }: { on: boolean }) {
   return (
-    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] ${on ? "bg-white" : "ring-1 ring-ink-400"}`}>
-      {on && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} className="h-2.5 w-2.5 text-ink-950">
-          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
+    <span
+      className={`relative h-4 w-7 shrink-0 rounded-full border transition-colors ${
+        on ? "border-ink-950 bg-ink-950" : "border-ink-400 bg-white"
+      }`}
+    >
+      <motion.span
+        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-white" : "bg-ink-400"}`}
+        animate={{ left: on ? 13 : 2 }}
+        transition={{ type: "spring", stiffness: 520, damping: 30 }}
+      />
     </span>
   );
 }
@@ -161,32 +166,30 @@ export function ActionBar({
     }
   }, [isYourTurn, away, checkFoldArmed, canCheck, onAction]);
 
-  // タイムバンク: 残り枚数を文字ではなくピップ(丸ドット)で視覚的に示す。
-  // ドット数=残りカード数。armed時は反転色。
+  // タイムバンク: Switchで使用ON/OFF、残り枚数はピップ(丸ドット)で視覚化。ドット数=残り枚数。
   const timeBankRow = timeBank && (
     <motion.button
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       whileTap={{ scale: 0.96 }}
       onClick={onToggleTimeBank}
-      className={`flex items-center gap-2 rounded-full pl-3 pr-3 h-9 text-[11px] font-bold transition-colors border ${
-        timeBank.armed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-      }`}
+      className="flex items-center gap-2 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
     >
+      <Switch on={timeBank.armed} />
       <span>タイムバンク</span>
-      <span className="flex items-center gap-1">
+      <span className="flex items-center gap-1 border-l border-ink-200 pl-2">
         {timeBank.cards > 0 ? (
           Array.from({ length: timeBank.cards }).map((_, i) => (
-            <span key={i} className={`h-1.5 w-1.5 rounded-full ${timeBank.armed ? "bg-white" : "bg-ink-950"}`} />
+            <span key={i} className="h-1.5 w-1.5 rounded-full bg-ink-950" />
           ))
         ) : (
-          <span className="text-[10px] opacity-60">残0</span>
+          <span className="text-[10px] text-ink-400">残0</span>
         )}
       </span>
     </motion.button>
   );
 
-  // 「離席」トグル: ONでサーバーへ通知し、全員の座席に「離席中」を表示する。
+  // 「離席」トグル: Switchで表示。ONでサーバーへ通知し、全員の座席に「離席中」を表示する。
   const awayRow = (
     <motion.button
       initial={{ opacity: 0, scale: 0.9 }}
@@ -199,20 +202,18 @@ export function ActionBar({
           return next;
         })
       }
-      className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-9 text-[11px] font-bold transition-colors border shrink-0 ${
-        away ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-      }`}
+      className="flex items-center gap-1.5 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
     >
-      <ToggleDot on={away} />
+      <Switch on={away} />
       離席
     </motion.button>
   );
 
   if (!isYourTurn) {
     return (
-      <div className="safe-area-bottom px-4 pb-8 pt-3 bg-white border-t border-ink-200">
-        <div className="mx-auto max-w-md space-y-2">
-          <div className="flex items-center gap-2">
+      <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
+        <div className="mx-auto max-w-md space-y-2.5">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {timeBankRow}
             {awayRow}
             <motion.button
@@ -221,11 +222,9 @@ export function ActionBar({
               whileTap={{ scale: 0.96 }}
               onClick={() => setCheckFoldArmed((v) => !v)}
               aria-label="チェック/フォールドを予約"
-              className={`flex items-center gap-1.5 rounded-full pl-2.5 pr-3 h-9 text-[11px] font-black tabular-nums transition-colors border shrink-0 ${
-                checkFoldArmed ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-900 border-ink-950"
-              }`}
+              className="flex items-center gap-1.5 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-black tabular-nums text-ink-900 shrink-0"
             >
-              <ToggleDot on={checkFoldArmed} />
+              <Switch on={checkFoldArmed} />
               x / f
             </motion.button>
           </div>
@@ -257,7 +256,7 @@ export function ActionBar({
   const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
 
   return (
-    <div className="safe-area-bottom px-4 pb-8 pt-3 bg-white border-t border-ink-200">
+    <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
       <div className="mx-auto max-w-md space-y-2.5">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {timeBankRow}

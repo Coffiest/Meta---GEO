@@ -30,6 +30,18 @@ export interface HandHistoryEntry {
   deltaChips: number;
 }
 
+/** このゲーム(トーナメント)中に自分がプレイした1ハンドの記録。設定→ハンド履歴で全件閲覧する。 */
+export interface GameHandRecord {
+  /** 自分のホールカード(自分は常に自分の手札を知っているため表向きで表示できる) */
+  heroCards: string[];
+  /** 最終ボード(公開領域) */
+  board: string[];
+  /** 自分の収支(チップ) */
+  delta: number;
+  /** 全員フォールドで決着したか */
+  wonByFold: boolean;
+}
+
 export type SeatActionKind = "bet" | "raise" | "call" | "check" | "fold" | "allIn";
 
 export interface SeatAction {
@@ -89,6 +101,8 @@ export interface PokerSocketState {
   actionError: string | null;
   players: Record<number, SeatPlayerInfo>;
   handHistory: HandHistoryEntry[];
+  /** このゲーム中に自分がプレイした全ハンドの記録(設定→ハンド履歴で閲覧)。 */
+  gameHandHistory: GameHandRecord[];
   /** ハンド中の各座席の最後のアクション(そのストリート中だけ表示し、ストリートが変わると消える) */
   lastActionBySeat: Record<number, SeatAction>;
   /** 直近に終わったハンドの、座席ごとの収支(次のハンドの最初のstateが来るまで表示用に保持) */
@@ -168,6 +182,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     actionError: null,
     players: {},
     handHistory: [],
+    gameHandHistory: [],
     lastActionBySeat: {},
     lastHandDeltaBySeat: null,
     turnTimer: null,
@@ -252,7 +267,18 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           handHistory = [{ cards: heroCards, deltaChips: heroDelta }, ...d.handHistory].slice(0, 3);
         }
 
-        return { ...d, lastHandEnded: payload, lastHandDeltaBySeat, handHistory };
+        // このゲームの全ハンド履歴を蓄積(フォールドしたハンドも含む)。自分は自分の手札を
+        // 常に知っているため、まずd.yourCards、無ければ公開されたholeCardsを使う。
+        let gameHandHistory = d.gameHandHistory;
+        if (heroDelta !== undefined) {
+          const recordCards = d.yourCards.length === 2 ? d.yourCards : heroCards ?? [];
+          gameHandHistory = [
+            ...d.gameHandHistory,
+            { heroCards: recordCards, board: payload.result.board, delta: heroDelta, wonByFold: payload.result.wonByFold },
+          ];
+        }
+
+        return { ...d, lastHandEnded: payload, lastHandDeltaBySeat, handHistory, gameHandHistory };
       }),
     );
     socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
