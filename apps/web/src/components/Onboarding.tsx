@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Avatar } from "./Avatar";
 
 const MAX_AVATAR_DIMENSION = 256;
@@ -35,10 +36,25 @@ function fileToAvatarDataUri(file: File): Promise<string> {
   });
 }
 
+const EASE = [0.16, 1, 0.3, 1] as const;
+const container: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+const item: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
+};
+
+/** この先に待っている3つの体験。初回オンボーディングで期待感を高めるために表示する。 */
+const NEXT_UP = ["トーナメント", "GEO戦略分析", "詳細スタッツ"];
+
 /**
  * 初回オンボーディング / プロフィール編集画面。名前は必須、アイコンはカメラロールから
  * 選ぶ任意項目(未設定なら頭文字アバターになる)。この画面を通過しない限りロビーは
  * 描画されないため、名前設定のスキップは構造的に不可能。
+ * Swiss(モノクロ + ゴールドの単一アクセント)を保ったまま、アニメーションとコピーで
+ * 「これからプレイする」高揚感を演出する。
  */
 export function Onboarding({
   title = "プロフィールを設定",
@@ -64,7 +80,10 @@ export function Onboarding({
   const [processing, setProcessing] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const reduce = useReducedMotion();
   const canSubmit = name.trim().length > 0 && !saving && !processing;
+  // onCancelが無い = 初回オンボーディング。ここだけ高揚感のあるコピー/演出にする。
+  const isFirstTime = !onCancel;
 
   const handlePickFile = async (file: File | undefined) => {
     if (!file) return;
@@ -80,70 +99,169 @@ export function Onboarding({
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-7 bg-white">
-      <div className="text-center space-y-1.5">
-        <div className="text-[11px] tracking-[0.3em] text-ink-500 font-semibold">
-          POKER <span className="text-gold-600">ART</span>
-        </div>
-        <h1 className="text-xl font-semibold text-ink-950">{title}</h1>
-        <p className="text-xs text-ink-700">テーブルで表示される名前を入力してください(アイコンは任意です)</p>
+    <div className="min-h-screen overflow-x-hidden bg-ink-50 text-ink-950">
+      {/* 背景のごく淡いゴールドの光(ログイン画面と統一) */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
+        <motion.div
+          className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-gold-400/20 blur-3xl"
+          animate={reduce ? undefined : { scale: [1, 1.18, 1], opacity: [0.4, 0.7, 0.4] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+        />
       </div>
 
-      <div className="w-full max-w-xs space-y-5">
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="relative active:scale-95 transition-transform"
-            aria-label="アイコン画像を選択"
-          >
-            <Avatar avatarKey={avatarKey} displayName={name} size={84} />
-            <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-ink-950 ring-2 ring-white flex items-center justify-center text-white text-xs">
-              📷
-            </div>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => void handlePickFile(e.target.files?.[0])}
-          />
-          <div className="flex items-center gap-3 text-xs">
-            <button onClick={() => fileInputRef.current?.click()} className="text-ink-950 font-semibold underline decoration-dashed underline-offset-2">
-              {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
-            </button>
-            {avatarKey && (
-              <button onClick={() => setAvatarKey(null)} className="text-ink-600">
-                削除
-              </button>
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pt-12 pb-10">
+        {/* ブランド */}
+        <motion.div initial="hidden" animate="show" variants={container}>
+          <motion.div variants={item} className="flex items-center gap-2.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-gold-500" />
+            <span className="text-[13px] font-extrabold tracking-[0.22em] uppercase">Poker ART</span>
+          </motion.div>
+
+          {/* ヒーローコピー */}
+          <motion.p variants={item} className="mt-9 text-[11px] font-bold tracking-[0.22em] uppercase text-gold-600">
+            {isFirstTime ? "最後のステップ" : "プロフィール"}
+          </motion.p>
+          <motion.h1 variants={item} className="mt-2 text-[34px] font-extrabold leading-[1.05] tracking-tight text-balance">
+            {isFirstTime ? (
+              <>
+                さあ、
+                <br />
+                テーブルへ<span className="text-gold-500">.</span>
+              </>
+            ) : (
+              title
             )}
-          </div>
-          {pickError && <p className="text-xs text-crimson-500">{pickError}</p>}
-        </div>
+          </motion.h1>
+          <motion.p variants={item} className="mt-3 text-[13px] leading-relaxed text-ink-600">
+            {isFirstTime
+              ? "あと一歩でプレイ開始。テーブルに表示される名前を決めよう(アイコンは任意)。"
+              : "テーブルで表示される名前とアイコンを変更できます。"}
+          </motion.p>
+        </motion.div>
 
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="プレイヤー名(16文字まで)"
-          maxLength={16}
-          className="w-full rounded-xl bg-white border border-ink-300 px-4 py-3 text-sm text-ink-950 placeholder:text-ink-500 focus:outline-none focus:border-ink-950"
-        />
-
-        {error && <p className="text-xs text-crimson-500 px-1">{error}</p>}
-
-        <button
-          onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
-          disabled={!canSubmit}
-          className="w-full rounded-xl bg-ink-950 text-white font-semibold py-3 active:scale-[0.98] transition-transform disabled:opacity-40"
+        {/* 入力カード */}
+        <motion.div
+          initial={{ opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, duration: 0.55, ease: EASE }}
+          className="mt-8 rounded-2xl border border-ink-200 bg-white p-6 shadow-panel"
         >
-          {saving ? "保存中…" : submitLabel}
-        </button>
+          {/* アバターピッカー */}
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform active:scale-95"
+              aria-label="アイコン画像を選択"
+            >
+              {/* ゆっくり回る破線のゴールドリング(注目を集める幾何モチーフ) */}
+              <motion.svg
+                viewBox="0 0 108 108"
+                className="absolute inset-0 h-full w-full text-gold-400"
+                animate={reduce ? undefined : { rotate: 360 }}
+                transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+              >
+                <circle
+                  cx="54"
+                  cy="54"
+                  r="52"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 7"
+                  strokeLinecap="round"
+                />
+              </motion.svg>
+              <Avatar avatarKey={avatarKey} displayName={name} size={84} />
+              <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-ink-950 text-[13px] text-white ring-2 ring-white">
+                📷
+              </div>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => void handlePickFile(e.target.files?.[0])}
+            />
+            <div className="flex items-center gap-3 text-[12px]">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="font-semibold text-ink-950 underline decoration-dashed underline-offset-2"
+              >
+                {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
+              </button>
+              {avatarKey && (
+                <button onClick={() => setAvatarKey(null)} className="text-ink-500">
+                  削除
+                </button>
+              )}
+            </div>
+            {pickError && <p className="text-[12px] text-crimson-500">{pickError}</p>}
+          </div>
 
-        {onCancel && (
-          <button onClick={onCancel} className="w-full text-xs text-ink-700 py-1">
-            キャンセル
+          {/* 名前入力 */}
+          <div className="mt-6">
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <label className="text-[12px] font-semibold tracking-wide text-ink-700">プレイヤー名</label>
+              <span className="text-[11px] tabular-nums text-ink-400">{name.length}/16</span>
+            </div>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
+              placeholder="テーブルで表示される名前"
+              maxLength={16}
+              className="w-full rounded-xl border border-ink-300 bg-white px-4 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
+            />
+          </div>
+
+          {error && <p className="mt-3 px-1 text-[12px] text-crimson-500">{error}</p>}
+
+          <button
+            onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
+            disabled={!canSubmit}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink-950 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+          >
+            <span>{saving ? "保存中…" : submitLabel}</span>
+            {!saving && (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            )}
           </button>
+
+          {onCancel && (
+            <button onClick={onCancel} className="mt-3 w-full py-1 text-[12px] text-ink-500">
+              キャンセル
+            </button>
+          )}
+        </motion.div>
+
+        {/* この先に待っているもの(初回のみ・期待感の演出) */}
+        {isFirstTime && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.55, duration: 0.6 }}
+            className="mt-8"
+          >
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-ink-400">この先に待っているもの</p>
+            <div className="flex flex-wrap gap-2">
+              {NEXT_UP.map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full border border-ink-300 px-3 py-1.5 text-[12px] font-semibold text-ink-700"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </motion.div>
         )}
+
+        <p className="mt-auto pt-8 text-center text-[11px] tracking-wide text-ink-400">
+          Poker ART · バーチャルチップ専用
+        </p>
       </div>
     </div>
   );
