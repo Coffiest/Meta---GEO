@@ -166,8 +166,12 @@ export function TournamentResultScreen({
             </svg>
           )}
           <p className="text-[10px] font-black uppercase tracking-[0.32em] text-ink-400">Tournament Result</p>
-          <p className="mt-1 text-4xl font-black tracking-tight text-ink-950">
-            {isWin ? "優勝" : info.yourFinishPosition !== null ? `${info.yourFinishPosition}位` : "トーナメント終了"}
+          {/* 大きな文字を10度傾けるアプリ共通テーマ(トランプの傾いた大文字に合わせる)。 */}
+          <p
+            className="mt-1 inline-block text-5xl font-black tracking-tight text-ink-950"
+            style={{ transform: "rotate(-10deg)", transformOrigin: "center" }}
+          >
+            {isWin ? "優勝" : info.yourFinishPosition !== null ? `${info.yourFinishPosition}位` : "終了"}
           </p>
           {info.yourPayout > 0 && (
             <motion.p
