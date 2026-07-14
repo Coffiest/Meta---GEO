@@ -6,3 +6,5 @@ export * from "./subscriptions.js";
 export * from "./rrRating.js";
 export * from "./playerNotes.js";
 export * from "./leaderboard.js";
+export * from "./solverSpot.js";
+export * from "./reviewClassify.js";

@@ -146,6 +146,7 @@ model Hand {
   seats   HandSeat[]
   actions HandAction[]
   pots    HandPot[]
+  reviews HandReview[]
 
   @@unique([tournamentId, handNumber])
 }
@@ -200,4 +201,90 @@ model HandPot {
   winnerUserIds   String[]
 
   @@unique([handId, potIndex])
+}
+
+/// 局後検討(GTO棋譜解析)の「正解データ」= 自社ソルバーで計算したGTO解のプリコンピュート/キャッシュ。
+/// 他社サービスのスクレイピングではなく、あくまで自前で計算した自社データを格納する。
+/// spotKeyは局面を正規化した一意キー(street/有効スタック帯/相対ポジション/スート正規化ボード/
+/// アクションライン/ベットサイズ抽象化 を連結してハッシュ化)。詳細は packages/db/src/solverSpot.ts。
+model GtoSolution {
+  id             String   @id @default(uuid())
+  /// 局面を正規化した一意キー(sha1)。キャッシュ命中判定に使う。
+  spotKey        String   @unique
+  street         String // "preflop" | "flop" | "turn" | "river"
+  /// 有効スタック帯(stackBucketと同じ区分)。
+  effStackBucket String
+  /// 相対ポジション。ポストフロップHUは "IP" | "OOP"。プリフロップは "BTN" 等の絶対ポジション。
+  heroPos        String
+  /// スート正規化済みボード(例: "AaKb7c")。プリフロップは空文字。
+  boardCanon     String
+  /// そのストリート内で直面したアクションライン(バケット列)を連結した文字列。
+  actionLine     String
+  /// ベットサイズ抽象化のID(どのサイズ木で解いたか)。
+  betTree        String
+  /// per-actionの頻度とEVを格納したペイロード。{ actions: [{ action, freq, evBb }], ... }
+  solution       Json
+  /// 収束品質(exploitability, %pot等)。プリフロップの表引きは0扱い。
+  exploitability Float    @default(0)
+  /// 解の生成元バージョン(ソルバー版 or レンジ表版)。
+  solverVersion  String   @default("preflop-table-v1")
+  createdAt      DateTime @default(now())
+
+  @@index([street, effStackBucket])
+}
+
+/// 1ハンドに対する1プレイヤー(hero)ぶんのレビュージョブ+集計結果。
+model HandReview {
+  id           String   @id @default(uuid())
+  handId       String
+  hand         Hand     @relation(fields: [handId], references: [id])
+  /// レビュー対象(意思決定を分析する)プレイヤーのUser.id。
+  heroUserId   String
+  /// "queued" | "solving" | "explaining" | "done" | "failed"
+  status       String   @default("queued")
+  error        String?
+  /// トナメ/ハンド単位のGTO精度%(0-100)。チェスドットコムのAccuracy相当。
+  gtoAccuracy  Float?
+  totalEvLossBb Float?
+  mistakeCount  Int?
+  artisticCount Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  decisions ReviewDecision[]
+
+  @@unique([handId, heroUserId])
+  @@index([status])
+}
+
+/// heroの1意思決定ぶんの分析結果。
+model ReviewDecision {
+  id               String  @id @default(uuid())
+  reviewId         String
+  review           HandReview @relation(fields: [reviewId], references: [id])
+  /// 対応するHandAction.sequenceNumber。
+  sequenceNumber   Int
+  street           String
+  /// 解析対象か。多人数ポストフロップ等はfalse。
+  analyzable       Boolean @default(true)
+  /// 対象外の理由。"multiway" 等。
+  outOfScopeReason String?
+  heroPos          String
+  effStackBb       Float
+  potBb            Float
+  facingSizeBb     Float?
+  /// { action, size, bucket } 実際に取ったアクション。
+  actionTaken      Json
+  /// [{ action, size, freq, evBb }] GTO基準の各アクション。
+  gtoActions       Json?
+  evLossBb         Float?
+  /// "artistic" | "best" | "great" | "excellent" | "good" | "book" | "inaccuracy" | "mistake" | "blunder" | null
+  classification   String?
+  /// 呼称ラベル(例 "チェックレイズ")。チャットボット未実装時の「正解表示」用。
+  actionName       String?
+  /// 将来のチャットボット解説文(フェーズ3)。未実装時はnull。
+  explanation      String?
+  spotKey          String?
+
+  @@index([reviewId])
 }
