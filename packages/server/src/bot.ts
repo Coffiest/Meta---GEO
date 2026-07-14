@@ -79,14 +79,6 @@ export function estimateEquity(
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
-/** 勝率が高いほど大きいサイズを選びやすいが、サイズを1種類に固定しない(頻度を混ぜる)ためのポット比率。 */
-const BET_SIZE_FRACTIONS = [0.33, 0.5, 0.66, 0.75, 1.0, 1.25] as const;
-
-function chooseBetFraction(equity: number, rand: () => number): number {
-  const idx = Math.round(clamp01(equity) * (BET_SIZE_FRACTIONS.length - 1) + (rand() - 0.5) * 1.5);
-  return BET_SIZE_FRACTIONS[Math.max(0, Math.min(BET_SIZE_FRACTIONS.length - 1, idx))]!;
-}
-
 export interface BotDecisionInput {
   readonly street: Street;
   readonly holeCards: readonly [Card, Card];
@@ -103,6 +95,8 @@ export interface BotDecisionInput {
   readonly canRaise: boolean;
   /** まだ生きている相手の人数(自分を除く)。勝率推定の精度に直結する。未指定時は1人と仮定する。 */
   readonly activeOpponentCount?: number;
+  /** 現在のレベルのビッグブラインド額。プリフロップのリンプ禁止/2BBオープン判定に使う。未指定時は0(判定無効)。 */
+  readonly bigBlind?: number | undefined;
   /** 決定論的なテストのために乱数生成器を差し替え可能にする(未指定なら Math.random) */
   readonly random?: () => number;
 }
@@ -112,6 +106,7 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
   const toCall = input.currentBetToMatch - input.streetContribution;
   const maxPossible = input.streetContribution + input.stack;
   const opponents = Math.max(1, input.activeOpponentCount ?? 1);
+  const bigBlind = input.bigBlind ?? 0;
 
   const equity = estimateEquity(input.holeCards, input.board, opponents);
 
@@ -120,10 +115,57 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
   const stackToPotRatio = input.potBefore > 0 ? input.stack / input.potBefore : 99;
   const shortStackBonus = stackToPotRatio < 3 ? 0.08 : stackToPotRatio < 6 ? 0.04 : 0;
 
+  // 残りのストリート数(現在のストリートより後に賭けが起こりうる回数)。
+  const streetsRemaining = input.street === "turn" ? 2 : input.street === "river" ? 1 : 3;
+
+  // ジオメトリック(等比)ベットサイジング: 残りストリートで等比数列的にポットを膨らませ、
+  // リバーで無理なく全スタックを注ぎ込める1ストリートあたりのベット額(ポット比 f)を求める。
+  // f = ( ((2E+P)/P)^(1/n) - 1 ) / 2  (E=コール後の実効残スタック, P=コール後のポット, n=残ストリート)
+  function geometricFraction(): number {
+    const pot = input.potBefore + Math.max(0, toCall);
+    const behind = Math.max(0, input.stack - Math.max(0, toCall));
+    if (pot <= 0 || behind <= 0) return 0.66;
+    const ratio = (2 * behind + pot) / pot;
+    const f = (Math.pow(ratio, 1 / streetsRemaining) - 1) / 2;
+    return Math.max(0.33, Math.min(1.5, f));
+  }
+
+  // baseを起点にジオメトリックサイズ分を上乗せしたtoAmountを返す。
+  // ベット後に残るスタックがポットの半分以下=実質ポットコミットになる場合は、
+  // 中途半端に残さずオールインに切り替える(ユーザー要望のポットコミット回避)。
   function sizeBetTo(base: number): number {
-    const fraction = chooseBetFraction(equity, rand);
-    const raw = base + Math.round((input.potBefore + toCall) * fraction);
-    return Math.max(input.minRaiseToAmount, Math.min(maxPossible, raw));
+    const fraction = geometricFraction() * (0.9 + rand() * 0.2);
+    const potNow = input.potBefore + Math.max(0, toCall);
+    const raw = base + Math.round(potNow * fraction);
+    const capped = Math.max(input.minRaiseToAmount, Math.min(maxPossible, raw));
+    const remainingBehind = maxPossible - capped;
+    const potAfterBet = potNow + (capped - input.streetContribution);
+    if (remainingBehind > 0 && remainingBehind <= potAfterBet * 0.5) {
+      return maxPossible;
+    }
+    return capped;
+  }
+
+  // === プリフロップ: リンプ禁止・2BBオープン ===
+  // まだ誰もレイズしていない(現在のベット額がBB以下)プリフロップでは、コールでリンプせず、
+  // オープンするなら2BBへレイズ、しないならフォールド(BBの席はチェック可能なのでチェック)。
+  const preflopUnraised = input.street === "preflop" && bigBlind > 0 && input.currentBetToMatch <= bigBlind;
+  if (preflopUnraised) {
+    const openThreshold = 0.5 + 0.03 * (opponents - 1) - shortStackBonus;
+    const wantsToOpen = equity >= openThreshold;
+    if (!wantsToOpen) {
+      return toCall <= 0 ? { kind: "check" } : { kind: "fold" };
+    }
+    if (!input.canRaise || input.minRaiseToAmount > maxPossible) {
+      // レイズ不可(再オープン不可 等)。チェックできるならチェック、無理ならオールイン/コール。
+      if (toCall <= 0) return { kind: "check" };
+      if (toCall >= input.stack) return { kind: "allIn" };
+      return { kind: "call" };
+    }
+    const openTo = Math.min(maxPossible, Math.max(input.minRaiseToAmount, 2 * bigBlind));
+    // 2BBオープンでほぼコミットするショートスタックは最初からオールイン(プッシュ/フォールド)。
+    if (maxPossible - openTo <= bigBlind * 1.5) return { kind: "allIn" };
+    return { kind: "raise", toAmount: openTo };
   }
 
   if (toCall <= 0) {

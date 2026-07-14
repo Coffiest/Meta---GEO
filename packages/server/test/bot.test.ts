@@ -75,6 +75,75 @@ describe("decideBotAction", () => {
     expect(action.kind).toBe("allIn");
   });
 
+  it("opens to 2BB (never limps) with a premium hand in an unraised preflop pot", () => {
+    const action = decideBotAction({
+      street: "preflop",
+      holeCards: [c("As"), c("Ah")],
+      board: [],
+      currentBetToMatch: 100, // BBのみ(未オープン)
+      streetContribution: 50, // SBの席
+      minRaiseToAmount: 200,
+      potBefore: 150,
+      stack: 20_000,
+      canRaise: true,
+      bigBlind: 100,
+      random: () => 0.5,
+    });
+    expect(action.kind).toBe("raise");
+    if (action.kind === "raise") expect(action.toAmount).toBe(200); // 2BB
+  });
+
+  it("folds (does not limp) a weak hand in an unraised preflop pot when facing the BB", () => {
+    const action = decideBotAction({
+      street: "preflop",
+      holeCards: [c("7c"), c("2d")],
+      board: [],
+      currentBetToMatch: 100,
+      streetContribution: 50,
+      minRaiseToAmount: 200,
+      potBefore: 150,
+      stack: 20_000,
+      canRaise: true,
+      bigBlind: 100,
+      random: () => 0.5,
+    });
+    expect(action.kind).toBe("fold");
+  });
+
+  it("checks (not raise) a weak hand as the BB in an unraised pot", () => {
+    const action = decideBotAction({
+      street: "preflop",
+      holeCards: [c("7c"), c("2d")],
+      board: [],
+      currentBetToMatch: 100,
+      streetContribution: 100, // BBの席(既にBB分を投入済み)
+      minRaiseToAmount: 200,
+      potBefore: 250,
+      stack: 20_000,
+      canRaise: true,
+      bigBlind: 100,
+      random: () => 0.5,
+    });
+    expect(action.kind).toBe("check");
+  });
+
+  it("shoves instead of a tiny 2BB open when pot-committed (short stack push/fold)", () => {
+    const action = decideBotAction({
+      street: "preflop",
+      holeCards: [c("As"), c("Ah")],
+      board: [],
+      currentBetToMatch: 100,
+      streetContribution: 50,
+      minRaiseToAmount: 200,
+      potBefore: 150,
+      stack: 250, // 2BBオープン後に残りわずか=コミット
+      canRaise: true,
+      bigBlind: 100,
+      random: () => 0.5,
+    });
+    expect(action.kind).toBe("allIn");
+  });
+
   it("bets a premium made hand with a low random roll", () => {
     const action = decideBotAction({
       street: "river",

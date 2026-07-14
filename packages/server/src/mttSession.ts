@@ -452,6 +452,7 @@ export class MttSession implements GameSession {
       stack: seat.stack,
       canRaise: !seat.hasActedThisStreet,
       activeOpponentCount,
+      bigBlind: this.mtt?.getCurrentLevel().bigBlind,
     });
   }
 
