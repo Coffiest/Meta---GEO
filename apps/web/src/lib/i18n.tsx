@@ -39,6 +39,15 @@ const ja: Dict = {
   "seat.chat": "チャット",
   "seat.away": "離席中",
 
+  "common.close": "閉じる",
+  "greeting.morning": "おはよう",
+  "greeting.day": "こんにちは",
+  "greeting.evening": "こんばんは",
+  "greeting.comma": "、",
+  "home.tagline": "今日も、GTOの先へ。",
+  "play.play": "プレイする",
+  "play.buyIn": "バイイン",
+
   "app.authUnavailable": "ログイン機能が設定されていません。管理者にお問い合わせください。",
   "app.profileFetchFailed": "プロフィールの取得に失敗しました。",
   "app.retry": "再試行",
@@ -125,6 +134,15 @@ const en: Dict = {
   "action.armCheckFold": "Pre-set check/fold",
   "seat.chat": "Chat",
   "seat.away": "Away",
+
+  "common.close": "Close",
+  "greeting.morning": "Good morning",
+  "greeting.day": "Hello",
+  "greeting.evening": "Good evening",
+  "greeting.comma": ", ",
+  "home.tagline": "Beyond GTO, again today.",
+  "play.play": "Play",
+  "play.buyIn": "Buy-in",
 
   "app.authUnavailable": "Sign-in isn't configured. Please contact the administrator.",
   "app.profileFetchFailed": "Couldn't load your profile.",
@@ -213,6 +231,15 @@ const ko: Dict = {
   "seat.chat": "채팅",
   "seat.away": "자리비움",
 
+  "common.close": "닫기",
+  "greeting.morning": "좋은 아침",
+  "greeting.day": "안녕하세요",
+  "greeting.evening": "좋은 저녁",
+  "greeting.comma": ", ",
+  "home.tagline": "오늘도 GTO 너머로.",
+  "play.play": "플레이",
+  "play.buyIn": "바이인",
+
   "app.authUnavailable": "로그인 기능이 설정되어 있지 않습니다. 관리자에게 문의해 주세요.",
   "app.profileFetchFailed": "프로필을 불러오지 못했습니다.",
   "app.retry": "다시 시도",
@@ -299,6 +326,15 @@ const zh: Dict = {
   "action.armCheckFold": "预设过牌/弃牌",
   "seat.chat": "聊天",
   "seat.away": "离席中",
+
+  "common.close": "关闭",
+  "greeting.morning": "早上好",
+  "greeting.day": "你好",
+  "greeting.evening": "晚上好",
+  "greeting.comma": "，",
+  "home.tagline": "今天也，超越 GTO。",
+  "play.play": "开始游戏",
+  "play.buyIn": "买入",
 
   "app.authUnavailable": "尚未配置登录功能，请联系管理员。",
   "app.profileFetchFailed": "无法加载个人资料。",

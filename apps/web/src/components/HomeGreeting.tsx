@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useI18n } from "@/lib/i18n";
 
-/** 時刻帯に応じた挨拶。5時未満・18時以降は「こんばんは」。 */
-function greetingFor(hour: number): string {
-  if (hour < 5) return "こんばんは";
-  if (hour < 11) return "おはよう";
-  if (hour < 18) return "こんにちは";
-  return "こんばんは";
+/** 時刻帯に応じた挨拶キー。5時未満・18時以降は「evening」。 */
+function greetingKeyFor(hour: number): string {
+  if (hour < 5) return "greeting.evening";
+  if (hour < 11) return "greeting.morning";
+  if (hour < 18) return "greeting.day";
+  return "greeting.evening";
 }
 
 /**
@@ -17,8 +18,10 @@ function greetingFor(hour: number): string {
  * +大きめ見出し+一言)。時刻はハイドレーション不一致を避けるためマウント後に確定する。
  */
 export function HomeGreeting({ displayName }: { displayName: string }) {
-  const [greeting, setGreeting] = useState<string | null>(null);
-  useEffect(() => setGreeting(greetingFor(new Date().getHours())), []);
+  const { t } = useI18n();
+  const [greetingKey, setGreetingKey] = useState<string | null>(null);
+  useEffect(() => setGreetingKey(greetingKeyFor(new Date().getHours())), []);
+  const greeting = greetingKey ? t(greetingKey) : null;
 
   return (
     <motion.div
@@ -28,11 +31,11 @@ export function HomeGreeting({ displayName }: { displayName: string }) {
       className="px-1 pt-1"
     >
       <h1 className="text-[26px] font-black leading-tight tracking-tight text-ink-950">
-        {greeting ? `${greeting}、` : ""}
+        {greeting ? `${greeting}${t("greeting.comma")}` : ""}
         <span className="break-all">{displayName}</span>
         <span className="text-gold-500">.</span>
       </h1>
-      <p className="mt-1 text-[13px] text-ink-500">今日も、GTOの先へ。</p>
+      <p className="mt-1 text-[13px] text-ink-500">{t("home.tagline")}</p>
     </motion.div>
   );
 }

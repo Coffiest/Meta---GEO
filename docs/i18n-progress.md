@@ -4,6 +4,7 @@
 `LanguageSwitcher`(ログイン画面ヘッダー+ホーム設定メニューに常設。いつでも切替可)。`layout.tsx`にProvider配線済み。
 
 ## 翻訳済み画面
+- ホーム挨拶(HomeGreeting)・プレイボタン(PlayButton): 挨拶/タグライン/バイイン/プレイ
 - ログイン(LoginScreen)
 - オンボーディング(Onboarding)
 - 言語切替UI(LanguageSwitcher)
