@@ -12,101 +12,97 @@ export interface SeatBadge {
   tone: SeatBadgeTone;
 }
 
-// オールインの炎: 火柱(tongue)群。基準サイズ44pxのアバター用に px 指定し、size に応じて全体を
-// scale する。w/h=寸法, ml=中心合わせ, tx=水平オフセット, rot=傾き, sc=拡大, op=不透明度,
-// dur/delay=揺らぎアニメの周期・位相。高さ違い7本で「メラメラ立ち上る」束を作る。
-const FLAME_TONGUES = [
-  { w: 20, h: 58, ml: -10, tx: -24, rot: -16, sc: 0.82, op: 0.95, dur: 0.72, delay: -0.2 },
-  { w: 20, h: 60, ml: -10, tx: 24, rot: 16, sc: 0.84, op: 0.95, dur: 0.8, delay: -0.5 },
-  { w: 22, h: 74, ml: -11, tx: -15, rot: -7, sc: 0.9, op: 1, dur: 0.68, delay: -0.12 },
-  { w: 22, h: 76, ml: -11, tx: 15, rot: 7, sc: 0.92, op: 1, dur: 0.76, delay: -0.34 },
-  { w: 24, h: 70, ml: -12, tx: -6, rot: 0, sc: 0.96, op: 1, dur: 0.64, delay: -0.06 },
-  { w: 24, h: 74, ml: -12, tx: 7, rot: 0, sc: 0.98, op: 1, dur: 0.7, delay: -0.28 },
-  { w: 22, h: 92, ml: -11, tx: 0, rot: 0, sc: 1, op: 1, dur: 0.6, delay: 0 },
-];
-const FLAME_EMBERS = [
-  { ml: -13, delay: -0.2 },
-  { ml: 9, delay: -0.7 },
-  { ml: -4, delay: -1.1 },
-  { ml: 15, delay: -1.45 },
-];
+// オールインの炎リング: アバターの円周に沿って放射状に配置する火柱群。決定論的な擬似乱数で
+// 各火柱の角度・長さ・幅・傾き・揺らぎ位相を生成し、上側(火は上に立ち上る)ほど長く、下側は
+// 短くして「燃え上がるリング」に見せる。値はアバター直径に対する比率で持ち、size に比例させる。
+function fireSeed(n: number): number {
+  const x = Math.sin(n * 127.1) * 43758.5453;
+  return x - Math.floor(x);
+}
+const RING_FLAMES = (() => {
+  const N = 22;
+  const out: { ang: number; lean: number; hFrac: number; wFrac: number; rimFrac: number; dur: number; delay: number }[] = [];
+  for (let layer = 0; layer < 2; layer++) {
+    for (let i = 0; i < N; i++) {
+      const ang = (360 / N) * i + (layer ? 360 / N / 2 : 0);
+      const up = Math.cos((ang * Math.PI) / 180); // 上=+1 / 下=-1
+      const lean = (fireSeed(i + layer * 20) * 2 - 1) * (layer ? 12 : 10);
+      const hFrac = layer
+        ? 0.1 + fireSeed(i + 11) * 0.11
+        : 0.17 + 0.295 * (0.35 + 0.65 * (0.5 + 0.5 * up)) + fireSeed(i + 9) * 0.1;
+      const wFrac = layer ? 0.068 + fireSeed(i + 13) * 0.045 : 0.08 + fireSeed(i + 3) * 0.057;
+      const rimFrac = layer ? 0.477 : 0.5;
+      const dur = (layer ? 0.45 : 0.5) + fireSeed(i + 7 + layer) * 0.33;
+      const delay = -fireSeed(i + 2 + layer) * 0.8;
+      out.push({ ang, lean, hFrac, wFrac, rimFrac, dur, delay });
+    }
+  }
+  return out;
+})();
+
+const FLAME_GRADIENT =
+  "linear-gradient(to top, #fff3d0 0%, #ffd24a 14%, #ffab1e 34%, #ff6a12 58%, #ef2a06 80%, rgba(200,20,4,0) 100%)";
 
 /**
- * オールイン中のアバターを本物のように包む炎エフェクト。高さ違いの火柱を束ね、各柱を位相の
- * ずれた揺らぎ(allin-flick)で踊らせ、暖色のグロー(allin-glow)と立ち上る火の粉(allin-ember)を
- * 重ねる。アバターより背面(z-0)に置くことでプレイヤーの顔は隠さず、炎が背後〜側面〜頭上へ
- * 舐め上がる。背景色に依存しないよう不透明グラデ+drop-shadowで描く(画像・絵文字不使用)。
+ * オールイン中のアバターの縁を包む「炎のリング」。円周に沿って多数の火柱を放射状に立て、位相の
+ * ずれた揺らぎ(allin-flick)でメラメラ踊らせる。根本(縁側)を白〜黄の高温色、先端を赤にして
+ * 立ち上る炎の熱を表現。火柱と外周グローはアバター背面(z-0)、縁の赤いホットリングは前面(z-20)に
+ * 置き、プレイヤーの顔は隠さず縁だけが赤熱して燃える。背景色に依存しない不透明グラデで描く。
  */
 function AllInFlame({ size }: { size: number }) {
-  const scale = size / 44;
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute left-1/2 top-1/2 z-0"
-      style={{ width: 44, height: 44, transform: `translate(-50%, -50%) scale(${scale})` }}
-    >
-      {/* 暖色のグロー(halo) */}
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {/* 外周の暖色グロー(背面) */}
       <div
         className="absolute left-1/2 top-1/2 rounded-full"
         style={{
-          width: 116,
-          height: 116,
-          transform: "translate(-50%, -42%)",
-          background: "radial-gradient(circle, rgba(255,150,30,0.5) 0%, rgba(255,90,20,0.22) 44%, rgba(255,40,10,0) 70%)",
-          filter: "blur(2px)",
-          animation: "allin-glow 1.4s ease-in-out infinite",
+          width: size * 1.8,
+          height: size * 1.8,
+          zIndex: 0,
+          transform: "translate(-50%, -50%)",
+          background: "radial-gradient(circle, rgba(255,90,20,0.5) 40%, rgba(255,50,10,0.26) 52%, rgba(255,40,10,0) 70%)",
+          filter: `blur(${Math.max(2, size * 0.05)}px)`,
+          animation: "allin-halo 1.1s ease-in-out infinite",
         }}
       />
-      {/* 火柱の束 */}
+      {/* 円周の火柱(背面) */}
       <div
         className="absolute left-1/2 top-1/2"
-        style={{ width: 80, height: 96, transform: "translate(-50%, -56%)", filter: "drop-shadow(0 0 5px rgba(255,130,25,0.55))" }}
+        style={{ width: 0, height: 0, zIndex: 0, filter: `drop-shadow(0 0 ${size * 0.09}px rgba(255,110,25,0.6))` }}
       >
-        {FLAME_TONGUES.map((t, i) => (
+        {RING_FLAMES.map((f, i) => (
           <span
             key={i}
-            className="absolute bottom-0 left-1/2"
-            style={{
-              width: t.w,
-              height: t.h,
-              marginLeft: t.ml,
-              opacity: t.op,
-              transformOrigin: "50% 100%",
-              transform: `translateX(${t.tx}px) rotate(${t.rot}deg) scale(${t.sc})`,
-            }}
+            className="absolute left-0 top-0"
+            style={{ transform: `rotate(${f.ang}deg) translateY(${-f.rimFrac * size}px) rotate(${f.lean}deg)` }}
           >
             <span
-              className="block h-full w-full"
               style={{
+                position: "absolute",
+                bottom: 0,
+                left: -(f.wFrac * size) / 2,
+                width: f.wFrac * size,
+                height: f.hFrac * size,
                 transformOrigin: "50% 100%",
-                background:
-                  "linear-gradient(to top, rgba(255,70,15,0) 0%, #ff2e08 16%, #ff6a12 38%, #ffab1e 60%, #ffe37a 82%, #fffbe8 100%)",
-                borderRadius: "50% 50% 46% 46% / 80% 80% 24% 24%",
-                filter: "blur(0.6px)",
-                animation: `allin-flick ${t.dur}s ease-in-out infinite`,
-                animationDelay: `${t.delay}s`,
+                background: FLAME_GRADIENT,
+                borderRadius: "50% 50% 44% 44% / 86% 86% 18% 18%",
+                filter: "blur(0.4px)",
+                animation: `allin-flick ${f.dur}s ease-in-out infinite`,
+                animationDelay: `${f.delay}s`,
               }}
             />
           </span>
         ))}
       </div>
-      {/* 立ち上る火の粉 */}
-      {FLAME_EMBERS.map((e, i) => (
-        <span
-          key={i}
-          className="absolute left-1/2 rounded-full"
-          style={{
-            top: "40%",
-            width: 3,
-            height: 3,
-            marginLeft: e.ml,
-            background: "#ffcf6b",
-            boxShadow: "0 0 5px 1px rgba(255,150,40,0.9)",
-            animation: "allin-ember 1.5s linear infinite",
-            animationDelay: `${e.delay}s`,
-          }}
-        />
-      ))}
+      {/* 縁の赤熱ホットリング(前面) */}
+      <div
+        className="absolute inset-0 rounded-full"
+        style={{
+          zIndex: 20,
+          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(255,110,25,0.85), inset 0 0 ${size * 0.1}px 0 rgba(255,150,45,0.5)`,
+          animation: "allin-halo 0.6s ease-in-out infinite",
+        }}
+      />
     </div>
   );
 }

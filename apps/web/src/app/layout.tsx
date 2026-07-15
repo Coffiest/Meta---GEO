@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { LocaleProvider } from "@/lib/i18n";
 
 // 姉妹アプリRRPokerと統一したフォント。
 const jakarta = Plus_Jakarta_Sans({
@@ -27,7 +28,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className={`${jakarta.className} min-h-screen bg-ink-50 text-ink-950 antialiased`}>{children}</body>
+      <body className={`${jakarta.className} min-h-screen bg-ink-50 text-ink-950 antialiased`}>
+        <LocaleProvider>{children}</LocaleProvider>
+      </body>
     </html>
   );
 }

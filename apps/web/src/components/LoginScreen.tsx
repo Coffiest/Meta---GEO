@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import type { AuthState } from "@/lib/useAuth";
+import { useI18n } from "@/lib/i18n";
 import { Header, HeaderLogo } from "./Header";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 function GoogleIcon() {
   return (
@@ -67,25 +69,11 @@ function ChartIcon() {
 
 type Mode = "login" | "signup" | "reset";
 
+// 機能インデックスのアイコンとキー(タイトル/本文はi18n辞書から引く)。
 const FEATURES = [
-  {
-    n: "01",
-    icon: <TrophyIcon />,
-    title: "トーナメント対戦",
-    body: "SNG・MTTのNLHトーナメントをバーチャルチップで。リアルマネー不要。",
-  },
-  {
-    n: "02",
-    icon: <MatrixIcon />,
-    title: "GEO戦略分析",
-    body: "GTO Wizard風のレンジ分析。“GTOを超える”GEO戦略をマスターする。",
-  },
-  {
-    n: "03",
-    icon: <ChartIcon />,
-    title: "詳細スタッツ",
-    body: "VPIP・PFR・3bet・ROIを自動記録。自分のプレイを数字で可視化。",
-  },
+  { n: "01", icon: <TrophyIcon />, key: "feat1" },
+  { n: "02", icon: <MatrixIcon />, key: "feat2" },
+  { n: "03", icon: <ChartIcon />, key: "feat3" },
 ];
 
 /** 上部を流れるキーワード帯(ポーカー×戦略の語彙)。何のアプリかを一目で伝える。 */
@@ -115,6 +103,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const reduce = useReducedMotion();
+  const { t } = useI18n();
 
   const resetFeedback = () => {
     setError(null);
@@ -139,30 +128,30 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
       if (error) setError(error);
     } else if (mode === "signup") {
       if (password.length < 6) {
-        setError("パスワードは6文字以上で入力してください。");
+        setError(t("login.err.passwordLen"));
         setSubmitting(false);
         return;
       }
       if (password !== confirmPassword) {
-        setError("パスワードが一致しません。確認用と同じパスワードを入力してください。");
+        setError(t("login.err.passwordMismatch"));
         setSubmitting(false);
         return;
       }
       const { error, needsConfirmation } = await auth.signUpWithPassword(email.trim(), password);
       if (error) setError(error);
-      else if (needsConfirmation) setInfo(`${email} 宛に確認メールを送りました。メール内のリンクを開くと登録が完了します。`);
+      else if (needsConfirmation) setInfo(t("login.info.confirm", { email }));
     } else {
       const { error } = await auth.resetPassword(email.trim());
       if (error) setError(error);
-      else setInfo(`${email} 宛にパスワード再設定用のリンクを送りました。`);
+      else setInfo(t("login.info.reset", { email }));
     }
 
     setSubmitting(false);
   };
 
-  const title = mode === "login" ? "ログイン" : mode === "signup" ? "新規登録" : "パスワードの再設定";
-  const subtitle = mode === "login" ? "アカウントにログイン" : mode === "signup" ? "無料で始める" : "登録メールに再設定リンクを送ります";
-  const submitLabel = mode === "login" ? "ログイン" : mode === "signup" ? "無料ではじめる" : "リセットリンクを送る";
+  const title = mode === "login" ? t("login.title.login") : mode === "signup" ? t("login.title.signup") : t("login.title.reset");
+  const subtitle = mode === "login" ? t("login.sub.login") : mode === "signup" ? t("login.sub.signup") : t("login.sub.reset");
+  const submitLabel = mode === "login" ? t("login.submit.login") : mode === "signup" ? t("login.submit.signup") : t("login.submit.reset");
 
   return (
     <div className="min-h-screen bg-ink-50 text-ink-950 overflow-x-hidden">
@@ -176,22 +165,24 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-ink-900/[0.04] blur-3xl" />
       </div>
 
-      {/* ホーム画面と同じ共有ヘッダー(ロゴ+ワードマーク)に差し替え。 */}
+      {/* ホーム画面と同じ共有ヘッダー(ロゴ+ワードマーク)。右に言語切替を置き、ログイン前でも
+          いつでも言語を変えられるようにする。 */}
       <div className="relative">
-        <Header left={<HeaderLogo />} />
+        <Header left={<HeaderLogo />} right={<LanguageSwitcher />} />
       </div>
 
       <div className="relative mx-auto w-full max-w-md px-6 pt-6 pb-12">
         {/* ヒーロー(コンパクトに。すぐ下に認証カードが来る) */}
         <motion.div initial="hidden" animate="show" variants={container}>
           <motion.h1 variants={item} className="mt-4 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
-            GTOを、
+            {t("login.heroLine1")}
             <br />
-            超えていけ<span className="text-gold-500">.</span>
+            {t("login.heroLine2")}
+            <span className="text-gold-500">.</span>
           </motion.h1>
 
           <motion.p variants={item} className="mt-3.5 text-[13px] leading-relaxed text-ink-600">
-            GTOの先を行く<span className="font-semibold text-ink-900">GEO戦略データベース</span>。
+            {t("login.subtitle")}
           </motion.p>
         </motion.div>
 
@@ -228,7 +219,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
               <div className="my-5 flex items-center gap-3">
                 <div className="h-px flex-1 bg-ink-200" />
-                <span className="text-[11px] tracking-wide text-ink-400">またはメールで</span>
+                <span className="text-[11px] tracking-wide text-ink-400">{t("login.orEmail")}</span>
                 <div className="h-px flex-1 bg-ink-200" />
               </div>
             </>
@@ -236,7 +227,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">メールアドレス</label>
+              <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">{t("login.email")}</label>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -255,7 +246,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
             {mode !== "reset" && (
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">パスワード</label>
+                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">{t("login.password")}</label>
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -263,7 +254,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   type="password"
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   enterKeyHint={mode === "signup" ? "next" : "go"}
-                  placeholder="6文字以上"
+                  placeholder={t("login.passwordPlaceholder")}
                   className="w-full rounded-xl border border-ink-300 px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
                 />
               </div>
@@ -271,7 +262,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
             {mode === "signup" && (
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">パスワード(確認)</label>
+                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-ink-700">{t("login.passwordConfirm")}</label>
                 <input
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -279,29 +270,29 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   type="password"
                   autoComplete="new-password"
                   enterKeyHint="go"
-                  placeholder="もう一度入力"
+                  placeholder={t("login.passwordConfirmPlaceholder")}
                   className={`w-full rounded-xl border px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-950/5 ${
                     confirmPassword && confirmPassword !== password ? "border-crimson-500" : "border-ink-300 focus:border-ink-950"
                   }`}
                 />
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="mt-1 text-[11px] text-crimson-500">パスワードが一致しません。</p>
+                  <p className="mt-1 text-[11px] text-crimson-500">{t("login.passwordMismatch")}</p>
                 )}
               </div>
             )}
 
             {mode === "login" && (
               <button onClick={() => goTo("reset")} className="text-[12px] text-ink-500 underline underline-offset-2 hover:text-ink-800">
-                パスワードを忘れた方
+                {t("login.forgot")}
               </button>
             )}
           </div>
 
           {auth.oauthError && (
             <div className="mt-4 space-y-0.5 rounded-xl border border-crimson-500/30 bg-crimson-500/5 px-3.5 py-2.5 text-[12px] text-crimson-500">
-              <p className="font-semibold">Google/Appleログインに失敗しました</p>
+              <p className="font-semibold">{t("login.oauthFailed")}</p>
               <p>{auth.oauthError}</p>
-              {auth.oauthErrorRaw && <p className="break-all text-ink-400">詳細: {auth.oauthErrorRaw}</p>}
+              {auth.oauthErrorRaw && <p className="break-all text-ink-400">{t("login.oauthDetail")}: {auth.oauthErrorRaw}</p>}
             </div>
           )}
           {error && <p className="mt-4 text-[12px] text-crimson-500">{error}</p>}
@@ -317,25 +308,25 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             }
             className="mt-5 w-full rounded-xl bg-ink-950 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
           >
-            {submitting ? "処理中…" : submitLabel}
+            {submitting ? t("login.submitting") : submitLabel}
           </button>
 
           <div className="mt-5 text-center text-[13px]">
             {mode === "login" && (
               <button onClick={() => goTo("signup")} className="text-ink-600">
-                アカウントをお持ちでない方は
-                <span className="ml-1 font-semibold text-ink-950 underline underline-offset-2">会員登録</span>
+                {t("login.toSignupPrefix")}
+                <span className="ml-1 font-semibold text-ink-950 underline underline-offset-2">{t("login.toSignup")}</span>
               </button>
             )}
             {mode === "signup" && (
               <button onClick={() => goTo("login")} className="text-ink-600">
-                すでにアカウントをお持ちの方は
-                <span className="ml-1 font-semibold text-ink-950 underline underline-offset-2">ログイン</span>
+                {t("login.toLoginPrefix")}
+                <span className="ml-1 font-semibold text-ink-950 underline underline-offset-2">{t("login.toLogin")}</span>
               </button>
             )}
             {mode === "reset" && (
               <button onClick={() => goTo("login")} className="font-semibold text-ink-950 underline underline-offset-2">
-                ログイン画面に戻る
+                {t("login.backToLogin")}
               </button>
             )}
           </div>
@@ -358,7 +349,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
         {/* 機能インデックス(何ができるか) */}
         <div className="mt-8">
-          <p className="mb-1 text-[11px] font-bold tracking-[0.22em] text-ink-400 uppercase">What you can do</p>
+          <p className="mb-1 text-[11px] font-bold tracking-[0.22em] text-ink-400 uppercase">{t("login.whatYouCanDo")}</p>
           <motion.ul initial="hidden" whileInView="show" viewport={{ once: true, margin: "-40px" }} variants={container} className="border-t border-ink-200">
             {FEATURES.map((f) => (
               <motion.li
@@ -370,8 +361,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                 <span className="w-6 pt-0.5 text-[11px] font-bold tabular-nums text-gold-500">{f.n}</span>
                 <span className="mt-0.5 text-ink-900">{f.icon}</span>
                 <div className="flex-1">
-                  <div className="text-[15px] font-bold tracking-tight">{f.title}</div>
-                  <p className="mt-1 text-[13px] leading-relaxed text-ink-600">{f.body}</p>
+                  <div className="text-[15px] font-bold tracking-tight">{t(`login.${f.key}.title`)}</div>
+                  <p className="mt-1 text-[13px] leading-relaxed text-ink-600">{t(`login.${f.key}.body`)}</p>
                 </div>
               </motion.li>
             ))}

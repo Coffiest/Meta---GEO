@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 
 const MAX_AVATAR_DIMENSION = 256;
@@ -46,8 +47,8 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
 };
 
-/** この先に待っている3つの体験。初回オンボーディングで期待感を高めるために表示する。 */
-const NEXT_UP = ["トーナメント", "GEO戦略分析", "詳細スタッツ"];
+/** この先に待っている3つの体験。初回オンボーディングで期待感を高めるために表示する(i18nキー)。 */
+const NEXT_UP_KEYS = ["onb.next1", "onb.next2", "onb.next3"];
 
 /**
  * 初回オンボーディング / プロフィール編集画面。名前は必須、アイコンはカメラロールから
@@ -81,6 +82,7 @@ export function Onboarding({
   const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reduce = useReducedMotion();
+  const { t } = useI18n();
   const canSubmit = name.trim().length > 0 && !saving && !processing;
   // onCancelが無い = 初回オンボーディング。ここだけ高揚感のあるコピー/演出にする。
   const isFirstTime = !onCancel;
@@ -92,7 +94,7 @@ export function Onboarding({
     try {
       setAvatarKey(await fileToAvatarDataUri(file));
     } catch {
-      setPickError("画像を設定できませんでした。別の画像でお試しください。");
+      setPickError(t("onb.photoError"));
     } finally {
       setProcessing(false);
     }
@@ -119,23 +121,22 @@ export function Onboarding({
 
           {/* ヒーローコピー */}
           <motion.p variants={item} className="mt-9 text-[11px] font-bold tracking-[0.22em] uppercase text-gold-600">
-            {isFirstTime ? "最後のステップ" : "プロフィール"}
+            {isFirstTime ? t("onb.step") : t("onb.profile")}
           </motion.p>
           <motion.h1 variants={item} className="mt-2 text-[34px] font-extrabold leading-[1.05] tracking-tight text-balance">
             {isFirstTime ? (
               <>
-                さあ、
+                {t("onb.heroLine1")}
                 <br />
-                テーブルへ<span className="text-gold-500">.</span>
+                {t("onb.heroLine2")}
+                <span className="text-gold-500">.</span>
               </>
             ) : (
               title
             )}
           </motion.h1>
           <motion.p variants={item} className="mt-3 text-[13px] leading-relaxed text-ink-600">
-            {isFirstTime
-              ? "あと一歩でプレイ開始。テーブルに表示される名前を決めよう(アイコンは任意)。"
-              : "テーブルで表示される名前とアイコンを変更できます。"}
+            {isFirstTime ? t("onb.leadFirst") : t("onb.leadEdit")}
           </motion.p>
         </motion.div>
 
@@ -191,11 +192,11 @@ export function Onboarding({
                 onClick={() => fileInputRef.current?.click()}
                 className="font-semibold text-ink-950 underline decoration-dashed underline-offset-2"
               >
-                {processing ? "処理中…" : avatarKey ? "写真を変更" : "写真を選ぶ(任意)"}
+                {processing ? t("onb.processing") : avatarKey ? t("onb.changePhoto") : t("onb.pickPhoto")}
               </button>
               {avatarKey && (
                 <button onClick={() => setAvatarKey(null)} className="text-ink-500">
-                  削除
+                  {t("onb.delete")}
                 </button>
               )}
             </div>
@@ -205,14 +206,14 @@ export function Onboarding({
           {/* 名前入力 */}
           <div className="mt-6">
             <div className="mb-1.5 flex items-baseline justify-between">
-              <label className="text-[12px] font-semibold tracking-wide text-ink-700">プレイヤー名</label>
+              <label className="text-[12px] font-semibold tracking-wide text-ink-700">{t("onb.playerName")}</label>
               <span className="text-[11px] tabular-nums text-ink-400">{name.length}/16</span>
             </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
-              placeholder="テーブルで表示される名前"
+              placeholder={t("onb.namePlaceholder")}
               maxLength={16}
               autoFocus={isFirstTime}
               autoComplete="off"
@@ -228,7 +229,7 @@ export function Onboarding({
             disabled={!canSubmit}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink-950 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
           >
-            <span>{saving ? "保存中…" : submitLabel}</span>
+            <span>{saving ? t("onb.saving") : submitLabel}</span>
             {!saving && (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 <path d="M5 12h14M13 6l6 6-6 6" />
@@ -251,14 +252,14 @@ export function Onboarding({
             transition={{ delay: 0.55, duration: 0.6 }}
             className="mt-8"
           >
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-ink-400">この先に待っているもの</p>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-ink-400">{t("onb.nextUp")}</p>
             <div className="flex flex-wrap gap-2">
-              {NEXT_UP.map((label) => (
+              {NEXT_UP_KEYS.map((key) => (
                 <span
-                  key={label}
+                  key={key}
                   className="rounded-full border border-ink-300 px-3 py-1.5 text-[12px] font-semibold text-ink-700"
                 >
-                  {label}
+                  {t(key)}
                 </span>
               ))}
             </div>
@@ -266,7 +267,7 @@ export function Onboarding({
         )}
 
         <p className="mt-auto pt-8 text-center text-[11px] tracking-wide text-ink-400">
-          Poker ART · バーチャルチップ専用
+          {t("onb.footer")}
         </p>
       </div>
     </div>

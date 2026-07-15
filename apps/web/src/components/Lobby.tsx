@@ -6,7 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
 import { APP_VERSION } from "@/lib/version";
+import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { Footer } from "./Footer";
 import { Icon } from "./Icon";
@@ -714,6 +716,7 @@ function HamburgerMenu({
   onEditProfile: () => void;
   onSignOut?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" onClick={onClose}>
       <motion.div
@@ -749,11 +752,16 @@ function HamburgerMenu({
         </div>
         <div className="px-2 mt-2 divide-y divide-ink-300">
           <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
-            プロフィールを編集 <span className="text-ink-600">›</span>
+            {t("menu.editProfile")} <span className="text-ink-600">›</span>
           </button>
+          {/* 言語切替。ログイン後もいつでも変更できるようメニューに常設する。 */}
+          <div className="flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
+            <span>{t("common.language")}</span>
+            <LanguageSwitcher />
+          </div>
           {onSignOut && (
             <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-400">
-              ログアウト <span className="text-ink-600">›</span>
+              {t("menu.logout")} <span className="text-ink-600">›</span>
             </button>
           )}
         </div>
