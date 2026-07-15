@@ -214,6 +214,9 @@ export function Onboarding({
               onKeyDown={(e) => e.key === "Enter" && canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
               placeholder="テーブルで表示される名前"
               maxLength={16}
+              autoFocus={isFirstTime}
+              autoComplete="off"
+              enterKeyHint="go"
               className="w-full rounded-xl border border-ink-300 bg-white px-4 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
             />
           </div>
