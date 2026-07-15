@@ -30,6 +30,15 @@ const ja: Dict = {
   "common.back": "戻る",
   "common.language": "言語",
 
+  "action.allInPreset": "オールイン",
+  "action.geometric": "ジオメトリック",
+  "action.timeBank": "タイムバンク",
+  "action.remaining0": "残0",
+  "action.away": "離席",
+  "action.armCheckFold": "チェック/フォールドを予約",
+  "seat.chat": "チャット",
+  "seat.away": "離席中",
+
   "app.authUnavailable": "ログイン機能が設定されていません。管理者にお問い合わせください。",
   "app.profileFetchFailed": "プロフィールの取得に失敗しました。",
   "app.retry": "再試行",
@@ -107,6 +116,15 @@ const en: Dict = {
   "common.cancel": "Cancel",
   "common.back": "Back",
   "common.language": "Language",
+
+  "action.allInPreset": "All in",
+  "action.geometric": "Geometric",
+  "action.timeBank": "Time bank",
+  "action.remaining0": "0 left",
+  "action.away": "Away",
+  "action.armCheckFold": "Pre-set check/fold",
+  "seat.chat": "Chat",
+  "seat.away": "Away",
 
   "app.authUnavailable": "Sign-in isn't configured. Please contact the administrator.",
   "app.profileFetchFailed": "Couldn't load your profile.",
@@ -186,6 +204,15 @@ const ko: Dict = {
   "common.back": "뒤로",
   "common.language": "언어",
 
+  "action.allInPreset": "올인",
+  "action.geometric": "지오메트릭",
+  "action.timeBank": "타임뱅크",
+  "action.remaining0": "0개",
+  "action.away": "자리비움",
+  "action.armCheckFold": "체크/폴드 예약",
+  "seat.chat": "채팅",
+  "seat.away": "자리비움",
+
   "app.authUnavailable": "로그인 기능이 설정되어 있지 않습니다. 관리자에게 문의해 주세요.",
   "app.profileFetchFailed": "프로필을 불러오지 못했습니다.",
   "app.retry": "다시 시도",
@@ -263,6 +290,15 @@ const zh: Dict = {
   "common.cancel": "取消",
   "common.back": "返回",
   "common.language": "语言",
+
+  "action.allInPreset": "全下",
+  "action.geometric": "几何下注",
+  "action.timeBank": "时间银行",
+  "action.remaining0": "剩0",
+  "action.away": "离席",
+  "action.armCheckFold": "预设过牌/弃牌",
+  "seat.chat": "聊天",
+  "seat.away": "离席中",
 
   "app.authUnavailable": "尚未配置登录功能，请联系管理员。",
   "app.profileFetchFailed": "无法加载个人资料。",
