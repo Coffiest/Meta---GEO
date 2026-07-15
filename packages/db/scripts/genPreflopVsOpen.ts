@@ -343,15 +343,20 @@ for (const band of bands) {
       // どちらも hand→頻度。ポストフロップ導出(gtoPostflop.ts)で使う。use3bet(100bb)のみ。
       let threeBetRange: Record<string, number> | undefined;
       let callVs3betRange: Record<string, number> | undefined;
+      // オープナーのvs3bet応答(表示用, タスクC): hand→[call,jam](foldは残り)。openFreq内のみ。
+      let openerVs3: Record<string, [number, number]> | undefined;
       if (sol.oppVs3 && sol.openFreq) {
         threeBetRange = {};
         callVs3betRange = {};
+        openerVs3 = {};
         for (let h = 0; h < N; h++) {
           const r3 = sol.strat[h]![2]!;
           if (r3 > 0.02) threeBetRange[LABELS[h]!] = Math.round(r3 * 100) / 100;
           if (sol.openFreq[h]! > 0) {
             const c3 = sol.oppVs3[h]![1]!;
+            const j3 = sol.oppVs3[h]![2]!;
             if (c3 > 0.02) callVs3betRange[LABELS[h]!] = Math.round(c3 * 100) / 100;
+            if (c3 > 0.02 || j3 > 0.02) openerVs3[LABELS[h]!] = [Math.round(c3 * 100) / 100, Math.round(j3 * 100) / 100];
           }
         }
       }
@@ -363,6 +368,7 @@ for (const band of bands) {
         strat,
         ...(threeBetRange && Object.keys(threeBetRange).length ? { threeBetRange } : {}),
         ...(callVs3betRange && Object.keys(callVs3betRange).length ? { callVs3betRange } : {}),
+        ...(openerVs3 && Object.keys(openerVs3).length ? { openerVs3 } : {}),
       };
       console.error(
         `  band=${band} ${opener}(open ${PREFLOP_BANDS[band]![opener]!.raiseSize}bb) vs ${defender}: call=${(sol.callFreq * 100).toFixed(1)}% 3bet=${(sol.threeBetFreq * 100).toFixed(1)}% jam=${(sol.jamFreq * 100).toFixed(1)}%`,

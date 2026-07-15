@@ -29,16 +29,17 @@ export async function readGtoPostflopSnapshot(spotKey: string): Promise<GtoPostf
   }
 }
 
-/** スナップショットを spotKey で冪等に upsert する。DB不達なら握りつぶす。 */
+/** スナップショットを spotKey で冪等に upsert する。DB不達なら握りつぶす。actionLine: "srp"|"3bp"。 */
 export async function writeGtoPostflopSnapshot(
   band: string,
   opener: string,
   defender: string,
   board: string[],
   snapshot: GtoPostflopSpotSnapshot,
+  actionLine: string = "srp",
 ): Promise<void> {
-  const spotKey = gtoPostflopSpotKey(band, opener, defender, board);
-  const c = gtoPostflopSpotComponents(band, opener, defender, board);
+  const spotKey = gtoPostflopSpotKey(band, opener, defender, board, actionLine);
+  const c = gtoPostflopSpotComponents(band, opener, defender, board, actionLine);
   try {
     await prisma.gtoSolution.upsert({
       where: { spotKey },
