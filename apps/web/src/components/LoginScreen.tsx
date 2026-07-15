@@ -244,6 +244,10 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                 type="email"
                 inputMode="email"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint={mode === "reset" ? "send" : "next"}
                 placeholder="mail@example.com"
                 className="w-full rounded-xl border border-ink-300 px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
               />
@@ -258,6 +262,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   type="password"
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  enterKeyHint={mode === "signup" ? "next" : "go"}
                   placeholder="6文字以上"
                   className="w-full rounded-xl border border-ink-300 px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
                 />
@@ -273,6 +278,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   type="password"
                   autoComplete="new-password"
+                  enterKeyHint="go"
                   placeholder="もう一度入力"
                   className={`w-full rounded-xl border px-3.5 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-950/5 ${
                     confirmPassword && confirmPassword !== password ? "border-crimson-500" : "border-ink-300 focus:border-ink-950"

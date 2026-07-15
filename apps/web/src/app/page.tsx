@@ -284,6 +284,15 @@ function GameScreen({
                 <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
               </div>
             )}
+            {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
+              <div className="border-l border-ink-200 pl-2">
+                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Ave</span>
+                <span className="text-[11px] font-black tabular-nums text-gold-600">
+                  {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
+                  <span className="text-[8px] text-ink-400">BB</span>
+                </span>
+              </div>
+            )}
           </div>
         </button>
 
@@ -373,9 +382,12 @@ function GameScreen({
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-full bg-ink-950 px-5 py-2.5 text-sm font-black text-white active:scale-95 transition-transform"
+                aria-label="送信"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white transition-transform active:scale-90"
               >
-                送信
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-[18px] w-[18px]">
+                  <path d="M4.5 12h13M12 5.5l6 6.5-6 6.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             </motion.form>
           </motion.div>
@@ -446,7 +458,15 @@ function GameScreen({
 
       <AnimatePresence>
         {chatLogOpen && (
-          <ChatLogSheet messages={chatLog} yourSeatIndex={yourSeatIndex} onClose={() => setChatLogOpen(false)} />
+          <ChatLogSheet
+            messages={chatLog}
+            yourSeatIndex={yourSeatIndex}
+            players={players}
+            myDisplayName={displayName}
+            myAvatarKey={avatarKey}
+            onSend={sendChat}
+            onClose={() => setChatLogOpen(false)}
+          />
         )}
       </AnimatePresence>
 
