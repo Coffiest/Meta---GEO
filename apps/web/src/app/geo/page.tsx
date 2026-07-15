@@ -24,33 +24,14 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { GeoComingSoon } from "@/components/geo/GeoComingSoon";
 
-const GEO_UNLOCK_KEY = "poker-art-geo-unlocked";
-
 /**
- * /geo のゲート。通常は「近日公開」プロモ画面(GeoComingSoon)を表示し、隠しパスコード(2357)で
- * 解錠されたときだけ本物のGEO DATABASE(GeoDatabase)を表示する。解錠状態はlocalStorageに保存。
+ * /geo のゲート。DATABASEタブを開くたびに毎回「近日公開」プロモ画面(GeoComingSoon)を表示し、
+ * 隠しパスコード(2357)を入力したそのとき(この画面を開いている間)だけ本物のGEO DATABASEを表示する。
+ * 解錠は保存しない — 一度ホーム等へ離れて再びDATABASEへ来ると、また最初からパスコード入力が必要になる。
  */
 export default function GeoPage() {
   const [unlocked, setUnlocked] = useState(false);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setUnlocked(localStorage.getItem(GEO_UNLOCK_KEY) === "1");
-    setReady(true);
-  }, []);
-
-  // localStorage判定が済むまでは何も出さない(解錠済みユーザーにプロモが一瞬見えるのを防ぐ)。
-  if (!ready) return <div className="min-h-[100dvh] bg-white" />;
-  if (!unlocked) {
-    return (
-      <GeoComingSoon
-        onUnlock={() => {
-          localStorage.setItem(GEO_UNLOCK_KEY, "1");
-          setUnlocked(true);
-        }}
-      />
-    );
-  }
+  if (!unlocked) return <GeoComingSoon onUnlock={() => setUnlocked(true)} />;
   return <GeoDatabase />;
 }
 
