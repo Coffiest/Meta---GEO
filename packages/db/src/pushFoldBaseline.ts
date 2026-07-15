@@ -78,9 +78,12 @@ export function buildPushFoldGtoNode(params: { stackBucket: string; side?: "jam"
       const lbl = cellLabel(row, col);
       const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
       total += combos;
-      const isIn = inRange[lbl] === 1;
-      if (isIn) inCombos += combos;
-      const byBucket: Record<string, number> = isIn ? { [actionBucket]: 1 } : { [foldBucket]: 1 };
+      // 混合頻度(0..1)。actionBucketの頻度と残りをfoldに割り当てる。
+      const f = Math.max(0, Math.min(1, inRange[lbl] ?? 0));
+      inCombos += combos * f;
+      const byBucket: Record<string, number> = {};
+      if (f > 0) byBucket[actionBucket] = f;
+      if (1 - f > 0) byBucket[foldBucket] = 1 - f;
       return { label: lbl, count: combos, byBucket, evByBucket: {} as Record<string, number> };
     }),
   );

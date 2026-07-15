@@ -11,7 +11,7 @@
  *   BB fold(vs jam): -1 / BB call: (2eq-1)*S
  * 均衡は各手の閾値(pure)。相互ベストレスポンス反復で収束させる。
  */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { Card, Rank, Suit } from "@meta-geo/engine";
@@ -19,7 +19,6 @@ import { evaluateBest, compareHandRank } from "@meta-geo/engine";
 
 const SAMPLES = 250;
 const DEPTHS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20];
-const ITERATIONS = 40;
 
 const RANKS_DESC: Rank[] = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 const RANK_CHAR: Record<number, string> = { 14: "A", 13: "K", 12: "Q", 11: "J", 10: "T", 9: "9", 8: "8", 7: "7", 6: "6", 5: "5", 4: "4", 3: "3", 2: "2" };
@@ -91,52 +90,75 @@ for (let row = 0; row < 13; row++) {
 }
 
 // 169x169 エクイティ行列(A視点)。対称性 eq(i,j)=1-eq(j,i) を利用。
-console.error(`[genPushFold] building ${N}x${N} equity matrix (samples=${SAMPLES})...`);
-const t0 = Date.now();
-const eq: number[][] = Array.from({ length: N }, () => new Array<number>(N).fill(0));
-for (let i = 0; i < N; i++) {
-  for (let j = i; j < N; j++) {
-    const e = equity(cells[i]!.A, cells[j]!.B, SAMPLES);
-    eq[i]![j] = e;
-    eq[j]![i] = 1 - e;
+// 行列生成は重い(数分)ため、キャッシュがあれば再利用する(Nash反復だけを試行錯誤できる)。
+const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+let eq: number[][];
+if (existsSync(CACHE)) {
+  console.error(`[genPushFold] loading cached equity matrix from ${CACHE}`);
+  eq = JSON.parse(readFileSync(CACHE, "utf8")) as number[][];
+} else {
+  console.error(`[genPushFold] building ${N}x${N} equity matrix (samples=${SAMPLES})...`);
+  const t0 = Date.now();
+  eq = Array.from({ length: N }, () => new Array<number>(N).fill(0));
+  for (let i = 0; i < N; i++) {
+    for (let j = i; j < N; j++) {
+      const e = equity(cells[i]!.A, cells[j]!.B, SAMPLES);
+      eq[i]![j] = e;
+      eq[j]![i] = 1 - e;
+    }
+    if (i % 20 === 0) console.error(`  row ${i}/${N}  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   }
-  if (i % 20 === 0) console.error(`  row ${i}/${N}  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+  writeFileSync(CACHE, JSON.stringify(eq));
+  console.error(`[genPushFold] matrix done in ${((Date.now() - t0) / 1000).toFixed(1)}s (cached)`);
 }
-console.error(`[genPushFold] matrix done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
 const P = cells.map((c) => c.combos / 1326);
 
-/** 相互ベストレスポンスで1つのスタック深度のNashを解く。 */
-function solveDepth(S: number): { jam: boolean[]; call: boolean[]; jamFreq: number; callFreq: number } {
-  let call = cells.map((_, idx) => P[idx]! > 0 && idx >= 0 && cells[idx]!.combos > 0 && topDefault(idx)); // 初期: 上位40%
-  let jam = new Array<boolean>(N).fill(false);
-  for (let iter = 0; iter < ITERATIONS; iter++) {
-    // SBのベストレスポンス(vs 現在のBB callレンジ)
-    const callFreq = call.reduce((s, v, idx) => s + (v ? P[idx]! : 0), 0);
-    jam = cells.map((_, h) => {
-      let evCallBranch = 0;
-      for (let b = 0; b < N; b++) if (call[b]) evCallBranch += P[b]! * (2 * eq[h]![b]! - 1) * S;
-      const evPush = (1 - callFreq) * 1 + evCallBranch;
-      return evPush > -0.5;
-    });
-    // BBのベストレスポンス(vs 現在のSB jamレンジ)
-    const jamFreq = jam.reduce((s, v, idx) => s + (v ? P[idx]! : 0), 0);
-    call = cells.map((_, h) => {
-      if (jamFreq <= 0) return false;
-      let evc = 0;
-      for (let a = 0; a < N; a++) if (jam[a]) evc += (P[a]! / jamFreq) * (2 * eq[h]![a]! - 1) * S;
-      return evc > -1;
-    });
-  }
-  const jamFreq = jam.reduce((s, v, idx) => s + (v ? P[idx]! : 0), 0);
-  const callFreq = call.reduce((s, v, idx) => s + (v ? P[idx]! : 0), 0);
-  return { jam, call, jamFreq, callFreq };
-}
+/**
+ * フィクティシャスプレイで1つのスタック深度のNashを解く。純粋ベストレスポンス反復は深いスタックで
+ * 振動するため、平均戦略(相手の平均に対しBRを取り、それを平均に足し込む)で収束させ、混合頻度を返す。
+ */
+function solveDepth(S: number): { jam: number[]; call: number[]; jamFreq: number; callFreq: number } {
+  const T = 400;
+  // 初期は「双方0.5でジャム/コール」相当のシード(1回ぶん)を入れて冷スタートの偏りを消す。
+  const jamSum = new Array<number>(N).fill(0.5);
+  const callSum = new Array<number>(N).fill(0.5);
+  let jamAvg = jamSum.slice();
+  let callAvg = callSum.slice();
 
-function topDefault(idx: number): boolean {
-  // ざっくり上位: ペア or 片方A/K を初期callに。反復で正しく収束するので初期値は粗くてよい。
-  const l = cells[idx]!.label;
-  return l.length === 2 || l.startsWith("A") || l.startsWith("K");
+  for (let t = 0; t < T; t++) {
+    // SBのBR(vs 平均BB callレンジ)
+    const callFreq = callAvg.reduce((s, v, idx) => s + v * P[idx]!, 0);
+    const brJam = new Array<number>(N);
+    for (let h = 0; h < N; h++) {
+      let ev = 0;
+      for (let b = 0; b < N; b++) ev += P[b]! * callAvg[b]! * (2 * eq[h]![b]! - 1) * S;
+      brJam[h] = (1 - callFreq) * 1 + ev > -0.5 ? 1 : 0;
+    }
+    // BBのBR(vs 平均SB jamレンジ, jam条件付き)
+    const jamFreq = jamAvg.reduce((s, v, idx) => s + v * P[idx]!, 0);
+    const brCall = new Array<number>(N);
+    for (let h = 0; h < N; h++) {
+      if (jamFreq <= 0) {
+        brCall[h] = 0;
+        continue;
+      }
+      let ev = 0;
+      for (let a = 0; a < N; a++) ev += P[a]! * jamAvg[a]! * (2 * eq[h]![a]! - 1) * S;
+      brCall[h] = ev / jamFreq > -1 ? 1 : 0;
+    }
+    for (let k = 0; k < N; k++) {
+      jamSum[k]! += brJam[k]!;
+      callSum[k]! += brCall[k]!;
+    }
+    const denom = t + 2; // シード1 + (t+1)回
+    jamAvg = jamSum.map((v) => v / denom);
+    callAvg = callSum.map((v) => v / denom);
+  }
+
+  const jamFreq = jamAvg.reduce((s, v, idx) => s + v * P[idx]!, 0);
+  const callFreq = callAvg.reduce((s, v, idx) => s + v * P[idx]!, 0);
+  return { jam: jamAvg, call: callAvg, jamFreq, callFreq };
 }
 
 const depths = DEPTHS.map((S) => {
@@ -144,8 +166,10 @@ const depths = DEPTHS.map((S) => {
   const jam: Record<string, number> = {};
   const call: Record<string, number> = {};
   cells.forEach((c, idx) => {
-    if (r.jam[idx]) jam[c.label] = 1;
-    if (r.call[idx]) call[c.label] = 1;
+    const jf = Math.round(r.jam[idx]! * 1000) / 1000;
+    const cf = Math.round(r.call[idx]! * 1000) / 1000;
+    if (jf > 0.01) jam[c.label] = jf;
+    if (cf > 0.01) call[c.label] = cf;
   });
   console.error(`  S=${S}bb  jam=${(r.jamFreq * 100).toFixed(1)}%  call=${(r.callFreq * 100).toFixed(1)}%`);
   return { s: S, jamFreq: r.jamFreq, callFreq: r.callFreq, jam, call };
