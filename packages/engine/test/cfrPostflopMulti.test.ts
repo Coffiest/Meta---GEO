@@ -54,6 +54,61 @@ describe("solvePostflopHu (turn chance-node, no-bet equity invariant)", () => {
 });
 
 /**
+ * フロップ(3枚ボード) + sampleChance: ターン/リバーをサブサンプリングして解けること、
+ * ベット無しならチェックダウン equity と符合すること(サンプリング誤差込みの緩い許容)。
+ */
+describe("solvePostflopHu (flop with chance sampling)", () => {
+  it("check-through flop EV approximates P*(equity-0.5) with sampled runouts", () => {
+    const board = ["As", "Kd", "7h"].map((c) => parseCard(c)!);
+    const oopHand = combo("AhAd");
+    const ipHand = combo("KsQh");
+    const P = 10;
+
+    const res = solvePostflopHu({
+      board,
+      oop: [oopHand],
+      ip: [ipHand],
+      potBb: P,
+      stackBb: 100,
+      betSizes: [],
+      allowRaise: false,
+      iterations: 30,
+      sampleChance: 12, // ターン12枚 × リバー12枚 = 144ランナウト
+    });
+
+    const eq = computeAllInEquity({
+      contenders: [
+        { id: "oop", holeCards: [oopHand.a, oopHand.b] },
+        { id: "ip", holeCards: [ipHand.a, ipHand.b] },
+      ],
+      knownBoard: board,
+    });
+    const expected = P * (eq.get("oop")! - 0.5);
+    // AA vs KQ on AK7: OOPが圧倒的有利(expected ≈ +4bb台)。サンプリング+除去バイアス込みで±1.2bb許容。
+    expect(res.oopEvBb).toBeGreaterThan(expected - 1.2);
+    expect(res.oopEvBb).toBeLessThan(expected + 1.2);
+  });
+
+  it("flop solve with betting runs within budget and returns frequencies", () => {
+    const board = ["As", "Kd", "7h"].map((c) => parseCard(c)!);
+    const res = solvePostflopHu({
+      board,
+      oop: [combo("AhAd"), combo("QsQc"), combo("8c7c")],
+      ip: [combo("KsQh"), combo("JdJc")],
+      potBb: 10,
+      stackBb: 50,
+      betSizes: [0.75],
+      allowRaise: true,
+      iterations: 40,
+      sampleChance: 8,
+    });
+    const totalFreq = res.oopRoot.reduce((a, o) => a + o.frequency, 0);
+    expect(totalFreq).toBeGreaterThan(0.99);
+    expect(totalFreq).toBeLessThan(1.01);
+  });
+});
+
+/**
  * リバー(5枚ボード, チャンスなし)でも同エンジンが動き、
  * バリュー一色 vs 格下では OOP が高頻度でベットし EV が正になる。
  */

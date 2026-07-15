@@ -19,7 +19,7 @@ export interface HandCombo {
 }
 
 export interface PostflopSolveInput {
-  /** 3〜5枚のボード(本段階は4=ターン/5=リバーを厳密対応)。 */
+  /** 3〜5枚のボード(4=ターン/5=リバーは厳密。3=フロップは sampleChance の使用を推奨)。 */
   board: Card[];
   oop: HandCombo[];
   ip: HandCombo[];
@@ -28,6 +28,12 @@ export interface PostflopSolveInput {
   betSizes?: number[];
   iterations?: number;
   allowRaise?: boolean;
+  /**
+   * チャンスノード(次カード配布)で列挙する枚数の上限。省略時は全列挙(厳密)。
+   * 指定時はデッキから決定的な等間隔サブサンプリングで選ぶ(ランク/スートが均等に散る)。
+   * フロップ(3枚ボード)ではターン×リバーの全列挙が47×46で爆発するため、これで抑える。
+   */
+  sampleChance?: number;
 }
 
 export interface ActionEv {
@@ -95,6 +101,7 @@ function buildGameTree(
   boardStart: number[],
   betSizes: number[],
   allowRaise: boolean,
+  sampleChance?: number,
 ): { root: TreeNode; decisionNodes: DecisionNode[]; showdowns: Terminal[] } {
   let nextId = 0;
   const decisionNodes: DecisionNode[] = [];
@@ -108,12 +115,26 @@ function buildGameTree(
       showdowns.push(t);
       return t;
     }
-    // チャンス: 次の1枚を列挙。
+    // チャンス: 次の1枚を列挙(sampleChance指定時は決定的な等間隔サブサンプリングで抑える)。
     const used = new Set(board);
-    const children: { cardIdx: number; node: TreeNode }[] = [];
+    const candidates: number[] = [];
     for (let c = 8; c < 60; c++) {
       if (!CARD_BY_INDEX[c]) continue;
       if (used.has(c)) continue;
+      candidates.push(c);
+    }
+    let picked = candidates;
+    if (sampleChance && sampleChance > 0 && sampleChance < candidates.length) {
+      // 等間隔ストライドで選ぶ(決定的・resume安全)。開始オフセットをボード和で回し、偏りを散らす。
+      picked = [];
+      const stride = candidates.length / sampleChance;
+      const offset = board.reduce((a, b) => a + b, 0) % Math.max(1, Math.floor(stride));
+      for (let k = 0; k < sampleChance; k++) {
+        picked.push(candidates[Math.min(candidates.length - 1, Math.floor(offset + k * stride))]!);
+      }
+    }
+    const children: { cardIdx: number; node: TreeNode }[] = [];
+    for (const c of picked) {
       children.push({ cardIdx: c, node: build([...board, c], 0, [cum[0], cum[1]], false, allowRaise ? 1 : 0) });
     }
     return { kind: "chance", children };
@@ -185,7 +206,7 @@ export function solvePostflopHu(input: PostflopSolveInput): PostflopSolveResult 
   const nO = oop.length;
   const nI = ip.length;
 
-  const { root, decisionNodes, showdowns } = buildGameTree(P, input.stackBb, boardStartIdx, betSizes, allowRaise);
+  const { root, decisionNodes, showdowns } = buildGameTree(P, input.stackBb, boardStartIdx, betSizes, allowRaise, input.sampleChance);
 
   // ショーダウン符号をボードごとに事前計算(反復間で不変)。sign[i*nI+j]: OOP視点 +1/0/-1、2=無効。
   const signByBoard = new Map<string, Int8Array>();
