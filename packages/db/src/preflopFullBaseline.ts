@@ -58,8 +58,11 @@ export function buildPreflopBandNode(band: string, heroPos: string): GtoNodeResu
     { bucket: "fold", frequency: total > 0 ? foldW / total : 0, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0.001);
 
-  const label = BAND_LABEL[band] ?? `${band}bb`;
-  return { position: `${heroPos} ${label} (raise ${pos.raiseSize}bb)`, options, matrix: { cells, totalSamples: total } };
+  // position は素のポジション名(例 "UTG")にする。GEOタブと同じく、上部ポジションカード
+  // (PositionPillBar)が active 判定に `node.position === "UTG"` の完全一致を使うため、
+  // 装飾文字列を付けるとどのカードも active にならず選択不能になる(帯・レイズ幅は設定カードで表示)。
+  void BAND_LABEL;
+  return { position: heroPos, options, matrix: { cells, totalSamples: total } };
 }
 
 /** 後方互換: 30-100bbバンド("100")のオープンレンジノード。 */
