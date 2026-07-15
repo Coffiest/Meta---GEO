@@ -56,8 +56,9 @@ function GeoDatabase() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
   const [mode, setMode] = useState<"geo" | "gto">("geo");
-  // GTOの表示種別。"rfi"=6-maxオープンレンジ / "pushfold"=HUプッシュ/フォールドNash(自社計算)。
-  const [gtoVariant, setGtoVariant] = useState<"rfi" | "pushfold">("rfi");
+  // GTOの表示種別。"full"=通常戦略(open/jam/fold混合CFR) / "rfi"=プッシュ/フォールドNash(BBアンティ) /
+  // "pushfold"=HUプッシュ/フォールドNash。
+  const [gtoVariant, setGtoVariant] = useState<"full" | "rfi" | "pushfold">("full");
   const [pushFoldSide, setPushFoldSide] = useState<"jam" | "call">("jam");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
@@ -130,6 +131,8 @@ function GeoDatabase() {
         ? geoTreeApi.gtoNode(
             gtoVariant === "pushfold"
               ? { variant: "pushfold", stackBucket, side: pushFoldSide }
+              : gtoVariant === "full"
+              ? { variant: "full", line: preflopLine, stackBucket }
               : { line: preflopLine, stackBucket },
           )
         : street === "preflop"
@@ -187,6 +190,16 @@ function GeoDatabase() {
     setPendingStreet(null);
     setDismissedStreet(null);
     setJustPickedBoard(false);
+  }
+
+  // GTOモードで、指定ポジションが手番になるよう直前を全てフォールドしたラインをセットする。
+  function selectGtoPosition(pos: string) {
+    const idx = PREFLOP_ORDER.indexOf(pos);
+    if (idx < 0) return;
+    setPreflopLine(PREFLOP_ORDER.slice(0, idx).map((p) => ({ position: p, bucket: "fold" })));
+    setStreet("preflop");
+    setBoard([]);
+    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
   }
 
   function selectBucket(bucket: string) {
@@ -361,10 +374,11 @@ function GeoDatabase() {
         {mode === "gto" && (
           <div className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[12px] leading-relaxed px-4 py-3 mb-3">
             <p className="font-black text-ink-950 mb-1">GTO(自社計算・検証用)</p>
-            {/* GTO種別トグル: RFI / プッシュフォールド(HU Nash)。 */}
-            <div className="flex gap-1.5 my-2">
+            {/* GTO種別トグル: 通常戦略(CFR) / プッシュフォールドNash / HU Push/Fold。 */}
+            <div className="flex flex-wrap gap-1.5 my-2">
               {([
-                ["rfi", "6-max オープン (Nash)"],
+                ["full", "通常戦略 (CFR)"],
+                ["rfi", "Push/Fold Nash"],
                 ["pushfold", "HU Push/Fold"],
               ] as const).map(([v, lbl]) => (
                 <button
@@ -393,19 +407,39 @@ function GeoDatabase() {
                   </button>
                 ))}
             </div>
-            {gtoVariant === "rfi" ? (
+            {/* ポジション選択(open系variantのみ): 直前を全フォールドしてそのポジションの手番にする。 */}
+            {gtoVariant !== "pushfold" && (
+              <div className="flex flex-wrap gap-1 my-2">
+                {["UTG", "HJ", "CO", "BTN", "SB"].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => selectGtoPosition(p)}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-black tracking-wide transition-colors ${
+                      node?.position?.startsWith(p) ? "bg-ink-950 text-white" : "bg-white text-ink-600 border border-ink-200"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+            {gtoVariant === "full" ? (
               <p>
-                <span className="font-bold">BBアンティありトーナメントの6-maxマルチウェイ・プッシュ/フォールドNash</span>
-                を自力計算した開き(シューブ)レンジ。設定でスタック帯を変え、フォールドで手番を進めると
-                <span className="font-bold">全ポジション(UTG→HJ→CO→BTN→SB)×全スタック</span>の開きレンジが見られます。
-                さらに、誰かの「Allin」を選ぶと<span className="font-bold">それに直面したコール(ディフェンス)レンジ</span>も表示。
-                アンティを含むためレンジは広め。GTO WizardのNash/ICMなしチャートと照合してください。
+                <span className="font-bold">通常のプリフロップ戦略(fold / オープン2.3bb / ジャム の混合)</span>をCFRで自力計算。
+                BBアンティあり。設定でスタック帯を変えると
+                <span className="font-bold">ディープ=オープン中心 / 〜20bb=オープンとジャムが混合 / 〜10bb以下=ほぼ純プッシュ</span>
+                と遷移します。※ポストフロップはエクイティ実現率で近似のためGTO Wizardと数値は完全一致しません(構造は一致)。
+              </p>
+            ) : gtoVariant === "rfi" ? (
+              <p>
+                <span className="font-bold">BBアンティありの6-maxプッシュ/フォールドNash</span>(全員オールインのみで厳密計算)。
+                全ポジション×全スタックの開きジャムレンジ＋「Allin」を選ぶとディフェンス(コール)レンジも表示。
+                GTO WizardのNash/ICMなしチャートと照合してください。
               </p>
             ) : (
               <p>
-                <span className="font-bold">HUプッシュ/フォールドのNash均衡</span>を自力計算した正解データ。
-                スタック帯(設定)ごとに、SBのジャムレンジ/BBのコールレンジを表示。GTO WizardのHU Push/Fold
-                (ICMなしChipEV Nash)チャートと直接照合できます。エクスプロイト検出は母集団データ蓄積後に解禁予定。
+                <span className="font-bold">HUプッシュ/フォールドのNash均衡</span>。スタック帯ごとにSBジャム/BBコールを表示。
+                GTO WizardのHU Push/Foldと直接照合できます。
               </p>
             )}
           </div>
