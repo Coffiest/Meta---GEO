@@ -70,6 +70,7 @@ function SettingsPopover({
   onLeave: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   return (
     <>
@@ -82,7 +83,7 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          このゲームのハンド履歴
+          {t("settings.handHistory")}
         </button>
         <button
           onClick={() => {
@@ -91,7 +92,7 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          ブラインドストラクチャを見る
+          {t("settings.blindStructure")}
         </button>
         <button
           onClick={() => {
@@ -100,23 +101,23 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          チャットログ
+          {t("settings.chatLog")}
         </button>
         {confirmingLeave ? (
           <div className="rounded-xl bg-ink-100 p-3 space-y-2">
-            <p className="text-xs text-ink-600">チップを破棄して離脱します。この操作は取り消せません。</p>
+            <p className="text-xs text-ink-600">{t("settings.leaveConfirm")}</p>
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
                 className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 active:scale-[0.97] transition-transform"
               >
-                離脱する
+                {t("settings.leaveDo")}
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
                 className="flex-1 rounded-lg bg-ink-200 text-ink-800 text-xs py-2"
               >
-                やめる
+                {t("settings.leaveCancel")}
               </button>
             </div>
           </div>
@@ -125,7 +126,7 @@ function SettingsPopover({
             onClick={() => setConfirmingLeave(true)}
             className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
           >
-            チップを破棄してゲームから離脱
+            {t("settings.leave")}
           </button>
         )}
       </div>
