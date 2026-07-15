@@ -7,7 +7,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
 import { APP_VERSION } from "@/lib/version";
 import { Avatar } from "./Avatar";
-import { BlindStructureSheet } from "./BlindStructureSheet";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { Footer } from "./Footer";
 import { Icon } from "./Icon";
@@ -704,7 +703,6 @@ function HamburgerMenu({
   isGuest,
   onClose,
   onEditProfile,
-  onOpenStructure,
   onSignOut,
 }: {
   displayName: string;
@@ -714,7 +712,6 @@ function HamburgerMenu({
   isGuest: boolean;
   onClose: () => void;
   onEditProfile: () => void;
-  onOpenStructure: () => void;
   onSignOut?: () => void;
 }) {
   return (
@@ -754,12 +751,6 @@ function HamburgerMenu({
           <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
             プロフィールを編集 <span className="text-ink-600">›</span>
           </button>
-          <button onClick={onOpenStructure} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
-            ブラインドストラクチャ <span className="text-ink-600">›</span>
-          </button>
-          <Link href="/geo" onClick={onClose} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
-            GEOデータベース <span className="text-ink-600">›</span>
-          </Link>
           {onSignOut && (
             <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-400">
               ログアウト <span className="text-ink-600">›</span>
@@ -806,7 +797,6 @@ export function Lobby({
   const [lbMetric, setLbMetric] = useState<LbMetric>("profit");
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
-  const [structureOpen, setStructureOpen] = useState(false);
 
   function toggleFavorite(handId: string, isFavorite: boolean) {
     setHistory((prev) => (prev ? prev.map((h) => (h.handId === handId ? { ...h, isFavorite } : h)) : prev));
@@ -1391,7 +1381,6 @@ export function Lobby({
         ]}
       />
 
-      {structureOpen && <BlindStructureSheet onClose={() => setStructureOpen(false)} />}
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats)} onClose={() => setInfoKey(null)} />}
       <AnimatePresence>
         {menuOpen && (
@@ -1405,10 +1394,6 @@ export function Lobby({
             onEditProfile={() => {
               setMenuOpen(false);
               onEditProfile();
-            }}
-            onOpenStructure={() => {
-              setMenuOpen(false);
-              setStructureOpen(true);
             }}
             onSignOut={
               onSignOut

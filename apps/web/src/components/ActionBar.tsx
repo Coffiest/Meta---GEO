@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatBb } from "@/lib/format";
@@ -45,6 +45,55 @@ function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className}>
       <path d="M9 5v14M15 5v14" />
     </svg>
+  );
+}
+
+/** ペルソナ5風のアクションボタン。斜めに歪んだ平行四辺形+黒のハードなオフセット影+
+ * 太いイタリック体で、押すと影へスラムする(translate)攻めた見た目にする。中身は逆方向に
+ * カウンタースキューして水平に保つ。tone=fold(青)/call(緑)/raise(赤)で意味を色分けする。 */
+const P5_TONE_CLASS: Record<"fold" | "call" | "raise", string> = {
+  fold: "bg-azure-500",
+  call: "bg-mint-600",
+  raise: "bg-crimson-500",
+};
+
+function P5Button({
+  tone,
+  onClick,
+  disabled = false,
+  tapRotate = 0,
+  ariaLabel,
+  children,
+}: {
+  tone: "fold" | "call" | "raise";
+  onClick?: () => void;
+  disabled?: boolean;
+  tapRotate?: number;
+  ariaLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.94, rotate: tapRotate }}
+      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="group relative min-h-[64px] flex-1 disabled:pointer-events-none disabled:opacity-30"
+    >
+      {/* 黒のオフセット影(平行四辺形)。押下時は影へ重なるようにフェイスがずれる。 */}
+      <span aria-hidden className="absolute inset-0 bg-ink-950" style={{ transform: "translate(5px, 5px) skewX(-9deg)" }} />
+      <span
+        className={`absolute inset-0 flex flex-col items-center justify-center overflow-hidden border-[2.5px] border-ink-950 text-white ${P5_TONE_CLASS[tone]}`}
+        style={{ transform: "skewX(-9deg)" }}
+      >
+        {/* 左肩の白いスリット(P5的なエッジハイライト) */}
+        <span aria-hidden className="absolute left-0 top-0 h-full w-7 bg-white/15" style={{ transform: "skewX(-9deg) translateX(-6px)" }} />
+        <span className="flex flex-col items-center leading-none" style={{ transform: "skewX(9deg)" }}>
+          {children}
+        </span>
+      </span>
+    </motion.button>
   );
 }
 
@@ -366,49 +415,38 @@ export function ActionBar({
         )}
 
         {/* ボタン配置: 左=パッシブ(フォールド)、中央=コール/チェック、右=アクティブ(ベット/レイズ)。
-            丸型(rounded-full)+極太の黒枠+大胆なタイポのペルソナ5風。押下時は大きく弾ませる。 */}
-        <div className="flex gap-2.5">
+            ペルソナ5風: 斜めに歪んだ平行四辺形+黒のハードなオフセット影+太いイタリック体。 */}
+        <div className="flex gap-3">
           {!canCheck && (
-            <motion.button
-              whileTap={{ scale: 0.88, rotate: -2 }}
-              transition={{ type: "spring", stiffness: 600, damping: 18 }}
-              onClick={() => onAction({ kind: "fold" })}
-              className="flex-1 min-h-[62px] flex items-center justify-center rounded-full bg-azure-500 text-white ring-2 ring-ink-950 transition-transform"
-            >
-              <span className="text-[16px] font-black uppercase tracking-[0.08em] leading-tight">Fold</span>
-            </motion.button>
+            <P5Button tone="fold" tapRotate={-2} onClick={() => onAction({ kind: "fold" })}>
+              <span className="text-[18px] font-black italic uppercase tracking-[0.06em]">Fold</span>
+            </P5Button>
           )}
 
-          <motion.button
-            whileTap={{ scale: 0.88, rotate: canCheck ? 0 : 2 }}
-            transition={{ type: "spring", stiffness: 600, damping: 18 }}
-            onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
-            className="flex-1 min-h-[62px] flex flex-col items-center justify-center rounded-full bg-mint-600 text-white ring-2 ring-ink-950 transition-transform"
-          >
+          <P5Button tone="call" tapRotate={canCheck ? 0 : 2} onClick={() => onAction({ kind: canCheck ? "check" : "call" })}>
             {canCheck ? (
-              <span className="text-[16px] font-black uppercase tracking-[0.08em] leading-tight">Check</span>
+              <span className="text-[18px] font-black italic uppercase tracking-[0.06em]">Check</span>
             ) : (
               <>
-                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">Call</span>
-                <span className="text-[16px] font-black tabular-nums leading-tight">{formatBb(toCall, bigBlind)}</span>
+                <span className="text-[9px] font-black italic uppercase tracking-[0.16em] text-white/85">Call</span>
+                <span className="mt-0.5 text-[18px] font-black italic tabular-nums">{formatBb(toCall, bigBlind)}</span>
               </>
             )}
-          </motion.button>
+          </P5Button>
 
-          <motion.button
-            whileTap={{ scale: 0.88, rotate: 2 }}
-            transition={{ type: "spring", stiffness: 600, damping: 18 }}
+          <P5Button
+            tone="raise"
+            tapRotate={2}
             disabled={raiseDisabled}
             onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-            className="flex-1 min-h-[62px] flex flex-col items-center justify-center rounded-full bg-crimson-500 text-white ring-2 ring-ink-950 transition-transform disabled:opacity-30 disabled:pointer-events-none"
           >
-            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+            <span className="text-[9px] font-black italic uppercase tracking-[0.16em] text-white/85">
               {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
             </span>
-            <span className="text-[16px] font-black tabular-nums leading-tight">
+            <span className="mt-0.5 text-[18px] font-black italic tabular-nums">
               {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
             </span>
-          </motion.button>
+          </P5Button>
         </div>
       </div>
     </div>
