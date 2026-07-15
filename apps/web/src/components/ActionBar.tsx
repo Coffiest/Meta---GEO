@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatBb } from "@/lib/format";
 import type { TimeBankInfo } from "@/lib/socket";
+import { useI18n } from "@/lib/i18n";
 
 interface Preset {
   label: string;
@@ -174,8 +175,9 @@ function computePresets(params: {
   streetContribution: number;
   bigBlind: number;
   effectiveStackBehind: number;
+  t: (key: string) => string;
 }): Preset[] {
-  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind } = params;
+  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, t } = params;
   const clamp = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
 
   // プリフロップでまだ誰もレイズしていない(オープンレイズ想定の)スポットは、bbの倍数プリセット。
@@ -183,7 +185,7 @@ function computePresets(params: {
     const amounts = [...new Set([2, 2.3, 2.5, 3, 4, 5].map((mult) => clamp(Math.round(bigBlind * mult))))];
     return [
       ...amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt })),
-      { label: "オールイン", toAmount: maxRaiseToAmount },
+      { label: t("action.allInPreset"), toAmount: maxRaiseToAmount },
     ];
   }
 
@@ -214,9 +216,9 @@ function computePresets(params: {
 
   const geoAmount = computeGeometricToAmount({ street, potTotal, streetContribution, effectiveStackBehind });
   const geoPreset: Preset[] =
-    geoAmount !== null && !byAmount.has(clamp(geoAmount)) ? [{ label: "ジオメトリック", toAmount: clamp(geoAmount) }] : [];
+    geoAmount !== null && !byAmount.has(clamp(geoAmount)) ? [{ label: t("action.geometric"), toAmount: clamp(geoAmount) }] : [];
 
-  return [...pctPresets, ...geoPreset, { label: "オールイン", toAmount: maxRaiseToAmount }];
+  return [...pctPresets, ...geoPreset, { label: t("action.allInPreset"), toAmount: maxRaiseToAmount }];
 }
 
 export function ActionBar({
@@ -258,6 +260,7 @@ export function ActionBar({
   /** 離席状態をサーバーに通知する(全員の座席に「離席中」を表示するため)。 */
   onToggleAway?: (away: boolean) => void;
 }) {
+  const { t } = useI18n();
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
   // 「チェック/フォールドを予約」: 手番でない間にONにしておくと、次に手番が来た瞬間に
   // 一度だけ自動でチェック(できなければフォールド)する。よくあるポーカーアプリの
@@ -294,14 +297,14 @@ export function ActionBar({
       className="flex items-center gap-2 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
     >
       <Switch on={timeBank.armed} />
-      <span>タイムバンク</span>
+      <span>{t("action.timeBank")}</span>
       <span className="flex items-center gap-1 border-l border-ink-200 pl-2">
         {timeBank.cards > 0 ? (
           Array.from({ length: timeBank.cards }).map((_, i) => (
             <span key={i} className="h-1.5 w-1.5 rounded-full bg-ink-950" />
           ))
         ) : (
-          <span className="text-[10px] text-ink-400">残0</span>
+          <span className="text-[10px] text-ink-400">{t("action.remaining0")}</span>
         )}
       </span>
     </motion.button>
@@ -323,7 +326,7 @@ export function ActionBar({
       className="flex items-center gap-1.5 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
     >
       <Switch on={away} />
-      離席
+      {t("action.away")}
     </motion.button>
   );
 
@@ -338,7 +341,7 @@ export function ActionBar({
 
           <div className="flex gap-3">
             {/* x/f 予約(普段フォールドがある左スロット) */}
-            <P5GhostButton active={checkFoldArmed} onClick={() => setCheckFoldArmed((v) => !v)} ariaLabel="チェック/フォールドを予約">
+            <P5GhostButton active={checkFoldArmed} onClick={() => setCheckFoldArmed((v) => !v)} ariaLabel={t("action.armCheckFold")}>
               <CheckFoldIcon className="h-[18px] w-[18px]" />
               <span className="text-[11px] font-black italic tracking-wide">x / f</span>
             </P5GhostButton>
@@ -372,10 +375,10 @@ export function ActionBar({
                   return next;
                 })
               }
-              ariaLabel="離席"
+              ariaLabel={t("action.away")}
             >
               <AwayIcon className="h-[18px] w-[18px]" />
-              <span className="text-[11px] font-black italic tracking-wide">離席</span>
+              <span className="text-[11px] font-black italic tracking-wide">{t("action.away")}</span>
             </P5GhostButton>
           </div>
         </div>
@@ -387,7 +390,7 @@ export function ActionBar({
   const isRaiseLabel = street === "preflop" || toCall > 0;
   const canGoAllIn = maxRaiseToAmount > 0;
   const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
-  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind });
+  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, t });
   const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
   const sliderRange = Math.max(1, maxRaiseToAmount - minRaiseToAmount);
   const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
