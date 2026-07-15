@@ -130,6 +130,7 @@ export const geoTreeApi = {
     postflopLine: LineStep[];
     ratingRange?: RatingRange;
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
-  /** GTOタブ用: 自社計算したGTO解のノード。v1はプリフロップRFIのみ対応。 */
-  gtoNode: (params: { line: LineStep[] }) => postJson<NodeResult>("/api/geo-tree/gto-node", params),
+  /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。 */
+  gtoNode: (params: { line?: LineStep[]; variant?: "pushfold"; stackBucket?: StackBucket; side?: "jam" | "call" }) =>
+    postJson<NodeResult>("/api/geo-tree/gto-node", params),
 };

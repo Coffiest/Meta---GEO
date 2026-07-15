@@ -3,6 +3,7 @@ import {
   getPreflopNode,
   getPostflopNode,
   buildPreflopGtoNode,
+  buildPushFoldGtoNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -28,11 +29,16 @@ function buildGtoNodeResult(line: LineStep[]) {
   if (gto.unsupported) {
     return { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
   }
+  return toWireNode(gto);
+}
+
+/** GtoNodeResult をWire(NodeResult)形へ変換する。 */
+function toWireNode(gto: ReturnType<typeof buildPreflopGtoNode>) {
   const total = gto.matrix.totalSamples;
   return {
     node: {
       position: gto.position,
-      sampleSize: total,
+      sampleSize: gto.unsupported ? 0 : total,
       isGto: true,
       options: gto.options.map((o) => ({
         bucket: o.bucket,
@@ -138,6 +144,17 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
 
     if (url.pathname === "/api/geo-tree/gto-node" && req.method === "POST") {
       const body = await readJsonBody(req);
+      // variant="pushfold": HUプッシュ/フォールドNash(自社計算)。それ以外はRFI。
+      if (body["variant"] === "pushfold") {
+        const stackBucket = body["stackBucket"];
+        const side = body["side"] === "call" ? "call" : "jam";
+        if (!isStackBucket(stackBucket)) {
+          sendJson(res, 400, { error: "invalid stackBucket" });
+          return true;
+        }
+        sendJson(res, 200, toWireNode(buildPushFoldGtoNode({ stackBucket, side })));
+        return true;
+      }
       const line = parseLine(body["line"] ?? []);
       if (line === null) {
         sendJson(res, 400, { error: "invalid line" });

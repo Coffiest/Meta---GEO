@@ -75,6 +75,9 @@ function GeoDatabase() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
   const [mode, setMode] = useState<"geo" | "gto">("geo");
+  // GTOの表示種別。"rfi"=6-maxオープンレンジ / "pushfold"=HUプッシュ/フォールドNash(自社計算)。
+  const [gtoVariant, setGtoVariant] = useState<"rfi" | "pushfold">("rfi");
+  const [pushFoldSide, setPushFoldSide] = useState<"jam" | "call">("jam");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
@@ -143,7 +146,11 @@ function GeoDatabase() {
 
     const request =
       mode === "gto"
-        ? geoTreeApi.gtoNode({ line: preflopLine })
+        ? geoTreeApi.gtoNode(
+            gtoVariant === "pushfold"
+              ? { variant: "pushfold", stackBucket, side: pushFoldSide }
+              : { line: preflopLine },
+          )
         : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
@@ -172,7 +179,7 @@ function GeoDatabase() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
+  }, [mode, gtoVariant, pushFoldSide, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -373,12 +380,51 @@ function GeoDatabase() {
         {mode === "gto" && (
           <div className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[12px] leading-relaxed px-4 py-3 mb-3">
             <p className="font-black text-ink-950 mb-1">GTO(自社計算・検証用)</p>
-            <p>
-              自力で計算したGTO解です。GTO Wizardと見比べて一致を確認するためのビューア(v1)。現在は
-              <span className="font-bold">プリフロップのRFI(全員フォールドで回ってきた最初の開き)</span>
-              のみ対応。フォールドで手番を進めると各ポジションのオープンレンジを確認できます。
-              エクスプロイト検出は母集団データ蓄積後に解禁予定。
-            </p>
+            {/* GTO種別トグル: RFI / プッシュフォールド(HU Nash)。 */}
+            <div className="flex gap-1.5 my-2">
+              {([
+                ["rfi", "RFI (6-max)"],
+                ["pushfold", "Push/Fold (HU Nash)"],
+              ] as const).map(([v, lbl]) => (
+                <button
+                  key={v}
+                  onClick={() => setGtoVariant(v)}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black tracking-wide transition-colors ${
+                    gtoVariant === v ? "bg-ink-950 text-white" : "bg-white text-ink-500 border border-ink-200"
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+              {gtoVariant === "pushfold" &&
+                ([
+                  ["jam", "SB Jam"],
+                  ["call", "BB Call"],
+                ] as const).map(([sd, lbl]) => (
+                  <button
+                    key={sd}
+                    onClick={() => setPushFoldSide(sd)}
+                    className={`rounded-lg px-2.5 py-1 text-[10px] font-black tracking-wide transition-colors ${
+                      pushFoldSide === sd ? "bg-gold-500 text-white" : "bg-white text-ink-500 border border-ink-200"
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+            </div>
+            {gtoVariant === "rfi" ? (
+              <p>
+                自力計算のGTO解です。GTO Wizardと見比べて検証するビューア(v1)。RFIは
+                <span className="font-bold">プリフロップの最初の開き</span>のみ対応(近似の初期データ)。
+                フォールドで手番を進めると各ポジションのオープンレンジが見られます。
+              </p>
+            ) : (
+              <p>
+                <span className="font-bold">HUプッシュ/フォールドのNash均衡</span>を自力計算した正解データ。
+                スタック帯(設定)ごとに、SBのジャムレンジ/BBのコールレンジを表示。GTO WizardのHU Push/Fold
+                (ICMなしChipEV Nash)チャートと直接照合できます。エクスプロイト検出は母集団データ蓄積後に解禁予定。
+              </p>
+            )}
           </div>
         )}
 
