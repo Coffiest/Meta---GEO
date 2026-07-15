@@ -43,3 +43,6 @@ Deploy成功確認 → 本ログに追記 → 次サイクルを予約。朝(JST
 - **v1.81.0 — タイポグラフィのアンチエイリアス**: body に -webkit-font-smoothing:antialiased /
   -moz-osx-font-smoothing:grayscale / text-rendering:optimizeLegibility を追加し、全画面の文字を
   くっきり端正に(Swiss/Apple寄りの見え方を後押し)。CSSのみ。
+- **v1.85.0 — 細身で控えめなスクロールバー**: 太いOSデフォルトのスクロールバーを避け、
+  `scrollbar-width:thin` と ink系の半透明サム(hoverで濃くなる)に統一。デスクトップや
+  スクロールバー常時表示環境でアプリのトーンに馴染ませる(モバイルのオーバーレイ表示には影響なし)。CSSのみ。
