@@ -425,10 +425,11 @@ function GeoDatabase() {
             )}
             {gtoVariant === "full" ? (
               <p>
-                <span className="font-bold">通常のプリフロップ戦略(fold / オープン2.3bb / ジャム の混合)</span>をCFRで自力計算。
-                BBアンティあり。設定でスタック帯を変えると
-                <span className="font-bold">ディープ=オープン中心 / 〜20bb=オープンとジャムが混合 / 〜10bb以下=ほぼ純プッシュ</span>
-                と遷移します。※ポストフロップはエクイティ実現率で近似のためGTO Wizardと数値は完全一致しません(構造は一致)。
+                <span className="font-bold">通常のオープンレンジ戦略</span>。設定のスタック帯が
+                <span className="font-bold">30bb+ = 100bbオープンレンジ解(GTO Wizard準拠, BBアンティ・レーキなし)</span>、
+                <span className="font-bold">30bb未満 = プッシュ/フォールドNash</span>に切替わります。
+                上のポジションピルで位置選択。UTG/HJ/CO/BTN=オレンジ(オープン)、SB=オレンジ(レイズ)+緑(リンプ)。
+                ※100bbレンジは画像からの転記のため境界セルに誤差あり(指摘で修正します)。
               </p>
             ) : gtoVariant === "rfi" ? (
               <p>

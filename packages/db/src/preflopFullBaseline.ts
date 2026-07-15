@@ -2,7 +2,50 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { cellLabel } from "./geoTree.js";
+import { expandToken } from "./preflopBaseline.js";
 import type { GtoNodeResult } from "./preflopBaseline.js";
+import { PREFLOP_100 } from "./data/preflop100.js";
+
+/** レンジ文字列配列をハンドクラスのSetへ展開する。 */
+function expandRange(tokens: string[]): Set<string> {
+  const s = new Set<string>();
+  for (const t of tokens) for (const c of expandToken(t)) s.add(c);
+  return s;
+}
+
+/**
+ * 100BB(BBアンティ・レーキなしMTT)の提示オープンレンジを13x13で返す。
+ * ユーザー提供のGTO Wizardレンジ(転記)。30〜100bbのオープンレンジ解として使う。
+ * UTG/HJ/CO/BTN=open(オレンジ)/fold(青)。SB=raise(オレンジ)/limp(緑)/fold(青)。
+ */
+export function buildPreflop100Node(heroPos: string): GtoNodeResult {
+  const pos = PREFLOP_100[heroPos];
+  if (!pos) return { position: heroPos, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
+  const raiseSet = expandRange(pos.raise);
+  const limpSet = pos.limp ? expandRange(pos.limp) : null;
+
+  let total = 0, raiseW = 0, limpW = 0, foldW = 0;
+  const cells = Array.from({ length: 13 }, (_, row) =>
+    Array.from({ length: 13 }, (_, col) => {
+      const lbl = cellLabel(row, col);
+      const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
+      total += combos;
+      const byBucket: Record<string, number> = {};
+      if (raiseSet.has(lbl)) { byBucket["raise2-2.5"] = 1; raiseW += combos; }
+      else if (limpSet && limpSet.has(lbl)) { byBucket["call"] = 1; limpW += combos; }
+      else { byBucket["fold"] = 1; foldW += combos; }
+      return { label: lbl, count: combos, byBucket, evByBucket: {} as Record<string, number> };
+    }),
+  );
+
+  const options = [
+    { bucket: "raise2-2.5", frequency: total > 0 ? raiseW / total : 0, geometricRatio: 0, evBb: 0 },
+    ...(limpSet ? [{ bucket: "call", frequency: total > 0 ? limpW / total : 0, geometricRatio: 0, evBb: 0 }] : []),
+    { bucket: "fold", frequency: total > 0 ? foldW / total : 0, geometricRatio: 0, evBb: 0 },
+  ].filter((o) => o.frequency > 0.001);
+
+  return { position: `${heroPos} 30-100bb (raise ${pos.raiseSize}bb)`, options, matrix: { cells, totalSamples: total } };
+}
 
 /**
  * 通常のプリフロップ戦略(fold / open-raise / jam の混合)を読み込み、GTOタブ表示用へ変換する。

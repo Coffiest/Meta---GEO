@@ -7,6 +7,7 @@ import {
   buildPreflopNashNode,
   buildPreflopNashCallNode,
   buildPreflopFullNode,
+  buildPreflop100Node,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -171,7 +172,8 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           sendJson(res, 200, { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } });
           return true;
         }
-        const gto = buildPreflopFullNode({ heroPos, stackBucket: sb });
+        // 30bb以上(30+バケット)= 提示された100bbオープンレンジ解、それ未満 = プッシュ/フォールドNash。
+        const gto = sb === "30+" ? buildPreflop100Node(heroPos) : buildPreflopNashNode({ heroPos, stackBucket: sb });
         sendJson(res, 200, gto.unsupported
           ? { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } }
           : toWireNode(gto));
