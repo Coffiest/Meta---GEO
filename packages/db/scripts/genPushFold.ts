@@ -91,7 +91,7 @@ for (let row = 0; row < 13; row++) {
 
 // 169x169 エクイティ行列(A視点)。対称性 eq(i,j)=1-eq(j,i) を利用。
 // 行列生成は重い(数分)ため、キャッシュがあれば再利用する(Nash反復だけを試行錯誤できる)。
-const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 let eq: number[][];
 if (existsSync(CACHE)) {
   console.error(`[genPushFold] loading cached equity matrix from ${CACHE}`);

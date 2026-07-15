@@ -18,7 +18,7 @@ import { evaluateBest, compareHandRank } from "@meta-geo/engine";
 const SAMPLES = Number(process.env["SAMPLES"] ?? 250);
 const STACKS = Array.from({ length: 30 }, (_, i) => i + 1); // 1..30bb
 const T = Number(process.env["ITERS"] ?? 400);
-const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 const RF_IP = 0.95; // インポジションのエクイティ実現率
 const RF_OOP = 0.82; // アウトオブポジション
 // ポストフロップ・プレイアビリティ係数。オープンしてフロップに行った後、背後のスタックを使って

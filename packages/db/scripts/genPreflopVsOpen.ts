@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 import { PREFLOP_BANDS } from "../src/data/preflop100.js";
 import { expandToken } from "../src/preflopBaseline.js";
 
-const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 const T = 400; // フィクティシャスプレイ反復回数
 
 const RANKS_DESC = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
@@ -76,6 +76,8 @@ function expandRangeTo169(tokens: string[] | undefined): number[] {
 }
 
 const ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+/** ポストフロップ行動順(SBが先、BTNが最後)。IP/OOP判定に使う。 */
+const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
 const POSTED: Record<string, number> = { UTG: 0, HJ: 0, CO: 0, BTN: 0, SB: 0.5, BB: 2.0 }; // BB= blind1 + ante1
 /** バンドキー → スタック深度(bb)。 */
 const BAND_DEPTH: Record<string, number> = { "100": 100, "20": 20, "14": 14 };
@@ -125,6 +127,10 @@ interface DefStrat {
   threeBetFreq: number;
   jamFreq: number;
   threeBetToBb?: number;
+  /** オープナーの vs3bet 応答 hand→[fold,call,jam](3betポットのレンジ導出に使う)。use3betのみ。 */
+  oppVs3?: [number, number, number][];
+  /** オープナーのオープンレンジ(0/1)。3betポットのコーラー範囲の母集合。 */
+  openFreq?: number[];
 }
 
 /**
@@ -142,7 +148,9 @@ function solveDefense(band: string, opener: string, defender: string): DefStrat 
 
   const defIsOOP = defender === "SB" || defender === "BB";
   const use3bet = band === "100";
-  const B3 = use3bet ? Math.min(S, R * (defIsOOP ? 4.2 : 3.3)) : 0;
+  // 3betサイズ: 3bettor(defender)がポストフロップOOPなら大きめ4.2x、IPなら3.3x。
+  const defenderIpForSize = POSTFLOP_ORDER.indexOf(defender) > POSTFLOP_ORDER.indexOf(opener);
+  const B3 = use3bet ? Math.min(S, R * (defenderIpForSize ? 3.3 : 4.2)) : 0;
 
   // 他プレイヤーの死に金(自分とオープナー以外のブラインド+アンティ)。
   let deadOthers = 0;
@@ -161,16 +169,26 @@ function solveDefense(band: string, opener: string, defender: string): DefStrat 
   // ハンド依存実現率(+SPR補正: 浅いほど1へ近づく)。
   const defenderIdx = ORDER.indexOf(defender);
   const playersBehind = ORDER.length - 1 - defenderIdx;
-  const base = posBase(defender, playersBehind);
+  // ポストフロップのIP/OOP(絶対ポジション順)。openBase/r3Boostはこれで決まる。
+  const openerIp = POSTFLOP_ORDER.indexOf(opener) > POSTFLOP_ORDER.indexOf(defender);
+  const defenderIp = !openerIp;
+  // ブラインドのディフェンダーがポストフロップでIP(=SB相手のBB)なら、ポジションで実現率が伸びる。
+  // これがないとBB vs SBが過小防御(実測~14%、目標30-40%)になる。該当は BB vs SB のみ。
+  const blindIpBonus = defender === "BB" && opener === "SB" ? 1.34 : 1.0;
+  const base = posBase(defender, playersBehind) * blindIpBonus;
   const sprCall = (S - R) / potCall;
   const spr3 = use3bet ? (S - B3) / pot3 : 0;
-  const rHand = LABELS.map((l) => sprAdjust(base * playability(l), sprCall));
-  // 3betして(=イニシアチブを持って)コールされたときの実現率は素点よりやや高い。
-  const r3Boost = defIsOOP ? 1.0 : 1.12; // OOPの3betポットは実現率が伸びない
+  const rHand = LABELS.map((l) => sprAdjust(Math.min(1.05, base * playability(l)), sprCall));
+  // 3betしてコールされたときの実現率: 3bettorがポストフロップIPなら伸び、OOPなら伸びない。
+  const r3Boost = defenderIp ? 1.12 : 1.0;
   const rHand3 = LABELS.map((l) => sprAdjust(Math.min(1.05, base * playability(l) * r3Boost), spr3));
-  // オープナー側の実現率(vs3betコール時): SB/BB相手ならIP、IP相手ならOOP。
-  const openBase = defIsOOP ? 1.05 : 0.85;
-  const rOpen = LABELS.map((l) => sprAdjust(openBase * playability(l), spr3));
+  // オープナー側の実現率(vs3betコール時)。オープナーがポストフロップIP(BTN等)ほど、かつワイドなほど
+  // 3betに対して(ポジション+十分な範囲で)よくディフェンスするので実現率を高く取り、ディフェンダーの
+  // 3betフォールドエクイティ過大評価(=3bet過多)を抑える。オープナーがOOP(SB開き)なら3betに降りやすく
+  // 実現率は低め(=BBの3betが増える)。タイトなオープナー(UTG)では元の水準を保ち既知アンカーを崩さない。
+  const openMass = rangeMass(openFreq); // オープナーのレンジ幅(0..1)
+  const openBase = openerIp ? Math.min(1.35, 0.93 + 0.87 * openMass) : Math.min(1.0, 0.75 + 0.4 * openMass);
+  const rOpen = LABELS.map((l) => sprAdjust(Math.min(1.1, openBase * playability(l)), spr3));
   // 100bbバンドではディフェンスのオープンジャムは選択肢から外す(GTO WizardのAllin=0%と一致させる。
   // プレミアムは3betへ吸収される)。
   const useJam = S <= 25;
@@ -290,7 +308,15 @@ function solveDefense(band: string, opener: string, defender: string): DefStrat 
     tf += P[h]! * strat[h]![2]!;
     jf += P[h]! * strat[h]![3]!;
   }
-  return { strat, callFreq: cf, threeBetFreq: tf, jamFreq: jf, threeBetToBb: use3bet ? Math.round(B3 * 10) / 10 : undefined };
+  return {
+    strat,
+    callFreq: cf,
+    threeBetFreq: tf,
+    jamFreq: jf,
+    threeBetToBb: use3bet ? Math.round(B3 * 10) / 10 : undefined,
+    oppVs3: use3bet ? oppVs3 : undefined,
+    openFreq,
+  };
 }
 
 // ==== メイン ====
@@ -313,12 +339,30 @@ for (const band of bands) {
           strat[LABELS[h]!] = [Math.round(c * 100) / 100, Math.round(r3 * 100) / 100, Math.round(j * 100) / 100];
         }
       });
+      // 3betポットのレンジ(タスクB): 3bettor=defenderの3betレンジ、caller=openerのcall-vs-3betレンジ。
+      // どちらも hand→頻度。ポストフロップ導出(gtoPostflop.ts)で使う。use3bet(100bb)のみ。
+      let threeBetRange: Record<string, number> | undefined;
+      let callVs3betRange: Record<string, number> | undefined;
+      if (sol.oppVs3 && sol.openFreq) {
+        threeBetRange = {};
+        callVs3betRange = {};
+        for (let h = 0; h < N; h++) {
+          const r3 = sol.strat[h]![2]!;
+          if (r3 > 0.02) threeBetRange[LABELS[h]!] = Math.round(r3 * 100) / 100;
+          if (sol.openFreq[h]! > 0) {
+            const c3 = sol.oppVs3[h]![1]!;
+            if (c3 > 0.02) callVs3betRange[LABELS[h]!] = Math.round(c3 * 100) / 100;
+          }
+        }
+      }
       (out[band]![opener] as Record<string, unknown>)[defender] = {
         callFreq: Math.round(sol.callFreq * 1000) / 1000,
         threeBetFreq: Math.round(sol.threeBetFreq * 1000) / 1000,
         jamFreq: Math.round(sol.jamFreq * 1000) / 1000,
         threeBetToBb: sol.threeBetToBb,
         strat,
+        ...(threeBetRange && Object.keys(threeBetRange).length ? { threeBetRange } : {}),
+        ...(callVs3betRange && Object.keys(callVs3betRange).length ? { callVs3betRange } : {}),
       };
       console.error(
         `  band=${band} ${opener}(open ${PREFLOP_BANDS[band]![opener]!.raiseSize}bb) vs ${defender}: call=${(sol.callFreq * 100).toFixed(1)}% 3bet=${(sol.threeBetFreq * 100).toFixed(1)}% jam=${(sol.jamFreq * 100).toFixed(1)}%`,

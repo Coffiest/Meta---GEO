@@ -16,6 +16,10 @@ interface VsOpenEntry {
   jamFreq: number;
   threeBetToBb?: number;
   strat: Record<string, [number, number, number]>;
+  /** 3betポット用(タスクB): defenderの3betレンジ hand→頻度。 */
+  threeBetRange?: Record<string, number>;
+  /** 3betポット用(タスクB): openerのcall-vs-3betレンジ hand→頻度。 */
+  callVs3betRange?: Record<string, number>;
 }
 interface VsOpenData {
   model: string;
@@ -105,4 +109,21 @@ export function getVsOpenCallRange(band: string, opener: string, defender: strin
     if (c > 0.02) out[label] = c;
   }
   return out;
+}
+
+/** (band, opener, defender) の 3bettor(=defender)の3betレンジ hand→頻度。未整備なら null。 */
+export function getVsOpen3betRange(band: string, opener: string, defender: string): Record<string, number> | null {
+  const r = DATA.bands[band]?.[opener]?.[defender]?.threeBetRange;
+  return r && Object.keys(r).length ? r : null;
+}
+
+/** (band, opener, defender) の opener の call-vs-3bet レンジ hand→頻度。未整備なら null。 */
+export function getVsOpenCallVs3betRange(band: string, opener: string, defender: string): Record<string, number> | null {
+  const r = DATA.bands[band]?.[opener]?.[defender]?.callVs3betRange;
+  return r && Object.keys(r).length ? r : null;
+}
+
+/** (band, opener, defender) の3betサイズ(bb)。未整備なら undefined。 */
+export function getVsOpen3betToBb(band: string, opener: string, defender: string): number | undefined {
+  return DATA.bands[band]?.[opener]?.[defender]?.threeBetToBb;
 }

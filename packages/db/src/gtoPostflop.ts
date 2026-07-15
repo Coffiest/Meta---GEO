@@ -4,7 +4,7 @@ import { cellLabel } from "./geoTree.js";
 import { expandToken } from "./preflopBaseline.js";
 import type { GtoNodeResult } from "./preflopBaseline.js";
 import { PREFLOP_BANDS } from "./data/preflop100.js";
-import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
+import { getVsOpenCallRange, getVsOpen3betRange, getVsOpenCallVs3betRange, getVsOpen3betToBb } from "./preflopVsOpenBaseline.js";
 import { canonicalizeBoard, spotKeyOf } from "./solverSpot.js";
 
 /**
@@ -176,22 +176,23 @@ function expandNode(cn: CompactGtoNode): GtoNodeResult {
 /** ソルバー版・ベットツリー識別子(spotKey/betTreeに反映)。解の形式を変えたら上げる。 */
 export const GTO_POSTFLOP_SOLVER_VERSION = "cfr-srp-0.75-v1";
 
-/** 永続キャッシュ用の spotKey コンポーネント(GtoSolutionの各カラムにも使う)。 */
-export function gtoPostflopSpotComponents(band: string, opener: string, defender: string, board: string[]) {
+/** 永続キャッシュ用の spotKey コンポーネント(GtoSolutionの各カラムにも使う)。
+ * actionLine: "srp"=シングルレイズドポット / "3bp"=3betポット。 */
+export function gtoPostflopSpotComponents(band: string, opener: string, defender: string, board: string[], actionLine: string = "srp") {
   const street = board.length === 3 ? "flop" : board.length === 4 ? "turn" : "river";
   return {
     street,
     effStackBucket: band,
     heroPos: `${opener}v${defender}`,
     boardCanon: canonicalizeBoard(board),
-    actionLine: "srp",
+    actionLine,
     betTree: GTO_POSTFLOP_SOLVER_VERSION,
   };
 }
 
 /** スート正規化込みの決定的 spotKey。suit-isomorphicなボードは同一キーに集約される。 */
-export function gtoPostflopSpotKey(band: string, opener: string, defender: string, board: string[]): string {
-  return spotKeyOf(gtoPostflopSpotComponents(band, opener, defender, board));
+export function gtoPostflopSpotKey(band: string, opener: string, defender: string, board: string[], actionLine: string = "srp"): string {
+  return spotKeyOf(gtoPostflopSpotComponents(band, opener, defender, board, actionLine));
 }
 
 /** ソルバー品質オーバーライド(事前計算バッチ用。省略時はSTREET_BUDGETの既定)。 */
@@ -210,53 +211,48 @@ export interface GtoPostflopSpotParams {
   quality?: GtoPostflopQuality;
 }
 
-/**
- * SRP(オープン→コール)のHUポストフロップ・スポットを解き、ノード問い合わせハンドルを返す。
- * 解けない(バンド/ペア未整備・不正ボード)なら null。
- */
-export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Promise<GtoPostflopSpotHandle | null> {
-  const S = BAND_DEPTH[params.band];
-  const openPos = PREFLOP_BANDS[params.band]?.[params.openerPos];
-  if (!S || !openPos || !openPos.raise) return null;
-  const callRange = getVsOpenCallRange(params.band, params.openerPos, params.defenderPos);
-  if (!callRange) return null;
-  const board = params.board.map((c) => parseCard(c));
-  if (board.some((c) => !c) || board.length < 3 || board.length > 5) return null;
-  const budget = STREET_BUDGET[board.length]!;
-
-  // レンジ構築。
-  const openRange: Record<string, number> = {};
-  for (const t of openPos.raise) for (const cls of expandToken(t)) openRange[cls] = 1;
-  const openerCombos = expandClassCombos(openRange);
-  const callerCombos = expandClassCombos(callRange);
-
-  // OOP = ポストフロップで先に行動する側。
-  const openerIsOop = POSTFLOP_ORDER.indexOf(params.openerPos) < POSTFLOP_ORDER.indexOf(params.defenderPos);
-  const oop = openerIsOop ? openerCombos : callerCombos;
-  const ip = openerIsOop ? callerCombos : openerCombos;
-
-  // ポット/スタック(ChipEV, BBアンティ)。genPreflopVsOpen と同じ会計。
-  const R = openPos.raiseSize;
+/** 他プレイヤーの死に金(自分とヒーロー2人以外のブラインド+BBアンティ)。 */
+function deadOthersOf(openerPos: string, defenderPos: string): number {
   let deadOthers = 0;
   for (const b of ["SB", "BB"] as const) {
-    if (b === params.openerPos || b === params.defenderPos) continue;
+    if (b === openerPos || b === defenderPos) continue;
     deadOthers += b === "SB" ? 0.5 : 2.0;
   }
-  const anteExtra = params.defenderPos === "BB" ? 1 : 0;
-  const potBb = R + anteExtra + R + deadOthers;
-  const stackBb = S - R;
+  return deadOthers;
+}
 
-  const q = params.quality;
+/**
+ * レンジ+ポット/スタックを与えてHUポストフロップを解き、ノード問い合わせハンドルを返す(SRP/3bet共通コア)。
+ * heroForLabels は heroPos ラベル解決用に openerPos/defenderPos だけを保持する。
+ */
+async function solveRangedSpot(args: {
+  openerPos: string;
+  defenderPos: string;
+  openerCombos: HandCombo[];
+  callerCombos: HandCombo[];
+  board: Card[];
+  potBb: number;
+  stackBb: number;
+  quality?: GtoPostflopQuality | undefined;
+}): Promise<GtoPostflopSpotHandle> {
+  const budget = STREET_BUDGET[args.board.length]!;
+  // OOP = ポストフロップで先に行動する側(絶対ポジション順)。
+  const openerIsOop = POSTFLOP_ORDER.indexOf(args.openerPos) < POSTFLOP_ORDER.indexOf(args.defenderPos);
+  const oop = openerIsOop ? args.openerCombos : args.callerCombos;
+  const ip = openerIsOop ? args.callerCombos : args.openerCombos;
+  const params: GtoPostflopSpotParams = { band: "", openerPos: args.openerPos, defenderPos: args.defenderPos, board: [] };
+
+  const q = args.quality;
   const iterations = q?.iterations ?? budget.iterations;
   const sampleChance = q?.sampleChance ?? budget.sampleChance;
   const betSizes = q?.betSizes ?? [0.75];
 
   const handle = await solvePostflopHuAsync({
-    board: board as Card[],
+    board: args.board,
     oop,
     ip,
-    potBb,
-    stackBb,
+    potBb: args.potBb,
+    stackBb: args.stackBb,
     betSizes,
     allowRaise: true,
     iterations,
@@ -271,6 +267,87 @@ export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Pro
       return snapshotSpot(handle.queryNode, params, openerIsOop);
     },
   };
+}
+
+/**
+ * SRP(オープン→コール)のHUポストフロップ・スポットを解き、ノード問い合わせハンドルを返す。
+ * 解けない(バンド/ペア未整備・不正ボード)なら null。
+ */
+export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Promise<GtoPostflopSpotHandle | null> {
+  const S = BAND_DEPTH[params.band];
+  const openPos = PREFLOP_BANDS[params.band]?.[params.openerPos];
+  if (!S || !openPos || !openPos.raise) return null;
+  const callRange = getVsOpenCallRange(params.band, params.openerPos, params.defenderPos);
+  if (!callRange) return null;
+  const board = params.board.map((c) => parseCard(c));
+  if (board.some((c) => !c) || board.length < 3 || board.length > 5) return null;
+
+  // レンジ構築: オープナー=転記オープンレンジ / コーラー=vsオープンのコールレンジ。
+  const openRange: Record<string, number> = {};
+  for (const t of openPos.raise) for (const cls of expandToken(t)) openRange[cls] = 1;
+  const openerCombos = expandClassCombos(openRange);
+  const callerCombos = expandClassCombos(callRange);
+
+  // ポット/スタック(ChipEV, BBアンティ)。genPreflopVsOpen と同じ会計。
+  const R = openPos.raiseSize;
+  const deadOthers = deadOthersOf(params.openerPos, params.defenderPos);
+  const anteExtra = params.defenderPos === "BB" ? 1 : 0;
+  const potBb = R + anteExtra + R + deadOthers;
+  const stackBb = S - R;
+
+  return solveRangedSpot({
+    openerPos: params.openerPos,
+    defenderPos: params.defenderPos,
+    openerCombos,
+    callerCombos,
+    board: board as Card[],
+    potBb,
+    stackBb,
+    quality: params.quality,
+  });
+}
+
+/**
+ * 3betポット(オープン→3bet→コール)のHUポストフロップ・スポットを解く。
+ * - 3bettor = defender(vsオープンの3betレンジ)。caller = opener(オープナーのcall-vs-3betレンジ)。
+ * - ポット/スタック会計は genPreflopVsOpen の pot3/i3(BBアンティ)と同式。
+ * データ未整備(3betレンジ/コールレンジ欠如)や不正ボードなら null。
+ */
+export async function prepareGto3betPostflopSpot(params: GtoPostflopSpotParams): Promise<GtoPostflopSpotHandle | null> {
+  const S = BAND_DEPTH[params.band];
+  const openPos = PREFLOP_BANDS[params.band]?.[params.openerPos];
+  if (!S || !openPos || !openPos.raise) return null;
+  const threeBetRange = getVsOpen3betRange(params.band, params.openerPos, params.defenderPos);
+  const callVs3betRange = getVsOpenCallVs3betRange(params.band, params.openerPos, params.defenderPos);
+  const threeBetToBb = getVsOpen3betToBb(params.band, params.openerPos, params.defenderPos);
+  if (!threeBetRange || !callVs3betRange || !threeBetToBb) return null;
+  if (Object.keys(threeBetRange).length === 0 || Object.keys(callVs3betRange).length === 0) return null;
+  const board = params.board.map((c) => parseCard(c));
+  if (board.some((c) => !c) || board.length < 3 || board.length > 5) return null;
+
+  // 3bettor=defender / caller=opener。combos は頻度加重。
+  const threeBettorCombos = expandClassCombos(threeBetRange);
+  const callerCombos = expandClassCombos(callVs3betRange);
+
+  // ポット/スタック: genPreflopVsOpen と同式。i3=B3+anteExtra, pot3=i3+B3+deadOthers, stack=S-B3。
+  const B3 = threeBetToBb;
+  const deadOthers = deadOthersOf(params.openerPos, params.defenderPos);
+  const anteExtra = params.defenderPos === "BB" ? 1 : 0;
+  const i3 = B3 + anteExtra;
+  const potBb = i3 + B3 + deadOthers;
+  const stackBb = S - B3;
+
+  // solveRangedSpot は openerCombos=caller(opener) / callerCombos=3bettor(defender) を期待する。
+  return solveRangedSpot({
+    openerPos: params.openerPos,
+    defenderPos: params.defenderPos,
+    openerCombos: callerCombos, // opener = caller(vs3betでコールした側)
+    callerCombos: threeBettorCombos, // defender = 3bettor
+    board: board as Card[],
+    potBb,
+    stackBb,
+    quality: params.quality,
+  });
 }
 
 /**
