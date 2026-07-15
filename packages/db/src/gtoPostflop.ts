@@ -118,12 +118,59 @@ export interface GtoPostflopSpotHandle {
 }
 
 /**
- * スポットの全ノード戦略を「postflopLineバケット列 → 13x13集約結果」の辞書としてシリアライズしたもの。
- * DB(GtoSolution.solution)へそのまま保存でき、復元ハンドルは辞書引きで軽量にノードを返す。
+ * ノード戦略のコンパクト表現(DB保存/転送用)。フル13x13グリッドは冗長なので
+ * 有効(レンジ内)セルだけを疎に保存し、復元時に完全グリッドへ展開する。
+ * - p: 手番ポジション / o: レンジ全体のアクション分布 [bucket, freq]
+ * - a: 有効セル [rc(=row*13+col), [[bucket, freq]...]] / t: totalSamples
+ * 頻度は4桁丸めでサイズを抑える。
+ */
+export interface CompactGtoNode {
+  p: string | null;
+  o: [string, number][];
+  a: [number, [string, number][]][];
+  t: number;
+}
+
+/**
+ * スポットの全ノード戦略を「postflopLineバケット列 → コンパクトノード」の辞書としてシリアライズしたもの。
+ * DB(GtoSolution.solution)へそのまま保存でき、復元ハンドルは辞書引き+展開で軽量にノードを返す。
  * ルート(アクション無し)のキーは空文字。ライン区切りは "|"。
  */
 export interface GtoPostflopSpotSnapshot {
-  nodes: Record<string, GtoNodeResult>;
+  nodes: Record<string, CompactGtoNode>;
+}
+
+/** GtoNodeResult → コンパクトノード(有効セルのみ疎に保持)。 */
+function compactNode(r: GtoNodeResult): CompactGtoNode {
+  const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const a: [number, [string, number][]][] = [];
+  r.matrix.cells.forEach((row, ri) =>
+    row.forEach((cell, ci) => {
+      if (cell.count > 0) {
+        const bb = Object.entries(cell.byBucket).map(([b, f]) => [b, round4(f)] as [string, number]);
+        a.push([ri * 13 + ci, bb]);
+      }
+    }),
+  );
+  return { p: r.position, o: r.options.map((o) => [o.bucket, round4(o.frequency)] as [string, number]), a, t: r.matrix.totalSamples };
+}
+
+/** コンパクトノード → GtoNodeResult(完全13x13グリッドへ展開)。 */
+function expandNode(cn: CompactGtoNode): GtoNodeResult {
+  const activeMap = new Map<number, [string, number][]>();
+  for (const [rc, bb] of cn.a) activeMap.set(rc, bb);
+  const cells = Array.from({ length: 13 }, (_, row) =>
+    Array.from({ length: 13 }, (_, col) => {
+      const lbl = cellLabel(row, col);
+      const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
+      const active = activeMap.get(row * 13 + col);
+      const byBucket: Record<string, number> = {};
+      if (active) for (const [b, f] of active) byBucket[b] = f;
+      return { label: lbl, count: active ? combos : 0, byBucket, evByBucket: {} as Record<string, number> };
+    }),
+  );
+  const options = cn.o.map(([bucket, frequency]) => ({ bucket, frequency, geometricRatio: 0, evBb: 0 }));
+  return { position: cn.p, options, matrix: { cells, totalSamples: cn.t } };
 }
 
 /** ソルバー版・ベットツリー識別子(spotKey/betTreeに反映)。解の形式を変えたら上げる。 */
@@ -147,11 +194,20 @@ export function gtoPostflopSpotKey(band: string, opener: string, defender: strin
   return spotKeyOf(gtoPostflopSpotComponents(band, opener, defender, board));
 }
 
+/** ソルバー品質オーバーライド(事前計算バッチ用。省略時はSTREET_BUDGETの既定)。 */
+export interface GtoPostflopQuality {
+  iterations?: number;
+  sampleChance?: number;
+  betSizes?: number[];
+}
+
 export interface GtoPostflopSpotParams {
   band: string; // "100" | "20" | "14"
   openerPos: string;
   defenderPos: string;
   board: string[]; // "As" 形式 3〜5枚
+  /** 事前計算時に反復数/チャンスサンプル/ベットサイズを上書き(オンデマンドは未指定=既定)。 */
+  quality?: GtoPostflopQuality;
 }
 
 /**
@@ -190,16 +246,21 @@ export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Pro
   const potBb = R + anteExtra + R + deadOthers;
   const stackBb = S - R;
 
+  const q = params.quality;
+  const iterations = q?.iterations ?? budget.iterations;
+  const sampleChance = q?.sampleChance ?? budget.sampleChance;
+  const betSizes = q?.betSizes ?? [0.75];
+
   const handle = await solvePostflopHuAsync({
     board: board as Card[],
     oop,
     ip,
     potBb,
     stackBb,
-    betSizes: [0.75],
+    betSizes,
     allowRaise: true,
-    iterations: budget.iterations,
-    ...(budget.sampleChance !== undefined ? { sampleChance: budget.sampleChance } : {}),
+    iterations,
+    ...(sampleChance !== undefined ? { sampleChance } : {}),
   });
 
   return {
@@ -222,23 +283,23 @@ function snapshotSpot(
   params: GtoPostflopSpotParams,
   openerIsOop: boolean,
 ): GtoPostflopSpotSnapshot {
-  const nodes: Record<string, GtoNodeResult> = {};
+  const nodes: Record<string, CompactGtoNode> = {};
   const rec = (solverPath: string[], bucketPath: string[]): void => {
     const node = queryNode(solverPath);
     if (!node) return;
-    nodes[bucketPath.join("|")] = nodeStrategyToResult(node, params, openerIsOop);
+    nodes[bucketPath.join("|")] = compactNode(nodeStrategyToResult(node, params, openerIsOop));
     node.actions.forEach((act) => rec([...solverPath, act], [...bucketPath, toBucket(act)]));
   };
   rec([], []);
   return { nodes };
 }
 
-/** スナップショットから軽量な問い合わせハンドルを復元する(辞書引きのみ)。 */
+/** スナップショットから軽量な問い合わせハンドルを復元する(辞書引き+展開)。 */
 export function deserializeGtoPostflopSpot(snapshot: GtoPostflopSpotSnapshot): GtoPostflopSpotHandle {
   return {
     nodeFor(postflopLine: string[]): GtoNodeResult {
       const hit = snapshot.nodes[postflopLine.join("|")];
-      return hit ?? { position: null, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
+      return hit ? expandNode(hit) : { position: null, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
     },
   };
 }

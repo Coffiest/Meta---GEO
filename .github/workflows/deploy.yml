@@ -43,6 +43,12 @@ jobs:
         run: pnpm --filter @meta-geo/db exec tsx scripts/seedGtoSolutions.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # 事前計算したSRPポストフロップ解(src/data/postflopSolutions.json)を GtoSolution へ冪等投入する。
+      # バンドルはリポジトリ同梱(genPostflopSolutions.tsで生成)。未同梱ならスキップされる。
+      - name: Seed GTO postflop solutions
+        run: pnpm --filter @meta-geo/db exec tsx scripts/seedGtoPostflopSolutions.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   deploy-server:
     needs: migrate-db
