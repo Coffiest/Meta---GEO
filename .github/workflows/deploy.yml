@@ -38,6 +38,11 @@ jobs:
       - run: pnpm --filter @meta-geo/db exec prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # プリコンピュートした6-maxプリフロップNash(BBアンティ)を GtoSolution へ冪等投入する。
+      - name: Seed GTO solutions
+        run: pnpm --filter @meta-geo/db exec tsx scripts/seedGtoSolutions.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   deploy-server:
     needs: migrate-db

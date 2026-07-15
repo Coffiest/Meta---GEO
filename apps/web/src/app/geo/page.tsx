@@ -130,7 +130,7 @@ function GeoDatabase() {
         ? geoTreeApi.gtoNode(
             gtoVariant === "pushfold"
               ? { variant: "pushfold", stackBucket, side: pushFoldSide }
-              : { line: preflopLine },
+              : { line: preflopLine, stackBucket },
           )
         : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
@@ -364,8 +364,8 @@ function GeoDatabase() {
             {/* GTO種別トグル: RFI / プッシュフォールド(HU Nash)。 */}
             <div className="flex gap-1.5 my-2">
               {([
-                ["rfi", "RFI (6-max)"],
-                ["pushfold", "Push/Fold (HU Nash)"],
+                ["rfi", "6-max オープン (Nash)"],
+                ["pushfold", "HU Push/Fold"],
               ] as const).map(([v, lbl]) => (
                 <button
                   key={v}
@@ -395,9 +395,10 @@ function GeoDatabase() {
             </div>
             {gtoVariant === "rfi" ? (
               <p>
-                自力計算のGTO解です。GTO Wizardと見比べて検証するビューア(v1)。RFIは
-                <span className="font-bold">プリフロップの最初の開き</span>のみ対応(近似の初期データ)。
-                フォールドで手番を進めると各ポジションのオープンレンジが見られます。
+                <span className="font-bold">BBアンティありトーナメントの6-maxマルチウェイ・プッシュ/フォールドNash</span>
+                を自力計算した開き(シューブ)レンジ。設定でスタック帯を変え、フォールドで手番を進めると
+                <span className="font-bold">全ポジション(UTG→HJ→CO→BTN→SB)×全スタック</span>の開きレンジが見られます。
+                アンティを含むためレンジは広め。GTO WizardのNash/ICMなしチャートと照合してください。
               </p>
             ) : (
               <p>
