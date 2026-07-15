@@ -53,7 +53,7 @@ export function Footer({
   const c = FOOTER_TONE[tone];
 
   return (
-    <nav className={`fixed bottom-0 inset-x-0 border-t backdrop-blur pb-[env(safe-area-inset-bottom)] ${c.bar}`}>
+    <nav className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)] ${c.bar}`}>
       <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
         {[items[0], items[1], null, items[2], items[3]].map((item, i) =>
           item ? (
