@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
@@ -93,11 +94,14 @@ export function TournamentResultScreen({
   info,
   accessToken,
   statsBefore,
+  tournamentId,
   onExit,
 }: {
   info: TournamentOverInfo;
   accessToken: string | undefined;
   statsBefore: ResultStatsSnapshot | null;
+  /** このトーナメントのDB ID。あれば「棋譜解析へ」導線を出す。 */
+  tournamentId?: string | null;
   onExit: () => void;
 }) {
   const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
@@ -221,9 +225,22 @@ export function TournamentResultScreen({
           </div>
         )}
 
+        {/* 棋譜解析(局後検討)への導線。tournamentIdがあるときだけ表示。 */}
+        {tournamentId && (
+          <Link
+            href={`/review/tournament/${tournamentId}`}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+              <path d="M4 19V5M4 15l4-4 3 3 6-6M14 8h3v3" />
+            </svg>
+            棋譜解析で振り返る
+          </Link>
+        )}
+
         <button
           onClick={onExit}
-          className="mt-6 w-full rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
+          className={`w-full rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98] ${tournamentId ? "mt-2.5" : "mt-6"}`}
         >
           ロビーへ戻る
         </button>
