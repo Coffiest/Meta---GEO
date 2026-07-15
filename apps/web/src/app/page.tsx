@@ -16,6 +16,7 @@ import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
+import { useI18n } from "@/lib/i18n";
 
 const SEAT_COUNT = 6;
 
@@ -510,6 +511,7 @@ function LoadingScreen() {
 }
 
 export default function Page() {
+  const { t } = useI18n();
   const auth = useAuth();
   const accessToken = auth.session?.access_token;
   const { profile, loading: profileLoading, reload } = useProfile(accessToken);
@@ -577,7 +579,7 @@ export default function Page() {
   if (!auth.authAvailable) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm px-6 text-center">
-        ログイン機能が設定されていません。管理者にお問い合わせください。
+        {t("app.authUnavailable")}
       </div>
     );
   }
@@ -588,9 +590,9 @@ export default function Page() {
   if (!profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6">
-        <p className="text-sm text-ink-800">プロフィールの取得に失敗しました。</p>
+        <p className="text-sm text-ink-800">{t("app.profileFetchFailed")}</p>
         <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
-          再試行
+          {t("app.retry")}
         </button>
       </div>
     );
@@ -600,17 +602,17 @@ export default function Page() {
   if (!profile.onboarded || editingProfile) {
     return (
       <Onboarding
-        title={profile.onboarded ? "プロフィールを編集" : "プロフィールを設定"}
+        title={profile.onboarded ? t("onb.editTitle") : t("onb.setupTitle")}
         initialName={profile.onboarded ? profile.displayName : ""}
         initialAvatarKey={profile.avatarKey}
-        submitLabel={profile.onboarded ? "保存する" : "はじめる"}
+        submitLabel={profile.onboarded ? t("onb.save") : t("onb.start")}
         saving={saving}
         error={saveError}
         onSubmit={(params) => {
           setSaving(true);
           setSaveError(null);
           void saveProfile(accessToken!, params).then(async (saved) => {
-            if (!saved) setSaveError("保存に失敗しました。もう一度お試しください。");
+            if (!saved) setSaveError(t("onb.saveFailed"));
             else await reload();
             setSaving(false);
             setEditingProfile(false);
