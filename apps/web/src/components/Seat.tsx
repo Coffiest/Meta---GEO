@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatBb } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 
 export type SeatBadgeTone = "raise" | "call" | "fold" | "win" | "lose";
 
@@ -170,6 +171,7 @@ export function Seat({
   onChatClick,
   handRankLabel = null,
 }: SeatViewProps) {
+  const { t } = useI18n();
   const isEmpty = status === "empty";
   const folded = status === "folded";
   // フォールドした席は手札を見せる意味がないため、伏せカードごと表示しない。
@@ -252,7 +254,7 @@ export function Seat({
           <button
             type="button"
             onClick={onChatClick}
-            aria-label="チャット"
+            aria-label={t("seat.chat")}
             className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-ink-950 bg-white text-ink-800 transition-transform active:scale-90"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5">
@@ -298,7 +300,7 @@ export function Seat({
               {away && status !== "allIn" && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-ink-500">
                   <span className="h-1.5 w-1.5 rounded-full bg-ink-400" />
-                  離席中
+                  {t("seat.away")}
                 </div>
               )}
             </div>
