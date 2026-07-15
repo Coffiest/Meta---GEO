@@ -5,6 +5,7 @@ import {
   buildPreflopGtoNode,
   buildPushFoldGtoNode,
   buildPreflopNashNode,
+  buildPreflopNashCallNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -22,16 +23,25 @@ const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
  * フェイス(非フォールドが含まれる)やBB・データ未整備は sampleSize=0(UIは「データ未整備」)。
  */
 function buildGtoNodeResult(line: LineStep[], stackBucket: StackBucket) {
-  const facedRaise = line.some((s) => s.bucket !== "fold");
   const heroPos = PREFLOP_ORDER[line.length] ?? "";
-  if (facedRaise || heroPos === "" || heroPos === "BB") {
-    return { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+  const nonFold = line.filter((s) => s.bucket !== "fold");
+  const unsupported = { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+  if (heroPos === "") return unsupported;
+
+  // 全員フォールドで回ってきた → そのポジションの開き(シューブ)レンジ。
+  if (nonFold.length === 0) {
+    if (heroPos === "BB") return unsupported; // BBは開かない
+    const gto = buildPreflopNashNode({ heroPos, stackBucket });
+    return gto.unsupported ? unsupported : toWireNode(gto);
   }
-  const gto = buildPreflopNashNode({ heroPos, stackBucket });
-  if (gto.unsupported) {
-    return { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+
+  // ちょうど1人がジャム → それに直面したコール(ディフェンス)レンジ。
+  if (nonFold.length === 1 && nonFold[0]!.bucket === "allIn") {
+    const gto = buildPreflopNashCallNode({ jammerPos: nonFold[0]!.position, callerPos: heroPos, stackBucket });
+    return gto.unsupported ? unsupported : toWireNode(gto);
   }
-  return toWireNode(gto);
+
+  return unsupported;
 }
 
 /** GtoNodeResult をWire(NodeResult)形へ変換する。 */

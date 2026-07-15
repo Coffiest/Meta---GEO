@@ -14,9 +14,15 @@ interface PosData {
   jamFreq: number;
   jam: Record<string, number>;
 }
+interface CallData {
+  callFreq: number;
+  call: Record<string, number>;
+}
 interface StackData {
   s: number;
   positions: Record<string, PosData>;
+  /** vsJam[jammerPos][callerPos] = ジャムに直面したときのコール(ディフェンス)レンジ。 */
+  vsJam?: Record<string, Record<string, CallData>>;
 }
 interface NashData {
   model: string;
@@ -94,6 +100,45 @@ export function buildPreflopNashNode(params: { heroPos: string; stackBucket: str
   ].filter((o) => o.frequency > 0);
 
   return { position: `${params.heroPos} ${stack.s}bb`, options, matrix: { cells, totalSamples: total } };
+}
+
+/**
+ * GTOタブ用: ジャムに直面したときのコール(ディフェンス)レンジを13x13で返す。
+ * jammerPos のジャムに対する callerPos のコール範囲。データ未整備なら unsupported。
+ */
+export function buildPreflopNashCallNode(params: {
+  jammerPos: string;
+  callerPos: string;
+  stackBucket: string;
+}): GtoNodeResult {
+  const stack = nearestStack(BUCKET_DEPTH[params.stackBucket] ?? 12);
+  const cd = stack?.vsJam?.[params.jammerPos]?.[params.callerPos];
+  if (!stack || !cd) {
+    return { position: params.callerPos, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
+  }
+
+  let total = 0;
+  let inCombos = 0;
+  const cells = Array.from({ length: 13 }, (_, row) =>
+    Array.from({ length: 13 }, (_, col) => {
+      const lbl = cellLabel(row, col);
+      const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
+      total += combos;
+      const f = Math.max(0, Math.min(1, cd.call[lbl] ?? 0));
+      inCombos += combos * f;
+      const byBucket: Record<string, number> = {};
+      if (f > 0) byBucket["call"] = f;
+      if (1 - f > 0) byBucket["fold"] = 1 - f;
+      return { label: lbl, count: combos, byBucket, evByBucket: {} as Record<string, number> };
+    }),
+  );
+  const freq = total > 0 ? inCombos / total : 0;
+  const options = [
+    { bucket: "call", frequency: freq, geometricRatio: 0, evBb: 0 },
+    { bucket: "fold", frequency: 1 - freq, geometricRatio: 0, evBb: 0 },
+  ].filter((o) => o.frequency > 0);
+
+  return { position: `${params.callerPos} vs ${params.jammerPos} jam ${stack.s}bb`, options, matrix: { cells, totalSamples: total } };
 }
 
 /** データにあるスタック深度の一覧。 */

@@ -239,15 +239,32 @@ function solveStack(S: number) {
     });
     positions[p] = { jamFreq: jf, jam };
   });
-  return positions;
+
+  // ジャムに直面したときのコール(ディフェンス)レンジ。vsJam[jammerPos][callerPos]。
+  const vsJam: Record<string, Record<string, { callFreq: number; call: Record<string, number> }>> = {};
+  for (const p of OPENERS) {
+    vsJam[p] = {};
+    for (const i of callers[p]!) {
+      const arr = callAvg[p]![i]!;
+      const call: Record<string, number> = {};
+      let cf = 0;
+      cells.forEach((c, idx) => {
+        const f = Math.round(arr[idx]! * 1000) / 1000;
+        if (f > 0.01) call[c.label] = f;
+        cf += P[idx]! * arr[idx]!;
+      });
+      vsJam[p]![i] = { callFreq: cf, call };
+    }
+  }
+  return { positions, vsJam };
 }
 
 console.error(`[genPreflopNash] solving ${STACKS.length} stacks x ${OPENERS.length} positions (BB ante)...`);
 const stacks = STACKS.map((S) => {
-  const positions = solveStack(S);
+  const { positions, vsJam } = solveStack(S);
   const summary = OPENERS.map((p) => `${p}:${(positions[p]!.jamFreq * 100).toFixed(0)}%`).join(" ");
   console.error(`  S=${S}bb  ${summary}`);
-  return { s: S, positions };
+  return { s: S, positions, vsJam };
 });
 
 const out = { model: "6max-pushfold-nash-bbante-chipev", samples: SAMPLES, ante: "BB", stacks };

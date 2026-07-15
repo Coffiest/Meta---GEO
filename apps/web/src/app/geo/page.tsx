@@ -398,6 +398,7 @@ function GeoDatabase() {
                 <span className="font-bold">BBアンティありトーナメントの6-maxマルチウェイ・プッシュ/フォールドNash</span>
                 を自力計算した開き(シューブ)レンジ。設定でスタック帯を変え、フォールドで手番を進めると
                 <span className="font-bold">全ポジション(UTG→HJ→CO→BTN→SB)×全スタック</span>の開きレンジが見られます。
+                さらに、誰かの「Allin」を選ぶと<span className="font-bold">それに直面したコール(ディフェンス)レンジ</span>も表示。
                 アンティを含むためレンジは広め。GTO WizardのNash/ICMなしチャートと照合してください。
               </p>
             ) : (
