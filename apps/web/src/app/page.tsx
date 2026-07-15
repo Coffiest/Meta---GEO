@@ -382,9 +382,12 @@ function GameScreen({
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-full bg-ink-950 px-5 py-2.5 text-sm font-black text-white active:scale-95 transition-transform"
+                aria-label="送信"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white transition-transform active:scale-90"
               >
-                送信
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-[18px] w-[18px]">
+                  <path d="M4.5 12h13M12 5.5l6 6.5-6 6.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             </motion.form>
           </motion.div>
