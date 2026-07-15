@@ -91,3 +91,18 @@ export function buildPreflopVsOpenNode(band: string, opener: string, defender: s
 export function preflopVsOpenAvailable(): boolean {
   return Object.keys(DATA.bands).length > 0;
 }
+
+/**
+ * (band, opener, defender) のディフェンスの「コール」レンジ(handクラス→コール頻度)を返す。
+ * ポストフロップ(SRP)のレンジ導出に使う。未整備なら null。
+ */
+export function getVsOpenCallRange(band: string, opener: string, defender: string): Record<string, number> | null {
+  const entry = DATA.bands[band]?.[opener]?.[defender];
+  if (!entry) return null;
+  const out: Record<string, number> = {};
+  for (const [label, s] of Object.entries(entry.strat)) {
+    const c = s[0];
+    if (c > 0.02) out[label] = c;
+  }
+  return out;
+}

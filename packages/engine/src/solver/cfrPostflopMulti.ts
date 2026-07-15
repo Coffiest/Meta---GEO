@@ -193,7 +193,21 @@ function buildGameTree(
   return { root, decisionNodes, showdowns };
 }
 
-export function solvePostflopHu(input: PostflopSolveInput): PostflopSolveResult {
+/** 決定ノードの戦略(平均)問い合わせ結果。 */
+export interface NodeStrategy {
+  /** 手番(0=OOP, 1=IP)。 */
+  player: 0 | 1;
+  actions: string[];
+  /** その手番のレンジ(フィルタ済みコンボ)。 */
+  combos: HandCombo[];
+  /** combos[i] のアクション別平均頻度。 */
+  perCombo: number[][];
+  /** レンジ全体のアクション別平均頻度(重み加重)。 */
+  aggregate: number[];
+}
+
+/** 準備済みソルバー(反復と問い合わせを分離し、非同期実行やノード別取り出しを可能にする)。 */
+function prepareSolver(input: PostflopSolveInput) {
   const betSizes = input.betSizes ?? [0.75];
   const iterations = input.iterations ?? 400;
   const allowRaise = input.allowRaise ?? true;
@@ -363,40 +377,94 @@ export function solvePostflopHu(input: PostflopSolveInput): PostflopSolveResult 
   for (let j = 0; j < nI; j++) reachI[j] = ip[j]!.w;
 
   let oopEv = 0;
-  for (let it = 0; it < iterations; it++) {
+  function iterate(): void {
     const vo = walk(root, 0, reachO, reachI);
     walk(root, 1, reachI, reachO);
-    if (it === iterations - 1) {
-      let ev = 0;
-      let wsum = 0;
-      for (let i = 0; i < nO; i++) {
-        ev += vo[i]!;
-        wsum += reachO[i]!;
-      }
-      oopEv = wsum > 0 ? ev / wsum : 0;
+    let ev = 0;
+    let wsum = 0;
+    for (let i = 0; i < nO; i++) {
+      ev += vo[i]!;
+      wsum += reachO[i]!;
     }
+    oopEv = wsum > 0 ? ev / wsum : 0;
   }
 
-  const rootNode = root as DecisionNode;
-  const cntRoot = nO;
-  const nActionsRoot = rootNode.actions.length;
-  const ss = stratSum[rootNode.id]!;
-  const freq = new Array(nActionsRoot).fill(0);
-  let wsum = 0;
-  for (let c = 0; c < cntRoot; c++) {
-    let cs = 0;
-    for (let a = 0; a < nActionsRoot; a++) cs += ss[c * nActionsRoot + a]!;
-    const w = oop[c]!.w;
-    wsum += w;
-    for (let a = 0; a < nActionsRoot; a++) freq[a] += w * (cs > 0 ? ss[c * nActionsRoot + a]! / cs : 1 / nActionsRoot);
+  function cmbToHandCombo(c: Cmb): HandCombo {
+    return { a: c.cards[0]!, b: c.cards[1]!, weight: c.w };
   }
-  for (let a = 0; a < nActionsRoot; a++) freq[a] = wsum > 0 ? freq[a] / wsum : 0;
 
-  return {
-    oopRoot: rootNode.actions.map((a, idx) => ({ action: a, frequency: freq[idx]! })),
-    oopEvBb: oopEv,
-    iterations,
-  };
+  /** ノードの平均戦略(コンボ別+集約)を取り出す。 */
+  function strategyOf(node: DecisionNode): NodeStrategy {
+    const player = node.player;
+    const combos = player === 0 ? oop : ip;
+    const cnt = combos.length;
+    const nActions = node.actions.length;
+    const ss = stratSum[node.id]!;
+    const perCombo: number[][] = [];
+    const aggregate = new Array<number>(nActions).fill(0);
+    let wsum = 0;
+    for (let c = 0; c < cnt; c++) {
+      let cs = 0;
+      for (let a = 0; a < nActions; a++) cs += ss[c * nActions + a]!;
+      const row = new Array<number>(nActions);
+      for (let a = 0; a < nActions; a++) row[a] = cs > 0 ? ss[c * nActions + a]! / cs : 1 / nActions;
+      perCombo.push(row);
+      const w = combos[c]!.w;
+      wsum += w;
+      for (let a = 0; a < nActions; a++) aggregate[a] = aggregate[a]! + w * row[a]!;
+    }
+    for (let a = 0; a < nActions; a++) aggregate[a] = wsum > 0 ? aggregate[a]! / wsum : 0;
+    return { player, actions: node.actions, combos: combos.map(cmbToHandCombo), perCombo, aggregate };
+  }
+
+  /** 開始ストリート内でアクションパスを辿った先の決定ノードの戦略。チャンス/端点に当たったら null。 */
+  function queryNode(path: string[]): NodeStrategy | null {
+    let node: TreeNode = root;
+    for (const act of path) {
+      if (node.kind !== "decision") return null;
+      const idx = node.actions.indexOf(act);
+      if (idx < 0) return null;
+      node = node.children[idx]!;
+    }
+    if (node.kind !== "decision") return null;
+    return strategyOf(node);
+  }
+
+  function finalize(): PostflopSolveResult {
+    const rootStrat = strategyOf(root as DecisionNode);
+    return {
+      oopRoot: rootStrat.actions.map((a, idx) => ({ action: a, frequency: rootStrat.aggregate[idx]! })),
+      oopEvBb: oopEv,
+      iterations,
+    };
+  }
+
+  return { iterations, iterate, finalize, queryNode };
+}
+
+export function solvePostflopHu(input: PostflopSolveInput): PostflopSolveResult {
+  const s = prepareSolver(input);
+  for (let it = 0; it < s.iterations; it++) s.iterate();
+  return s.finalize();
+}
+
+/** 反復と問い合わせつきの解ハンドル。 */
+export interface PostflopSolveHandle {
+  result: PostflopSolveResult;
+  queryNode: (path: string[]) => NodeStrategy | null;
+}
+
+/**
+ * 非同期版: 毎反復ごとにイベントループへ譲る(setImmediate)。
+ * 対戦サーバー内で他のリクエスト/ソケットを塞がずにオンデマンド計算するために使う。
+ */
+export async function solvePostflopHuAsync(input: PostflopSolveInput): Promise<PostflopSolveHandle> {
+  const s = prepareSolver(input);
+  for (let it = 0; it < s.iterations; it++) {
+    s.iterate();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  return { result: s.finalize(), queryNode: s.queryNode };
 }
 
 function usesAny(c: Cmb, board: Set<number>): boolean {

@@ -117,6 +117,10 @@ function GeoDatabase() {
     return activeAtStart.filter((p) => !foldedThisStreet.has(p)).length;
   }
 
+  // GTOポストフロップの「計算中」ポーリング。solving=true の応答が来たら数秒後に再取得する。
+  const [solving, setSolving] = useState(false);
+  const [pollTick, setPollTick] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -124,7 +128,9 @@ function GeoDatabase() {
 
     const request =
       mode === "gto"
-        ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket })
+        ? street === "preflop"
+          ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket })
+          : geoTreeApi.gtoPostflopNode({ stackBucket, line: preflopLine, board, postflopLine: streetLines[street] })
         : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
@@ -140,6 +146,14 @@ function GeoDatabase() {
     request
       .then((result) => {
         if (cancelled) return;
+        setSolving(Boolean(result.solving));
+        if (result.solving) {
+          // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
+          setTimeout(() => {
+            if (!cancelled) setPollTick((t) => t + 1);
+          }, 3500);
+          return;
+        }
         setNode(result.node);
         setMatrix(result.matrix);
         if (result.node.sampleSize > 0) setJustPickedBoard(false);
@@ -153,13 +167,11 @@ function GeoDatabase() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
+  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, pollTick]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
   useEffect(() => {
-    // GTOモード(v1)はプリフロップのみ対応。ポストフロップへの自動遷移は行わない。
-    if (mode === "gto") return;
     if (!node || node.position !== null || pendingStreet || justPickedBoard) return;
     const next = nextStreetOf(street);
     if (!next) return;
@@ -354,10 +366,10 @@ function GeoDatabase() {
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
 
         <div className="mt-3">
-          {loading ? (
+          {loading || solving ? (
             <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-center text-sm text-ink-500">
               <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
-              読み込み中…
+              {solving ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)" : "読み込み中…"}
             </div>
           ) : noBoardData ? (
             <motion.div

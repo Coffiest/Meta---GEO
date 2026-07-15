@@ -14,4 +14,11 @@ export * from "./tableBalancer.js";
 export * from "./multiTableTournament.js";
 export * from "./equity.js";
 export * from "./solver/cfrPostflop.js";
-export { solvePostflopHu, type PostflopSolveInput, type PostflopSolveResult } from "./solver/cfrPostflopMulti.js";
+export {
+  solvePostflopHu,
+  solvePostflopHuAsync,
+  type PostflopSolveInput,
+  type PostflopSolveResult,
+  type PostflopSolveHandle,
+  type NodeStrategy,
+} from "./solver/cfrPostflopMulti.js";

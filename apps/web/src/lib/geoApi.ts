@@ -99,6 +99,8 @@ export interface HandClassMatrixResult {
 export interface NodeResult {
   node: TreeNode;
   matrix: HandClassMatrixResult;
+  /** GTOポストフロップ: サーバーがまだ計算中(ポーリングで再取得する)。 */
+  solving?: boolean;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -133,4 +135,6 @@ export const geoTreeApi = {
   /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。 */
   gtoNode: (params: { line?: LineStep[]; variant?: "pushfold" | "full"; stackBucket?: StackBucket; side?: "jam" | "call" }) =>
     postJson<NodeResult>("/api/geo-tree/gto-node", params),
+  gtoPostflopNode: (params: { stackBucket: StackBucket; line: LineStep[]; board: string[]; postflopLine: LineStep[] }) =>
+    postJson<NodeResult>("/api/geo-tree/gto-postflop-node", params),
 };

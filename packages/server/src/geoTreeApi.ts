@@ -8,6 +8,8 @@ import {
   buildPreflopNashCallNode,
   buildPreflopBandNode,
   buildPreflopVsOpenNode,
+  prepareGtoPostflopSpot,
+  type GtoPostflopSpotHandle,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -17,6 +19,29 @@ import {
 
 /** プリフロップの行動順(UTGが最初)。GTOのRFIノード判定に使う。 */
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+
+/** スタックバケット → 転記レンジのバンド(GTOタブ)。 */
+const BUCKET_TO_BAND: Record<string, string> = {
+  "30+": "100",
+  "20-30": "20",
+  "15-20": "14",
+  "10-15": "10",
+  "5-10": "7",
+  "0-5": "7",
+};
+
+/**
+ * GTOポストフロップ(SRP)のスポットキャッシュ。key = band|opener|defender|board。
+ * 解は数秒〜数十秒かかるため、初回は "solving" を即返しクライアントがポーリングする。
+ * null はサポート外スポットのネガティブキャッシュ。
+ */
+const gtoPostflopCache = new Map<string, GtoPostflopSpotHandle | null>();
+const gtoPostflopInFlight = new Set<string>();
+const GTO_POSTFLOP_CACHE_MAX = 48;
+
+function gtoPostflopKey(band: string, opener: string, defender: string, board: string[]): string {
+  return `${band}|${opener}|${defender}|${board.join(",")}`;
+}
 
 /**
  * GTOタブ用の開き(オープン/シューブ)ノードを NodeResult 形へ変換する。
@@ -173,17 +198,6 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           sendJson(res, 200, empty);
           return true;
         }
-        // 各スタックバケット → ユーザー提供のGTO Wizard転記レンジ(バンド)。
-        // 30+=100bb / 20-30=20bb / 15-20=14bb / 10-15=10bb / 10bb以下=7bb。
-        const BUCKET_TO_BAND: Record<string, string> = {
-          "30+": "100",
-          "20-30": "20",
-          "15-20": "14",
-          "10-15": "10",
-          "5-10": "7",
-          "0-5": "7",
-        };
-
         // 全員フォールドで回ってきた → そのポジションのオープン(バンド)。BBは開かない。
         if (nonFold.length === 0) {
           if (heroPos === "BB") {
@@ -234,6 +248,61 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       sendJson(res, 200, buildGtoNodeResult(line, stackBucket));
+      return true;
+    }
+
+    // GTOタブのポストフロップ(SRP: オープン→コール)ノード。CFRソルバーでオンデマンド計算+キャッシュ。
+    // 初回は {solving:true} を即返し、クライアントがポーリングで再取得する。
+    if (url.pathname === "/api/geo-tree/gto-postflop-node" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const sb = isStackBucket(body["stackBucket"]) ? body["stackBucket"] : "30+";
+      const line = parseLine(body["line"] ?? []);
+      const postflopLine = parseLine(body["postflopLine"] ?? []);
+      const board = body["board"];
+      if (line === null || postflopLine === null || !Array.isArray(board) || !board.every((c) => typeof c === "string")) {
+        sendJson(res, 400, { error: "invalid request body" });
+        return true;
+      }
+      const empty = { node: { position: null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+      // ライン形状: 非フォールドが「レイズ(非オールイン)→コール」のSRPのみ対応。
+      const nonFold = line.filter((s) => s.bucket !== "fold");
+      if (nonFold.length !== 2 || nonFold[0]!.bucket === "allIn" || nonFold[0]!.bucket === "call" || nonFold[1]!.bucket !== "call") {
+        sendJson(res, 200, empty);
+        return true;
+      }
+      const opener = nonFold[0]!.position;
+      const defender = nonFold[1]!.position;
+      const band = BUCKET_TO_BAND[sb] ?? "100";
+      const key = gtoPostflopKey(band, opener, defender, board as string[]);
+
+      const cached = gtoPostflopCache.get(key);
+      if (cached !== undefined) {
+        if (cached === null) {
+          sendJson(res, 200, empty);
+          return true;
+        }
+        const gto = cached.nodeFor(postflopLine.map((s) => s.bucket));
+        sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+        return true;
+      }
+
+      if (!gtoPostflopInFlight.has(key)) {
+        gtoPostflopInFlight.add(key);
+        void prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board: board as string[] })
+          .then((handle) => {
+            if (gtoPostflopCache.size >= GTO_POSTFLOP_CACHE_MAX) {
+              const first = gtoPostflopCache.keys().next().value;
+              if (first !== undefined) gtoPostflopCache.delete(first);
+            }
+            gtoPostflopCache.set(key, handle);
+          })
+          .catch((err) => {
+            console.error("[geoTreeApi] gto postflop solve failed:", err);
+            gtoPostflopCache.set(key, null);
+          })
+          .finally(() => gtoPostflopInFlight.delete(key));
+      }
+      sendJson(res, 200, { ...empty, solving: true });
       return true;
     }
 
