@@ -284,6 +284,15 @@ function GameScreen({
                 <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
               </div>
             )}
+            {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
+              <div className="border-l border-ink-200 pl-2">
+                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Ave</span>
+                <span className="text-[11px] font-black tabular-nums text-gold-600">
+                  {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
+                  <span className="text-[8px] text-ink-400">BB</span>
+                </span>
+              </div>
+            )}
           </div>
         </button>
 

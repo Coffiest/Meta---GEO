@@ -122,34 +122,23 @@ export function Seat({
         folded ? "opacity-35" : "opacity-100"
       }`}
     >
-      {/* 同卓チャットの吹き出し。手札(中央上)と干渉しないよう座席の左上に出し、尻尾(三角)を
-          アバター方向(右下)へ向ける。数秒表示。 */}
+      {/* 同卓チャットの吹き出し。自分の手札の真上にふわっと浮かせ、尻尾(菱形)を下=手札方向へ。
+          黒縁ではなくヘアライン+柔らかいドロップシャドウでApple的な浮遊感を出す。数秒表示。 */}
       <AnimatePresence>
         {chatBubble && !isEmpty && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, y: 6, scale: 0.9, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
+            exit={{ opacity: 0, scale: 0.9, x: "-50%" }}
             transition={{ type: "spring", stiffness: 480, damping: 26 }}
-            className="pointer-events-none absolute bottom-full right-1/2 z-40 mb-1 mr-[-14px] max-w-[150px] break-words rounded-2xl border border-ink-950 bg-white px-2.5 py-1 text-[11px] font-bold leading-snug text-ink-950 shadow-[0_2px_6px_-1px_rgba(10,10,10,0.3)]"
+            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-ink-950/[0.06] bg-white/95 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-ink-950 backdrop-blur-[6px] shadow-[0_10px_24px_-10px_rgba(10,10,10,0.4),0_2px_6px_-2px_rgba(10,10,10,0.16)]"
           >
             {chatBubble}
-            {/* 尻尾: 黒枠の三角の上に白の三角を重ねて縁取り付きにする */}
+            {/* 尻尾: 本体と同じ白の菱形を回転して縁取り2辺+影で自然に接続する */}
             <span
               aria-hidden
-              className="absolute top-full right-4 h-0 w-0"
-              style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "8px solid #0a0a0a" }}
-            />
-            <span
-              aria-hidden
-              className="absolute top-full right-4 h-0 w-0"
-              style={{
-                marginTop: "-1.5px",
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: "7px solid #fff",
-                transform: "translateX(1px)",
-              }}
+              className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px] border-b border-r border-ink-950/[0.06] bg-white/95"
+              style={{ boxShadow: "4px 4px 8px -4px rgba(10,10,10,0.24)" }}
             />
           </motion.div>
         )}
