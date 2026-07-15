@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { cellLabel } from "./geoTree.js";
 import { expandToken } from "./preflopBaseline.js";
 import type { GtoNodeResult } from "./preflopBaseline.js";
-import { PREFLOP_100 } from "./data/preflop100.js";
+import { PREFLOP_BANDS } from "./data/preflop100.js";
 
 /** レンジ文字列配列をハンドクラスのSetへ展開する。 */
 function expandRange(tokens: string[]): Set<string> {
@@ -13,25 +13,38 @@ function expandRange(tokens: string[]): Set<string> {
   return s;
 }
 
+/** バンドキー → UI表示用のスタック帯ラベル。 */
+const BAND_LABEL: Record<string, string> = {
+  "100": "30-100bb",
+  "20": "20-29bb",
+  "14": "15-20bb",
+  "10": "10-15bb",
+  "7": "10bb以下",
+};
+
 /**
- * 100BB(BBアンティ・レーキなしMTT)の提示オープンレンジを13x13で返す。
- * ユーザー提供のGTO Wizardレンジ(転記)。30〜100bbのオープンレンジ解として使う。
- * UTG/HJ/CO/BTN=open(オレンジ)/fold(青)。SB=raise(オレンジ)/limp(緑)/fold(青)。
+ * ユーザー提供のGTO Wizardレンジ(転記)を13x13で返す。
+ * バンド("100"/"20"/"14"/"10"/"7")ごとに jam/raise/limp/fold の混合を色分けする。
+ * セルは jam(紫/allIn) → raise(オレンジ/raise2-2.5) → limp(緑/call) → fold(青) の優先順で
+ * 最初に一致したアクションで着色する(重複記載は上位が勝つ)。
  */
-export function buildPreflop100Node(heroPos: string): GtoNodeResult {
-  const pos = PREFLOP_100[heroPos];
+export function buildPreflopBandNode(band: string, heroPos: string): GtoNodeResult {
+  const table = PREFLOP_BANDS[band];
+  const pos = table?.[heroPos];
   if (!pos) return { position: heroPos, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
-  const raiseSet = expandRange(pos.raise);
+  const jamSet = pos.jam ? expandRange(pos.jam) : null;
+  const raiseSet = pos.raise ? expandRange(pos.raise) : null;
   const limpSet = pos.limp ? expandRange(pos.limp) : null;
 
-  let total = 0, raiseW = 0, limpW = 0, foldW = 0;
+  let total = 0, jamW = 0, raiseW = 0, limpW = 0, foldW = 0;
   const cells = Array.from({ length: 13 }, (_, row) =>
     Array.from({ length: 13 }, (_, col) => {
       const lbl = cellLabel(row, col);
       const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
       total += combos;
       const byBucket: Record<string, number> = {};
-      if (raiseSet.has(lbl)) { byBucket["raise2-2.5"] = 1; raiseW += combos; }
+      if (jamSet && jamSet.has(lbl)) { byBucket["allIn"] = 1; jamW += combos; }
+      else if (raiseSet && raiseSet.has(lbl)) { byBucket["raise2-2.5"] = 1; raiseW += combos; }
       else if (limpSet && limpSet.has(lbl)) { byBucket["call"] = 1; limpW += combos; }
       else { byBucket["fold"] = 1; foldW += combos; }
       return { label: lbl, count: combos, byBucket, evByBucket: {} as Record<string, number> };
@@ -39,12 +52,19 @@ export function buildPreflop100Node(heroPos: string): GtoNodeResult {
   );
 
   const options = [
+    { bucket: "allIn", frequency: total > 0 ? jamW / total : 0, geometricRatio: 0, evBb: 0 },
     { bucket: "raise2-2.5", frequency: total > 0 ? raiseW / total : 0, geometricRatio: 0, evBb: 0 },
-    ...(limpSet ? [{ bucket: "call", frequency: total > 0 ? limpW / total : 0, geometricRatio: 0, evBb: 0 }] : []),
+    { bucket: "call", frequency: total > 0 ? limpW / total : 0, geometricRatio: 0, evBb: 0 },
     { bucket: "fold", frequency: total > 0 ? foldW / total : 0, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0.001);
 
-  return { position: `${heroPos} 30-100bb (raise ${pos.raiseSize}bb)`, options, matrix: { cells, totalSamples: total } };
+  const label = BAND_LABEL[band] ?? `${band}bb`;
+  return { position: `${heroPos} ${label} (raise ${pos.raiseSize}bb)`, options, matrix: { cells, totalSamples: total } };
+}
+
+/** 後方互換: 30-100bbバンド("100")のオープンレンジノード。 */
+export function buildPreflop100Node(heroPos: string): GtoNodeResult {
+  return buildPreflopBandNode("100", heroPos);
 }
 
 /**

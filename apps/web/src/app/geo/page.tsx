@@ -56,10 +56,6 @@ function GeoDatabase() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
   const [mode, setMode] = useState<"geo" | "gto">("geo");
-  // GTOの表示種別。"full"=通常戦略(open/jam/fold混合CFR) / "rfi"=プッシュ/フォールドNash(BBアンティ) /
-  // "pushfold"=HUプッシュ/フォールドNash。
-  const [gtoVariant, setGtoVariant] = useState<"full" | "rfi" | "pushfold">("full");
-  const [pushFoldSide, setPushFoldSide] = useState<"jam" | "call">("jam");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
@@ -128,13 +124,7 @@ function GeoDatabase() {
 
     const request =
       mode === "gto"
-        ? geoTreeApi.gtoNode(
-            gtoVariant === "pushfold"
-              ? { variant: "pushfold", stackBucket, side: pushFoldSide }
-              : gtoVariant === "full"
-              ? { variant: "full", line: preflopLine, stackBucket }
-              : { line: preflopLine, stackBucket },
-          )
+        ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket })
         : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
@@ -163,7 +153,7 @@ function GeoDatabase() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gtoVariant, pushFoldSide, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
+  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -190,16 +180,6 @@ function GeoDatabase() {
     setPendingStreet(null);
     setDismissedStreet(null);
     setJustPickedBoard(false);
-  }
-
-  // GTOモードで、指定ポジションが手番になるよう直前を全てフォールドしたラインをセットする。
-  function selectGtoPosition(pos: string) {
-    const idx = PREFLOP_ORDER.indexOf(pos);
-    if (idx < 0) return;
-    setPreflopLine(PREFLOP_ORDER.slice(0, idx).map((p) => ({ position: p, bucket: "fold" })));
-    setStreet("preflop");
-    setBoard([]);
-    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
   }
 
   function selectBucket(bucket: string) {
@@ -369,81 +349,6 @@ function GeoDatabase() {
       <div className="max-w-3xl mx-auto px-4 pb-28">
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3 mb-4">{error}</div>
-        )}
-
-        {mode === "gto" && (
-          <div className="rounded-2xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[12px] leading-relaxed px-4 py-3 mb-3">
-            <p className="font-black text-ink-950 mb-1">GTO(自社計算・検証用)</p>
-            {/* GTO種別トグル: 通常戦略(CFR) / プッシュフォールドNash / HU Push/Fold。 */}
-            <div className="flex flex-wrap gap-1.5 my-2">
-              {([
-                ["full", "通常戦略 (CFR)"],
-                ["rfi", "Push/Fold Nash"],
-                ["pushfold", "HU Push/Fold"],
-              ] as const).map(([v, lbl]) => (
-                <button
-                  key={v}
-                  onClick={() => setGtoVariant(v)}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black tracking-wide transition-colors ${
-                    gtoVariant === v ? "bg-ink-950 text-white" : "bg-white text-ink-500 border border-ink-200"
-                  }`}
-                >
-                  {lbl}
-                </button>
-              ))}
-              {gtoVariant === "pushfold" &&
-                ([
-                  ["jam", "SB Jam"],
-                  ["call", "BB Call"],
-                ] as const).map(([sd, lbl]) => (
-                  <button
-                    key={sd}
-                    onClick={() => setPushFoldSide(sd)}
-                    className={`rounded-lg px-2.5 py-1 text-[10px] font-black tracking-wide transition-colors ${
-                      pushFoldSide === sd ? "bg-gold-500 text-white" : "bg-white text-ink-500 border border-ink-200"
-                    }`}
-                  >
-                    {lbl}
-                  </button>
-                ))}
-            </div>
-            {/* ポジション選択(open系variantのみ): 直前を全フォールドしてそのポジションの手番にする。 */}
-            {gtoVariant !== "pushfold" && (
-              <div className="flex flex-wrap gap-1 my-2">
-                {["UTG", "HJ", "CO", "BTN", "SB"].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => selectGtoPosition(p)}
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-black tracking-wide transition-colors ${
-                      node?.position?.startsWith(p) ? "bg-ink-950 text-white" : "bg-white text-ink-600 border border-ink-200"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            )}
-            {gtoVariant === "full" ? (
-              <p>
-                <span className="font-bold">通常のオープンレンジ戦略</span>。設定のスタック帯が
-                <span className="font-bold">30bb+ = 100bbオープンレンジ解(GTO Wizard準拠, BBアンティ・レーキなし)</span>、
-                <span className="font-bold">30bb未満 = プッシュ/フォールドNash</span>に切替わります。
-                上のポジションピルで位置選択。UTG/HJ/CO/BTN=オレンジ(オープン)、SB=オレンジ(レイズ)+緑(リンプ)。
-                ※100bbレンジは画像からの転記のため境界セルに誤差あり(指摘で修正します)。
-              </p>
-            ) : gtoVariant === "rfi" ? (
-              <p>
-                <span className="font-bold">BBアンティありの6-maxプッシュ/フォールドNash</span>(全員オールインのみで厳密計算)。
-                全ポジション×全スタックの開きジャムレンジ＋「Allin」を選ぶとディフェンス(コール)レンジも表示。
-                GTO WizardのNash/ICMなしチャートと照合してください。
-              </p>
-            ) : (
-              <p>
-                <span className="font-bold">HUプッシュ/フォールドのNash均衡</span>。スタック帯ごとにSBジャム/BBコールを表示。
-                GTO WizardのHU Push/Foldと直接照合できます。
-              </p>
-            )}
-          </div>
         )}
 
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>

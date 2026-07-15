@@ -6,8 +6,7 @@ import {
   buildPushFoldGtoNode,
   buildPreflopNashNode,
   buildPreflopNashCallNode,
-  buildPreflopFullNode,
-  buildPreflop100Node,
+  buildPreflopBandNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -172,8 +171,18 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           sendJson(res, 200, { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } });
           return true;
         }
-        // 30bb以上(30+バケット)= 提示された100bbオープンレンジ解、それ未満 = プッシュ/フォールドNash。
-        const gto = sb === "30+" ? buildPreflop100Node(heroPos) : buildPreflopNashNode({ heroPos, stackBucket: sb });
+        // 各スタックバケット → ユーザー提供のGTO Wizard転記レンジ(バンド)。
+        // 30+=100bb / 20-30=20bb / 15-20=14bb / 10-15=10bb / 10bb以下=7bb。
+        const BUCKET_TO_BAND: Record<string, string> = {
+          "30+": "100",
+          "20-30": "20",
+          "15-20": "14",
+          "10-15": "10",
+          "5-10": "7",
+          "0-5": "7",
+        };
+        const band = BUCKET_TO_BAND[sb] ?? "100";
+        const gto = buildPreflopBandNode(band, heroPos);
         sendJson(res, 200, gto.unsupported
           ? { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } }
           : toWireNode(gto));
