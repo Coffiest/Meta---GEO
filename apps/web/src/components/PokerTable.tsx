@@ -7,6 +7,7 @@ import type { PublicHandState } from "@meta-geo/engine";
 // cardToString は依存の少ないサブモジュールから直接インポートする。
 import { cardToString } from "@meta-geo/engine/src/types/card.js";
 import { describeMadeHand } from "@/lib/handRank";
+import { useI18n } from "@/lib/i18n";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabel } from "@/lib/position";
@@ -160,6 +161,7 @@ export function PokerTable({
   /** 自分の席のチャット入力ボタンを押したとき。 */
   onHeroChatClick?: () => void;
 }) {
+  const { t } = useI18n();
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
 
   // 自分の席が常に画面下(スロット0)に来るよう、実席番号→表示スロットへ回転させる。
@@ -241,7 +243,7 @@ export function PokerTable({
         // 自分の席は、現在成立している役(ハンドランク)を手札の直下に表示する。
         const heroHandLabel =
           isHero && yourCards.length >= 2 && status !== "folded" && status !== "empty"
-            ? describeMadeHand(yourCards, (state?.board ?? []).map(cardToString))
+            ? ((k) => (k ? t(k) : null))(describeMadeHand(yourCards, (state?.board ?? []).map(cardToString)))
             : null;
 
         const seatNode = (
@@ -282,7 +284,7 @@ export function PokerTable({
                 type="button"
                 onClick={() => onPlayerTap?.(player)}
                 className="cursor-pointer appearance-none bg-transparent p-0 active:scale-[0.97] transition-transform"
-                aria-label={`${player.displayName}の詳細`}
+                aria-label={t("seat.detailAria", { name: player.displayName })}
               >
                 {seatNode}
               </button>
