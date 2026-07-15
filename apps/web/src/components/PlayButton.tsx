@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
+import { useI18n } from "@/lib/i18n";
 
 interface GameChoice {
   key: GameKey;
@@ -17,6 +18,7 @@ interface GameChoice {
  * (Sit&Go / MTT)へアニメーションで分かれる。もう一度背景をタップすると元の単一ボタンに戻る。
  */
 export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (key: GameKey) => void }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -28,7 +30,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[5]"
           onClick={() => setExpanded(false)}
-          aria-label="閉じる"
+          aria-label={t("common.close")}
         />
       )}
       <div className="relative z-[6]">
@@ -43,7 +45,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", damping: 20, stiffness: 260 }}
             onClick={() => setExpanded(true)}
-            aria-label="プレイする"
+            aria-label={t("play.play")}
             className="relative h-[100px] w-[260px] overflow-hidden rounded-[28px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
           >
             {/* トランプ札の意匠。黒い札に大きく傾けた「Play」を置き、内枠より外側を黒で塗りつぶす
@@ -84,7 +86,7 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
                 <span className="text-[15px] font-black tracking-wide text-white">{game.title}</span>
                 {game.caption && <span className="text-[9px] font-medium text-white/55">{game.caption}</span>}
                 <span className="mt-0.5 rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-bold text-white/70 tabular-nums">
-                  バイイン {game.buyIn.toLocaleString()}
+                  {t("play.buyIn")} {game.buyIn.toLocaleString()}
                 </span>
               </motion.button>
             ))}
