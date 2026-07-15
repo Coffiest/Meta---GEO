@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import type { Card, Rank, Suit } from "@meta-geo/engine";
 import { evaluateBest, compareHandRank } from "@meta-geo/engine";
 
-const SAMPLES = 250;
+const SAMPLES = Number(process.env["SAMPLES"] ?? 250);
 const STACKS = Array.from({ length: 25 }, (_, i) => i + 1); // 1..25bb
 const T = 500; // フィクティシャスプレイ反復回数
 const MW = Number(process.env["MW"] ?? 1.0); // マルチウェイ罰則の強さ(anchor調整済み)
