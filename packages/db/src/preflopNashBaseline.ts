@@ -147,3 +147,25 @@ export function buildPreflopNashCallNode(params: {
 
 /** データにあるスタック深度の一覧。 */
 export const PREFLOP_NASH_STACKS = DATA.stacks.map((s) => s.s);
+
+/**
+ * 指定スタック(bb, 最近傍)の「開きジャム」レンジ(handクラス→頻度)。局後検討のEV計算に使う。
+ * データ未整備なら null。
+ */
+export function getNashJamRange(pos: string, stackBb: number): Record<string, number> | null {
+  const stack = DATA.stacks.length > 0 ? DATA.stacks.reduce((b, s) => (Math.abs(s.s - stackBb) < Math.abs(b.s - stackBb) ? s : b)) : null;
+  const pd = stack?.positions[pos];
+  if (!pd) return null;
+  return pd.jam;
+}
+
+/**
+ * 指定スタック(bb, 最近傍)の「ジャムに直面したコール」レンジ(handクラス→頻度)。
+ * データ未整備なら null。
+ */
+export function getNashVsJamCallRange(jammerPos: string, callerPos: string, stackBb: number): Record<string, number> | null {
+  const stack = DATA.stacks.length > 0 ? DATA.stacks.reduce((b, s) => (Math.abs(s.s - stackBb) < Math.abs(b.s - stackBb) ? s : b)) : null;
+  const cd = stack?.vsJam?.[jammerPos]?.[callerPos];
+  if (!cd) return null;
+  return cd.call;
+}
