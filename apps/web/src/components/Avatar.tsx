@@ -175,6 +175,11 @@ export function Avatar({
           {initial}
         </div>
       )}
+      {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。
+          画像/BOT/頭文字いずれのアバターでも一様に効くよう、内側ボックスに黒の半透明を重ねる。 */}
+      {timer && (
+        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/40" style={innerBoxStyle} />
+      )}
       {timer && <CountdownRing endsAt={timer.endsAt} durationMs={timer.durationMs} size={size} />}
     </div>
   );
