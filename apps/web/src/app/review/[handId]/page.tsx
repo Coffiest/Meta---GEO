@@ -35,9 +35,26 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
         </div>
         {d.classification ? (
           <ClassificationBadge classification={d.classification} showLabel size={22} />
+        ) : d.outOfScopeReason === "solving" ? (
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-ink-500">
+            <span className="h-3 w-3 rounded-full border-2 border-ink-500 border-t-transparent animate-spin" />
+            ソルバー解析中…
+          </span>
         ) : (
           <span className="text-[10px] font-bold text-ink-400">
-            {d.analyzable ? "解析待ち(未対応スポット)" : "多人数のため対象外"}
+            {!d.analyzable
+              ? "多人数のため対象外"
+              : d.outOfScopeReason === "3bet-line"
+              ? "対象外(3ベット以降のライン)"
+              : d.outOfScopeReason === "squeeze"
+              ? "対象外(スクイーズ)"
+              : d.outOfScopeReason === "limped-pot"
+              ? "対象外(リンプポット)"
+              : d.outOfScopeReason === "reopened-line"
+              ? "対象外(リレイズに直面)"
+              : d.outOfScopeReason === "out-of-range"
+              ? "対象外(GTOレンジ外のプリフロップ)"
+              : "解析待ち(未対応スポット)"}
           </span>
         )}
       </div>
@@ -66,6 +83,10 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
                 >
                   <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
                   <span className="text-[11px] font-black tabular-nums ml-1">{Math.round(a.frequency * 100)}%</span>
+                  <span className="text-[9px] font-bold tabular-nums ml-1 opacity-80">
+                    EV{a.evBb >= 0 ? "+" : ""}
+                    {a.evBb.toFixed(1)}
+                  </span>
                 </div>
               ))}
           </div>
@@ -94,14 +115,27 @@ export default function ReviewHandPage() {
       return;
     }
     let cancelled = false;
+    let tries = 0;
     setLoading(true);
-    fetchHandReview(handId, accessToken)
-      .then((res) => {
-        if (cancelled) return;
-        if (!res) setError("このハンドのレビューを取得できませんでした。");
-        else setData(res);
-      })
-      .finally(() => !cancelled && setLoading(false));
+    const load = () => {
+      fetchHandReview(handId, accessToken)
+        .then((res) => {
+          if (cancelled) return;
+          if (!res) setError("このハンドのレビューを取得できませんでした。");
+          else {
+            setData(res);
+            // HUポストフロップのソルバー解析が進行中なら数秒後に再取得(最大~2分)。
+            if (res.solving && tries < 30) {
+              tries += 1;
+              setTimeout(() => {
+                if (!cancelled) load();
+              }, 4000);
+            }
+          }
+        })
+        .finally(() => !cancelled && setLoading(false));
+    };
+    load();
     return () => {
       cancelled = true;
     };

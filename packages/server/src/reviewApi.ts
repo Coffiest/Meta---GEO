@@ -3,10 +3,16 @@ import {
   analyzeHand,
   analyzeTournamentForHero,
   createOrRefreshReview,
+  enrichAndSaveReview,
+  getSavedReviewDecisions,
+  summarizeReviewedDecisions,
   getHandTimeline,
   getOrCreateUserByAuthId,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+
+/** 進行中のソルバー解析(hand|user)。多重起動を防ぐ。 */
+const enrichInFlight = new Set<string>();
 
 /**
  * 局後検討(GTO棋譜解析)のREST API。`/api/review/*` 配下を処理する。
@@ -100,9 +106,47 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         sendJson(res, 403, { error: "forbidden" });
         return true;
       }
-      // 永続化(fire-and-forget的でよいがawaitして一貫性を担保)。
-      await createOrRefreshReview(handId, user.id).catch(() => {});
-      sendJson(res, 200, { review, timeline });
+
+      // HUポストフロップの"solving"決定: 保存済み(ソルバー解析済み)の結果があればマージ、
+      // 無ければバックグラウンドでソルバー解析を起動し、クライアントにポーリングさせる。
+      let solving = review.decisions.some((d) => d.outOfScopeReason === "solving");
+      if (solving) {
+        const saved = await getSavedReviewDecisions(handId, user.id).catch(() => null);
+        if (saved) {
+          for (const d of review.decisions) {
+            if (d.outOfScopeReason !== "solving") continue;
+            const row = saved.get(d.sequenceNumber);
+            // 解析済み(分類あり or 明示的な失敗/レンジ外)ならマージ。
+            if (row && (row.classification !== null || row.outOfScopeReason === "solver-failed" || row.outOfScopeReason === "out-of-range")) {
+              d.gtoActions = row.gtoActions;
+              d.classification = row.classification;
+              d.evLossBb = row.evLossBb;
+              d.outOfScopeReason = row.classification !== null ? null : row.outOfScopeReason;
+            }
+          }
+          solving = review.decisions.some((d) => d.outOfScopeReason === "solving");
+          if (!solving) {
+            const summary = summarizeReviewedDecisions(review.decisions);
+            review.gtoAccuracy = summary.gtoAccuracy;
+            review.totalEvLossBb = summary.totalEvLossBb;
+            review.mistakeCount = summary.mistakeCount;
+            review.artisticCount = summary.artisticCount;
+          }
+        }
+        if (solving) {
+          const key = `${handId}|${user.id}`;
+          if (!enrichInFlight.has(key)) {
+            enrichInFlight.add(key);
+            void enrichAndSaveReview(handId, user.id)
+              .catch((err) => console.error("[reviewApi] enrich failed:", err))
+              .finally(() => enrichInFlight.delete(key));
+          }
+        }
+      } else {
+        // ソルバー不要のハンドは同期保存(従来どおり)。
+        await createOrRefreshReview(handId, user.id).catch(() => {});
+      }
+      sendJson(res, 200, { review, timeline, solving });
       return true;
     }
 

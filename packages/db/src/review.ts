@@ -3,6 +3,9 @@ import { prisma } from "./client.js";
 import { extractHeroDecisions, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
 import { handClassLabel } from "./preflopBaseline.js";
 import { openGtoActions, defenseGtoActions, vsJamGtoActions, allInCallGtoActions } from "./reviewGto.js";
+import { prepareGtoPostflopSpot, type GtoPostflopSpotHandle } from "./gtoPostflop.js";
+import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
+import { bandOfStack } from "./preflopEvModel.js";
 import {
   classifyDecision,
   gtoAccuracyPct,
@@ -78,6 +81,38 @@ function detectPreflopSpot(hand: ExtractHand, heroSeat: number, decisionSeq: num
     return raises[0]!.kind === "allIn" ? { kind: "vsJam", jammerPos: pos } : { kind: "vsOpen", openerPos: pos };
   }
   return { kind: "unsupported", reason: "3bet-line" };
+}
+
+/**
+ * ハンド全体のプリフロップが「SRP(1レイズ+1コール、他全員フォールド)」かどうかを判定し、
+ * オープナー/コーラーのポジションを返す。HUポストフロップのソルバー解析可否の判定に使う。
+ */
+export function detectHandSrp(hand: ExtractHand): { openerPos: string; defenderPos: string } | null {
+  let raiser: number | null = null;
+  let raiserKind = "";
+  let caller: number | null = null;
+  let callsBeforeRaise = 0;
+  for (const a of hand.actions) {
+    if (a.street !== "preflop") continue;
+    if (a.kind === "postBlind" || a.kind === "postAnte") continue;
+    if (a.kind === "bet" || a.kind === "raise" || a.kind === "allIn") {
+      if (raiser !== null) return null; // 3betライン
+      raiser = a.seatIndex;
+      raiserKind = a.kind;
+    } else if (a.kind === "call") {
+      if (raiser === null) {
+        callsBeforeRaise += 1;
+      } else {
+        if (caller !== null) return null; // マルチウェイコール
+        caller = a.seatIndex;
+      }
+    }
+  }
+  if (raiser === null || caller === null || callsBeforeRaise > 0 || raiserKind === "allIn") return null;
+  return {
+    openerPos: positionOfSeat(raiser, hand.buttonFixedPos),
+    defenderPos: positionOfSeat(caller, hand.buttonFixedPos),
+  };
 }
 
 /** ポストフロップHUで、相手が既にオールインしているか(=hero はコール/フォールドのみ)。 */
@@ -216,8 +251,15 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
             });
             if (gtoActions && d.actionTaken.kind !== "fold") difficultKind = "heroCall";
           }
+        } else {
+          // 通常のHUノード: プリフロップがSRP(1レイズ+1コール)でバンドデータがあれば
+          // CFRソルバーの非同期解析対象("solving"マーカー → enrichAndSaveReview が埋める)。
+          const srp = detectHandSrp(hand);
+          const band = bandOfStack(d.effStackBb + d.potBb / 2);
+          if (srp && getVsOpenCallRange(band, srp.openerPos, srp.defenderPos)) {
+            outOfScopeReason = "solving";
+          }
         }
-        // 通常のHUノード(ベット/チェック等)はCFRソルバー連携(後続)まで gtoActions=null(解析待ち)。
       }
     }
 
@@ -251,6 +293,10 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       actionName: actionNameOf(d, spot),
     };
   });
+}
+
+export function summarizeReviewedDecisions(decisions: ReviewedDecision[]): ReturnType<typeof summarize> {
+  return summarize(decisions);
 }
 
 function summarize(decisions: ReviewedDecision[]): {
@@ -451,4 +497,172 @@ export async function getHandTimeline(handId: string) {
     },
   });
   return hand;
+}
+
+// ============================================================================
+// HUポストフロップ(通常ノード)のCFRソルバー非同期解析
+// ============================================================================
+
+/** ソルバースポットのキャッシュ(band|opener|defender|board)。レビュー用。 */
+const reviewSpotCache = new Map<string, Promise<GtoPostflopSpotHandle | null>>();
+const REVIEW_SPOT_CACHE_MAX = 24;
+
+function reviewSpotHandle(band: string, opener: string, defender: string, board: string[]): Promise<GtoPostflopSpotHandle | null> {
+  const key = `${band}|${opener}|${defender}|${board.join(",")}`;
+  let p = reviewSpotCache.get(key);
+  if (!p) {
+    if (reviewSpotCache.size >= REVIEW_SPOT_CACHE_MAX) {
+      const first = reviewSpotCache.keys().next().value;
+      if (first !== undefined) reviewSpotCache.delete(first);
+    }
+    p = prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board }).catch(() => null);
+    reviewSpotCache.set(key, p);
+  }
+  return p;
+}
+
+/**
+ * ソルバーのクラス別頻度から擬似EVつきGtoActionEVを作る。
+ * ソルバーは戦略(頻度)を返しEVは持たないため、頻度→EV損の写像で近似する:
+ *   頻度 ≥ 5% → 損0(混合戦略の許容) / 0〜5% → 線形 / 0% → 上限損(ポット比例, 最大3bb)。
+ * ※後続でソルバーから反実仮想EVを直接取り出す改善余地あり(コード内TODO)。
+ */
+function pseudoEvFromFreq(byBucket: Record<string, number>, chosenBucket: string, potBb: number): GtoActionEV[] {
+  const cap = Math.min(3, 0.25 * potBb + 0.3);
+  const buckets = new Set<string>([...Object.keys(byBucket), chosenBucket]);
+  const lossOf = (f: number) => (f >= 0.05 ? 0 : ((0.05 - f) / 0.05) * cap);
+  return [...buckets].map((b) => {
+    const f = byBucket[b] ?? 0;
+    return { bucket: b, frequency: f, evBb: -lossOf(f) };
+  });
+}
+
+/** ポストフロップの「難しい好手」候補種別。頻度が低いときのみ意味を持つ(分類器側でゲート)。 */
+function postflopDifficultKind(chosenBucket: string, facingBb: number, chosenFreq: number): DifficultActionKind | undefined {
+  if (chosenFreq > 0.15 || chosenFreq <= 0) return undefined;
+  if (chosenBucket === "fold" && facingBb > 0) return "lightFold";
+  if (chosenBucket === "checkOrCall" && facingBb > 0) return "heroCall";
+  if (chosenBucket === "bet80-100" || chosenBucket === "bet100+" || chosenBucket === "allIn") return "overbet";
+  if (chosenBucket.startsWith("bet")) return "thinValue";
+  return undefined;
+}
+
+/** DBから ExtractHand を読み込む(analyzeHandと同じ形)。 */
+async function loadExtractHand(handId: string): Promise<ExtractHand | null> {
+  const hand = await prisma.hand.findUnique({
+    where: { id: handId },
+    select: { buttonFixedPos: true, levelBigBlind: true, board: true, ...HAND_INCLUDE },
+  });
+  if (!hand) return null;
+  return {
+    buttonFixedPos: hand.buttonFixedPos,
+    levelBigBlind: hand.levelBigBlind,
+    board: hand.board,
+    seats: hand.seats.map((s) => ({
+      seatIndex: s.seatIndex,
+      userId: s.userId,
+      startingStack: s.startingStack,
+      holeCards: s.holeCards,
+    })),
+    actions: hand.actions.map((a) => ({
+      sequenceNumber: a.sequenceNumber,
+      seatIndex: a.seatIndex,
+      street: a.street,
+      kind: a.kind,
+      toAmount: a.toAmount,
+      potBefore: a.potBefore,
+    })),
+  };
+}
+
+/**
+ * "solving"マーカーの付いたHUポストフロップ決定をCFRソルバーで解析し、レビューを保存して返す。
+ * 数秒〜数十秒かかるため、APIはこれをバックグラウンドで起動し、クライアントはポーリングする。
+ */
+export async function enrichAndSaveReview(handId: string, heroUserId: string): Promise<ReviewResult | null> {
+  const extractHand = await loadExtractHand(handId);
+  if (!extractHand) return null;
+  const analyzed = analyzeExtractedHand(extractHand, heroUserId);
+  if (!analyzed) return null;
+
+  const pending = analyzed.decisions.filter((d) => d.outOfScopeReason === "solving");
+  if (pending.length > 0) {
+    const srp = detectHandSrp(extractHand);
+    const rawBySeq = new Map(extractHeroDecisions(extractHand, heroUserId).map((r) => [r.sequenceNumber, r]));
+    for (const d of pending) {
+      const raw = rawBySeq.get(d.sequenceNumber);
+      const handClass = raw ? handClassLabel(raw.holeCards) : null;
+      if (!srp || !raw || !handClass) {
+        d.outOfScopeReason = "solver-failed";
+        continue;
+      }
+      try {
+        const band = bandOfStack(d.effStackBb + d.potBb / 2);
+        const handle = await reviewSpotHandle(band, srp.openerPos, srp.defenderPos, raw.boardSoFar);
+        const node = handle?.nodeFor(raw.streetLineBefore);
+        if (!node || node.unsupported) {
+          d.outOfScopeReason = "solver-failed";
+          continue;
+        }
+        const cell = node.matrix.cells.flat().find((c) => c.label === handClass);
+        if (!cell || cell.count === 0) {
+          // heroの実ハンドがモデル上のレンジ外(プリフロップが非GTOライン)。
+          d.outOfScopeReason = "out-of-range";
+          continue;
+        }
+        // ベットサイズのバケット差はソルバー側の単一サイズへスナップ。
+        let chosenBucket = d.actionTaken.bucket;
+        if (!(chosenBucket in cell.byBucket) && chosenBucket.startsWith("bet")) {
+          const betBuckets = Object.keys(cell.byBucket).filter((b) => b.startsWith("bet"));
+          if (betBuckets.length === 1) chosenBucket = betBuckets[0]!;
+        }
+        const gtoActions = pseudoEvFromFreq(cell.byBucket, chosenBucket, d.potBb);
+        const chosenFreq = gtoActions.find((a) => a.bucket === chosenBucket)?.frequency ?? 0;
+        const result = classifyDecision({
+          gtoActions,
+          chosenBucket,
+          isPreflop: false,
+          difficultKind: postflopDifficultKind(chosenBucket, d.facingSizeBb ?? 0, chosenFreq),
+        });
+        if (result) {
+          d.gtoActions = gtoActions;
+          d.classification = result.classification;
+          d.evLossBb = result.evLossBb;
+          d.outOfScopeReason = null;
+        } else {
+          d.outOfScopeReason = "solver-failed";
+        }
+      } catch (err) {
+        console.error("[review] solver enrichment failed:", err);
+        d.outOfScopeReason = "solver-failed";
+      }
+    }
+  }
+
+  const summary = summarize(analyzed.decisions);
+  const result: ReviewResult = { handId, heroUserId, decisions: analyzed.decisions, ...summary };
+  await saveReview(result);
+  return result;
+}
+
+/** 保存済みレビューの決定(seq→分類結果)を読み込む。無ければ null。 */
+export async function getSavedReviewDecisions(
+  handId: string,
+  heroUserId: string,
+): Promise<Map<number, { gtoActions: GtoActionEV[] | null; classification: Classification | null; evLossBb: number | null; outOfScopeReason: string | null }> | null> {
+  const review = await prisma.handReview.findUnique({
+    where: { handId_heroUserId: { handId, heroUserId } },
+    include: { decisions: true },
+  });
+  if (!review) return null;
+  const map = new Map<number, { gtoActions: GtoActionEV[] | null; classification: Classification | null; evLossBb: number | null; outOfScopeReason: string | null }>();
+  for (const d of review.decisions) {
+    map.set(d.sequenceNumber, {
+      gtoActions: (d.gtoActions as unknown as GtoActionEV[] | null) ?? null,
+      classification: (d.classification as Classification | null) ?? null,
+      evLossBb: d.evLossBb,
+      outOfScopeReason: d.outOfScopeReason,
+    });
+  }
+  return map;
 }
