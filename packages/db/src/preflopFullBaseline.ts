@@ -167,7 +167,10 @@ export function buildPreflopFullNode(params: { heroPos: string; stackBucket: str
     { bucket: "fold", frequency: total > 0 ? foldW / total : 0, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0.005);
 
-  return { position: `${params.heroPos} ${stack.s}bb`, options, matrix: { cells, totalSamples: total } };
+  // position は素のポジション名(例 "UTG")にする。上部ポジションカード(PositionPillBar)が
+  // active 判定に `node.position === "UTG"` の完全一致を使うため、装飾文字列を付けると選択不能になる
+  // (GEOタブと完全に同じ入力パターンにするための必須要件。スタック帯は設定カードで表示)。
+  return { position: params.heroPos, options, matrix: { cells, totalSamples: total } };
 }
 
 export const PREFLOP_FULL_STACKS = DATA.stacks.map((s) => s.s);
