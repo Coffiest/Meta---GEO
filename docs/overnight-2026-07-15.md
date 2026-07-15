@@ -40,3 +40,6 @@ Deploy成功確認 → 本ログに追記 → 次サイクルを予約。朝(JST
 - **v1.80.0 — ルールレビュー + 設定メニューの触感**: エンジンの `bettingLogic.ts`(TDA Rule 47:
   フル/不完全レイズの再オープン判定)を精査し健全であることを確認。あわせてプレイ中の設定
   ポップオーバー各項目に active:scale の押し込みを追加。ロジック不変。
+- **v1.81.0 — タイポグラフィのアンチエイリアス**: body に -webkit-font-smoothing:antialiased /
+  -moz-osx-font-smoothing:grayscale / text-rendering:optimizeLegibility を追加し、全画面の文字を
+  くっきり端正に(Swiss/Apple寄りの見え方を後押し)。CSSのみ。
