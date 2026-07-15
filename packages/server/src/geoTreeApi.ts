@@ -7,6 +7,7 @@ import {
   buildPreflopNashNode,
   buildPreflopNashCallNode,
   buildPreflopBandNode,
+  buildPreflopVsOpenNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -202,7 +203,16 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           return true;
         }
 
-        // vs-open-raise / 3bet 等(非オールインのレイズに直面)= ポストフロップ依存のため未整備(後続ステージ)。
+        // ちょうど1人が(非オールインの)オープンレイズ → ディフェンス(fold/call/3bet/allin)ノード。
+        // genPreflopVsOpen.ts が転記オープンレンジに対して解いた混合戦略(バンド: 100/20/14bb)。
+        if (nonFold.length === 1) {
+          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const gto = buildPreflopVsOpenNode(band, nonFold[0]!.position, heroPos);
+          sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+          return true;
+        }
+
+        // オープン+コール(スクイーズ)以降 = 未整備(後続ステージ)。
         sendJson(res, 200, empty);
         return true;
       }
