@@ -184,6 +184,9 @@ function GameScreen({
   const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
   // ゲーム開始時点のスタッツ(結果画面でbefore→afterの増減を表示するため)。一度だけ取得。
   const [statsBefore, setStatsBefore] = useState<ResultStatsSnapshot | null>(null);
+  // 「チップを破棄して離脱」した場合、その場で敗退とみなして表示するトーナメント結果。
+  // 通常のtournamentOverと同じ結果画面を、着順=離脱時点の残り人数・賞金0で表示する。
+  const [leftResult, setLeftResult] = useState<TournamentOverInfo | null>(null);
   // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
@@ -316,8 +319,14 @@ function GameScreen({
             onShowHistory={() => setHistoryOpen(true)}
             onShowChatLog={() => setChatLogOpen(true)}
             onLeave={() => {
+              // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
+              setLeftResult({
+                winnerPlayerId: null,
+                yourFinishPosition: tournamentInfo?.remaining ?? null,
+                yourPayout: 0,
+              });
               leaveGame();
-              onExit();
+              setSettingsOpen(false);
             }}
             onClose={() => setSettingsOpen(false)}
           />
@@ -435,8 +444,14 @@ function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {tournamentOver && (
-          <TournamentResultScreen info={tournamentOver} accessToken={accessToken} statsBefore={statsBefore} onExit={onExit} />
+        {(tournamentOver || leftResult) && (
+          <TournamentResultScreen
+            info={(tournamentOver ?? leftResult)!}
+            accessToken={accessToken}
+            statsBefore={statsBefore}
+            tournamentId={tournamentInfo?.tournamentId ?? null}
+            onExit={onExit}
+          />
         )}
       </AnimatePresence>
 

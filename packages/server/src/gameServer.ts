@@ -371,6 +371,7 @@ export class TableSession implements GameSession {
       total: seats.length,
       averageStack,
       prizePool: SNG_PAYOUTS,
+      tournamentId: this.dbTournamentId ?? null,
     });
   }
 

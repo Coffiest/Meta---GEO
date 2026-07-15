@@ -80,6 +80,8 @@ export interface TournamentInfo {
   averageStack: number;
   /** プライズ(ペイアウト)構造。 */
   prizePool: PrizePlace[];
+  /** このトーナメントのDB ID(棋譜解析への遷移に使う)。未確定時はnull。 */
+  tournamentId?: string | null;
 }
 
 /** 同卓チャットの1メッセージ。 */

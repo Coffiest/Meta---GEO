@@ -719,7 +719,7 @@ export class MttSession implements GameSession {
     const prizePool = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn).places;
     this.io
       .to([...mtt.getTableIds()].map((id) => this.tableRoom(id)))
-      .emit("tournamentInfo", { remaining, total: this.entryCount, averageStack, prizePool });
+      .emit("tournamentInfo", { remaining, total: this.entryCount, averageStack, prizePool, tournamentId: this.dbTournamentId ?? null });
   }
 
   private broadcastState(): void {
