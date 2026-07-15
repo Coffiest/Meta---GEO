@@ -64,7 +64,7 @@ export function buildPushFoldGtoNode(params: { stackBucket: string; side?: "jam"
   const side = params.side ?? "jam";
   const depth = nearestDepth(BUCKET_DEPTH[params.stackBucket] ?? 20);
   if (!depth) {
-    return { position: side === "jam" ? "SB(jam)" : "BB(call)", options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
+    return { position: side === "jam" ? "SB" : "BB", options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
   }
 
   const inRange = side === "jam" ? depth.jam : depth.call;
@@ -94,7 +94,9 @@ export function buildPushFoldGtoNode(params: { stackBucket: string; side?: "jam"
     { bucket: foldBucket, frequency: 1 - freq, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0);
 
-  return { position: side === "jam" ? `SB jam ${depth.s}bb` : `BB call ${depth.s}bb`, options, matrix: { cells, totalSamples: total } };
+  // position は素のポジション名(SB/BB)にする。上部ポジションカードの active 判定が完全一致のため、
+  // 装飾を付けると選択不能になる(GEOタブと同じ入力パターンにする)。深さは設定カードで表示。
+  return { position: side === "jam" ? "SB" : "BB", options, matrix: { cells, totalSamples: total } };
 }
 
 export const PUSHFOLD_DEPTHS = DATA.generatedDepths;
