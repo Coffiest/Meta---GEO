@@ -4,6 +4,7 @@ import {
   getPostflopNode,
   buildPreflopGtoNode,
   buildPushFoldGtoNode,
+  buildPreflopNashNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -15,17 +16,18 @@ import {
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 
 /**
- * GTOタブ用ノードを NodeResult 形へ変換する。v1はRFI(全員フォールドで回ってきた最初の開き手)のみ対応。
- * lineに非フォールドが含まれる(=フェイス)場合や、算出ポジションがGTOレンジ未整備の場合は
- * sampleSize=0(UIは「データ未整備」を表示)。
+ * GTOタブ用の開き(オープン/シューブ)ノードを NodeResult 形へ変換する。
+ * 6-maxマルチウェイ・プッシュ/フォールドNash(BBアンティ・自社計算)を、全ポジション×全スタックで返す。
+ * lineの通りにフォールドで手番を進めると各ポジション(UTG→…→SB)の開きレンジになる。
+ * フェイス(非フォールドが含まれる)やBB・データ未整備は sampleSize=0(UIは「データ未整備」)。
  */
-function buildGtoNodeResult(line: LineStep[]) {
+function buildGtoNodeResult(line: LineStep[], stackBucket: StackBucket) {
   const facedRaise = line.some((s) => s.bucket !== "fold");
   const heroPos = PREFLOP_ORDER[line.length] ?? "";
   if (facedRaise || heroPos === "" || heroPos === "BB") {
     return { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
   }
-  const gto = buildPreflopGtoNode({ heroPos, line });
+  const gto = buildPreflopNashNode({ heroPos, stackBucket });
   if (gto.unsupported) {
     return { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
   }
@@ -156,11 +158,12 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       const line = parseLine(body["line"] ?? []);
+      const stackBucket = isStackBucket(body["stackBucket"]) ? body["stackBucket"] : "10-15";
       if (line === null) {
         sendJson(res, 400, { error: "invalid line" });
         return true;
       }
-      sendJson(res, 200, buildGtoNodeResult(line));
+      sendJson(res, 200, buildGtoNodeResult(line, stackBucket));
       return true;
     }
 
