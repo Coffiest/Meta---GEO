@@ -455,7 +455,15 @@ function GameScreen({
 
       <AnimatePresence>
         {chatLogOpen && (
-          <ChatLogSheet messages={chatLog} yourSeatIndex={yourSeatIndex} onClose={() => setChatLogOpen(false)} />
+          <ChatLogSheet
+            messages={chatLog}
+            yourSeatIndex={yourSeatIndex}
+            players={players}
+            myDisplayName={displayName}
+            myAvatarKey={avatarKey}
+            onSend={sendChat}
+            onClose={() => setChatLogOpen(false)}
+          />
         )}
       </AnimatePresence>
 
