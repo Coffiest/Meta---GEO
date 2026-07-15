@@ -97,6 +97,41 @@ function P5Button({
   );
 }
 
+/** 手番待ち中の控えめなボタン。P5Buttonと同じ平行四辺形の輪郭を保ちつつ、色塗り・オフセット影を
+ * 省いて枠線のみの静かな見た目にする(手番が来ると同じシルエットが色付きP5ボタンへ“起動”する)。 */
+function P5GhostButton({
+  active,
+  onClick,
+  ariaLabel,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="relative min-h-[60px] flex-1"
+    >
+      <span
+        className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 overflow-hidden border-2 transition-colors ${
+          active ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
+        }`}
+        style={{ transform: "skewX(-9deg)" }}
+      >
+        <span className="flex flex-col items-center gap-0.5" style={{ transform: "skewX(9deg)" }}>
+          {children}
+        </span>
+      </span>
+    </motion.button>
+  );
+}
+
 // ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
 
@@ -293,45 +328,43 @@ export function ActionBar({
   );
 
   if (!isYourTurn) {
-    // 手番待ち中も、アクションボタンと同じ丸型ボタンを表示する(「待っています」テキストは廃止)。
-    // 左=x/f(チェック/フォールド予約)、中央=白い非活性プレースホルダ、右=離席トグル。
-    // 黒枠線+白のApple風で目立たない配色にし、手番が来たら下の色付きボタンに切り替わる。
+    // 手番待ち中も、アクティブ時のP5ボタンと同じ平行四辺形のシルエットを保つ(色塗り・影は省いた
+    // 控えめな枠線のみ)。左=x/f(チェック/フォールド予約)、中央=非活性プレースホルダ、右=離席トグル。
+    // 手番が来ると同じ形が下の色付きP5ボタンへ“起動”する、一貫したデザイン言語。
     return (
       <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
         <div className="mx-auto max-w-md space-y-2.5">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">{timeBankRow}</div>
 
-          <div className="flex gap-2.5">
+          <div className="flex gap-3">
             {/* x/f 予約(普段フォールドがある左スロット) */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setCheckFoldArmed((v) => !v)}
-              aria-label="チェック/フォールドを予約"
-              className={`flex-1 min-h-[60px] flex flex-col items-center justify-center gap-0.5 rounded-full border transition-colors ${
-                checkFoldArmed ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
-              }`}
-            >
+            <P5GhostButton active={checkFoldArmed} onClick={() => setCheckFoldArmed((v) => !v)} ariaLabel="チェック/フォールドを予約">
               <CheckFoldIcon className="h-[18px] w-[18px]" />
-              <span className="text-[11px] font-black tracking-wide">x / f</span>
-            </motion.button>
+              <span className="text-[11px] font-black italic tracking-wide">x / f</span>
+            </P5GhostButton>
 
-            {/* 中央: 手番待ちの非活性プレースホルダ(真っ白・押せない) */}
-            <div className="flex-1 min-h-[60px] flex items-center justify-center rounded-full border border-ink-200 bg-white text-ink-300">
-              <span className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-ink-300"
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
-                  />
-                ))}
+            {/* 中央: 手番待ちの非活性プレースホルダ(押せない) */}
+            <div className="relative min-h-[60px] flex-1">
+              <span
+                className="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-ink-200 bg-white text-ink-300"
+                style={{ transform: "skewX(-9deg)" }}
+              >
+                <span className="flex gap-1" style={{ transform: "skewX(9deg)" }}>
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      className="h-1.5 w-1.5 rounded-full bg-ink-300"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                    />
+                  ))}
+                </span>
               </span>
             </div>
 
             {/* 離席トグル(普段レイズがある右スロット) */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
+            <P5GhostButton
+              active={away}
               onClick={() =>
                 setAway((v) => {
                   const next = !v;
@@ -339,14 +372,11 @@ export function ActionBar({
                   return next;
                 })
               }
-              aria-label="離席"
-              className={`flex-1 min-h-[60px] flex flex-col items-center justify-center gap-0.5 rounded-full border transition-colors ${
-                away ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
-              }`}
+              ariaLabel="離席"
             >
               <AwayIcon className="h-[18px] w-[18px]" />
-              <span className="text-[11px] font-black tracking-wide">離席</span>
-            </motion.button>
+              <span className="text-[11px] font-black italic tracking-wide">離席</span>
+            </P5GhostButton>
           </div>
         </div>
       </div>
