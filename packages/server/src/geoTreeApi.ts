@@ -9,6 +9,10 @@ import {
   buildPreflopBandNode,
   buildPreflopVsOpenNode,
   prepareGtoPostflopSpot,
+  deserializeGtoPostflopSpot,
+  gtoPostflopSpotKey,
+  readGtoPostflopSnapshot,
+  writeGtoPostflopSnapshot,
   type GtoPostflopSpotHandle,
   STACK_BUCKETS,
   BUBBLE_STAGES,
@@ -31,16 +35,26 @@ const BUCKET_TO_BAND: Record<string, string> = {
 };
 
 /**
- * GTOポストフロップ(SRP)のスポットキャッシュ。key = band|opener|defender|board。
- * 解は数秒〜数十秒かかるため、初回は "solving" を即返しクライアントがポーリングする。
- * null はサポート外スポットのネガティブキャッシュ。
+ * GTOポストフロップ(SRP)のスポットキャッシュ(2段: メモリ + DB永続層)。
+ * key = spotKey(スート正規化込み。suit-isomorphicなボードは同一キーへ集約)。
+ *
+ * - メモリ命中: 即応答。
+ * - DB命中(read-through): 事前計算/過去解を復元しメモリへ載せて即応答。
+ * - ミス: バックグラウンドでCFR計算 → メモリ+DB(write-through)へ格納。初回は {solving:true}
+ *   を即返しクライアントがポーリングする。
+ * - null はサポート外スポットのネガティブキャッシュ(メモリのみ)。
  */
 const gtoPostflopCache = new Map<string, GtoPostflopSpotHandle | null>();
 const gtoPostflopInFlight = new Set<string>();
 const GTO_POSTFLOP_CACHE_MAX = 48;
 
-function gtoPostflopKey(band: string, opener: string, defender: string, board: string[]): string {
-  return `${band}|${opener}|${defender}|${board.join(",")}`;
+/** メモリキャッシュへLRU的に格納(最大件数超過で最古を退避)。 */
+function setGtoPostflopMemory(key: string, handle: GtoPostflopSpotHandle | null): void {
+  if (gtoPostflopCache.size >= GTO_POSTFLOP_CACHE_MAX) {
+    const first = gtoPostflopCache.keys().next().value;
+    if (first !== undefined) gtoPostflopCache.delete(first);
+  }
+  gtoPostflopCache.set(key, handle);
 }
 
 /**
@@ -273,8 +287,10 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       const opener = nonFold[0]!.position;
       const defender = nonFold[1]!.position;
       const band = BUCKET_TO_BAND[sb] ?? "100";
-      const key = gtoPostflopKey(band, opener, defender, board as string[]);
+      const boardArr = board as string[];
+      const key = gtoPostflopSpotKey(band, opener, defender, boardArr);
 
+      // 1) メモリ命中(ネガティブキャッシュ含む)。
       const cached = gtoPostflopCache.get(key);
       if (cached !== undefined) {
         if (cached === null) {
@@ -286,22 +302,39 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
 
-      if (!gtoPostflopInFlight.has(key)) {
-        gtoPostflopInFlight.add(key);
-        void prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board: board as string[] })
-          .then((handle) => {
-            if (gtoPostflopCache.size >= GTO_POSTFLOP_CACHE_MAX) {
-              const first = gtoPostflopCache.keys().next().value;
-              if (first !== undefined) gtoPostflopCache.delete(first);
-            }
-            gtoPostflopCache.set(key, handle);
-          })
-          .catch((err) => {
-            console.error("[geoTreeApi] gto postflop solve failed:", err);
-            gtoPostflopCache.set(key, null);
-          })
-          .finally(() => gtoPostflopInFlight.delete(key));
+      // 2) 計算中なら即ポーリング応答(重複DB読みを避ける)。
+      if (gtoPostflopInFlight.has(key)) {
+        sendJson(res, 200, { ...empty, solving: true });
+        return true;
       }
+
+      // 3) DB read-through(事前計算/過去解)。命中したら復元してメモリへ載せ即応答。
+      const snap = await readGtoPostflopSnapshot(key);
+      if (snap) {
+        const handle = deserializeGtoPostflopSpot(snap);
+        setGtoPostflopMemory(key, handle);
+        const gto = handle.nodeFor(postflopLine.map((s) => s.bucket));
+        sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+        return true;
+      }
+
+      // 4) ミス: バックグラウンドでCFR計算 → メモリ+DB(write-through)。
+      gtoPostflopInFlight.add(key);
+      void prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board: boardArr })
+        .then(async (handle) => {
+          if (!handle || !handle.snapshot) {
+            setGtoPostflopMemory(key, null);
+            return;
+          }
+          const snapshot = handle.snapshot();
+          setGtoPostflopMemory(key, deserializeGtoPostflopSpot(snapshot));
+          await writeGtoPostflopSnapshot(band, opener, defender, boardArr, snapshot);
+        })
+        .catch((err) => {
+          console.error("[geoTreeApi] gto postflop solve failed:", err);
+          setGtoPostflopMemory(key, null);
+        })
+        .finally(() => gtoPostflopInFlight.delete(key));
       sendJson(res, 200, { ...empty, solving: true });
       return true;
     }

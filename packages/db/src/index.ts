@@ -15,4 +15,5 @@ export * from "./preflopNashBaseline.js";
 export * from "./preflopFullBaseline.js";
 export * from "./preflopVsOpenBaseline.js";
 export * from "./gtoPostflop.js";
+export * from "./gtoPostflopStore.js";
 export * from "./review.js";

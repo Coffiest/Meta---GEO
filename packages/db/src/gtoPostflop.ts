@@ -5,6 +5,7 @@ import { expandToken } from "./preflopBaseline.js";
 import type { GtoNodeResult } from "./preflopBaseline.js";
 import { PREFLOP_BANDS } from "./data/preflop100.js";
 import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
+import { canonicalizeBoard, spotKeyOf } from "./solverSpot.js";
 
 /**
  * GTOタブのポストフロップ(SRP: オープン→コール, HU)をCFRソルバーでオンデマンド計算する。
@@ -86,8 +87,10 @@ function fromBucket(bucket: string, available: string[]): string | null {
   if (bucket === "fold") return available.includes("fold") ? "fold" : null;
   if (bucket === "allIn") return available.includes("allin") ? "allin" : null;
   if (bucket.startsWith("bet")) {
-    // 単一サイズ抽象化: 最初のbetアクションへスナップ。
-    return available.find((a) => a.startsWith("bet")) ?? null;
+    // サイズ帯一致: そのバケットに対応するbetアクションを厳密に選ぶ(複数サイズ木でも一致)。
+    const bets = available.filter((a) => a.startsWith("bet"));
+    for (const a of bets) if (toBucket(a) === bucket) return a;
+    return bets[0] ?? null; // フォールバック(単一サイズ抽象化)
   }
   return null;
 }
@@ -110,6 +113,38 @@ const STREET_BUDGET: Record<number, { sampleChance?: number; iterations: number 
 /** 解いたスポット(band×ペア×ボード)への問い合わせハンドル。postflopLine別のノード取り出しは軽量。 */
 export interface GtoPostflopSpotHandle {
   nodeFor(postflopLine: string[]): GtoNodeResult;
+  /** スポットの全ノード戦略を永続化用にシリアライズする(ライブ解のみ実装。復元ハンドルは持たない)。 */
+  snapshot?(): GtoPostflopSpotSnapshot;
+}
+
+/**
+ * スポットの全ノード戦略を「postflopLineバケット列 → 13x13集約結果」の辞書としてシリアライズしたもの。
+ * DB(GtoSolution.solution)へそのまま保存でき、復元ハンドルは辞書引きで軽量にノードを返す。
+ * ルート(アクション無し)のキーは空文字。ライン区切りは "|"。
+ */
+export interface GtoPostflopSpotSnapshot {
+  nodes: Record<string, GtoNodeResult>;
+}
+
+/** ソルバー版・ベットツリー識別子(spotKey/betTreeに反映)。解の形式を変えたら上げる。 */
+export const GTO_POSTFLOP_SOLVER_VERSION = "cfr-srp-0.75-v1";
+
+/** 永続キャッシュ用の spotKey コンポーネント(GtoSolutionの各カラムにも使う)。 */
+export function gtoPostflopSpotComponents(band: string, opener: string, defender: string, board: string[]) {
+  const street = board.length === 3 ? "flop" : board.length === 4 ? "turn" : "river";
+  return {
+    street,
+    effStackBucket: band,
+    heroPos: `${opener}v${defender}`,
+    boardCanon: canonicalizeBoard(board),
+    actionLine: "srp",
+    betTree: GTO_POSTFLOP_SOLVER_VERSION,
+  };
+}
+
+/** スート正規化込みの決定的 spotKey。suit-isomorphicなボードは同一キーに集約される。 */
+export function gtoPostflopSpotKey(band: string, opener: string, defender: string, board: string[]): string {
+  return spotKeyOf(gtoPostflopSpotComponents(band, opener, defender, board));
 }
 
 export interface GtoPostflopSpotParams {
@@ -171,6 +206,40 @@ export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Pro
     nodeFor(postflopLine: string[]): GtoNodeResult {
       return buildNodeFromHandle(handle.queryNode, params, openerIsOop, postflopLine);
     },
+    snapshot(): GtoPostflopSpotSnapshot {
+      return snapshotSpot(handle.queryNode, params, openerIsOop);
+    },
+  };
+}
+
+/**
+ * 解いたスポットの全(街内)決定ノードを列挙し、postflopLineバケット列→13x13結果の辞書を作る。
+ * ソルバー木をアクションで深さ優先に辿り、各ノードを toBucket でバケット列へ写像して保存する。
+ * チャンス/端点(queryNode=null)で枝刈り。単一サイズ抽象では兄弟バケットは衝突しない。
+ */
+function snapshotSpot(
+  queryNode: (path: string[]) => NodeStrategy | null,
+  params: GtoPostflopSpotParams,
+  openerIsOop: boolean,
+): GtoPostflopSpotSnapshot {
+  const nodes: Record<string, GtoNodeResult> = {};
+  const rec = (solverPath: string[], bucketPath: string[]): void => {
+    const node = queryNode(solverPath);
+    if (!node) return;
+    nodes[bucketPath.join("|")] = nodeStrategyToResult(node, params, openerIsOop);
+    node.actions.forEach((act) => rec([...solverPath, act], [...bucketPath, toBucket(act)]));
+  };
+  rec([], []);
+  return { nodes };
+}
+
+/** スナップショットから軽量な問い合わせハンドルを復元する(辞書引きのみ)。 */
+export function deserializeGtoPostflopSpot(snapshot: GtoPostflopSpotSnapshot): GtoPostflopSpotHandle {
+  return {
+    nodeFor(postflopLine: string[]): GtoNodeResult {
+      const hit = snapshot.nodes[postflopLine.join("|")];
+      return hit ?? { position: null, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
+    },
   };
 }
 
@@ -192,7 +261,11 @@ function buildNodeFromHandle(
   }
   const node: NodeStrategy | null = queryNode(path);
   if (!node) return unsupported;
+  return nodeStrategyToResult(node, params, openerIsOop);
+}
 
+/** 1つの決定ノード戦略を13x13クラス集約のGtoNodeResultへ変換する。 */
+function nodeStrategyToResult(node: NodeStrategy, params: GtoPostflopSpotParams, openerIsOop: boolean): GtoNodeResult {
   const heroPos = (node.player === 0) === openerIsOop ? params.openerPos : params.defenderPos;
 
   // 13x13クラス集約。
