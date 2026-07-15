@@ -168,6 +168,26 @@ textarea:focus-visible,
   box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
 }
 
+/* オールイン: アバターの周囲でメラメラ燃える炎エフェクトのキーフレーム。
+   背景色に依存しないよう不透明の炎グラデ+ドロップシャドウで描き、揺らぎ(flick)・
+   グロー(glow)・立ち上る火の粉(ember)を別々のアニメーションで重ねる。 */
+@keyframes allin-flick {
+  0% { transform: scaleY(1) scaleX(1) skewX(0deg); }
+  20% { transform: scaleY(1.22) scaleX(0.86) skewX(6deg); }
+  45% { transform: scaleY(0.88) scaleX(1.08) skewX(-5deg); }
+  70% { transform: scaleY(1.16) scaleX(0.92) skewX(4deg); }
+  100% { transform: scaleY(1) scaleX(1) skewX(0deg); }
+}
+@keyframes allin-glow {
+  0%, 100% { opacity: 0.7; transform: translate(-50%, -42%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -45%) scale(1.06); }
+}
+@keyframes allin-ember {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(-76px) translateX(9px) scale(0.4); opacity: 0; }
+}
+
 /* テーブル画面の画像(felt/カード/アバター)は右クリック保存・ドラッグ選択の対象外にする。 */
 .no-image-actions img {
   -webkit-touch-callout: none;

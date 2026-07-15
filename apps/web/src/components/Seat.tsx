@@ -12,36 +12,99 @@ export interface SeatBadge {
   tone: SeatBadgeTone;
 }
 
+// オールインの炎: 火柱(tongue)群。基準サイズ44pxのアバター用に px 指定し、size に応じて全体を
+// scale する。w/h=寸法, ml=中心合わせ, tx=水平オフセット, rot=傾き, sc=拡大, op=不透明度,
+// dur/delay=揺らぎアニメの周期・位相。高さ違い7本で「メラメラ立ち上る」束を作る。
+const FLAME_TONGUES = [
+  { w: 20, h: 58, ml: -10, tx: -24, rot: -16, sc: 0.82, op: 0.95, dur: 0.72, delay: -0.2 },
+  { w: 20, h: 60, ml: -10, tx: 24, rot: 16, sc: 0.84, op: 0.95, dur: 0.8, delay: -0.5 },
+  { w: 22, h: 74, ml: -11, tx: -15, rot: -7, sc: 0.9, op: 1, dur: 0.68, delay: -0.12 },
+  { w: 22, h: 76, ml: -11, tx: 15, rot: 7, sc: 0.92, op: 1, dur: 0.76, delay: -0.34 },
+  { w: 24, h: 70, ml: -12, tx: -6, rot: 0, sc: 0.96, op: 1, dur: 0.64, delay: -0.06 },
+  { w: 24, h: 74, ml: -12, tx: 7, rot: 0, sc: 0.98, op: 1, dur: 0.7, delay: -0.28 },
+  { w: 22, h: 92, ml: -11, tx: 0, rot: 0, sc: 1, op: 1, dur: 0.6, delay: 0 },
+];
+const FLAME_EMBERS = [
+  { ml: -13, delay: -0.2 },
+  { ml: 9, delay: -0.7 },
+  { ml: -4, delay: -1.1 },
+  { ml: 15, delay: -1.45 },
+];
+
 /**
- * オールイン中のアバターの周囲でメラメラと揺れる炎エフェクト。複数の放射状グラデーションを
- * 重ね、フレームごとにopacity/scaleをランダムに揺らして「燃えている」印象を出す。
- * SVG/CSSのみで実装(画像・絵文字不使用)。
+ * オールイン中のアバターを本物のように包む炎エフェクト。高さ違いの火柱を束ね、各柱を位相の
+ * ずれた揺らぎ(allin-flick)で踊らせ、暖色のグロー(allin-glow)と立ち上る火の粉(allin-ember)を
+ * 重ねる。アバターより背面(z-0)に置くことでプレイヤーの顔は隠さず、炎が背後〜側面〜頭上へ
+ * 舐め上がる。背景色に依存しないよう不透明グラデ+drop-shadowで描く(画像・絵文字不使用)。
  */
 function AllInFlame({ size }: { size: number }) {
-  const box = size * 1.62;
+  const scale = size / 44;
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2"
-      style={{ width: box, height: box }}
+      className="pointer-events-none absolute left-1/2 top-1/2 z-0"
+      style={{ width: 44, height: 44, transform: `translate(-50%, -50%) scale(${scale})` }}
     >
-      {[0, 1, 2].map((i) => (
-        <motion.div
+      {/* 暖色のグロー(halo) */}
+      <div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: 116,
+          height: 116,
+          transform: "translate(-50%, -42%)",
+          background: "radial-gradient(circle, rgba(255,150,30,0.5) 0%, rgba(255,90,20,0.22) 44%, rgba(255,40,10,0) 70%)",
+          filter: "blur(2px)",
+          animation: "allin-glow 1.4s ease-in-out infinite",
+        }}
+      />
+      {/* 火柱の束 */}
+      <div
+        className="absolute left-1/2 top-1/2"
+        style={{ width: 80, height: 96, transform: "translate(-50%, -56%)", filter: "drop-shadow(0 0 5px rgba(255,130,25,0.55))" }}
+      >
+        {FLAME_TONGUES.map((t, i) => (
+          <span
+            key={i}
+            className="absolute bottom-0 left-1/2"
+            style={{
+              width: t.w,
+              height: t.h,
+              marginLeft: t.ml,
+              opacity: t.op,
+              transformOrigin: "50% 100%",
+              transform: `translateX(${t.tx}px) rotate(${t.rot}deg) scale(${t.sc})`,
+            }}
+          >
+            <span
+              className="block h-full w-full"
+              style={{
+                transformOrigin: "50% 100%",
+                background:
+                  "linear-gradient(to top, rgba(255,70,15,0) 0%, #ff2e08 16%, #ff6a12 38%, #ffab1e 60%, #ffe37a 82%, #fffbe8 100%)",
+                borderRadius: "50% 50% 46% 46% / 80% 80% 24% 24%",
+                filter: "blur(0.6px)",
+                animation: `allin-flick ${t.dur}s ease-in-out infinite`,
+                animationDelay: `${t.delay}s`,
+              }}
+            />
+          </span>
+        ))}
+      </div>
+      {/* 立ち上る火の粉 */}
+      {FLAME_EMBERS.map((e, i) => (
+        <span
           key={i}
-          className="absolute inset-0 rounded-full"
+          className="absolute left-1/2 rounded-full"
           style={{
-            background:
-              i === 2
-                ? "radial-gradient(circle, rgba(255,240,150,0.9) 0%, rgba(255,150,20,0.55) 38%, rgba(230,40,20,0.0) 70%)"
-                : "radial-gradient(circle, rgba(255,180,40,0.85) 0%, rgba(240,70,20,0.6) 42%, rgba(200,20,10,0.0) 72%)",
-            filter: "blur(3px)",
+            top: "40%",
+            width: 3,
+            height: 3,
+            marginLeft: e.ml,
+            background: "#ffcf6b",
+            boxShadow: "0 0 5px 1px rgba(255,150,40,0.9)",
+            animation: "allin-ember 1.5s linear infinite",
+            animationDelay: `${e.delay}s`,
           }}
-          animate={{
-            scale: i === 0 ? [1, 1.12, 0.96, 1.08, 1] : i === 1 ? [1.05, 0.94, 1.1, 0.98, 1.05] : [0.9, 1.04, 0.92, 1, 0.9],
-            opacity: i === 2 ? [0.7, 1, 0.75, 0.95, 0.7] : [0.85, 0.6, 0.95, 0.7, 0.85],
-            rotate: i === 1 ? [0, 6, -4, 3, 0] : [0, -5, 4, -2, 0],
-          }}
-          transition={{ duration: 0.9 + i * 0.25, repeat: Infinity, ease: "easeInOut" }}
         />
       ))}
     </div>
