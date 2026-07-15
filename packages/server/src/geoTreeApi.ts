@@ -165,10 +165,11 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           sendJson(res, 400, { error: "invalid line" });
           return true;
         }
-        const facedRaise = line.some((s) => s.bucket !== "fold");
         const heroPos = PREFLOP_ORDER[line.length] ?? "";
-        if (facedRaise || heroPos === "" || heroPos === "BB") {
-          sendJson(res, 200, { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } });
+        const nonFold = line.filter((s) => s.bucket !== "fold");
+        const empty = { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+        if (heroPos === "") {
+          sendJson(res, 200, empty);
           return true;
         }
         // 各スタックバケット → ユーザー提供のGTO Wizard転記レンジ(バンド)。
@@ -181,11 +182,28 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           "5-10": "7",
           "0-5": "7",
         };
-        const band = BUCKET_TO_BAND[sb] ?? "100";
-        const gto = buildPreflopBandNode(band, heroPos);
-        sendJson(res, 200, gto.unsupported
-          ? { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } }
-          : toWireNode(gto));
+
+        // 全員フォールドで回ってきた → そのポジションのオープン(バンド)。BBは開かない。
+        if (nonFold.length === 0) {
+          if (heroPos === "BB") {
+            sendJson(res, 200, empty);
+            return true;
+          }
+          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const gto = buildPreflopBandNode(band, heroPos);
+          sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+          return true;
+        }
+
+        // ちょうど1人がジャム(オールイン)に直面 → そのポジションの厳密Nashコール(ディフェンス)レンジ。
+        if (nonFold.length === 1 && nonFold[0]!.bucket === "allIn") {
+          const gto = buildPreflopNashCallNode({ jammerPos: nonFold[0]!.position, callerPos: heroPos, stackBucket: sb });
+          sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+          return true;
+        }
+
+        // vs-open-raise / 3bet 等(非オールインのレイズに直面)= ポストフロップ依存のため未整備(後続ステージ)。
+        sendJson(res, 200, empty);
         return true;
       }
       // variant="pushfold": HUプッシュ/フォールドNash(自社計算)。それ以外はRFI(6-maxオープンNash)。

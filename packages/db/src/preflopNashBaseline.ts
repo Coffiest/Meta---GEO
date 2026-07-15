@@ -138,7 +138,8 @@ export function buildPreflopNashCallNode(params: {
     { bucket: "fold", frequency: 1 - freq, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0);
 
-  return { position: `${params.callerPos} vs ${params.jammerPos} jam ${stack.s}bb`, options, matrix: { cells, totalSamples: total } };
+  // position は素のポジション名(例 "BB")。PositionPillBar が完全一致で active 判定するため装飾しない。
+  return { position: params.callerPos, options, matrix: { cells, totalSamples: total } };
 }
 
 /** データにあるスタック深度の一覧。 */
