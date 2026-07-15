@@ -12,4 +12,5 @@ export * from "./reviewExtract.js";
 export * from "./preflopBaseline.js";
 export * from "./pushFoldBaseline.js";
 export * from "./preflopNashBaseline.js";
+export * from "./preflopFullBaseline.js";
 export * from "./review.js";

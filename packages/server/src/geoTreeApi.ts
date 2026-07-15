@@ -6,6 +6,7 @@ import {
   buildPushFoldGtoNode,
   buildPreflopNashNode,
   buildPreflopNashCallNode,
+  buildPreflopFullNode,
   STACK_BUCKETS,
   BUBBLE_STAGES,
   type StackBucket,
@@ -156,7 +157,27 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
 
     if (url.pathname === "/api/geo-tree/gto-node" && req.method === "POST") {
       const body = await readJsonBody(req);
-      // variant="pushfold": HUプッシュ/フォールドNash(自社計算)。それ以外はRFI。
+      // variant="full": 通常戦略(fold/open/jam混合, CFR)。lineのフォールドで手番を進める。
+      if (body["variant"] === "full") {
+        const line = parseLine(body["line"] ?? []);
+        const sb = isStackBucket(body["stackBucket"]) ? body["stackBucket"] : "20-30";
+        if (line === null) {
+          sendJson(res, 400, { error: "invalid line" });
+          return true;
+        }
+        const facedRaise = line.some((s) => s.bucket !== "fold");
+        const heroPos = PREFLOP_ORDER[line.length] ?? "";
+        if (facedRaise || heroPos === "" || heroPos === "BB") {
+          sendJson(res, 200, { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } });
+          return true;
+        }
+        const gto = buildPreflopFullNode({ heroPos, stackBucket: sb });
+        sendJson(res, 200, gto.unsupported
+          ? { node: { position: heroPos, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } }
+          : toWireNode(gto));
+        return true;
+      }
+      // variant="pushfold": HUプッシュ/フォールドNash(自社計算)。それ以外はRFI(6-maxオープンNash)。
       if (body["variant"] === "pushfold") {
         const stackBucket = body["stackBucket"];
         const side = body["side"] === "call" ? "call" : "jam";
