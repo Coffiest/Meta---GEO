@@ -24,7 +24,8 @@ const SAMPLES = Number(process.env["SAMPLES"] ?? 250);
 const STACKS = Array.from({ length: 25 }, (_, i) => i + 1); // 1..25bb
 const T = 500; // フィクティシャスプレイ反復回数
 const MW = Number(process.env["MW"] ?? 1.0); // マルチウェイ罰則の強さ(anchor調整済み)
-const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+// 169x169プリフロップ・エクイティ行列のキャッシュ(リポジトリ同梱)。再生成する場合は削除して genPreflopNash.ts を実行。
+const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 
 const RANKS_DESC: Rank[] = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
 const RC: Record<number, string> = { 14: "A", 13: "K", 12: "Q", 11: "J", 10: "T", 9: "9", 8: "8", 7: "7", 6: "6", 5: "5", 4: "4", 3: "3", 2: "2" };

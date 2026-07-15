@@ -21,7 +21,8 @@ import { dirname, join } from "node:path";
 import { PREFLOP_BANDS } from "../src/data/preflop100.js";
 import { expandToken } from "../src/preflopBaseline.js";
 
-const CACHE = "/tmp/claude-0/-home-user-Meta---GEO/f9787643-f533-5ec5-9174-140699184aa0/scratchpad/eqMatrix.json";
+// 169x169プリフロップ・エクイティ行列のキャッシュ(リポジトリ同梱)。再生成する場合は削除して genPreflopNash.ts を実行。
+const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 const T = 400; // フィクティシャスプレイ反復回数
 
 const RANKS_DESC = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
