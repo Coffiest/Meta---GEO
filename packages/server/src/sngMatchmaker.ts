@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import { TableSession, SNG_SEAT_COUNT, type HumanPlayer, type GameSession } from "./gameServer.js";
 
-const MATCH_TIMEOUT_MS = 30_000;
+const MATCH_TIMEOUT_MS = 15_000;
 
 interface QueuedPlayer extends HumanPlayer {
   socket: Socket;
@@ -9,8 +9,8 @@ interface QueuedPlayer extends HumanPlayer {
 
 /**
  * SNGのマッチング待合室。「ポーカーチェイス」のような「マッチング中…」表示のため、
- * 6人揃うか60秒経過するまでプレイヤーをキューに貯めてから卓を立てる。
- * 揃わなかった分の席はBOTで自動的に埋める。
+ * 6人揃うか15秒経過するまで人間プレイヤーをキューに貯めてから卓を立てる(人間を優先マッチング)。
+ * 揃わなかった余りの席だけをBOTで埋める。SNGは途中参加・リエントリー不可(卓成立後は締切)。
  */
 export class SngMatchmaker {
   private queue: QueuedPlayer[] = [];
@@ -75,6 +75,14 @@ export class SngMatchmaker {
     if (this.queue.length === 0) return;
     const humans = this.queue.splice(0, SNG_SEAT_COUNT);
     for (const h of humans) h.socket.emit("sngMatching", { registered: humans.length, needed: SNG_SEAT_COUNT, secondsLeft: 0, starting: true });
+
+    // 7人以上が同時に並んでいた場合、あふれた人間は取り残さず次の卓のマッチングを即開始する
+    // (人間優先: 余った人間だけで新しい待合を作り、締切後に不足分をBOTで埋める)。
+    if (this.queue.length > 0) {
+      this.batchStartedAt = Date.now();
+      this.timer = setTimeout(() => void this.startBatch(), MATCH_TIMEOUT_MS);
+      this.broadcastStatus();
+    }
 
     const session = new TableSession({
       io: this.io,
