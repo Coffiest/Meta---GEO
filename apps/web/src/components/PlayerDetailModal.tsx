@@ -143,13 +143,13 @@ export function PlayerDetailModal({
           <>
             {/* 主要指標 */}
             <div className="grid grid-cols-2 gap-2">
-              <Metric label="収支" value={`${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`} accent={s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"} />
+              {!isBot && <Metric label="収支" value={`${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`} accent={s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"} />}
               <Metric label="ROI(還元率)" value={roiPct(s.roi)} />
               <Metric label="インマネ率" value={pct(s.itmRate)} />
-              <Metric
+              {!isBot && <Metric
                 label="全国順位"
                 value={rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
-              />
+              />}
             </div>
 
             {/* プリフロップ傾向 */}
