@@ -8,6 +8,7 @@ import {
   TIME_BANK_EXTENSION_MS,
   MTT_TIME_BANK_CARDS,
   botThinkDelayMs,
+  buildSeatAction,
   ensureBotUsers,
   scheduleStagedRunout,
   sanitizeChatText,
@@ -394,18 +395,25 @@ export class MttSession implements GameSession {
     if (hand.getActingSeatIndex() !== seatIndex) return;
     const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === seatIndex)?.playerId;
     const human = playerId ? this.humans.get(playerId) : undefined;
-    const boardLenBefore = hand.getPublicState().board.length;
+    const preState = hand.getPublicState();
+    const boardLenBefore = preState.board.length;
+    let effectiveAction = action;
     try {
       hand.applyAction(seatIndex, action);
     } catch (err) {
       if (!human || human.left) {
         hand.applyAction(seatIndex, { kind: "fold" });
+        effectiveAction = { kind: "fold" };
       } else {
         human.socket?.emit("actionError", { message: (err as Error).message });
         return;
       }
     }
     const tableHasHuman = this.tableHasHuman(this.activeTableId!);
+    // ストリートを閉じるアクションもアイコンに一瞬表示されるよう、状態更新と別に seatAction を発火する。
+    if (tableHasHuman) {
+      this.io.to(this.tableRoom(this.activeTableId!)).emit("seatAction", buildSeatAction(seatIndex, effectiveAction, preState));
+    }
     if (hand.isHandComplete()) {
       const boardGrew = hand.getPublicState().board.length > boardLenBefore;
       // ボードが自動展開された=オールインでベッティングが閉じたケース。ルール上の順序どおり
@@ -446,7 +454,14 @@ export class MttSession implements GameSession {
       // 実際に選ぶアクションを先に確定し、人間らしい思考時間で送出する(人間不在卓は高速化)。
       const botAction = this.computeBotAction(actingSeat);
       const street = this.hand?.getPublicState().street ?? "preflop";
-      const delay = this.tableHasHuman(this.activeTableId!) ? botThinkDelayMs(street, botAction) : FAST_DELAY_MS;
+      const hasHuman = this.tableHasHuman(this.activeTableId!);
+      const delay = hasHuman ? botThinkDelayMs(street, botAction) : FAST_DELAY_MS;
+      // 自動プレイヤーも「考え中」の残り時間リングを人間と全く同じ仕様で表示する(人間が見ている卓のみ)。
+      if (hasHuman) {
+        this.io
+          .to(this.tableRoom(this.activeTableId!))
+          .emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + delay, durationMs: delay });
+      }
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
         this.handleAction(actingSeat, botAction);

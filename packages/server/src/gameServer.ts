@@ -77,6 +77,41 @@ export function botThinkDelayMs(street: string, action: PlayerAction, rand: () =
   return base;
 }
 
+/** クライアントの席バッジ表示用に、実行したアクションを表示種別+bb換算前の額に正規化する。 */
+export interface SeatActionEvent {
+  seatIndex: number;
+  kind: "bet" | "raise" | "call" | "check" | "fold" | "allIn";
+  toAmount: number;
+}
+
+/**
+ * 適用したアクションを、アクション前の公開状態を使って表示用に組み立てる。
+ * コール額は「マッチした額(アクション前のcurrentBetToMatch)」、オールインは「投入後の総拠出額」。
+ * ポストフロップで最初のアグレッションだけを bet、それ以外(プリフロップ/ベットに直面時)は raise と表記する。
+ */
+export function buildSeatAction(seatIndex: number, action: PlayerAction, pre: PublicHandState): SeatActionEvent {
+  const preSeat = pre.seats.find((s) => s.seatIndex === seatIndex);
+  const contribBefore = preSeat?.streetContribution ?? 0;
+  const wasFacingBet = pre.currentBetToMatch > contribBefore;
+  const isPreflop = pre.street === "preflop";
+  const amt = action.toAmount ?? 0;
+  switch (action.kind) {
+    case "fold":
+      return { seatIndex, kind: "fold", toAmount: 0 };
+    case "call":
+      return { seatIndex, kind: "call", toAmount: pre.currentBetToMatch };
+    case "bet":
+      return { seatIndex, kind: isPreflop || wasFacingBet ? "raise" : "bet", toAmount: amt };
+    case "raise":
+      return { seatIndex, kind: "raise", toAmount: amt };
+    case "allIn":
+      return { seatIndex, kind: "allIn", toAmount: contribBefore + (preSeat?.stack ?? 0) };
+    // check・postBlind・postAnte はいずれもバッジ上は「Check」相当(強制ポストはここに来ない)。
+    default:
+      return { seatIndex, kind: "check", toAmount: 0 };
+  }
+}
+
 export interface StagedRunoutParams {
   hand: HandEngine;
   /** オールインコールが成立した時点(=残りボード展開前)のボード枚数 */
@@ -464,17 +499,25 @@ export class TableSession implements GameSession {
     if (!hand || hand.isHandComplete()) return;
     if (hand.getActingSeatIndex() !== seatIndex) return;
     const human = this.humansBySeat.get(seatIndex);
-    const boardLenBefore = hand.getPublicState().board.length;
+    const preState = hand.getPublicState();
+    const boardLenBefore = preState.board.length;
+    let effectiveAction = action;
     try {
       hand.applyAction(seatIndex, action);
     } catch (err) {
       if (!human || human.left) {
         // 想定外の不正アクションでテーブルが止まらないよう、必ず合法なfoldにフォールバックする
         hand.applyAction(seatIndex, { kind: "fold" });
+        effectiveAction = { kind: "fold" };
       } else {
         human.socket?.emit("actionError", { message: (err as Error).message });
         return;
       }
+    }
+    // ストリートを閉じるアクション(コール/チェック等)もアイコンに一瞬表示されるよう、状態更新とは
+    // 別に seatAction イベントを発火する。状態のstreet変化でアクションが即消える問題を解消する。
+    if (!this.isAccelerated()) {
+      this.io.to(this.roomId).emit("seatAction", buildSeatAction(seatIndex, effectiveAction, preState));
     }
     if (hand.isHandComplete()) {
       const boardGrew = hand.getPublicState().board.length > boardLenBefore;
@@ -522,6 +565,10 @@ export class TableSession implements GameSession {
       const botAction = this.computeBotAction(actingSeat);
       const street = this.hand?.getPublicState().street ?? "preflop";
       const delay = this.isAccelerated() ? FAST_BOT_DELAY_MS : botThinkDelayMs(street, botAction);
+      // 自動プレイヤーも「考え中」の残り時間リングを人間と全く同じ仕様で表示する(人間が見ている卓のみ)。
+      if (!this.isAccelerated()) {
+        this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + delay, durationMs: delay });
+      }
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
         this.handlePlayerAction(actingSeat, botAction);
