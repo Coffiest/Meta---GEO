@@ -452,6 +452,8 @@ function GameScreen({
             accessToken={accessToken}
             statsBefore={statsBefore}
             tournamentId={tournamentInfo?.tournamentId ?? null}
+            gameKey={gameKey}
+            totalEntrants={tournamentInfo?.total ?? null}
             onExit={onExit}
           />
         )}

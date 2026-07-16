@@ -225,32 +225,13 @@ function TournamentResultsSection({
       </SectionCard>
     );
   }
+  // 一覧の上の集計(エントリー数/インマネ回数/インマネ率)はここでは不要なため表示しない。
   return (
-    <>
-      <AnimatedCard delay={0.02}>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <StatTile label={t("stat.entries")} value={tournamentHistory.length.toLocaleString()} />
-          <StatTile
-            label={t("stat.itmCount")}
-            value={tournamentHistory.filter((p) => p.finishPosition != null).length.toLocaleString()}
-            valueClass="text-gold-600"
-          />
-          <StatTile
-            label={t("stat.itmRate")}
-            value={`${Math.round(
-              (tournamentHistory.filter((p) => p.finishPosition != null).length / tournamentHistory.length) * 100,
-            )}%`}
-            valueClass="text-gold-600"
-          />
-        </div>
-      </AnimatedCard>
-
-      <div className="space-y-2.5 mt-3">
-        {[...tournamentHistory].reverse().map((p, i) => (
-          <TournamentHistoryCard key={p.tournamentId} point={p} delay={Math.min(i * 0.03, 0.4)} />
-        ))}
-      </div>
-    </>
+    <div className="space-y-2.5">
+      {[...tournamentHistory].reverse().map((p, i) => (
+        <TournamentHistoryCard key={p.tournamentId} point={p} delay={Math.min(i * 0.03, 0.4)} />
+      ))}
+    </div>
   );
 }
 
