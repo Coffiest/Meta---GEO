@@ -275,6 +275,33 @@ function GeoDatabase() {
   }
 
   const items: PillBarItem[] = [...buildPositionPills("preflop", PREFLOP_ORDER, preflopLine, street === "preflop")];
+  // 2巡目(オープナーがスクイーズ/3betに応答)対応。1周モデルの buildPositionPills は各ポジションを
+  // 1回しか描かないため、2回目以降のアクション(オープナーのvs3bet応答=fold/call/4bet)を明示的に足す。
+  // 標準ラインでは preflopLine に重複ポジションが無く、この追加は空になるので既存挙動は不変(GEO側も安全)。
+  {
+    const firstIdx = new Map<string, number>();
+    preflopLine.forEach((s, i) => {
+      if (!firstIdx.has(s.position)) firstIdx.set(s.position, i);
+    });
+    // 2巡目以降の「決定済み」ピル(例: オープナーの call-vs-3bet)。
+    preflopLine.forEach((s, i) => {
+      if (firstIdx.get(s.position) === i) return; // 1周目は標準ピルで描画済み
+      items.push({
+        kind: "position",
+        street: "preflop",
+        position: s.position,
+        state: "decided",
+        actionLabel: bucketLabelFor("preflop", s.bucket),
+        bucket: s.bucket,
+        geometricRatio: s.geometricRatio,
+        lineIndex: i,
+      });
+    });
+    // アクティブな2巡目(オープナーが3betに応答する番)。node.position が既出=2巡目。
+    if (street === "preflop" && node?.position && firstIdx.has(node.position)) {
+      items.push({ kind: "position", street: "preflop", position: node.position, state: "active" });
+    }
+  }
   if (board.length >= 3) {
     items.push({ kind: "street", street: "flop", cards: board.slice(0, 3) });
     items.push(...buildPositionPills("flop", activePositions("flop"), streetLines.flop, street === "flop"));
