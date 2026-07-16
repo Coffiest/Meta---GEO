@@ -166,7 +166,6 @@ function GameScreen({
     matching,
     waiting,
     joinError,
-    gameGone,
     runoutHoleCards,
     sendAction,
     leaveGame,
@@ -193,11 +192,8 @@ function GameScreen({
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
-
-  // 再接続時に進行中の卓が見つからなかった(サーバー再起動等)場合はロビーへ戻す。結果表示中は維持。
-  useEffect(() => {
-    if (gameGone && !tournamentOver && !leftResult) onExit();
-  }, [gameGone, tournamentOver, leftResult, onExit]);
+  // 注意: 再接続で進行中の卓が見つからなくても、絶対にホームへ強制退出させない(プレイ中に突然
+  // ロビーへ戻される致命バグの再発防止)。再接続時は resumeGame で自動的に卓へ復帰する。
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),

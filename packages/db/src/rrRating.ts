@@ -26,7 +26,7 @@ export interface RRRatingPopulationStats {
  */
 export async function computeRRRatingPopulationStats(): Promise<RRRatingPopulationStats> {
   const entries = await prisma.tournamentEntry.findMany({
-    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    where: { finishPosition: { not: null }, user: { isBot: false } },
     select: { payout: true, tournament: { select: { buyIn: true } }, userId: true },
   });
 
@@ -76,7 +76,7 @@ export interface RRRatingEntry {
 /** 全実プレイヤーのトナメ偏差値を、偏差値の高い順に並べて返す。 */
 export async function computeRRRatings(): Promise<RRRatingEntry[]> {
   const entries = await prisma.tournamentEntry.findMany({
-    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    where: { finishPosition: { not: null }, user: { isBot: false } },
     select: {
       payout: true,
       tournament: { select: { buyIn: true } },
