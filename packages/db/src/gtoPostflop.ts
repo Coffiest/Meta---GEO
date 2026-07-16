@@ -4,7 +4,8 @@ import { cellLabel } from "./geoTree.js";
 import { expandToken } from "./preflopBaseline.js";
 import type { GtoNodeResult } from "./preflopBaseline.js";
 import { PREFLOP_BANDS } from "./data/preflop100.js";
-import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
+import { getVsOpenCallRange, getVsOpen3betRange, getVsOpenCallVs3betRange, getVsOpen3betToBb } from "./preflopVsOpenBaseline.js";
+import { canonicalizeBoard, spotKeyOf } from "./solverSpot.js";
 
 /**
  * GTOタブのポストフロップ(SRP: オープン→コール, HU)をCFRソルバーでオンデマンド計算する。
@@ -86,8 +87,10 @@ function fromBucket(bucket: string, available: string[]): string | null {
   if (bucket === "fold") return available.includes("fold") ? "fold" : null;
   if (bucket === "allIn") return available.includes("allin") ? "allin" : null;
   if (bucket.startsWith("bet")) {
-    // 単一サイズ抽象化: 最初のbetアクションへスナップ。
-    return available.find((a) => a.startsWith("bet")) ?? null;
+    // サイズ帯一致: そのバケットに対応するbetアクションを厳密に選ぶ(複数サイズ木でも一致)。
+    const bets = available.filter((a) => a.startsWith("bet"));
+    for (const a of bets) if (toBucket(a) === bucket) return a;
+    return bets[0] ?? null; // フォールバック(単一サイズ抽象化)
   }
   return null;
 }
@@ -110,6 +113,93 @@ const STREET_BUDGET: Record<number, { sampleChance?: number; iterations: number 
 /** 解いたスポット(band×ペア×ボード)への問い合わせハンドル。postflopLine別のノード取り出しは軽量。 */
 export interface GtoPostflopSpotHandle {
   nodeFor(postflopLine: string[]): GtoNodeResult;
+  /** スポットの全ノード戦略を永続化用にシリアライズする(ライブ解のみ実装。復元ハンドルは持たない)。 */
+  snapshot?(): GtoPostflopSpotSnapshot;
+}
+
+/**
+ * ノード戦略のコンパクト表現(DB保存/転送用)。フル13x13グリッドは冗長なので
+ * 有効(レンジ内)セルだけを疎に保存し、復元時に完全グリッドへ展開する。
+ * - p: 手番ポジション / o: レンジ全体のアクション分布 [bucket, freq]
+ * - a: 有効セル [rc(=row*13+col), [[bucket, freq]...]] / t: totalSamples
+ * 頻度は4桁丸めでサイズを抑える。
+ */
+export interface CompactGtoNode {
+  p: string | null;
+  o: [string, number][];
+  a: [number, [string, number][]][];
+  t: number;
+}
+
+/**
+ * スポットの全ノード戦略を「postflopLineバケット列 → コンパクトノード」の辞書としてシリアライズしたもの。
+ * DB(GtoSolution.solution)へそのまま保存でき、復元ハンドルは辞書引き+展開で軽量にノードを返す。
+ * ルート(アクション無し)のキーは空文字。ライン区切りは "|"。
+ */
+export interface GtoPostflopSpotSnapshot {
+  nodes: Record<string, CompactGtoNode>;
+}
+
+/** GtoNodeResult → コンパクトノード(有効セルのみ疎に保持)。 */
+function compactNode(r: GtoNodeResult): CompactGtoNode {
+  const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
+  const a: [number, [string, number][]][] = [];
+  r.matrix.cells.forEach((row, ri) =>
+    row.forEach((cell, ci) => {
+      if (cell.count > 0) {
+        const bb = Object.entries(cell.byBucket).map(([b, f]) => [b, round4(f)] as [string, number]);
+        a.push([ri * 13 + ci, bb]);
+      }
+    }),
+  );
+  return { p: r.position, o: r.options.map((o) => [o.bucket, round4(o.frequency)] as [string, number]), a, t: r.matrix.totalSamples };
+}
+
+/** コンパクトノード → GtoNodeResult(完全13x13グリッドへ展開)。 */
+function expandNode(cn: CompactGtoNode): GtoNodeResult {
+  const activeMap = new Map<number, [string, number][]>();
+  for (const [rc, bb] of cn.a) activeMap.set(rc, bb);
+  const cells = Array.from({ length: 13 }, (_, row) =>
+    Array.from({ length: 13 }, (_, col) => {
+      const lbl = cellLabel(row, col);
+      const combos = lbl.length === 2 ? 6 : lbl.endsWith("s") ? 4 : 12;
+      const active = activeMap.get(row * 13 + col);
+      const byBucket: Record<string, number> = {};
+      if (active) for (const [b, f] of active) byBucket[b] = f;
+      return { label: lbl, count: active ? combos : 0, byBucket, evByBucket: {} as Record<string, number> };
+    }),
+  );
+  const options = cn.o.map(([bucket, frequency]) => ({ bucket, frequency, geometricRatio: 0, evBb: 0 }));
+  return { position: cn.p, options, matrix: { cells, totalSamples: cn.t } };
+}
+
+/** ソルバー版・ベットツリー識別子(spotKey/betTreeに反映)。解の形式を変えたら上げる。 */
+export const GTO_POSTFLOP_SOLVER_VERSION = "cfr-srp-0.75-v1";
+
+/** 永続キャッシュ用の spotKey コンポーネント(GtoSolutionの各カラムにも使う)。
+ * actionLine: "srp"=シングルレイズドポット / "3bp"=3betポット。 */
+export function gtoPostflopSpotComponents(band: string, opener: string, defender: string, board: string[], actionLine: string = "srp") {
+  const street = board.length === 3 ? "flop" : board.length === 4 ? "turn" : "river";
+  return {
+    street,
+    effStackBucket: band,
+    heroPos: `${opener}v${defender}`,
+    boardCanon: canonicalizeBoard(board),
+    actionLine,
+    betTree: GTO_POSTFLOP_SOLVER_VERSION,
+  };
+}
+
+/** スート正規化込みの決定的 spotKey。suit-isomorphicなボードは同一キーに集約される。 */
+export function gtoPostflopSpotKey(band: string, opener: string, defender: string, board: string[], actionLine: string = "srp"): string {
+  return spotKeyOf(gtoPostflopSpotComponents(band, opener, defender, board, actionLine));
+}
+
+/** ソルバー品質オーバーライド(事前計算バッチ用。省略時はSTREET_BUDGETの既定)。 */
+export interface GtoPostflopQuality {
+  iterations?: number;
+  sampleChance?: number;
+  betSizes?: number[];
 }
 
 export interface GtoPostflopSpotParams {
@@ -117,6 +207,66 @@ export interface GtoPostflopSpotParams {
   openerPos: string;
   defenderPos: string;
   board: string[]; // "As" 形式 3〜5枚
+  /** 事前計算時に反復数/チャンスサンプル/ベットサイズを上書き(オンデマンドは未指定=既定)。 */
+  quality?: GtoPostflopQuality;
+}
+
+/** 他プレイヤーの死に金(自分とヒーロー2人以外のブラインド+BBアンティ)。 */
+function deadOthersOf(openerPos: string, defenderPos: string): number {
+  let deadOthers = 0;
+  for (const b of ["SB", "BB"] as const) {
+    if (b === openerPos || b === defenderPos) continue;
+    deadOthers += b === "SB" ? 0.5 : 2.0;
+  }
+  return deadOthers;
+}
+
+/**
+ * レンジ+ポット/スタックを与えてHUポストフロップを解き、ノード問い合わせハンドルを返す(SRP/3bet共通コア)。
+ * heroForLabels は heroPos ラベル解決用に openerPos/defenderPos だけを保持する。
+ */
+async function solveRangedSpot(args: {
+  openerPos: string;
+  defenderPos: string;
+  openerCombos: HandCombo[];
+  callerCombos: HandCombo[];
+  board: Card[];
+  potBb: number;
+  stackBb: number;
+  quality?: GtoPostflopQuality | undefined;
+}): Promise<GtoPostflopSpotHandle> {
+  const budget = STREET_BUDGET[args.board.length]!;
+  // OOP = ポストフロップで先に行動する側(絶対ポジション順)。
+  const openerIsOop = POSTFLOP_ORDER.indexOf(args.openerPos) < POSTFLOP_ORDER.indexOf(args.defenderPos);
+  const oop = openerIsOop ? args.openerCombos : args.callerCombos;
+  const ip = openerIsOop ? args.callerCombos : args.openerCombos;
+  const params: GtoPostflopSpotParams = { band: "", openerPos: args.openerPos, defenderPos: args.defenderPos, board: [] };
+
+  const q = args.quality;
+  const iterations = q?.iterations ?? budget.iterations;
+  const sampleChance = q?.sampleChance ?? budget.sampleChance;
+  const betSizes = q?.betSizes ?? [0.75];
+
+  const handle = await solvePostflopHuAsync({
+    board: args.board,
+    oop,
+    ip,
+    potBb: args.potBb,
+    stackBb: args.stackBb,
+    betSizes,
+    allowRaise: true,
+    iterations,
+    ...(sampleChance !== undefined ? { sampleChance } : {}),
+  });
+
+  return {
+    nodeFor(postflopLine: string[]): GtoNodeResult {
+      return buildNodeFromHandle(handle.queryNode, params, openerIsOop, postflopLine);
+    },
+    snapshot(): GtoPostflopSpotSnapshot {
+      return snapshotSpot(handle.queryNode, params, openerIsOop);
+    },
+  };
 }
 
 /**
@@ -131,45 +281,102 @@ export async function prepareGtoPostflopSpot(params: GtoPostflopSpotParams): Pro
   if (!callRange) return null;
   const board = params.board.map((c) => parseCard(c));
   if (board.some((c) => !c) || board.length < 3 || board.length > 5) return null;
-  const budget = STREET_BUDGET[board.length]!;
 
-  // レンジ構築。
+  // レンジ構築: オープナー=転記オープンレンジ / コーラー=vsオープンのコールレンジ。
   const openRange: Record<string, number> = {};
   for (const t of openPos.raise) for (const cls of expandToken(t)) openRange[cls] = 1;
   const openerCombos = expandClassCombos(openRange);
   const callerCombos = expandClassCombos(callRange);
 
-  // OOP = ポストフロップで先に行動する側。
-  const openerIsOop = POSTFLOP_ORDER.indexOf(params.openerPos) < POSTFLOP_ORDER.indexOf(params.defenderPos);
-  const oop = openerIsOop ? openerCombos : callerCombos;
-  const ip = openerIsOop ? callerCombos : openerCombos;
-
   // ポット/スタック(ChipEV, BBアンティ)。genPreflopVsOpen と同じ会計。
   const R = openPos.raiseSize;
-  let deadOthers = 0;
-  for (const b of ["SB", "BB"] as const) {
-    if (b === params.openerPos || b === params.defenderPos) continue;
-    deadOthers += b === "SB" ? 0.5 : 2.0;
-  }
+  const deadOthers = deadOthersOf(params.openerPos, params.defenderPos);
   const anteExtra = params.defenderPos === "BB" ? 1 : 0;
   const potBb = R + anteExtra + R + deadOthers;
   const stackBb = S - R;
 
-  const handle = await solvePostflopHuAsync({
+  return solveRangedSpot({
+    openerPos: params.openerPos,
+    defenderPos: params.defenderPos,
+    openerCombos,
+    callerCombos,
     board: board as Card[],
-    oop,
-    ip,
     potBb,
     stackBb,
-    betSizes: [0.75],
-    allowRaise: true,
-    iterations: budget.iterations,
-    ...(budget.sampleChance !== undefined ? { sampleChance: budget.sampleChance } : {}),
+    quality: params.quality,
   });
+}
 
+/**
+ * 3betポット(オープン→3bet→コール)のHUポストフロップ・スポットを解く。
+ * - 3bettor = defender(vsオープンの3betレンジ)。caller = opener(オープナーのcall-vs-3betレンジ)。
+ * - ポット/スタック会計は genPreflopVsOpen の pot3/i3(BBアンティ)と同式。
+ * データ未整備(3betレンジ/コールレンジ欠如)や不正ボードなら null。
+ */
+export async function prepareGto3betPostflopSpot(params: GtoPostflopSpotParams): Promise<GtoPostflopSpotHandle | null> {
+  const S = BAND_DEPTH[params.band];
+  const openPos = PREFLOP_BANDS[params.band]?.[params.openerPos];
+  if (!S || !openPos || !openPos.raise) return null;
+  const threeBetRange = getVsOpen3betRange(params.band, params.openerPos, params.defenderPos);
+  const callVs3betRange = getVsOpenCallVs3betRange(params.band, params.openerPos, params.defenderPos);
+  const threeBetToBb = getVsOpen3betToBb(params.band, params.openerPos, params.defenderPos);
+  if (!threeBetRange || !callVs3betRange || !threeBetToBb) return null;
+  if (Object.keys(threeBetRange).length === 0 || Object.keys(callVs3betRange).length === 0) return null;
+  const board = params.board.map((c) => parseCard(c));
+  if (board.some((c) => !c) || board.length < 3 || board.length > 5) return null;
+
+  // 3bettor=defender / caller=opener。combos は頻度加重。
+  const threeBettorCombos = expandClassCombos(threeBetRange);
+  const callerCombos = expandClassCombos(callVs3betRange);
+
+  // ポット/スタック: genPreflopVsOpen と同式。i3=B3+anteExtra, pot3=i3+B3+deadOthers, stack=S-B3。
+  const B3 = threeBetToBb;
+  const deadOthers = deadOthersOf(params.openerPos, params.defenderPos);
+  const anteExtra = params.defenderPos === "BB" ? 1 : 0;
+  const i3 = B3 + anteExtra;
+  const potBb = i3 + B3 + deadOthers;
+  const stackBb = S - B3;
+
+  // solveRangedSpot は openerCombos=caller(opener) / callerCombos=3bettor(defender) を期待する。
+  return solveRangedSpot({
+    openerPos: params.openerPos,
+    defenderPos: params.defenderPos,
+    openerCombos: callerCombos, // opener = caller(vs3betでコールした側)
+    callerCombos: threeBettorCombos, // defender = 3bettor
+    board: board as Card[],
+    potBb,
+    stackBb,
+    quality: params.quality,
+  });
+}
+
+/**
+ * 解いたスポットの全(街内)決定ノードを列挙し、postflopLineバケット列→13x13結果の辞書を作る。
+ * ソルバー木をアクションで深さ優先に辿り、各ノードを toBucket でバケット列へ写像して保存する。
+ * チャンス/端点(queryNode=null)で枝刈り。単一サイズ抽象では兄弟バケットは衝突しない。
+ */
+function snapshotSpot(
+  queryNode: (path: string[]) => NodeStrategy | null,
+  params: GtoPostflopSpotParams,
+  openerIsOop: boolean,
+): GtoPostflopSpotSnapshot {
+  const nodes: Record<string, CompactGtoNode> = {};
+  const rec = (solverPath: string[], bucketPath: string[]): void => {
+    const node = queryNode(solverPath);
+    if (!node) return;
+    nodes[bucketPath.join("|")] = compactNode(nodeStrategyToResult(node, params, openerIsOop));
+    node.actions.forEach((act) => rec([...solverPath, act], [...bucketPath, toBucket(act)]));
+  };
+  rec([], []);
+  return { nodes };
+}
+
+/** スナップショットから軽量な問い合わせハンドルを復元する(辞書引き+展開)。 */
+export function deserializeGtoPostflopSpot(snapshot: GtoPostflopSpotSnapshot): GtoPostflopSpotHandle {
   return {
     nodeFor(postflopLine: string[]): GtoNodeResult {
-      return buildNodeFromHandle(handle.queryNode, params, openerIsOop, postflopLine);
+      const hit = snapshot.nodes[postflopLine.join("|")];
+      return hit ? expandNode(hit) : { position: null, options: [], matrix: { cells: [], totalSamples: 0 }, unsupported: true };
     },
   };
 }
@@ -192,7 +399,11 @@ function buildNodeFromHandle(
   }
   const node: NodeStrategy | null = queryNode(path);
   if (!node) return unsupported;
+  return nodeStrategyToResult(node, params, openerIsOop);
+}
 
+/** 1つの決定ノード戦略を13x13クラス集約のGtoNodeResultへ変換する。 */
+function nodeStrategyToResult(node: NodeStrategy, params: GtoPostflopSpotParams, openerIsOop: boolean): GtoNodeResult {
   const heroPos = (node.player === 0) === openerIsOop ? params.openerPos : params.defenderPos;
 
   // 13x13クラス集約。

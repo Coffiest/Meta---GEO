@@ -313,24 +313,36 @@ function prepareSolver(input: PostflopSolveInput) {
       const nOpp = traverser === 0 ? nI : nO;
       const travCombos = traverser === 0 ? oop : ip;
       const oppCombos = traverser === 0 ? ip : oop;
-      const sum = new Float64Array(nTrav);
-      const cnt = new Int32Array(nTrav);
+      // 相手reach加重の厳密正規化。各ランナウト c は「相手が到達しうる質量(roSum)」で重み付けし、
+      // ヒーローの未見枚数(cnt)ではなく相手reachの総和で割る。これにより、相手ハンドがブロックする
+      // ランナウト(相手が居られない=roSum減)が平均を希釈しなくなる(旧実装の 1/cnt 割りの除去バイアス解消)。
+      // 全列挙でもサブサンプリング(sampleChance)でも一貫して正しい重み付けになる。
+      const num = new Float64Array(nTrav);
+      const denReach = new Float64Array(nTrav);
+      let reachOppTotal = 0;
+      for (let j = 0; j < nOpp; j++) reachOppTotal += reachOpp[j]!;
       for (const ch of n.children) {
         const c = ch.cardIdx;
         // このランナウトで無効になるコンボの reach を0に。
         const rt = new Float64Array(nTrav);
         for (let i = 0; i < nTrav; i++) rt[i] = usesCard(travCombos[i]!, c) ? 0 : reachTrav[i]!;
         const ro = new Float64Array(nOpp);
-        for (let j = 0; j < nOpp; j++) ro[j] = usesCard(oppCombos[j]!, c) ? 0 : reachOpp[j]!;
+        let roSum = 0;
+        for (let j = 0; j < nOpp; j++) {
+          const v = usesCard(oppCombos[j]!, c) ? 0 : reachOpp[j]!;
+          ro[j] = v;
+          roSum += v;
+        }
         const cv = walk(ch.node, traverser, rt, ro);
         for (let i = 0; i < nTrav; i++) {
           if (usesCard(travCombos[i]!, c)) continue;
-          sum[i] = sum[i]! + cv[i]!;
-          cnt[i] = cnt[i]! + 1;
+          num[i] = num[i]! + cv[i]!;
+          denReach[i] = denReach[i]! + roSum;
         }
       }
-      for (let i = 0; i < nTrav; i++) sum[i] = cnt[i]! > 0 ? sum[i]! / cnt[i]! : 0;
-      return sum;
+      const out = new Float64Array(nTrav);
+      for (let i = 0; i < nTrav; i++) out[i] = denReach[i]! > 0 ? (num[i]! * reachOppTotal) / denReach[i]! : 0;
+      return out;
     }
 
     const nActions = n.actions.length;

@@ -8,7 +8,13 @@ import {
   buildPreflopNashCallNode,
   buildPreflopBandNode,
   buildPreflopVsOpenNode,
+  buildPreflopOpenerVs3betNode,
   prepareGtoPostflopSpot,
+  prepareGto3betPostflopSpot,
+  deserializeGtoPostflopSpot,
+  gtoPostflopSpotKey,
+  readGtoPostflopSnapshot,
+  writeGtoPostflopSnapshot,
   type GtoPostflopSpotHandle,
   STACK_BUCKETS,
   BUBBLE_STAGES,
@@ -31,16 +37,26 @@ const BUCKET_TO_BAND: Record<string, string> = {
 };
 
 /**
- * GTOポストフロップ(SRP)のスポットキャッシュ。key = band|opener|defender|board。
- * 解は数秒〜数十秒かかるため、初回は "solving" を即返しクライアントがポーリングする。
- * null はサポート外スポットのネガティブキャッシュ。
+ * GTOポストフロップ(SRP)のスポットキャッシュ(2段: メモリ + DB永続層)。
+ * key = spotKey(スート正規化込み。suit-isomorphicなボードは同一キーへ集約)。
+ *
+ * - メモリ命中: 即応答。
+ * - DB命中(read-through): 事前計算/過去解を復元しメモリへ載せて即応答。
+ * - ミス: バックグラウンドでCFR計算 → メモリ+DB(write-through)へ格納。初回は {solving:true}
+ *   を即返しクライアントがポーリングする。
+ * - null はサポート外スポットのネガティブキャッシュ(メモリのみ)。
  */
 const gtoPostflopCache = new Map<string, GtoPostflopSpotHandle | null>();
 const gtoPostflopInFlight = new Set<string>();
 const GTO_POSTFLOP_CACHE_MAX = 48;
 
-function gtoPostflopKey(band: string, opener: string, defender: string, board: string[]): string {
-  return `${band}|${opener}|${defender}|${board.join(",")}`;
+/** メモリキャッシュへLRU的に格納(最大件数超過で最古を退避)。 */
+function setGtoPostflopMemory(key: string, handle: GtoPostflopSpotHandle | null): void {
+  if (gtoPostflopCache.size >= GTO_POSTFLOP_CACHE_MAX) {
+    const first = gtoPostflopCache.keys().next().value;
+    if (first !== undefined) gtoPostflopCache.delete(first);
+  }
+  gtoPostflopCache.set(key, handle);
 }
 
 /**
@@ -193,7 +209,31 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         }
         const heroPos = PREFLOP_ORDER[line.length] ?? "";
         const nonFold = line.filter((s) => s.bucket !== "fold");
+        const isRaise = (b: string) => b !== "allIn" && b !== "call" && b !== "fold";
         const empty = { node: { position: heroPos || null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+
+        // オープン→3bet(スクイーズ含む)に直面したオープナーの応答(fold/call/4betジャム)。
+        // レイズがちょうど2回で、ラインの最後がその2回目(=3bet, オープナー未応答)なら、手番は
+        // オープナー(=1回目のレイザー)に戻る(2巡目)。heroPos の位置計算(1周モデル)より優先。
+        // オープナーが応答(fold/call/allin)を打つとラインの最後がレイズでなくなり、この分岐は抜ける。
+        const raises = line.filter((s) => isRaise(s.bucket));
+        const lastStep = line[line.length - 1];
+        if (
+          raises.length === 2 &&
+          lastStep &&
+          isRaise(lastStep.bucket) &&
+          lastStep.position === raises[1]!.position &&
+          raises[1]!.position !== raises[0]!.position
+        ) {
+          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const opener = raises[0]!.position;
+          const threeBettor = raises[1]!.position;
+          const gto = buildPreflopOpenerVs3betNode(band, opener, threeBettor);
+          const openerEmpty = { node: { position: opener, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
+          sendJson(res, 200, gto.unsupported ? openerEmpty : toWireNode(gto));
+          return true;
+        }
+
         if (heroPos === "") {
           sendJson(res, 200, empty);
           return true;
@@ -264,17 +304,39 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       const empty = { node: { position: null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
-      // ライン形状: 非フォールドが「レイズ(非オールイン)→コール」のSRPのみ対応。
+      const band = BUCKET_TO_BAND[sb] ?? "100";
+      const boardArr = board as string[];
+      // ライン形状の分類:
+      //   SRP  : 非フォールド = [レイズ(非allin/非call), コール]  → prepareGtoPostflopSpot
+      //   3betポット: 非フォールド = [レイズ, レイズ(3bet), コール] でオープナーが3betにコール
+      //              → prepareGto3betPostflopSpot(3bettor=2番目のレイザー, caller=オープナー)
       const nonFold = line.filter((s) => s.bucket !== "fold");
-      if (nonFold.length !== 2 || nonFold[0]!.bucket === "allIn" || nonFold[0]!.bucket === "call" || nonFold[1]!.bucket !== "call") {
+      const isRaise = (b: string) => b !== "allIn" && b !== "call" && b !== "fold";
+      let opener: string, defender: string, actionLine: string;
+      let prepare: (p: { band: string; openerPos: string; defenderPos: string; board: string[] }) => Promise<GtoPostflopSpotHandle | null>;
+      if (nonFold.length === 2 && isRaise(nonFold[0]!.bucket) && nonFold[1]!.bucket === "call") {
+        opener = nonFold[0]!.position;
+        defender = nonFold[1]!.position;
+        actionLine = "srp";
+        prepare = prepareGtoPostflopSpot;
+      } else if (
+        nonFold.length === 3 &&
+        isRaise(nonFold[0]!.bucket) &&
+        isRaise(nonFold[1]!.bucket) &&
+        nonFold[2]!.bucket === "call" &&
+        nonFold[2]!.position === nonFold[0]!.position
+      ) {
+        opener = nonFold[0]!.position; // オープナー(=3betにコールした側)
+        defender = nonFold[1]!.position; // 3bettor
+        actionLine = "3bp";
+        prepare = prepareGto3betPostflopSpot;
+      } else {
         sendJson(res, 200, empty);
         return true;
       }
-      const opener = nonFold[0]!.position;
-      const defender = nonFold[1]!.position;
-      const band = BUCKET_TO_BAND[sb] ?? "100";
-      const key = gtoPostflopKey(band, opener, defender, board as string[]);
+      const key = gtoPostflopSpotKey(band, opener, defender, boardArr, actionLine);
 
+      // 1) メモリ命中(ネガティブキャッシュ含む)。
       const cached = gtoPostflopCache.get(key);
       if (cached !== undefined) {
         if (cached === null) {
@@ -286,22 +348,39 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
 
-      if (!gtoPostflopInFlight.has(key)) {
-        gtoPostflopInFlight.add(key);
-        void prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board: board as string[] })
-          .then((handle) => {
-            if (gtoPostflopCache.size >= GTO_POSTFLOP_CACHE_MAX) {
-              const first = gtoPostflopCache.keys().next().value;
-              if (first !== undefined) gtoPostflopCache.delete(first);
-            }
-            gtoPostflopCache.set(key, handle);
-          })
-          .catch((err) => {
-            console.error("[geoTreeApi] gto postflop solve failed:", err);
-            gtoPostflopCache.set(key, null);
-          })
-          .finally(() => gtoPostflopInFlight.delete(key));
+      // 2) 計算中なら即ポーリング応答(重複DB読みを避ける)。
+      if (gtoPostflopInFlight.has(key)) {
+        sendJson(res, 200, { ...empty, solving: true });
+        return true;
       }
+
+      // 3) DB read-through(事前計算/過去解)。命中したら復元してメモリへ載せ即応答。
+      const snap = await readGtoPostflopSnapshot(key);
+      if (snap) {
+        const handle = deserializeGtoPostflopSpot(snap);
+        setGtoPostflopMemory(key, handle);
+        const gto = handle.nodeFor(postflopLine.map((s) => s.bucket));
+        sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
+        return true;
+      }
+
+      // 4) ミス: バックグラウンドでCFR計算 → メモリ+DB(write-through)。
+      gtoPostflopInFlight.add(key);
+      void prepare({ band, openerPos: opener, defenderPos: defender, board: boardArr })
+        .then(async (handle) => {
+          if (!handle || !handle.snapshot) {
+            setGtoPostflopMemory(key, null);
+            return;
+          }
+          const snapshot = handle.snapshot();
+          setGtoPostflopMemory(key, deserializeGtoPostflopSpot(snapshot));
+          await writeGtoPostflopSnapshot(band, opener, defender, boardArr, snapshot, actionLine);
+        })
+        .catch((err) => {
+          console.error("[geoTreeApi] gto postflop solve failed:", err);
+          setGtoPostflopMemory(key, null);
+        })
+        .finally(() => gtoPostflopInFlight.delete(key));
       sendJson(res, 200, { ...empty, solving: true });
       return true;
     }

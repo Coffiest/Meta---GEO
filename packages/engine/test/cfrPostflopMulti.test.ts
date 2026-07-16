@@ -44,12 +44,9 @@ describe("solvePostflopHu (turn chance-node, no-bet equity invariant)", () => {
     const oopEquity = eq.get("oop")!;
     const expected = P * (oopEquity - 0.5);
 
-    // チャンスノードのカード除去正規化は、現状ヒーロー視点の未見枚数(46)で割るため、
-    // 相手ハンドがブロックするランナウト(この単一コンボ例では2枚)が僅かに希釈し、
-    // 真値 expected(=5.0) に対し expected*44/46≈4.78 になる。実レンジでは無視できる誤差。
-    // TODO(後続ステージ): 相手到達reachで加重した厳密正規化に置き換える。
-    expect(res.oopEvBb).toBeGreaterThan(expected * (44 / 46) - 0.1);
-    expect(res.oopEvBb).toBeLessThan(expected + 0.1);
+    // チャンスノードは相手到達reachで加重した厳密正規化を行うため、除去バイアスは無い。
+    // 真値 expected(=5.0)に一致する(全列挙なのでサンプリング誤差も無い)。
+    expect(res.oopEvBb).toBeCloseTo(expected, 2);
   });
 });
 
