@@ -34,8 +34,28 @@ export interface ReviewResult {
   decisions: ReviewedDecision[];
 }
 
+/** 通し再生用の1ハンドのタイムライン(サーバーのReviewHandTimelineと同形)。 */
+export interface ReviewHandTimeline {
+  buttonFixedPos: number;
+  levelSmallBlind: number;
+  levelBigBlind: number;
+  levelAnte: number;
+  board: string[];
+  potTotal: number;
+  seats: {
+    seatIndex: number;
+    userId: string;
+    startingStack: number;
+    holeCards: string[];
+    displayName: string;
+    avatarKey: string | null;
+  }[];
+  actions: TimelineAction[];
+}
+
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
+  timeline: ReviewHandTimeline;
 }
 
 export interface TournamentReview {
@@ -46,6 +66,17 @@ export interface TournamentReview {
   mistakeCount: number;
   artisticCount: number;
   hands: TournamentReviewHand[];
+  /** HUポストフロップのソルバー解析が未完了(ポーリングで再取得)。 */
+  solving: boolean;
+}
+
+/** 事前計算(トナメ終了時にソルバー解析をバックグラウンド起動)。fire-and-forgetで呼ぶ。 */
+export async function prewarmTournamentReview(tournamentId: string, accessToken: string): Promise<void> {
+  await fetch(`${SERVER_URL}/api/review/prewarm`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ tournamentId }),
+  }).catch(() => {});
 }
 
 export interface TimelineSeat {

@@ -170,26 +170,15 @@ export default function ReviewHandPage() {
           </div>
         ) : review && timeline ? (
           <>
-            {/* サマリー */}
+            {/* サマリー(確定仕様: ハンド単位のGTO精度%と芸術的カウントは表示しない) */}
             <div className="rounded-2xl border border-ink-950 bg-white p-4 mb-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold text-ink-500">Hand #{timeline.handNumber}</p>
-                  <p className="text-3xl font-black text-ink-950 tabular-nums leading-none mt-1">
-                    {review.gtoAccuracy !== null ? `${review.gtoAccuracy}%` : "—"}
-                    <span className="text-[11px] font-bold text-ink-400 ml-1.5">GTO精度</span>
-                  </p>
-                </div>
-                <div className="text-right text-[11px] font-bold text-ink-600 space-y-0.5">
-                  <p>
+                <p className="text-[13px] font-black text-ink-950">Hand #{timeline.handNumber}</p>
+                {review.mistakeCount > 0 && (
+                  <p className="text-[11px] font-bold text-ink-600">
                     ミス <span className="text-crimson-500 tabular-nums">{review.mistakeCount}</span>
                   </p>
-                  <p>
-                    芸術的 <span className="tabular-nums" style={{ color: CLASSIFICATION_META.artistic.color }}>
-                      {review.artisticCount}
-                    </span>
-                  </p>
-                </div>
+                )}
               </div>
               {/* ボード & ヒーローハンド */}
               <div className="mt-3 flex items-center gap-3">

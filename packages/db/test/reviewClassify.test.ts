@@ -9,14 +9,23 @@ describe("classifyDecision", () => {
     expect(classifyDecision({ gtoActions: [], chosenBucket: "fold", isPreflop: true })).toBeNull();
   });
 
-  it("最善EVの手を選べば best", () => {
+  it("最善EVの手を選べば best (ポストフロップ)", () => {
+    const r = classifyDecision({
+      gtoActions: acts([["bet60-80", 0.5, 1.0], ["checkOrCall", 0.3, 0.9], ["fold", 0.2, 0.0]]),
+      chosenBucket: "bet60-80",
+      isPreflop: false,
+    });
+    expect(r?.classification).toBe("best");
+    expect(r?.evLossBb).toBeCloseTo(0);
+  });
+
+  it("プリフロップの正着は全て Book(4段階仕様)", () => {
     const r = classifyDecision({
       gtoActions: acts([["raise3-4", 0.5, 1.0], ["call", 0.3, 0.9], ["fold", 0.2, 0.0]]),
       chosenBucket: "raise3-4",
       isPreflop: true,
     });
-    // raise3-4 は最善だが頻度0.5でBook閾値(0.7)未満なので best。
-    expect(r?.classification).toBe("best");
+    expect(r?.classification).toBe("book");
     expect(r?.evLossBb).toBeCloseTo(0);
   });
 
@@ -29,13 +38,19 @@ describe("classifyDecision", () => {
     expect(r?.classification).toBe("book");
   });
 
-  it("+EVが一択の局面で最善を選べば great", () => {
+  it("+EVが一択の局面で最善を選べば great (ポストフロップ)", () => {
     const r = classifyDecision({
       gtoActions: acts([["allIn", 0.6, 2.5], ["fold", 0.4, 0.0]]),
       chosenBucket: "allIn",
-      isPreflop: true,
+      isPreflop: false,
     });
     expect(r?.classification).toBe("great");
+  });
+
+  it("プリフロップのミスはEV損で ?!/?/?? に段階分け", () => {
+    const gto = acts([["raise2-2.5", 1.0, 0.5], ["fold", 0.0, 0.0], ["allIn", 0.0, -2.0]]);
+    expect(classifyDecision({ gtoActions: gto, chosenBucket: "fold", isPreflop: true })?.classification).toBe("inaccuracy");
+    expect(classifyDecision({ gtoActions: gto, chosenBucket: "allIn", isPreflop: true })?.classification).toBe("blunder");
   });
 
   it("EV損に応じて緩手/悪手/大悪手", () => {

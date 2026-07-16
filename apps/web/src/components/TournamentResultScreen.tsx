@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
+import { prewarmTournamentReview } from "@/lib/reviewApi";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -112,6 +113,12 @@ export function TournamentResultScreen({
     if (!accessToken) return;
     void fetchResultSnapshot(accessToken).then(setAfter);
   }, [accessToken]);
+
+  // 事前計算: リザルトを見ている間に棋譜解析のソルバー計算をバックグラウンドで先回りして始める。
+  useEffect(() => {
+    if (!accessToken || !tournamentId) return;
+    void prewarmTournamentReview(tournamentId, accessToken);
+  }, [accessToken, tournamentId]);
 
   const isWin = info.yourFinishPosition === 1;
   const before = statsBefore;

@@ -2,16 +2,17 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   analyzeHand,
   analyzeTournamentForHero,
+  applySavedSolverResults,
   createOrRefreshReview,
   enrichAndSaveReview,
-  getSavedReviewDecisions,
+  prewarmTournamentReview,
   summarizeReviewedDecisions,
   getHandTimeline,
   getOrCreateUserByAuthId,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 
-/** 進行中のソルバー解析(hand|user)。多重起動を防ぐ。 */
+/** 進行中のソルバー解析(hand|user または tournament|user)。多重起動を防ぐ。 */
 const enrichInFlight = new Set<string>();
 
 /**
@@ -85,7 +86,37 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
       }
       // 課金シーム(将来): const q = await checkQuota(user.id); if (!q.allowed) { sendJson(res,402,...); return true; }
       const review = await analyzeTournamentForHero(tournamentId, user.id);
+      // ソルバー未完了が残っていればバックグラウンドで事前計算を起動(クライアントはポーリング)。
+      if (review.solving) {
+        const key = `tourney:${tournamentId}|${user.id}`;
+        if (!enrichInFlight.has(key)) {
+          enrichInFlight.add(key);
+          void prewarmTournamentReview(tournamentId, user.id)
+            .catch((err) => console.error("[reviewApi] tournament prewarm failed:", err))
+            .finally(() => enrichInFlight.delete(key));
+        }
+      }
       sendJson(res, 200, review);
+      return true;
+    }
+
+    // 事前計算: トナメ終了直後(リザルト画面表示時)に呼ばれ、全ハンドのソルバー解析を
+    // バックグラウンドで開始する。応答は即時(202相当)。
+    if (url.pathname === "/api/review/prewarm" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const tournamentId = body["tournamentId"];
+      if (typeof tournamentId !== "string") {
+        sendJson(res, 400, { error: "tournamentId required" });
+        return true;
+      }
+      const key = `tourney:${tournamentId}|${user.id}`;
+      if (!enrichInFlight.has(key)) {
+        enrichInFlight.add(key);
+        void prewarmTournamentReview(tournamentId, user.id)
+          .catch((err) => console.error("[reviewApi] prewarm failed:", err))
+          .finally(() => enrichInFlight.delete(key));
+      }
+      sendJson(res, 200, { started: true });
       return true;
     }
 
@@ -109,38 +140,21 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
 
       // HUポストフロップの"solving"決定: 保存済み(ソルバー解析済み)の結果があればマージ、
       // 無ければバックグラウンドでソルバー解析を起動し、クライアントにポーリングさせる。
-      let solving = review.decisions.some((d) => d.outOfScopeReason === "solving");
+      let solving = await applySavedSolverResults(handId, user.id, review.decisions);
+      if (!solving && review.decisions.some((d) => d.gtoActions !== null)) {
+        const summary = summarizeReviewedDecisions(review.decisions);
+        review.gtoAccuracy = summary.gtoAccuracy;
+        review.totalEvLossBb = summary.totalEvLossBb;
+        review.mistakeCount = summary.mistakeCount;
+        review.artisticCount = summary.artisticCount;
+      }
       if (solving) {
-        const saved = await getSavedReviewDecisions(handId, user.id).catch(() => null);
-        if (saved) {
-          for (const d of review.decisions) {
-            if (d.outOfScopeReason !== "solving") continue;
-            const row = saved.get(d.sequenceNumber);
-            // 解析済み(分類あり or 明示的な失敗/レンジ外)ならマージ。
-            if (row && (row.classification !== null || row.outOfScopeReason === "solver-failed" || row.outOfScopeReason === "out-of-range")) {
-              d.gtoActions = row.gtoActions;
-              d.classification = row.classification;
-              d.evLossBb = row.evLossBb;
-              d.outOfScopeReason = row.classification !== null ? null : row.outOfScopeReason;
-            }
-          }
-          solving = review.decisions.some((d) => d.outOfScopeReason === "solving");
-          if (!solving) {
-            const summary = summarizeReviewedDecisions(review.decisions);
-            review.gtoAccuracy = summary.gtoAccuracy;
-            review.totalEvLossBb = summary.totalEvLossBb;
-            review.mistakeCount = summary.mistakeCount;
-            review.artisticCount = summary.artisticCount;
-          }
-        }
-        if (solving) {
-          const key = `${handId}|${user.id}`;
-          if (!enrichInFlight.has(key)) {
-            enrichInFlight.add(key);
-            void enrichAndSaveReview(handId, user.id)
-              .catch((err) => console.error("[reviewApi] enrich failed:", err))
-              .finally(() => enrichInFlight.delete(key));
-          }
+        const key = `${handId}|${user.id}`;
+        if (!enrichInFlight.has(key)) {
+          enrichInFlight.add(key);
+          void enrichAndSaveReview(handId, user.id)
+            .catch((err) => console.error("[reviewApi] enrich failed:", err))
+            .finally(() => enrichInFlight.delete(key));
         }
       } else {
         // ソルバー不要のハンドは同期保存(従来どおり)。

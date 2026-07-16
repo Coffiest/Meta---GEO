@@ -222,9 +222,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
         } else if (spot.kind === "vsJam") {
           const riskBb = Math.min(d.effStackBb, Math.max(1, d.facingSizeBb));
           gtoActions = vsJamGtoActions({ jammerPos: spot.jammerPos, heroPos: d.heroPos, riskBb, handClass });
-          // ヒーローコール(難しい好手)候補: ジャムに対してコールを選んだ場合のみ渡す
-          // (分類器側で「EV損≈0 かつ GTO頻度≤15%」を満たしたときだけ芸術的になる)。
-          if (gtoActions && d.actionTaken.kind !== "fold") difficultKind = "heroCall";
+          // プリフロップは4段階(book/?!/?/??)に集約するため芸術的(difficultKind)は渡さない。
         } else if (spot.kind === "vsOpen") {
           gtoActions = defenseGtoActions({
             openerPos: spot.openerPos,
@@ -419,8 +417,29 @@ export async function createOrRefreshReview(handId: string, heroUserId: string):
   return result;
 }
 
+/** 再生用の1ハンドのタイムライン(トナメ通し再生でクライアントがスナップショットを再構築する)。 */
+export interface ReviewHandTimeline {
+  buttonFixedPos: number;
+  levelSmallBlind: number;
+  levelBigBlind: number;
+  levelAnte: number;
+  board: string[];
+  potTotal: number;
+  seats: {
+    seatIndex: number;
+    userId: string;
+    startingStack: number;
+    holeCards: string[];
+    displayName: string;
+    avatarKey: string | null;
+  }[];
+  actions: { sequenceNumber: number; seatIndex: number; street: string; kind: string; toAmount: number | null; potBefore: number }[];
+}
+
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
+  /** 通し再生用のタイムライン。 */
+  timeline: ReviewHandTimeline;
 }
 
 export interface TournamentReview {
@@ -432,20 +451,116 @@ export interface TournamentReview {
   mistakeCount: number;
   artisticCount: number;
   hands: TournamentReviewHand[];
+  /** HUポストフロップのソルバー解析が未完了の決定が残っているか(クライアントはポーリング)。 */
+  solving: boolean;
 }
 
-/** 1トーナメントの、heroが着席した全ハンドをまとめて解析する(チェスドットコム風の一括解析)。 */
+/**
+ * 保存済み(ソルバー解析済み)のReviewDecisionを、フレッシュ解析の"solving"決定へマージする。
+ * 戻り値は「まだ solving が残っているか」。
+ */
+export async function applySavedSolverResults(
+  handId: string,
+  heroUserId: string,
+  decisions: ReviewedDecision[],
+): Promise<boolean> {
+  let solving = decisions.some((d) => d.outOfScopeReason === "solving");
+  if (!solving) return false;
+  const saved = await getSavedReviewDecisions(handId, heroUserId).catch(() => null);
+  if (saved) {
+    for (const d of decisions) {
+      if (d.outOfScopeReason !== "solving") continue;
+      const row = saved.get(d.sequenceNumber);
+      if (row && (row.classification !== null || row.outOfScopeReason === "solver-failed" || row.outOfScopeReason === "out-of-range")) {
+        d.gtoActions = row.gtoActions;
+        d.classification = row.classification;
+        d.evLossBb = row.evLossBb;
+        d.outOfScopeReason = row.classification !== null ? null : row.outOfScopeReason;
+      }
+    }
+    solving = decisions.some((d) => d.outOfScopeReason === "solving");
+  }
+  return solving;
+}
+
+/**
+ * 1トーナメントの、heroが着席した全ハンドをまとめて解析する(チェスドットコム風の一括解析)。
+ * 各ハンドに再生用タイムラインを含み、保存済みソルバー結果をマージして返す。
+ */
 export async function analyzeTournamentForHero(tournamentId: string, heroUserId: string): Promise<TournamentReview> {
   const hands = await prisma.hand.findMany({
     where: { tournamentId, seats: { some: { userId: heroUserId } } },
     orderBy: { handNumber: "asc" },
-    select: { id: true, handNumber: true },
+    select: {
+      id: true,
+      handNumber: true,
+      buttonFixedPos: true,
+      levelSmallBlind: true,
+      levelBigBlind: true,
+      levelAnte: true,
+      board: true,
+      potTotal: true,
+      seats: {
+        orderBy: { seatIndex: "asc" as const },
+        select: {
+          seatIndex: true,
+          userId: true,
+          startingStack: true,
+          holeCards: true,
+          user: { select: { displayName: true, avatarKey: true } },
+        },
+      },
+      actions: {
+        orderBy: { sequenceNumber: "asc" as const },
+        select: { sequenceNumber: true, seatIndex: true, street: true, kind: true, toAmount: true, potBefore: true },
+      },
+    },
   });
 
   const reviewed: TournamentReviewHand[] = [];
+  let anySolving = false;
   for (const h of hands) {
-    const r = await analyzeHand(h.id, heroUserId);
-    if (r) reviewed.push({ ...r, handNumber: h.handNumber });
+    const extractHand: ExtractHand = {
+      buttonFixedPos: h.buttonFixedPos,
+      levelBigBlind: h.levelBigBlind,
+      board: h.board,
+      seats: h.seats.map((s) => ({
+        seatIndex: s.seatIndex,
+        userId: s.userId,
+        startingStack: s.startingStack,
+        holeCards: s.holeCards,
+      })),
+      actions: h.actions,
+    };
+    const analyzed = analyzeExtractedHand(extractHand, heroUserId);
+    if (!analyzed) continue;
+    const stillSolving = await applySavedSolverResults(h.id, heroUserId, analyzed.decisions);
+    anySolving = anySolving || stillSolving;
+    const summary = summarize(analyzed.decisions);
+    reviewed.push({
+      handId: h.id,
+      heroUserId,
+      decisions: analyzed.decisions,
+      ...summary,
+      handNumber: h.handNumber,
+      timeline: {
+        buttonFixedPos: h.buttonFixedPos,
+        levelSmallBlind: h.levelSmallBlind,
+        levelBigBlind: h.levelBigBlind,
+        levelAnte: h.levelAnte,
+        board: h.board,
+        potTotal: h.potTotal,
+        seats: h.seats.map((s) => ({
+          seatIndex: s.seatIndex,
+          userId: s.userId,
+          startingStack: s.startingStack,
+          holeCards: s.holeCards,
+          displayName: s.user.displayName,
+          avatarKey: s.user.avatarKey,
+        })),
+        actions: h.actions,
+      },
+    });
   }
 
   const allClassified = reviewed.flatMap((h) => h.decisions).filter((d) => d.classification !== null && d.evLossBb !== null);
@@ -461,7 +576,34 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     mistakeCount: reviewed.reduce((s, h) => s + h.mistakeCount, 0),
     artisticCount: reviewed.reduce((s, h) => s + h.artisticCount, 0),
     hands: reviewed,
+    solving: anySolving,
   };
+}
+
+/**
+ * 事前計算: heroの全ハンドのソルバー解析を順に実行して保存する。
+ * トナメ終了時(リザルト画面表示時)にバックグラウンドで呼ばれ、ユーザーが総括を開く頃には
+ * 大半のHUポストフロップ決定が解析済みになっていることを狙う。
+ */
+export async function prewarmTournamentReview(tournamentId: string, heroUserId: string): Promise<void> {
+  const hands = await prisma.hand.findMany({
+    where: { tournamentId, seats: { some: { userId: heroUserId } } },
+    orderBy: { handNumber: "asc" },
+    select: { id: true },
+  });
+  for (const h of hands) {
+    try {
+      // 保存済みでsolving行が無ければスキップ(冪等)。
+      const saved = await getSavedReviewDecisions(h.id, heroUserId);
+      if (saved && [...saved.values()].every((r) => r.outOfScopeReason !== "solving")) {
+        // フレッシュ解析でsolvingが出るか軽く確認せず、保存済みがあれば十分とみなす。
+        continue;
+      }
+      await enrichAndSaveReview(h.id, heroUserId);
+    } catch (err) {
+      console.error(`[review] prewarm failed for hand ${h.id}:`, err);
+    }
+  }
 }
 
 /** レビュー画面の再生用に、1ハンドの全アクションタイムライン+席+ボード+ブラインドを返す。 */
@@ -487,7 +629,7 @@ export async function getHandTimeline(handId: string) {
           holeCards: true,
           isSmallBlind: true,
           isBigBlind: true,
-          user: { select: { displayName: true } },
+          user: { select: { displayName: true, avatarKey: true } },
         },
       },
       actions: {

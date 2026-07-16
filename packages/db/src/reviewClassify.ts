@@ -49,7 +49,7 @@ export const CLASSIFICATION_LABEL: Record<Classification, string> = {
 
 /** バッジのグリフ(色付き丸SVGバッジに内包する記号)。絵文字は使わない。 */
 export const CLASSIFICATION_GLYPH: Record<Classification, string> = {
-  artistic: "✦",
+  artistic: "!!",
   best: "★",
   great: "!",
   excellent: "",
@@ -132,6 +132,15 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
   const chosenFreq = chosen ? chosen.frequency : 0;
   const evLossBb = Math.max(0, max - chosenEv);
 
+  // --- プリフロップは4段階(確定仕様): 正着=Book / ミス=?!(緩手)・?(悪手)・??(大悪手) ---
+  // 「合っていたら全てBook、間違っていたらEV損で段階分け」。芸術的/最善/Great等は付けない。
+  if (isPreflop) {
+    if (evLossBb < EV_BANDS.good) return { classification: "book", evLossBb, chosenFreq };
+    if (evLossBb < EV_BANDS.inaccuracy) return { classification: "inaccuracy", evLossBb, chosenFreq };
+    if (evLossBb < EV_BANDS.mistake) return { classification: "mistake", evLossBb, chosenFreq };
+    return { classification: "blunder", evLossBb, chosenFreq };
+  }
+
   // --- 芸術的(難しい好手): EV損ほぼゼロ かつ 低頻度 かつ 対象アクション種別 ---
   if (
     difficultKind !== undefined &&
@@ -142,17 +151,13 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
     return { classification: "artistic", evLossBb, chosenFreq };
   }
 
-  // --- EV損がほぼゼロ(正着)の場合、Great / Book / 最善 を判定 ---
+  // --- EV損がほぼゼロ(正着)の場合、Great / 最善 を判定 ---
   if (evLossBb <= EV_BANDS.best) {
     // Great: +EVが実質一択の局面(最善と次善のEV差が大きい)で、その最善を選んだ。
     const sorted = [...gtoActions].sort((a, b) => b.evBb - a.evBb);
     const gap = sorted.length >= 2 ? (sorted[0]!.evBb - sorted[1]!.evBb) : Number.POSITIVE_INFINITY;
     if (gap >= 1.0 && chosen !== null && chosen.evBb >= max - EV_BANDS.best) {
       return { classification: "great", evLossBb, chosenFreq };
-    }
-    // Book: プリフロップで、GTOが高頻度で選ぶ標準レンジ通りの手(教科書的・凡庸だが正しい)。
-    if (isPreflop && chosen !== null && chosenFreq >= 0.7) {
-      return { classification: "book", evLossBb, chosenFreq };
     }
     return { classification: "best", evLossBb, chosenFreq };
   }
