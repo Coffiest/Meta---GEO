@@ -20,8 +20,11 @@
  *   ITER        反復数(既定 60)
  *   SAMPLE      チャンスサンプル数(既定 6。ターン/リバー各層に適用され二乗で効く)
  *   BETSIZES    ベットサイズ(既定 "0.75")
+ *   OUT_PATH    出力先(既定 src/data/postflopSolutions.json)。複数プロセスを並列実行する場合は
+ *               プロセスごとに別ファイル(例: postflopSolutions.part-band14-UTGvBB.json)を指定し、
+ *               完了後に scripts/mergePostflopSolutions.ts で本体へマージする。
  */
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -155,7 +158,7 @@ async function main() {
 
   const here = dirname(fileURLToPath(import.meta.url));
   const dataDir = join(here, "..", "src", "data");
-  const outPath = join(dataDir, "postflopSolutions.json");
+  const outPath = process.env["OUT_PATH"] ? join(process.cwd(), process.env["OUT_PATH"]!) : join(dataDir, "postflopSolutions.json");
 
   // 既存バンドルへ追記(冪等: 同一spotKeyは上書き)。バンド/ペアを分けて複数回実行できる。
   const bySpot = new Map<string, BundleEntry>();
@@ -206,18 +209,21 @@ async function main() {
           );
         }
         // インクリメンタルに保存(途中終了しても成果を残す)。
-        if (solved % 8 === 0) writeBundle(dataDir, outPath, bySpot);
+        if (solved % 8 === 0) writeBundle(outPath, bySpot);
       }
     }
   }
-  writeBundle(dataDir, outPath, bySpot);
-  console.error(`[genPostflopSolutions] wrote ${bySpot.size} spots -> src/data/postflopSolutions.json`);
+  writeBundle(outPath, bySpot);
+  console.error(`[genPostflopSolutions] wrote ${bySpot.size} spots -> ${outPath}`);
 }
 
-function writeBundle(dataDir: string, outPath: string, bySpot: Map<string, BundleEntry>): void {
-  mkdirSync(dataDir, { recursive: true });
+/** 一時ファイルへ書いてからrenameする(atomic)。実行中のプロセスのshardを安全に途中マージできるように。 */
+function writeBundle(outPath: string, bySpot: Map<string, BundleEntry>): void {
+  mkdirSync(dirname(outPath), { recursive: true });
   const entries = [...bySpot.values()].sort((a, b) => a.spotKey.localeCompare(b.spotKey));
-  writeFileSync(outPath, JSON.stringify({ model: GTO_POSTFLOP_SOLVER_VERSION, entries }, null, 0));
+  const tmpPath = `${outPath}.${process.pid}.tmp`;
+  writeFileSync(tmpPath, JSON.stringify({ model: GTO_POSTFLOP_SOLVER_VERSION, entries }, null, 0));
+  renameSync(tmpPath, outPath);
 }
 
 main().catch((err) => {
