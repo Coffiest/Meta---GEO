@@ -13,7 +13,7 @@ export default function ReviewTournamentPage() {
   const params = useParams();
   const router = useRouter();
   const tournamentId = String(params?.["tournamentId"] ?? "");
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const accessToken = session?.access_token;
 
   const [data, setData] = useState<TournamentReview | null>(null);
@@ -23,6 +23,8 @@ export default function ReviewTournamentPage() {
 
   useEffect(() => {
     if (!tournamentId) return;
+    // Supabaseのセッション復元中は判定しない(復元前に「ログインが必要」を誤表示して固まるバグの修正)。
+    if (authLoading) return;
     if (!accessToken) {
       setLoading(false);
       setError("ログインが必要です。");
@@ -30,6 +32,7 @@ export default function ReviewTournamentPage() {
     }
     let cancelled = false;
     setLoading(true);
+    setError(null);
     fetchTournamentReview(tournamentId, accessToken)
       .then((res) => {
         if (cancelled) return;
@@ -40,7 +43,7 @@ export default function ReviewTournamentPage() {
     return () => {
       cancelled = true;
     };
-  }, [tournamentId, accessToken]);
+  }, [tournamentId, accessToken, authLoading]);
 
   const hands = data?.hands.filter((h) => (mistakesOnly ? h.mistakeCount > 0 : true)) ?? [];
 

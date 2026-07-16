@@ -100,7 +100,7 @@ export default function ReviewHandPage() {
   const params = useParams();
   const router = useRouter();
   const handId = String(params?.["handId"] ?? "");
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const accessToken = session?.access_token;
 
   const [data, setData] = useState<HandReviewResponse | null>(null);
@@ -109,6 +109,8 @@ export default function ReviewHandPage() {
 
   useEffect(() => {
     if (!handId) return;
+    // Supabaseのセッション復元中は判定しない(復元前に「ログインが必要」を誤表示して固まるバグの修正)。
+    if (authLoading) return;
     if (!accessToken) {
       setLoading(false);
       setError("ログインが必要です。");
@@ -117,6 +119,7 @@ export default function ReviewHandPage() {
     let cancelled = false;
     let tries = 0;
     setLoading(true);
+    setError(null);
     const load = () => {
       fetchHandReview(handId, accessToken)
         .then((res) => {
@@ -139,7 +142,7 @@ export default function ReviewHandPage() {
     return () => {
       cancelled = true;
     };
-  }, [handId, accessToken]);
+  }, [handId, accessToken, authLoading]);
 
   const review = data?.review;
   const timeline = data?.timeline;
