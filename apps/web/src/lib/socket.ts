@@ -183,6 +183,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   const badgeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   // 一度でも joinGame(新規参加)を送ったか。再接続時は resumeGame にして新規ゲームを作らせない。
   const hasJoinedRef = useRef(false);
+  // 対局が開始したか(state を1度でも受信)。開始後の再接続は resumeGame(卓へ復帰)、
+  // マッチング中の再接続は joinGame(キューへ再参加)にする。
+  const hasStartedRef = useRef(false);
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
     spectating: false,
@@ -217,6 +220,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       badgeTimersRef.current = {};
     };
     hasJoinedRef.current = false;
+    hasStartedRef.current = false;
     const socket = io(SOCKET_URL, {
       auth: { displayName, avatarKey, accessToken },
       transports: ["websocket", "polling"],
@@ -225,21 +229,25 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
 
     socket.on("connect", () => {
       setData((d) => ({ ...d, connected: true }));
-      // 初回だけ joinGame(新規参加)。以降の再接続は resumeGame にして、進行中の卓へ戻すだけにする
-      // (新しいSNG卓を勝手に立てて「メンバーが変わる/100BBに戻る」不具合を防ぐ)。
+      // 初回は joinGame(新規参加)。以降の再接続は、対局開始後なら resumeGame(進行中の卓へ復帰。
+      // 新しいSNG卓を勝手に立てない)、まだマッチング中ならもう一度 joinGame でキューへ再参加する。
       if (!hasJoinedRef.current) {
         hasJoinedRef.current = true;
         socket.emit("joinGame", { gameKey });
-      } else {
+      } else if (hasStartedRef.current) {
         socket.emit("resumeGame");
+      } else {
+        socket.emit("joinGame", { gameKey });
       }
     });
     socket.on("disconnect", () => setData((d) => ({ ...d, connected: false })));
+    // 進行中の卓が見つからない場合でも、絶対にホームへ強制退出させない(再接続で自動復帰を待つ)。
     socket.on("noActiveGame", () => setData((d) => ({ ...d, gameGone: true })));
     socket.on("joinGameError", (payload: { message: string }) =>
       setData((d) => ({ ...d, joinError: payload.message })),
     );
-    socket.on("state", (state: PublicHandState) =>
+    socket.on("state", (state: PublicHandState) => {
+      hasStartedRef.current = true;
       setData((d) => {
         const prev = d.state;
         // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
@@ -258,8 +266,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           matching: null,
           waiting: null,
         };
-      }),
-    );
+      });
+    });
     socket.on("yourCards", (payload: { seatIndex: number; cards: string[] }) =>
       setData((d) => ({ ...d, yourSeatIndex: payload.seatIndex, yourCards: payload.cards })),
     );

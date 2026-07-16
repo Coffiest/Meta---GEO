@@ -97,7 +97,7 @@ function buildRanking(perUser: { user: UserAgg; entries: Entry[] }[]): Leaderboa
 
 export async function getLeaderboards(): Promise<Leaderboards> {
   const rows = await prisma.tournamentEntry.findMany({
-    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    where: { finishPosition: { not: null }, user: { isBot: false } },
     select: {
       payout: true,
       tournament: { select: { buyIn: true, finishedAt: true, createdAt: true } },
