@@ -54,6 +54,16 @@ export class Lobby {
       });
     });
 
+    // 再接続(回線断・アプリ復帰・サーバー再起動)からの復帰。既存の進行中セッションへ戻すだけで、
+    // 絶対に新しいゲームを作らない。これがないと、再接続時のjoinGameが新しいSNG卓を立ててしまい、
+    // 「プレイ中に突然メンバーが変わる/スタックが100BBに戻る」という不具合になる。
+    socket.on("resumeGame", () => {
+      this.handleResumeGame(socket).catch((err) => {
+        console.error(`[lobby] resumeGame failed for ${socket.id}:`, err);
+        socket.emit("noActiveGame");
+      });
+    });
+
     socket.on("leaveGame", () => {
       const userId = socket.data["userId"] as string | undefined;
       if (!userId) return;
@@ -124,5 +134,26 @@ export class Lobby {
     } catch (err) {
       socket.emit("joinGameError", { message: err instanceof Error ? err.message : "参加処理に失敗しました" });
     }
+  }
+
+  /**
+   * 再接続からの復帰。進行中の自分のセッションがあればそこへ戻すだけで、無ければ「進行中ゲーム無し」を
+   * 返してロビーへ戻す。新しいゲームは絶対に作らない(joinGameとの決定的な違い)。
+   */
+  private async handleResumeGame(socket: Socket): Promise<void> {
+    const resolved = await this.resolveUser(socket);
+    if (!resolved) {
+      socket.emit("noActiveGame");
+      return;
+    }
+    socket.data["userId"] = resolved.userId;
+
+    const existing = this.activeSessions.get(resolved.userId);
+    if (existing && !existing.isFinished() && !existing.isUserDone(resolved.userId)) {
+      existing.attachHuman(socket, resolved.userId);
+      return;
+    }
+    // 進行中の卓が無い(=サーバー再起動などでセッションが失われた/既に終了)。新規は作らずロビーへ。
+    socket.emit("noActiveGame");
   }
 }

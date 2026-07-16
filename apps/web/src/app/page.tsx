@@ -166,6 +166,7 @@ function GameScreen({
     matching,
     waiting,
     joinError,
+    gameGone,
     runoutHoleCards,
     sendAction,
     leaveGame,
@@ -192,6 +193,11 @@ function GameScreen({
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
+
+  // 再接続時に進行中の卓が見つからなかった(サーバー再起動等)場合はロビーへ戻す。結果表示中は維持。
+  useEffect(() => {
+    if (gameGone && !tournamentOver && !leftResult) onExit();
+  }, [gameGone, tournamentOver, leftResult, onExit]);
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
