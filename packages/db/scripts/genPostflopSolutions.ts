@@ -32,6 +32,26 @@ import {
   type GtoPostflopSpotSnapshot,
 } from "../src/gtoPostflop.js";
 import { canonicalizeBoard } from "../src/solverSpot.js";
+import { getVsOpenCallRange } from "../src/preflopVsOpenBaseline.js";
+
+/** ポストフロップ解の対象となりうるポジション候補。 */
+const OPENERS = ["UTG", "HJ", "CO", "BTN", "SB"];
+const DEFENDERS = ["SB", "BB"];
+
+/**
+ * band で vsOpen コールレンジが定義されている (opener, defender) ペアを全列挙する。
+ * MATCHUPS=auto のときに使う(レビューが要求しうる全ペアを網羅)。
+ */
+function autoMatchups(band: string): { opener: string; defender: string }[] {
+  const out: { opener: string; defender: string }[] = [];
+  for (const opener of OPENERS) {
+    for (const defender of DEFENDERS) {
+      if (opener === defender) continue;
+      if (getVsOpenCallRange(band, opener, defender)) out.push({ opener, defender });
+    }
+  }
+  return out;
+}
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUITS = ["s", "h", "d", "c"];
@@ -111,16 +131,24 @@ interface BundleEntry {
 }
 
 async function main() {
-  const FLOP_COUNT = Number(process.env["FLOP_COUNT"] ?? 16);
+  // FLOP_COUNT="all"(または0)で全1755フロップ(trips除く)を網羅。数値なら層化抽出。
+  const flopCountRaw = (process.env["FLOP_COUNT"] ?? "16").trim().toLowerCase();
+  const flopAll = flopCountRaw === "all" || flopCountRaw === "0";
+  const FLOP_COUNT = flopAll ? Number.POSITIVE_INFINITY : Number(flopCountRaw);
   const BANDS = (process.env["BANDS"] ?? "20,14").split(",").map((s) => s.trim()).filter(Boolean);
-  const MATCHUPS = (process.env["MATCHUPS"] ?? "BTNvBB,COvBB")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((m) => {
-      const [op, def] = m.split("v");
-      return { opener: op!, defender: def! };
-    });
+  // MATCHUPS="auto" で band ごとに vsOpen コールレンジのある全ペアを網羅。それ以外は "OPvDEF" 指定。
+  const matchupsRaw = (process.env["MATCHUPS"] ?? "BTNvBB,COvBB").trim();
+  const matchupsAuto = matchupsRaw.toLowerCase() === "auto";
+  const MATCHUPS = matchupsAuto
+    ? []
+    : matchupsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((m) => {
+          const [op, def] = m.split("v");
+          return { opener: op!, defender: def! };
+        });
   const ITER = Number(process.env["ITER"] ?? 60);
   const SAMPLE = Number(process.env["SAMPLE"] ?? 6);
   const BETSIZES = (process.env["BETSIZES"] ?? "0.75").split(",").map(Number);
@@ -140,16 +168,20 @@ async function main() {
     }
   }
 
-  const flops = stratifiedSubset(canonicalFlops(), FLOP_COUNT);
+  // FLOP_COUNT=all は trips を除いた全代表フロップ(1755-ペア/トリップス除外分)。
+  const allFlops = canonicalFlops().filter((f) => !texture(f).startsWith("trips"));
+  const flops = flopAll ? allFlops : stratifiedSubset(canonicalFlops(), FLOP_COUNT);
+  // band ごとの対象ペア。
+  const matchupsFor = (band: string) => (matchupsAuto ? autoMatchups(band) : MATCHUPS.filter((m) => getVsOpenCallRange(band, m.opener, m.defender)));
+  const totalTarget = BANDS.reduce((s, b) => s + matchupsFor(b).length * flops.length, 0);
   console.error(
-    `[genPostflopSolutions] flops=${flops.length} bands=${BANDS.join(",")} matchups=${MATCHUPS.map((m) => `${m.opener}v${m.defender}`).join(",")} iter=${ITER} sample=${SAMPLE} sizes=${BETSIZES.join("/")}`,
+    `[genPostflopSolutions] flops=${flops.length} bands=${BANDS.join(",")} matchups=${matchupsAuto ? "auto" : MATCHUPS.map((m) => `${m.opener}v${m.defender}`).join(",")} target=${totalTarget} iter=${ITER} sample=${SAMPLE} sizes=${BETSIZES.join("/")}`,
   );
 
   let solved = 0;
-  const totalTarget = flops.length * BANDS.length * MATCHUPS.length;
   const t0 = Date.now();
   for (const band of BANDS) {
-    for (const { opener, defender } of MATCHUPS) {
+    for (const { opener, defender } of matchupsFor(band)) {
       for (const board of flops) {
         const key = gtoPostflopSpotKey(band, opener, defender, board);
         if (bySpot.has(key)) {

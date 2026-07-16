@@ -3,7 +3,13 @@ import { prisma } from "./client.js";
 import { extractHeroDecisions, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
 import { handClassLabel } from "./preflopBaseline.js";
 import { openGtoActions, defenseGtoActions, vsJamGtoActions, allInCallGtoActions } from "./reviewGto.js";
-import { prepareGtoPostflopSpot, type GtoPostflopSpotHandle } from "./gtoPostflop.js";
+import {
+  prepareGtoPostflopSpot,
+  deserializeGtoPostflopSpot,
+  gtoPostflopSpotKey,
+  type GtoPostflopSpotHandle,
+} from "./gtoPostflop.js";
+import { readGtoPostflopSnapshot, writeGtoPostflopSnapshot } from "./gtoPostflopStore.js";
 import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
 import { bandOfStack } from "./preflopEvModel.js";
 import {
@@ -690,6 +696,12 @@ export async function getHandTimeline(handId: string) {
 const reviewSpotCache = new Map<string, Promise<GtoPostflopSpotHandle | null>>();
 const REVIEW_SPOT_CACHE_MAX = 24;
 
+/**
+ * レビュー用ポストフロップスポットの解ハンドルを返す。
+ * まず永続DB(GtoSolution)を read-through し、事前計算/過去に解いた結果があれば即座に返す(解き直さない)。
+ * 未ヒットのときだけCFRで解き、解けたらDBへ書き戻して次回以降ヒットさせる(GTOタブと同じ方式)。
+ * これにより「解析中…」が毎回オンデマンドで数十秒〜数分かかる問題を解消する。
+ */
 function reviewSpotHandle(band: string, opener: string, defender: string, board: string[]): Promise<GtoPostflopSpotHandle | null> {
   const key = `${band}|${opener}|${defender}|${board.join(",")}`;
   let p = reviewSpotCache.get(key);
@@ -698,7 +710,19 @@ function reviewSpotHandle(band: string, opener: string, defender: string, board:
       const first = reviewSpotCache.keys().next().value;
       if (first !== undefined) reviewSpotCache.delete(first);
     }
-    p = prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board }).catch(() => null);
+    p = (async () => {
+      // 1. 永続DBの事前計算/過去解を読む(read-through)。
+      const spotKey = gtoPostflopSpotKey(band, opener, defender, board, "srp");
+      const saved = await readGtoPostflopSnapshot(spotKey);
+      if (saved) return deserializeGtoPostflopSpot(saved);
+      // 2. 未ヒット: オンデマンドで解き、解けたらDBへ書き戻す(次回以降ヒット)。
+      const handle = await prepareGtoPostflopSpot({ band, openerPos: opener, defenderPos: defender, board }).catch(() => null);
+      if (handle?.snapshot) {
+        const snap = handle.snapshot();
+        void writeGtoPostflopSnapshot(band, opener, defender, board, snap, "srp");
+      }
+      return handle;
+    })().catch(() => null);
     reviewSpotCache.set(key, p);
   }
   return p;
