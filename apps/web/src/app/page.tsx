@@ -70,6 +70,7 @@ function SettingsPopover({
   onLeave: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   return (
     <>
@@ -82,7 +83,7 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          このゲームのハンド履歴
+          {t("settings.handHistory")}
         </button>
         <button
           onClick={() => {
@@ -91,7 +92,7 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          ブラインドストラクチャを見る
+          {t("settings.blindStructure")}
         </button>
         <button
           onClick={() => {
@@ -100,23 +101,23 @@ function SettingsPopover({
           }}
           className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
         >
-          チャットログ
+          {t("settings.chatLog")}
         </button>
         {confirmingLeave ? (
           <div className="rounded-xl bg-ink-100 p-3 space-y-2">
-            <p className="text-xs text-ink-600">チップを破棄して離脱します。この操作は取り消せません。</p>
+            <p className="text-xs text-ink-600">{t("settings.leaveConfirm")}</p>
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
                 className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 active:scale-[0.97] transition-transform"
               >
-                離脱する
+                {t("settings.leaveDo")}
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
                 className="flex-1 rounded-lg bg-ink-200 text-ink-800 text-xs py-2"
               >
-                やめる
+                {t("settings.leaveCancel")}
               </button>
             </div>
           </div>
@@ -125,7 +126,7 @@ function SettingsPopover({
             onClick={() => setConfirmingLeave(true)}
             className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
           >
-            チップを破棄してゲームから離脱
+            {t("settings.leave")}
           </button>
         )}
       </div>
@@ -184,6 +185,9 @@ function GameScreen({
   const [tappedPlayer, setTappedPlayer] = useState<SeatPlayerInfo | null>(null);
   // ゲーム開始時点のスタッツ(結果画面でbefore→afterの増減を表示するため)。一度だけ取得。
   const [statsBefore, setStatsBefore] = useState<ResultStatsSnapshot | null>(null);
+  // 「チップを破棄して離脱」した場合、その場で敗退とみなして表示するトーナメント結果。
+  // 通常のtournamentOverと同じ結果画面を、着順=離脱時点の残り人数・賞金0で表示する。
+  const [leftResult, setLeftResult] = useState<TournamentOverInfo | null>(null);
   // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   const countdown = useLevelCountdown(levelEndsAt);
@@ -194,11 +198,12 @@ function GameScreen({
     [state, yourSeatIndex],
   );
 
-  // 着席中の相手(非BOT)のマーキングをまとめて取得し、テーブルの席ドットに反映する。
+  // 着席中の相手のマーキングをまとめて取得し、テーブルの席ドットに反映する
+  // (自動プレイヤーも通常プレイヤーと同様に扱い、マーキングを表示できるようにする)。
   const opponentUserIds = useMemo(
     () =>
       Object.values(players)
-        .filter((p) => !p.isBot && Boolean(p.userId))
+        .filter((p) => Boolean(p.userId))
         .map((p) => p.userId),
     [players],
   );
@@ -316,8 +321,14 @@ function GameScreen({
             onShowHistory={() => setHistoryOpen(true)}
             onShowChatLog={() => setChatLogOpen(true)}
             onLeave={() => {
+              // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
+              setLeftResult({
+                winnerPlayerId: null,
+                yourFinishPosition: tournamentInfo?.remaining ?? null,
+                yourPayout: 0,
+              });
               leaveGame();
-              onExit();
+              setSettingsOpen(false);
             }}
             onClose={() => setSettingsOpen(false)}
           />
@@ -414,7 +425,7 @@ function GameScreen({
               {matching ? `${matching.registered} / ${matching.needed} 人集まりました` : `${waiting!.registered} / ${waiting!.needed} 人登録済み`}
             </div>
             {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-ink-500 mt-0.5">残り{matchingSecondsLeft}秒でBOTが自動補充されます</div>
+              <div className="text-[11px] text-ink-500 mt-0.5">プレイヤーが集まり次第スタートします</div>
             )}
             {waiting && <div className="text-[11px] text-ink-500 mt-0.5">4人集まり次第すぐに開始します</div>}
           </motion.div>
@@ -435,8 +446,14 @@ function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {tournamentOver && (
-          <TournamentResultScreen info={tournamentOver} accessToken={accessToken} statsBefore={statsBefore} onExit={onExit} />
+        {(tournamentOver || leftResult) && (
+          <TournamentResultScreen
+            info={(tournamentOver ?? leftResult)!}
+            accessToken={accessToken}
+            statsBefore={statsBefore}
+            tournamentId={tournamentInfo?.tournamentId ?? null}
+            onExit={onExit}
+          />
         )}
       </AnimatePresence>
 

@@ -21,6 +21,7 @@ import { dirname, join } from "node:path";
 import { PREFLOP_BANDS } from "../src/data/preflop100.js";
 import { expandToken } from "../src/preflopBaseline.js";
 
+// 169x169プリフロップ・エクイティ行列のキャッシュ(リポジトリ同梱)。再生成は scripts/genEqMatrix.ts(FORCE=1)。
 const CACHE = new URL("./cache/eqMatrix.json", import.meta.url).pathname;
 const T = 400; // フィクティシャスプレイ反復回数
 

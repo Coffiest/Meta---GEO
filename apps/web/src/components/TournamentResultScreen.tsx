@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
+import { useI18n } from "@/lib/i18n";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -93,13 +95,17 @@ export function TournamentResultScreen({
   info,
   accessToken,
   statsBefore,
+  tournamentId,
   onExit,
 }: {
   info: TournamentOverInfo;
   accessToken: string | undefined;
   statsBefore: ResultStatsSnapshot | null;
+  /** このトーナメントのDB ID。あれば「棋譜解析へ」導線を出す。 */
+  tournamentId?: string | null;
   onExit: () => void;
 }) {
+  const { t } = useI18n();
   const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
 
   useEffect(() => {
@@ -148,7 +154,7 @@ export function TournamentResultScreen({
             className="mt-1 inline-block text-5xl font-black tracking-tight text-ink-950"
             style={{ transform: "rotate(-10deg)", transformOrigin: "center" }}
           >
-            {isWin ? "優勝" : info.yourFinishPosition !== null ? `${info.yourFinishPosition}位` : "終了"}
+            {isWin ? t("result.win") : info.yourFinishPosition !== null ? t("result.place", { n: info.yourFinishPosition }) : t("result.finished")}
           </p>
           {info.yourPayout > 0 && (
             <motion.p
@@ -157,7 +163,7 @@ export function TournamentResultScreen({
               transition={{ delay: 0.25, type: "spring", stiffness: 460, damping: 20 }}
               className="mt-2 inline-block rounded-full bg-gold-500/15 px-4 py-1 text-[15px] font-black tabular-nums text-gold-700"
             >
-              賞金 +{info.yourPayout.toLocaleString()}
+              {t("result.prizePrefix")} +{info.yourPayout.toLocaleString()}
             </motion.p>
           )}
         </motion.div>
@@ -166,7 +172,7 @@ export function TournamentResultScreen({
         {after ? (
           <div className="grid grid-cols-2 gap-2.5">
             <MetricCard
-              label="収支"
+              label={t("result.m.profit")}
               from={before?.profit ?? after.profit}
               to={after.profit}
               format={(v) => signed(v)}
@@ -188,7 +194,7 @@ export function TournamentResultScreen({
               })()}
             />
             <MetricCard
-              label="インマネ率"
+              label={t("result.m.itmRate")}
               from={before?.itmRate ?? after.itmRate}
               to={after.itmRate}
               format={pct}
@@ -199,10 +205,10 @@ export function TournamentResultScreen({
               })()}
             />
             <MetricCard
-              label="全国ランク"
+              label={t("result.m.rank")}
               from={before?.nationalRank ?? after.nationalRank ?? 0}
               to={after.nationalRank ?? 0}
-              format={(v) => (after.nationalRank ? `${Math.round(v)}位` : "—")}
+              format={(v) => (after.nationalRank ? t("result.place", { n: Math.round(v) }) : "—")}
               delta={before?.nationalRank != null && after.nationalRank != null}
               {...(() => {
                 // 順位は小さいほど良い。before-after が正なら順位が上がった(↑)。
@@ -221,11 +227,24 @@ export function TournamentResultScreen({
           </div>
         )}
 
+        {/* 棋譜解析(局後検討)への導線。tournamentIdがあるときだけ表示。 */}
+        {tournamentId && (
+          <Link
+            href={`/review/tournament/${tournamentId}`}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+              <path d="M4 19V5M4 15l4-4 3 3 6-6M14 8h3v3" />
+            </svg>
+            {t("result.reviewCta")}
+          </Link>
+        )}
+
         <button
           onClick={onExit}
-          className="mt-6 w-full rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
+          className={`w-full rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98] ${tournamentId ? "mt-2.5" : "mt-6"}`}
         >
-          ロビーへ戻る
+          {t("result.backToLobby")}
         </button>
       </div>
     </motion.div>

@@ -10,6 +10,7 @@ import {
   fetchPlayerNote,
   fetchPlayerProfile,
   savePlayerNote,
+  syntheticPlayerProfile,
   type PlayerNoteColor,
   type PublicPlayerProfile,
 } from "@/lib/playerNotes";
@@ -36,12 +37,27 @@ export function PlayerDetailModal({
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
-  // BOTや未ログイン相手(userId無し)は統計・メモを持たない。フェッチせず識別カードのみ表示。
+  // 自動プレイヤーは通常プレイヤーと区別がつかないよう、userIdシードの決定論的な擬似スタッツを表示する。
   const isBot = Boolean(target.isBot);
-  const hasProfile = !isBot && Boolean(target.userId);
+  const hasProfile = isBot || Boolean(target.userId);
 
   useEffect(() => {
     let alive = true;
+    // 自動プレイヤー: サーバーへ取りに行かず擬似プロフィールを即表示。メモは best-effort で取得。
+    if (isBot) {
+      setProfile(syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
+      setLoading(false);
+      if (accessToken && target.userId) {
+        void fetchPlayerNote(accessToken, target.userId).then((noteData) => {
+          if (!alive) return;
+          setColor(noteData.color);
+          setNote(noteData.note);
+        });
+      }
+      return () => {
+        alive = false;
+      };
+    }
     if (!accessToken || !hasProfile) {
       setLoading(false);
       return;
@@ -60,7 +76,7 @@ export function PlayerDetailModal({
     return () => {
       alive = false;
     };
-  }, [accessToken, target.userId, hasProfile]);
+  }, [accessToken, target.userId, target.displayName, target.avatarKey, isBot, hasProfile]);
 
   async function handleSave() {
     if (!accessToken || saving) return;
@@ -114,14 +130,7 @@ export function PlayerDetailModal({
           </button>
         </div>
 
-        {isBot ? (
-          <div className="py-10 text-center">
-            <span className="inline-block rounded-full border border-ink-950 px-4 py-1.5 text-[12px] font-black uppercase tracking-[0.18em] text-ink-950">
-              BOT
-            </span>
-            <p className="mt-3 text-sm text-ink-500">BOTプレイヤーのため統計・メモはありません。</p>
-          </div>
-        ) : !hasProfile ? (
+        {!hasProfile ? (
           <p className="py-10 text-center text-sm text-ink-500">このプレイヤーの統計は取得できません。</p>
         ) : loading ? (
           <div className="space-y-2 py-8">

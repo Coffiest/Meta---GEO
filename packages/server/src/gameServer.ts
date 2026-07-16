@@ -6,7 +6,6 @@ import { decideBotAction } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
 
-const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3500;
 /** 全人間の結果確定後にBOT同士の消化を高速化するときのディレイ */
 const FAST_BOT_DELAY_MS = 25;
@@ -25,15 +24,58 @@ export const SHOWDOWN_TABLE_PAUSE_MS = 1400;
 /** オールインランアウト: ストリート1つ開くごとの待ち時間 */
 export const RUNOUT_STREET_PAUSE_MS = 1100;
 
-// BOTの5キャラクター。1卓に最大5体入っても全員別名になる。MTTの卓移動/追加補充では
-// (offset+i) % 5 で循環参照するため、無限に生成しても破綻しない(別卓では同名が出てよい)。
-export const BOT_PROFILES = [
-  { name: "ラフくん", avatarKey: "bot1" },
-  { name: "バリィ", avatarKey: "bot2" },
-  { name: "ターンデットくん", avatarKey: "bot3" },
-  { name: "リバーに住む魔物", avatarKey: "bot4" },
-  { name: "ラフ&バリィ", avatarKey: "bot5" },
-] as const;
+// 対戦相手として着席する自動プレイヤーの名前プール。人間のプレイヤーと見分けがつかないよう、
+// 和名のニックネーム・苗字・英字ハンドルなどを多数用意し、卓ごとにランダムに重複なく選ぶ。
+// avatarKey は null にして、人間と同じイニシャル系アバターで表示する(専用グリフを使わない)。
+export const BOT_PROFILES: readonly { name: string; avatarKey: string | null }[] = [
+  "たけし", "ゆうと", "さくら", "はると", "みなと", "りく", "あおい", "ひなた", "そうた", "ゆい",
+  "けんじ", "なおや", "まさと", "ゆうき", "かずま", "しょうた", "だいき", "りょう", "こうた", "たくみ",
+  "のぞみ", "あやか", "みさき", "かえで", "ももこ", "れん", "はやて", "つばさ", "いつき", "そら",
+  "ヒロ", "ケンゾー", "リョウガ", "タツヤ", "マコト", "ジン", "カイ", "レオ", "ソウ", "ナギ",
+  "野田", "佐藤", "山本", "タナカ", "小林", "むらけん", "しみけん", "あべちゃん", "みっちー", "ゆっけ",
+  "river_king", "turn_master", "allin_taro", "nuts_hunter", "chip_leader", "foldman", "the_grinder",
+  "poker_neko", "bluff88", "valuebet_jp", "aki", "nao_p", "shun", "daigo", "yamada777", "koba", "ren_g",
+].map((name) => ({ name, avatarKey: null }));
+
+// 自動プレイヤーがたまに送る自然な短いチャット。人間は勝ったときなどに一言つぶやくが、bot が完全に
+// 無言だと不自然なため、低頻度で文脈に合った短文を送る(過剰にならないよう頻度は抑える)。
+const BOT_CHAT_LINES = {
+  win: ["ナイスポット", "もらった", "よし", "ふぅ", "取れた〜", "ありがと", "らっき", "ここは取りたかった", "gg"],
+  steal: ["ごめんね", "いただき", "降ろせた", "よしよし", "もらっとく"],
+} as const;
+
+export function pickBotChatLine(kind: keyof typeof BOT_CHAT_LINES): string {
+  const pool = BOT_CHAT_LINES[kind];
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+/** 配列をコピーしてFisher-Yatesでシャッフルした新配列を返す。 */
+function shuffled<T>(arr: readonly T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+/**
+ * 自動プレイヤーの思考時間(ms)を、ストリートと実際に選ばれたアクションに応じて人間らしく揺らす。
+ * - プリフロップ/フロップ: フォールドは即おり(x/f)、参加する場合は1〜5秒でランダム。
+ * - ターン/リバー: 3〜15秒で熟考。難所を模して低頻度でタイムバンク的に延長する。
+ */
+export function botThinkDelayMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
+  const isFold = action.kind === "fold";
+  if (street === "preflop" || street === "flop") {
+    if (isFold) return 150 + rand() * 250; // 即おり
+    return 1000 + rand() * 4000; // 1〜5秒
+  }
+  // turn / river
+  if (isFold) return 1500 + rand() * 3000; // 降りるにも少し考える(1.5〜4.5秒)
+  const base = 3000 + rand() * 12000; // 3〜15秒
+  if (rand() < 0.15) return base + 3000 + rand() * 7000; // 難所: タイムバンク的に延長(最大〜25秒)
+  return base;
+}
 
 export interface StagedRunoutParams {
   hand: HandEngine;
@@ -89,12 +131,16 @@ export function scheduleStagedRunout(params: StagedRunoutParams): void {
   }, delay);
 }
 
-/** BOT用のUserレコードを確保して返す(名前をキーにupsert)。offsetで別グループのBOTを取れる。 */
+/** 自動プレイヤー用のUserレコードを確保して返す(名前をキーにupsert)。
+ * プールからランダムに重複なく選ぶため、同じ卓に「見覚えのある名前」ばかり並ばない。
+ * countがプール数を超える場合のみ循環して補う。 */
 export async function ensureBotUsers(
   count: number,
   offset = 0,
-): Promise<{ id: string; displayName: string; avatarKey: string }[]> {
-  const profiles = Array.from({ length: count }, (_, i) => BOT_PROFILES[(offset + i) % BOT_PROFILES.length]!);
+): Promise<{ id: string; displayName: string; avatarKey: string | null }[]> {
+  void offset; // 互換のため引数は残すが、選出はランダム化した
+  const pool = shuffled(BOT_PROFILES);
+  const profiles = Array.from({ length: count }, (_, i) => pool[i % pool.length]!);
   return Promise.all(
     profiles.map(async (p) => {
       const u = await prisma.user.upsert({
@@ -371,6 +417,7 @@ export class TableSession implements GameSession {
       total: seats.length,
       averageStack,
       prizePool: SNG_PAYOUTS,
+      tournamentId: this.dbTournamentId ?? null,
     });
   }
 
@@ -470,10 +517,14 @@ export class TableSession implements GameSession {
     const human = this.humansBySeat.get(actingSeat);
 
     if (!human) {
-      const delay = this.isAccelerated() ? FAST_BOT_DELAY_MS : BOT_ACTION_DELAY_MS;
+      // 人間がいない卓(全員自動)は消化を高速化。人間がいる卓では、実際に選ぶアクションを
+      // 先に確定し、それに応じて人間らしい思考時間(即おり/数秒〜熟考)で送出する。
+      const botAction = this.computeBotAction(actingSeat);
+      const street = this.hand?.getPublicState().street ?? "preflop";
+      const delay = this.isAccelerated() ? FAST_BOT_DELAY_MS : botThinkDelayMs(street, botAction);
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handlePlayerAction(actingSeat, this.computeBotAction(actingSeat));
+        this.handlePlayerAction(actingSeat, botAction);
       }, delay);
       return;
     }
@@ -588,6 +639,7 @@ export class TableSession implements GameSession {
       result: this.serializeResult(hand),
       holeCards: revealedHoleCards,
     });
+    this.maybeBotHandEndChat(hand);
 
     // このハンドでバストした人間の着順・賞金を確定して個別に通知する
     for (const [seatIndex, human] of this.humansBySeat) {
@@ -676,6 +728,28 @@ export class TableSession implements GameSession {
       where: { id: this.dbTournamentId },
       data: { status: "finished", finishedAt: new Date() },
     });
+  }
+
+  /** ハンド終了時、勝った自動プレイヤーがまれに自然な一言を送る(人間が同卓にいるときのみ)。 */
+  private maybeBotHandEndChat(hand: HandEngine): void {
+    if (this.isAccelerated() || this.humansBySeat.size === 0) return;
+    const result = hand.getResult();
+    // payouts は playerId(=userId)→獲得額。勝った自動プレイヤーの席を割り出す。
+    const winnerIds = new Set([...result.payouts.entries()].filter(([, amt]) => amt > 0).map(([pid]) => pid));
+    const botWinners = [...this.players.values()].filter((p) => p.isBot && winnerIds.has(p.userId)).map((p) => p.seatIndex);
+    if (botWinners.length === 0 || Math.random() > 0.14) return;
+    const seat = botWinners[Math.floor(Math.random() * botWinners.length)]!;
+    const line = pickBotChatLine(result.wonByFold ? "steal" : "win");
+    setTimeout(() => this.sendBotChat(seat, line), 700 + Math.random() * 1600);
+  }
+
+  private sendBotChat(seatIndex: number, text: string): void {
+    const p = this.players.get(seatIndex);
+    if (!p || !p.isBot) return;
+    const msg: ChatMessage = { seatIndex, userId: p.userId, displayName: p.displayName, text, ts: Date.now() };
+    this.chatLog.push(msg);
+    if (this.chatLog.length > 50) this.chatLog.shift();
+    this.io.to(this.roomId).emit("chat", msg);
   }
 
   private serializeResult(hand: HandEngine) {

@@ -56,6 +56,8 @@ export interface HeroDecision {
   boardSoFar: string[];
   liveCount: number;
   actionTaken: { kind: string; bucket: string; toAmount: number | null };
+  /** この決定より前の、現ストリート内の全プレイヤーのアクション(バケット名)列。ソルバーのノード特定に使う。 */
+  streetLineBefore: string[];
   analyzable: boolean;
   outOfScopeReason?: string;
 }
@@ -98,8 +100,28 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
   let currentStreet = "preflop";
   // ストリート開始時の生存人数スナップショット。
   const liveAtStreetStart: Record<string, number> = { preflop: seatsDealt };
+  // 現ストリート内の(全プレイヤーの)アクションのバケット列。ソルバーのノード特定に使う。
+  let streetLine: string[] = [];
 
   const decisions: HeroDecision[] = [];
+
+  /** 任意の席のアクションをバケット化する(heroの分類と同一ロジック)。 */
+  function bucketOfAction(action: ExtractAction, isPreflop: boolean): string {
+    const priorStreet = streetContribution.get(action.seatIndex) ?? 0;
+    const priorHand = handContribution.get(action.seatIndex) ?? 0;
+    const startingStack = startingStackBySeat.get(action.seatIndex) ?? 0;
+    const behindStack = startingStack - priorHand - priorStreet;
+    const toAmount = action.toAmount ?? priorStreet;
+    const maxPossible = priorStreet + behindStack;
+    const isAllIn = action.kind === "allIn" || (behindStack > 0 && toAmount >= maxPossible);
+    if (action.kind === "fold") return "fold";
+    if (isAllIn) return "allIn";
+    if (action.kind === "check" || action.kind === "call") return isPreflop ? "call" : "checkOrCall";
+    if (isPreflop) return bucketPreflopRaiseBb(toAmount / bb);
+    const betAmount = toAmount - priorStreet;
+    const pct = action.potBefore > 0 ? (betAmount / action.potBefore) * 100 : 0;
+    return bucketPostflopPct(pct);
+  }
 
   for (const action of hand.actions) {
     // ストリート切り替え: streetContributionをhandContributionへ繰り込み、生存人数を記録。
@@ -110,6 +132,7 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
       streetContribution.clear();
       currentStreet = action.street;
       liveAtStreetStart[currentStreet] = seatsDealt - foldedSeats.size;
+      streetLine = [];
     }
 
     if (action.kind === "postBlind") {
@@ -175,10 +198,14 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
         boardSoFar: boardForStreet(hand.board, currentStreet),
         liveCount: liveNow,
         actionTaken: { kind: action.kind, bucket, toAmount: action.toAmount },
+        streetLineBefore: [...streetLine],
         analyzable,
         ...(analyzable ? {} : { outOfScopeReason: "multiway" }),
       });
     }
+
+    // 現ストリートのアクション列へ追記(全プレイヤー。hero決定のsnapshotの後)。
+    if (!alreadyFolded) streetLine.push(bucketOfAction(action, currentStreet === "preflop"));
 
     if (action.kind === "fold") foldedSeats.add(action.seatIndex);
 

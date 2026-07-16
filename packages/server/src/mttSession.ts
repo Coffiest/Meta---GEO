@@ -7,6 +7,7 @@ import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
   MTT_TIME_BANK_CARDS,
+  botThinkDelayMs,
   ensureBotUsers,
   scheduleStagedRunout,
   sanitizeChatText,
@@ -17,7 +18,6 @@ import {
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
 
-const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3000;
 const FAST_DELAY_MS = 20;
 export const MTT_MIN_PLAYERS_TO_START = 4;
@@ -443,10 +443,13 @@ export class MttSession implements GameSession {
     const human = playerId ? this.humans.get(playerId) : undefined;
 
     if (!human) {
-      const delay = this.tableHasHuman(this.activeTableId!) ? BOT_ACTION_DELAY_MS : FAST_DELAY_MS;
+      // 実際に選ぶアクションを先に確定し、人間らしい思考時間で送出する(人間不在卓は高速化)。
+      const botAction = this.computeBotAction(actingSeat);
+      const street = this.hand?.getPublicState().street ?? "preflop";
+      const delay = this.tableHasHuman(this.activeTableId!) ? botThinkDelayMs(street, botAction) : FAST_DELAY_MS;
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handleAction(actingSeat, this.computeBotAction(actingSeat));
+        this.handleAction(actingSeat, botAction);
       }, delay);
       return;
     }
@@ -719,7 +722,7 @@ export class MttSession implements GameSession {
     const prizePool = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn).places;
     this.io
       .to([...mtt.getTableIds()].map((id) => this.tableRoom(id)))
-      .emit("tournamentInfo", { remaining, total: this.entryCount, averageStack, prizePool });
+      .emit("tournamentInfo", { remaining, total: this.entryCount, averageStack, prizePool, tournamentId: this.dbTournamentId ?? null });
   }
 
   private broadcastState(): void {

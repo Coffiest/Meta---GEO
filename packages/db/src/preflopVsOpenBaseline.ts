@@ -170,3 +170,20 @@ export function getVsOpenCallVs3betRange(band: string, opener: string, defender:
 export function getVsOpen3betToBb(band: string, opener: string, defender: string): number | undefined {
   return DATA.bands[band]?.[opener]?.[defender]?.threeBetToBb;
 }
+
+/** (band, opener, defender) のディフェンス混合戦略(生データ)。局後検討のEV計算に使う。 */
+export function getVsOpenStrategy(
+  band: string,
+  opener: string,
+  defender: string,
+): { strat: Record<string, [number, number, number]>; threeBetToBb?: number | undefined; callFreq: number; threeBetFreq: number; jamFreq: number } | null {
+  const entry = DATA.bands[band]?.[opener]?.[defender];
+  if (!entry) return null;
+  return {
+    strat: entry.strat,
+    threeBetToBb: entry.threeBetToBb,
+    callFreq: entry.callFreq,
+    threeBetFreq: entry.threeBetFreq,
+    jamFreq: entry.jamFreq,
+  };
+}

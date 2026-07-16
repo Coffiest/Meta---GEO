@@ -84,6 +84,8 @@ export interface HandTimeline {
 export interface HandReviewResponse {
   review: ReviewResult;
   timeline: HandTimeline;
+  /** HUポストフロップのソルバー解析が進行中(ポーリングで再取得する)。 */
+  solving?: boolean;
 }
 
 /** 1ハンドのレビュー(分類結果+再生用タイムライン)を取得。 */
