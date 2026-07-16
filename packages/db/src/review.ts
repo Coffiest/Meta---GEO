@@ -484,8 +484,23 @@ export async function applySavedSolverResults(
 }
 
 /**
+ * heroがプリフロップでフォールドして降りたハンドか(確定仕様: 解析対象外)。
+ * heroが着席していないハンド(敵vs敵)もあわせて対象外にする。
+ */
+function isHeroFoldedPreflopHand(
+  seats: { seatIndex: number; userId: string }[],
+  actions: { seatIndex: number; street: string; kind: string }[],
+  heroUserId: string
+): boolean {
+  const heroSeatIdx = seats.find((s) => s.userId === heroUserId)?.seatIndex;
+  if (heroSeatIdx === undefined) return true; // 敵vs敵(hero不参加)
+  return actions.some((a) => a.seatIndex === heroSeatIdx && a.kind === "fold" && a.street === "preflop");
+}
+
+/**
  * 1トーナメントの、heroが着席した全ハンドをまとめて解析する(チェスドットコム風の一括解析)。
  * 各ハンドに再生用タイムラインを含み、保存済みソルバー結果をマージして返す。
+ * heroがプリフロップで降りたハンドと敵vs敵のハンドは解析・再生の対象外(確定仕様)。
  */
 export async function analyzeTournamentForHero(tournamentId: string, heroUserId: string): Promise<TournamentReview> {
   const hands = await prisma.hand.findMany({
@@ -520,6 +535,8 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
   const reviewed: TournamentReviewHand[] = [];
   let anySolving = false;
   for (const h of hands) {
+    // 対象外: heroがプリフロップでフォールドしたハンド / 敵vs敵。
+    if (isHeroFoldedPreflopHand(h.seats, h.actions, heroUserId)) continue;
     const extractHand: ExtractHand = {
       buttonFixedPos: h.buttonFixedPos,
       levelBigBlind: h.levelBigBlind,
@@ -589,9 +606,15 @@ export async function prewarmTournamentReview(tournamentId: string, heroUserId: 
   const hands = await prisma.hand.findMany({
     where: { tournamentId, seats: { some: { userId: heroUserId } } },
     orderBy: { handNumber: "asc" },
-    select: { id: true },
+    select: {
+      id: true,
+      seats: { select: { seatIndex: true, userId: true } },
+      actions: { select: { seatIndex: true, street: true, kind: true } },
+    },
   });
   for (const h of hands) {
+    // 解析対象外のハンド(heroプリフロップフォールド/敵vs敵)はソルバー計算も不要。
+    if (isHeroFoldedPreflopHand(h.seats, h.actions, heroUserId)) continue;
     try {
       // 保存済みでsolving行が無ければスキップ(冪等)。
       const saved = await getSavedReviewDecisions(h.id, heroUserId);
