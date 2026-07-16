@@ -71,17 +71,17 @@ interface Leaderboards {
 type LbPeriod = "weekly" | "allTime" | "last10";
 type LbMetric = "profit" | "roi" | "rrRating" | "itmRate";
 
-const LB_PERIODS: { key: LbPeriod; label: string }[] = [
-  { key: "weekly", label: "Weekly" },
-  { key: "allTime", label: "All Time" },
-  { key: "last10", label: "直近10" },
+const LB_PERIODS: { key: LbPeriod; labelKey: string }[] = [
+  { key: "weekly", labelKey: "lobby.lb.weekly" },
+  { key: "allTime", labelKey: "lobby.lb.allTime" },
+  { key: "last10", labelKey: "lobby.lb.last10" },
 ];
 
-const LB_METRICS: { key: LbMetric; label: string }[] = [
-  { key: "profit", label: "収支" },
-  { key: "roi", label: "ROI" },
-  { key: "rrRating", label: "トナメ偏差値" },
-  { key: "itmRate", label: "インマネ率" },
+const LB_METRICS: { key: LbMetric; labelKey: string }[] = [
+  { key: "profit", labelKey: "lobby.metric.profit" },
+  { key: "roi", labelKey: "lobby.metric.roi" },
+  { key: "rrRating", labelKey: "lobby.metric.rrRating" },
+  { key: "itmRate", labelKey: "lobby.metric.itmRate" },
 ];
 
 /** 指標に応じた表示値の整形。 */
@@ -116,19 +116,19 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 // サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
 // 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
 // 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
-const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detail: string }[] = [
+const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detailKey: string }[] = [
   {
     key: "sng",
     title: "Sit & Go",
     caption: "(Single table)",
     buyIn: 1000,
-    detail: "6人卓・シングルテーブル",
+    detailKey: "lobby.game.sngDetail",
   },
   {
     key: "mtt",
     title: "MTT",
     buyIn: 2000,
-    detail: "人数無制限・レイトレジ対応",
+    detailKey: "lobby.game.mttDetail",
   },
 ];
 
@@ -196,6 +196,7 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
  * タップするとトナメ偏差値の推移(その回の変動)まで含めた詳細シートが開く。
  */
 function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryPoint; delay?: number }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const date = new Date(point.finishedAt);
   const pnlClass = point.pnl > 0 ? "text-mint-600" : point.pnl < 0 ? "text-crimson-500" : "text-ink-700";
@@ -214,30 +215,30 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
             <p className="text-[10px] text-ink-600 mt-0.5">
-              {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {point.seatCount}人卓
+              {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
             </p>
           </div>
           {point.finishPosition != null && (
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shrink-0">
-              <span className="text-[11px] font-black text-white">{point.finishPosition}位</span>
+              <span className="text-[11px] font-black text-white">{t("result.place", { n: point.finishPosition })}</span>
             </div>
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
           <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
+            <p className="text-[9px] text-ink-600 mb-0.5">{t("play.buyIn")}</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
           <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
+            <p className="text-[9px] text-ink-600 mb-0.5">{t("lobby.payout")}</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
           <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
+            <p className="text-[9px] text-ink-600 mb-0.5">{t("result.m.profit")}</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
         </div>
-        <div className="text-right text-[10px] text-ink-500">タップで詳細 →</div>
+        <div className="text-right text-[10px] text-ink-500">{t("lobby.tapDetail")}</div>
       </motion.button>
 
       <AnimatePresence>
@@ -260,29 +261,29 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
               <div className="flex items-center justify-between mb-4">
                 <p className="text-[16px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
                 <button onClick={() => setOpen(false)} className="text-[13px] text-ink-500">
-                  閉じる
+                  {t("common.close")}
                 </button>
               </div>
               <p className="text-[12px] text-ink-600 mb-4">
-                {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {point.seatCount}人卓
-                {point.finishPosition != null && ` ・ ${point.finishPosition}位`}
+                {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
+                {point.finishPosition != null && ` ・ ${t("result.place", { n: point.finishPosition })}`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">バイイン</p>
+                  <p className="text-[10px] text-ink-600 mb-1">{t("play.buyIn")}</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
                 <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">獲得</p>
+                  <p className="text-[10px] text-ink-600 mb-1">{t("lobby.payout")}</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
                 <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">収支</p>
+                  <p className="text-[10px] text-ink-600 mb-1">{t("result.m.profit")}</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-gold-500 bg-white px-3.5 py-3">
-                <span className="text-[12px] font-semibold text-gold-700">トナメ偏差値</span>
+                <span className="text-[12px] font-semibold text-gold-700">{t("lobby.metric.rrRating")}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
                   {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
@@ -331,6 +332,7 @@ function StatTile({
   countTo?: number;
   format?: (n: number) => string;
 }) {
+  const { t } = useI18n();
   const animated = useCountUp(0, countTo ?? 0, 1100, 200);
   const display = countTo !== undefined && format ? format(animated) : value;
   return (
@@ -338,7 +340,7 @@ function StatTile({
       <div className="flex items-center gap-1 text-[11px] text-ink-700">
         <span>{label}</span>
         {onInfo && (
-          <button onClick={onInfo} className="text-ink-600 active:text-ink-800" aria-label={`${label}の説明`}>
+          <button onClick={onInfo} className="text-ink-600 active:text-ink-800" aria-label={t("stat.infoAria", { label })}>
             <InfoIcon />
           </button>
         )}
@@ -372,123 +374,120 @@ type StatInfoKey =
   | "graphProfit"
   | "graphPayout";
 
-function buildStatInfo(key: StatInfoKey, s: PlayerStats): StatInfoDef {
+type TFn = (key: string, vars?: Record<string, string | number>) => string;
+
+function buildStatInfo(key: StatInfoKey, s: PlayerStats, t: TFn): StatInfoDef {
   switch (key) {
     case "buyIns":
       return {
-        title: "かけた金額",
+        title: t("stat.buyIns"),
         value: s.totalBuyIns.toLocaleString(),
-        description: "終了した全トーナメントのバイイン(参加費)の合計額です。",
+        description: t("statinfo.buyIns.desc"),
       };
     case "payouts":
       return {
-        title: "得た金額",
+        title: t("stat.payouts"),
         value: s.totalPayouts.toLocaleString(),
-        description: "入賞して受け取った賞金の合計額です。入賞していないトーナメントは0として計算されます。",
+        description: t("statinfo.payouts.desc"),
       };
     case "profit":
       return {
-        title: "収支",
+        title: t("stat.profit"),
         value: formatSigned(s.profit),
-        description: "得た金額 − かけた金額。プラスなら黒字、マイナスなら赤字です。",
+        description: t("statinfo.profit.desc"),
       };
     case "roi":
       return {
-        title: "ROI",
-        subtitle: "Return on Investment",
+        title: t("stat.roi"),
+        subtitle: t("statinfo.roi.sub"),
         value: `${(s.roi * 100).toFixed(1)}%`,
-        description:
-          "得た金額 ÷ かけた金額 × 100。100%が収支±0のラインで、100%を超えていれば黒字です(例: 10,000かけて15,000得たら150%)。",
+        description: t("statinfo.roi.desc"),
       };
     case "tournamentsPlayed":
       return {
-        title: "参加トナメ数",
+        title: t("stat.tournamentsPlayed"),
         value: s.tournamentsPlayed.toLocaleString(),
-        description: "終了したトーナメントへの参加回数です。",
+        description: t("statinfo.tournamentsPlayed.desc"),
       };
     case "itmCount":
       return {
-        title: "インマネ回数",
-        subtitle: "In The Money",
+        title: t("stat.itmCount"),
+        subtitle: t("statinfo.itmCount.sub"),
         value: s.itmCount.toLocaleString(),
-        description: "賞金を獲得して入賞した回数です。",
+        description: t("statinfo.itmCount.desc"),
       };
     case "itmRate":
       return {
-        title: "インマネ率",
+        title: t("stat.itmRate"),
         value: `${(s.itmRate * 100).toFixed(1)}%`,
-        description: "インマネ回数 ÷ 参加トナメ数 × 100。例: 10回参加して3回入賞していれば30%です。",
+        description: t("statinfo.itmRate.desc"),
       };
     case "vpip":
       return {
-        title: "VPIP",
-        subtitle: "Voluntarily Put chips In Pot",
+        title: t("stat.vpip"),
+        subtitle: t("statinfo.vpip.sub"),
         value: `${(s.vpipRate * 100).toFixed(0)} (${s.vpipCount.toLocaleString()}/${s.vpipOpportunities.toLocaleString()})`,
-        description: "プリフロップで自発的にチップを投入した割合です。",
+        description: t("statinfo.vpip.desc"),
         breakdown: {
-          execLabel: "実行回数",
-          execDesc: "コールまたはレイズを行ったハンド数",
-          oppLabel: "実行機会",
-          oppDesc: "参加した全ハンド数",
+          execLabel: t("statinfo.execLabel"),
+          execDesc: t("statinfo.vpip.execDesc"),
+          oppLabel: t("statinfo.oppLabel"),
+          oppDesc: t("statinfo.vpip.oppDesc"),
         },
-        notes: [
-          "ブラインドの強制投入は回数・機会に含まない。",
-          "BBがアンレイズドポットでチェックしたハンドは回数・機会に含まない。",
-        ],
+        notes: [t("statinfo.vpip.note1"), t("statinfo.vpip.note2")],
       };
     case "pfr":
       return {
-        title: "PFR",
-        subtitle: "Preflop Raise",
+        title: t("stat.pfr"),
+        subtitle: t("statinfo.pfr.sub"),
         value: `${(s.pfrRate * 100).toFixed(0)} (${s.pfrCount.toLocaleString()}/${s.pfrOpportunities.toLocaleString()})`,
-        description: "プリフロップでレイズした割合です。",
+        description: t("statinfo.pfr.desc"),
         breakdown: {
-          execLabel: "実行回数",
-          execDesc: "レイズを行ったハンド数",
-          oppLabel: "実行機会",
-          oppDesc: "参加した全ハンド数",
+          execLabel: t("statinfo.execLabel"),
+          execDesc: t("statinfo.pfr.execDesc"),
+          oppLabel: t("statinfo.oppLabel"),
+          oppDesc: t("statinfo.pfr.oppDesc"),
         },
-        notes: ["BBがアンレイズドポットでチェックしたハンドは回数・機会に含まない。"],
+        notes: [t("statinfo.pfr.note1")],
       };
     case "threeBet":
       return {
-        title: "3Bet",
-        subtitle: "Preflop Reraise",
+        title: t("stat.threeBet"),
+        subtitle: t("statinfo.threeBet.sub"),
         value: `${(s.threeBetRate * 100).toFixed(0)} (${s.threeBetCount.toLocaleString()}/${s.threeBetOpportunities.toLocaleString()})`,
-        description: "最初のレイズに対してリレイズをした割合です。",
+        description: t("statinfo.threeBet.desc"),
         breakdown: {
-          execLabel: "実行回数",
-          execDesc: "一人目のレイズの後、レイズを行ったハンド数",
-          oppLabel: "実行機会",
-          oppDesc: "自分の前にレイズが1回だけ行われたハンド数",
+          execLabel: t("statinfo.execLabel"),
+          execDesc: t("statinfo.threeBet.execDesc"),
+          oppLabel: t("statinfo.oppLabel"),
+          oppDesc: t("statinfo.threeBet.oppDesc"),
         },
-        notes: ["自分の前に誰もレイズをしていない場合は実行機会に含まない。", "既に2回以上レイズがある場合は実行機会に含まない。"],
+        notes: [t("statinfo.threeBet.note1"), t("statinfo.threeBet.note2")],
       };
     case "graphRoi":
       return {
-        title: "ROIグラフ",
-        subtitle: "Return on Investment",
+        title: t("statinfo.graphRoi.title"),
+        subtitle: t("statinfo.roi.sub"),
         value: "",
-        description:
-          "終了したトーナメントごとに、その時点までの累計ROI(得た金額 ÷ かけた金額 × 100)の推移を表示しています。破線の100%が収支±0のラインで、それより上なら黒字です。",
+        description: t("statinfo.graphRoi.desc"),
       };
     case "graphProfit":
       return {
-        title: "収支グラフ",
+        title: t("statinfo.graphProfit.title"),
         value: "",
-        description:
-          "終了したトーナメントごとの収支(得た金額 − かけた金額)の累計推移です。破線の0より上なら黒字、下なら赤字です(実額ベース・bb換算なし)。",
+        description: t("statinfo.graphProfit.desc"),
       };
     case "graphPayout":
       return {
-        title: "得た金額グラフ",
+        title: t("statinfo.graphPayout.title"),
         value: "",
-        description: "入賞して受け取った賞金の累計推移です。入賞していないトーナメントでは増えません(実額ベース)。",
+        description: t("statinfo.graphPayout.desc"),
       };
   }
 }
 
 function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -501,7 +500,7 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
             <h2 className="text-base font-bold text-ink-950">{info.title}</h2>
             {info.subtitle && <p className="text-[11px] text-ink-600">{info.subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-ink-700 text-xl leading-none px-2" aria-label="閉じる">
+          <button onClick={onClose} className="text-ink-700 text-xl leading-none px-2" aria-label={t("common.close")}>
             ×
           </button>
         </div>
@@ -586,6 +585,7 @@ function SingleLineChart({
   formatValue: (v: number) => string;
   onInfo?: () => void;
 }) {
+  const { t } = useI18n();
   const header = (
     <div className="flex items-center gap-1.5 mb-1">
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
@@ -594,7 +594,7 @@ function SingleLineChart({
         <span className="ml-auto text-xs font-bold tabular-nums text-ink-900">{formatValue(points[points.length - 1]!.y)}</span>
       )}
       {onInfo && (
-        <button onClick={onInfo} className={`text-ink-600 active:text-ink-800 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={`${title}の説明`}>
+        <button onClick={onInfo} className={`text-ink-600 active:text-ink-800 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
           <InfoIcon />
         </button>
       )}
@@ -605,7 +605,7 @@ function SingleLineChart({
     return (
       <div>
         {header}
-        <div className="py-6 text-center text-ink-600 text-xs">グラフ表示にはもう少しトーナメント数が必要です。</div>
+        <div className="py-6 text-center text-ink-600 text-xs">{t("lobby.chartNeedMore")}</div>
       </div>
     );
   }
@@ -690,10 +690,10 @@ export { Icon };
 
 /** ヘッダー右上のハンバーガーメニューから開くボトムシート。旧Mypageタブの機能をここに集約する。 */
 /** "google" → "Google" のようにプロバイダ名を表示用ラベルに変換する。 */
-function providerLabel(provider: string): string {
+function providerLabel(provider: string, t: TFn): string {
   if (provider === "google") return "Google";
   if (provider === "apple") return "Apple";
-  if (provider === "email") return "メール";
+  if (provider === "email") return t("lobby.provider.email");
   return provider;
 }
 
@@ -740,12 +740,12 @@ function HamburgerMenu({
             {email ? (
               <div className="text-xs text-ink-700 truncate">{email}</div>
             ) : (
-              isGuest && <div className="text-xs text-ink-600">ゲストプレイ中</div>
+              isGuest && <div className="text-xs text-ink-600">{t("lobby.guestPlaying")}</div>
             )}
             {/* どのアカウントでログイン中かを常に確認できるよう、連携済みプロバイダを明示する */}
             {providers && providers.length > 0 && (
               <div className="text-[10px] text-ink-600 truncate">
-                {providers.map(providerLabel).join(" / ")} でログイン中
+                {t("lobby.loggedInWith", { p: providers.map((p) => providerLabel(p, t)).join(" / ") })}
               </div>
             )}
           </div>
@@ -791,6 +791,7 @@ export function Lobby({
   onEditProfile: () => void;
   onSignOut?: () => void;
 }) {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
   const [stats, setStats] = useState<PlayerStats | null>(null);
@@ -871,7 +872,7 @@ export function Lobby({
       <Header
         left={<HeaderLogo />}
         right={
-          <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel="メニューを開く">
+          <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel={t("lobby.menuOpen")}>
             <HamburgerIcon />
           </HeaderIconButton>
         }
@@ -926,24 +927,24 @@ export function Lobby({
               stats ? (
                 <>
                   <AnimatedCard delay={0.06}>
-                    <div className="mb-3"><RuleLabel>収支</RuleLabel></div>
+                    <div className="mb-3"><RuleLabel>{t("lobby.sec.profit")}</RuleLabel></div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-4">
                       <StatTile
-                        label="かけた金額"
+                        label={t("stat.buyIns")}
                         value={stats.totalBuyIns.toLocaleString()}
                         countTo={stats.totalBuyIns}
                         format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("buyIns")}
                       />
                       <StatTile
-                        label="得た金額"
+                        label={t("stat.payouts")}
                         value={stats.totalPayouts.toLocaleString()}
                         countTo={stats.totalPayouts}
                         format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("payouts")}
                       />
                       <StatTile
-                        label="収支"
+                        label={t("stat.profit")}
                         value={formatSigned(stats.profit)}
                         countTo={stats.profit}
                         format={(n) => formatSigned(Math.round(n))}
@@ -951,7 +952,7 @@ export function Lobby({
                         onInfo={() => setInfoKey("profit")}
                       />
                       <StatTile
-                        label="ROI"
+                        label={t("stat.roi")}
                         value={`${(stats.roi * 100).toFixed(1)}%`}
                         countTo={stats.roi * 100}
                         format={(n) => `${n.toFixed(1)}%`}
@@ -962,24 +963,24 @@ export function Lobby({
                   </AnimatedCard>
 
                   <AnimatedCard delay={0.1}>
-                    <div className="mb-3"><RuleLabel>トーナメント成績</RuleLabel></div>
+                    <div className="mb-3"><RuleLabel>{t("lobby.sec.tourneyResults")}</RuleLabel></div>
                     <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                       <StatTile
-                        label="参加トナメ数"
+                        label={t("stat.tournamentsPlayed")}
                         value={stats.tournamentsPlayed.toLocaleString()}
                         countTo={stats.tournamentsPlayed}
                         format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("tournamentsPlayed")}
                       />
                       <StatTile
-                        label="インマネ回数"
+                        label={t("stat.itmCount")}
                         value={stats.itmCount.toLocaleString()}
                         countTo={stats.itmCount}
                         format={(n) => Math.round(n).toLocaleString()}
                         onInfo={() => setInfoKey("itmCount")}
                       />
                       <StatTile
-                        label="インマネ率"
+                        label={t("stat.itmRate")}
                         value={`${(stats.itmRate * 100).toFixed(1)}%`}
                         countTo={stats.itmRate * 100}
                         format={(n) => `${n.toFixed(1)}%`}
@@ -989,24 +990,24 @@ export function Lobby({
                   </AnimatedCard>
 
                   <AnimatedCard delay={0.14}>
-                    <div className="mb-3"><RuleLabel>プレイスタイル</RuleLabel></div>
+                    <div className="mb-3"><RuleLabel>{t("lobby.sec.playstyle")}</RuleLabel></div>
                     <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                       <StatTile
-                        label="VPIP"
+                        label={t("stat.vpip")}
                         value={`${(stats.vpipRate * 100).toFixed(0)}%`}
                         countTo={stats.vpipRate * 100}
                         format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("vpip")}
                       />
                       <StatTile
-                        label="PFR"
+                        label={t("stat.pfr")}
                         value={`${(stats.pfrRate * 100).toFixed(0)}%`}
                         countTo={stats.pfrRate * 100}
                         format={(n) => `${n.toFixed(0)}%`}
                         onInfo={() => setInfoKey("pfr")}
                       />
                       <StatTile
-                        label="3Bet"
+                        label={t("stat.threeBet")}
                         value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
                         countTo={stats.threeBetRate * 100}
                         format={(n) => `${n.toFixed(0)}%`}
@@ -1025,7 +1026,7 @@ export function Lobby({
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
-                          title="ROI"
+                          title={t("stat.roi")}
                           color="#D4910A" /* 唯一のアクセントカラー使用箇所として意図的にgoldのまま */
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
                           baseline={100}
@@ -1033,7 +1034,7 @@ export function Lobby({
                           onInfo={() => setInfoKey("graphRoi")}
                         />
                         <SingleLineChart
-                          title="収支"
+                          title={t("stat.profit")}
                           color="#0a0a0a"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
                           baseline={0}
@@ -1041,7 +1042,7 @@ export function Lobby({
                           onInfo={() => setInfoKey("graphProfit")}
                         />
                         <SingleLineChart
-                          title="得た金額"
+                          title={t("stat.payouts")}
                           color="#0a0a0a"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativePayout }))}
                           baseline={0}
@@ -1052,7 +1053,7 @@ export function Lobby({
                     )}
 
                     <div className="flex items-center justify-center gap-1.5 mt-4">
-                      <span className="text-[10px] text-ink-600 mr-0.5">直近トナメ数</span>
+                      <span className="text-[10px] text-ink-600 mr-0.5">{t("lobby.recentTourneys")}</span>
                       {TOURNEY_GRAPH_RANGES.map((r) => (
                         <motion.button
                           key={r.key}
@@ -1072,7 +1073,7 @@ export function Lobby({
                 <ListSkeleton />
               )
             ) : (
-              <div className="py-10 text-center text-ink-700 text-sm">スタッツの記録にはログインが必要です。</div>
+              <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginStats")}</div>
             )}
           </motion.div>
         )}
@@ -1097,7 +1098,7 @@ export function Lobby({
                     lbPeriod === p.key ? "bg-ink-950 text-white" : "text-ink-600"
                   }`}
                 >
-                  {p.label}
+                  {t(p.labelKey)}
                 </button>
               ))}
             </div>
@@ -1112,7 +1113,7 @@ export function Lobby({
                     lbMetric === m.key ? "border-ink-950 bg-ink-950 text-white" : "border-ink-200 text-ink-600"
                   }`}
                 >
-                  {m.label}
+                  {t(m.labelKey)}
                 </button>
               ))}
             </div>
@@ -1131,8 +1132,8 @@ export function Lobby({
                   return (
                     <EmptyState
                       icon="trophy"
-                      title="まだランキングがありません"
-                      subtitle="この指標・期間で規定トナメ数(10)を満たすプレイヤーが揃うと表示されます。"
+                      title={t("lobby.lb.emptyTitle")}
+                      subtitle={t("lobby.lb.emptySub")}
                     />
                   );
                 }
@@ -1158,14 +1159,14 @@ export function Lobby({
                           <div className="flex-1 min-w-0">
                             <div className="text-sm text-ink-900 truncate">
                               {row.displayName}
-                              {isYou && <span className="text-gold-600 text-[10px] ml-1">(あなた)</span>}
+                              {isYou && <span className="text-gold-600 text-[10px] ml-1">{t("lobby.you")}</span>}
                             </div>
-                            <div className="text-[10px] text-ink-600 tabular-nums">{row.tournamentsPlayed} トーナメント</div>
+                            <div className="text-[10px] text-ink-600 tabular-nums">{t("lobby.nTournaments", { n: row.tournamentsPlayed })}</div>
                           </div>
                           <div className="text-right">
                             <div className={`text-sm font-bold tabular-nums ${primaryClass}`}>{primary}</div>
                             <div className="text-[10px] text-ink-600 tabular-nums">
-                              {lbMetric !== "profit" && `収支 ${formatSigned(row.profit)}`}
+                              {lbMetric !== "profit" && `${t("result.m.profit")} ${formatSigned(row.profit)}`}
                               {lbMetric === "profit" && `ROI ${(row.roi * 100).toFixed(0)}%`}
                             </div>
                           </div>
@@ -1190,7 +1191,7 @@ export function Lobby({
             <TabHeader eyebrow="Every hand" title="Hand History" />
             <SectionCard>
               {!accessToken ? (
-                <div className="py-10 text-center text-ink-700 text-sm">ハンド履歴の記録にはログインが必要です。</div>
+                <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginHistory")}</div>
               ) : history === null ? (
                 <ListSkeleton />
               ) : (
@@ -1202,7 +1203,7 @@ export function Lobby({
                         historySubTab === "all" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
                       }`}
                     >
-                      すべて
+                      {t("lobby.all")}
                     </button>
                     <button
                       onClick={() => setHistorySubTab("favorites")}
@@ -1211,7 +1212,7 @@ export function Lobby({
                       }`}
                     >
                       <Icon name="star" className="h-3.5 w-3.5" />
-                      お気に入り
+                      {t("lobby.favorites")}
                     </button>
                   </div>
 
@@ -1221,14 +1222,14 @@ export function Lobby({
                       return historySubTab === "favorites" ? (
                         <EmptyState
                           icon="star"
-                          title="お気に入りのハンドはまだありません"
-                          subtitle="ハンド履歴の星マークをタップすると、あとで見返したい局面をここに集められます。"
+                          title={t("lobby.hist.favEmptyTitle")}
+                          subtitle={t("lobby.hist.favEmptySub")}
                         />
                       ) : (
                         <EmptyState
                           icon="cards"
-                          title="まだプレイしたハンドがありません"
-                          subtitle="トーナメントを一度プレイすると、全ハンドの履歴がここに並びます。"
+                          title={t("lobby.hist.emptyTitle")}
+                          subtitle={t("lobby.hist.emptySub")}
                         />
                       );
                     }
@@ -1248,7 +1249,7 @@ export function Lobby({
                                 href={`/review/tournament/${group.tournamentId}`}
                                 className="rounded-full bg-ink-950 px-2.5 py-[3px] text-[9px] font-black tracking-wide text-white active:opacity-80"
                               >
-                                一括解析
+                                {t("lobby.batchAnalyze")}
                               </Link>
                             </div>
                             <div className="space-y-2">
@@ -1273,11 +1274,11 @@ export function Lobby({
                                         href={`/review/${h.handId}`}
                                         className="ml-auto rounded bg-ink-950 px-2 py-[2px] text-[9px] font-black tracking-wide text-white active:opacity-80"
                                       >
-                                        局後検討
+                                        {t("lobby.reviewHand")}
                                       </Link>
                                       <button
                                         onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
-                                        aria-label={h.isFavorite ? "お気に入り解除" : "お気に入りに追加"}
+                                        aria-label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
                                         className="text-gold-500"
                                       >
                                         <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
@@ -1321,7 +1322,7 @@ export function Lobby({
             <TabHeader eyebrow="Results" title="Tournaments" />
             {!accessToken ? (
               <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">トーナメント履歴の記録にはログインが必要です。</div>
+                <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginTourneys")}</div>
               </SectionCard>
             ) : tournamentHistory === null ? (
               <SectionCard>
@@ -1331,22 +1332,22 @@ export function Lobby({
               <SectionCard>
                 <EmptyState
                   icon="chart"
-                  title="まだトーナメント成績がありません"
-                  subtitle="SNGやMTTに参加して結果が出ると、収支・着順の履歴がここに並びます。"
+                  title={t("lobby.tourneys.emptyTitle")}
+                  subtitle={t("lobby.tourneys.emptySub")}
                 />
               </SectionCard>
             ) : (
               <>
                 <AnimatedCard delay={0.02}>
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <StatTile label="参加数" value={tournamentHistory.length.toLocaleString()} />
+                    <StatTile label={t("stat.entries")} value={tournamentHistory.length.toLocaleString()} />
                     <StatTile
-                      label="インマネ回数"
+                      label={t("stat.itmCount")}
                       value={tournamentHistory.filter((t) => t.finishPosition != null).length.toLocaleString()}
                       valueClass="text-gold-600"
                     />
                     <StatTile
-                      label="インマネ率"
+                      label={t("stat.itmRate")}
                       value={`${Math.round(
                         (tournamentHistory.filter((t) => t.finishPosition != null).length / tournamentHistory.length) * 100,
                       )}%`}
@@ -1389,7 +1390,7 @@ export function Lobby({
         ]}
       />
 
-      {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats)} onClose={() => setInfoKey(null)} />}
+      {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats, t)} onClose={() => setInfoKey(null)} />}
       <AnimatePresence>
         {menuOpen && (
           <HamburgerMenu

@@ -9,7 +9,7 @@ interface GameChoice {
   key: GameKey;
   title: string;
   caption?: string;
-  detail: string;
+  detailKey: string;
   buyIn: number;
 }
 
