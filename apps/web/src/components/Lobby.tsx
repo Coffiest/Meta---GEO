@@ -195,6 +195,65 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
  * RRPokerの/home/tournaments一覧カードと同じ構成(名前・日付→着順バッジ→バイイン/獲得/収支)。
  * タップするとトナメ偏差値の推移(その回の変動)まで含めた詳細シートが開く。
  */
+/** トーナメント成績セクション(集計タイル+履歴カード一覧)。tournamentsタブとHistoryタブの切替の両方で使う。 */
+function TournamentResultsSection({
+  accessToken,
+  tournamentHistory,
+}: {
+  accessToken?: string | undefined;
+  tournamentHistory: TournamentHistoryPoint[] | null;
+}) {
+  const { t } = useI18n();
+  if (!accessToken) {
+    return (
+      <SectionCard>
+        <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginTourneys")}</div>
+      </SectionCard>
+    );
+  }
+  if (tournamentHistory === null) {
+    return (
+      <SectionCard>
+        <ListSkeleton />
+      </SectionCard>
+    );
+  }
+  if (tournamentHistory.length === 0) {
+    return (
+      <SectionCard>
+        <EmptyState icon="chart" title={t("lobby.tourneys.emptyTitle")} subtitle={t("lobby.tourneys.emptySub")} />
+      </SectionCard>
+    );
+  }
+  return (
+    <>
+      <AnimatedCard delay={0.02}>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <StatTile label={t("stat.entries")} value={tournamentHistory.length.toLocaleString()} />
+          <StatTile
+            label={t("stat.itmCount")}
+            value={tournamentHistory.filter((p) => p.finishPosition != null).length.toLocaleString()}
+            valueClass="text-gold-600"
+          />
+          <StatTile
+            label={t("stat.itmRate")}
+            value={`${Math.round(
+              (tournamentHistory.filter((p) => p.finishPosition != null).length / tournamentHistory.length) * 100,
+            )}%`}
+            valueClass="text-gold-600"
+          />
+        </div>
+      </AnimatedCard>
+
+      <div className="space-y-2.5 mt-3">
+        {[...tournamentHistory].reverse().map((p, i) => (
+          <TournamentHistoryCard key={p.tournamentId} point={p} delay={Math.min(i * 0.03, 0.4)} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryPoint; delay?: number }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -298,6 +357,13 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
                   )}
                 </div>
               </div>
+              {/* 過去トナメの棋譜解析(局後検討)への導線。 */}
+              <Link
+                href={`/review/tournament/${point.tournamentId}`}
+                className="mt-3 block w-full rounded-xl bg-ink-950 py-3 text-center text-[13px] font-bold text-white active:opacity-80"
+              >
+                {t("result.reviewCta")}
+              </Link>
             </motion.div>
           </div>
         )}
@@ -797,6 +863,8 @@ export function Lobby({
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
+  // Historyタブの表示種別: ハンド履歴 / トーナメント履歴(過去トナメの棋譜解析への導線)。
+  const [historyView, setHistoryView] = useState<"hands" | "tournaments">("hands");
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
   const [graphRangeKey, setGraphRangeKey] = useState<string>("all");
   const [infoKey, setInfoKey] = useState<StatInfoKey | null>(null);
@@ -1189,6 +1257,26 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
             <TabHeader eyebrow="Every hand" title="Hand History" />
+            {/* ハンド履歴 / トーナメント履歴の切替。過去トナメは各カードから棋譜解析へ飛べる。 */}
+            <div className="flex gap-1.5 mb-3">
+              {([
+                ["hands", t("lobby.historyView.hands")],
+                ["tournaments", t("lobby.historyView.tourneys")],
+              ] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setHistoryView(v)}
+                  className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                    historyView === v ? "bg-ink-950 text-white" : "bg-ink-200 text-ink-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {historyView === "tournaments" ? (
+              <TournamentResultsSection accessToken={accessToken} tournamentHistory={tournamentHistory} />
+            ) : (
             <SectionCard>
               {!accessToken ? (
                 <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginHistory")}</div>
@@ -1308,6 +1396,7 @@ export function Lobby({
                 </>
               )}
             </SectionCard>
+            )}
           </motion.div>
         )}
 
@@ -1320,49 +1409,7 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
             <TabHeader eyebrow="Results" title="Tournaments" />
-            {!accessToken ? (
-              <SectionCard>
-                <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginTourneys")}</div>
-              </SectionCard>
-            ) : tournamentHistory === null ? (
-              <SectionCard>
-                <ListSkeleton />
-              </SectionCard>
-            ) : tournamentHistory.length === 0 ? (
-              <SectionCard>
-                <EmptyState
-                  icon="chart"
-                  title={t("lobby.tourneys.emptyTitle")}
-                  subtitle={t("lobby.tourneys.emptySub")}
-                />
-              </SectionCard>
-            ) : (
-              <>
-                <AnimatedCard delay={0.02}>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <StatTile label={t("stat.entries")} value={tournamentHistory.length.toLocaleString()} />
-                    <StatTile
-                      label={t("stat.itmCount")}
-                      value={tournamentHistory.filter((t) => t.finishPosition != null).length.toLocaleString()}
-                      valueClass="text-gold-600"
-                    />
-                    <StatTile
-                      label={t("stat.itmRate")}
-                      value={`${Math.round(
-                        (tournamentHistory.filter((t) => t.finishPosition != null).length / tournamentHistory.length) * 100,
-                      )}%`}
-                      valueClass="text-gold-600"
-                    />
-                  </div>
-                </AnimatedCard>
-
-                <div className="space-y-2.5 mt-3">
-                  {[...tournamentHistory].reverse().map((t, i) => (
-                    <TournamentHistoryCard key={t.tournamentId} point={t} delay={Math.min(i * 0.03, 0.4)} />
-                  ))}
-                </div>
-              </>
-            )}
+            <TournamentResultsSection accessToken={accessToken} tournamentHistory={tournamentHistory} />
           </motion.div>
         )}
         </AnimatePresence>
