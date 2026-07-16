@@ -60,26 +60,25 @@ function shuffled<T>(arr: readonly T[]): T[] {
 }
 
 /**
- * 自動プレイヤーの思考時間(ms)を、ストリートと実際に選ばれたアクションに応じて人間らしく揺らす。
- * - プリフロップ/フロップ: フォールドは即おり(x/f)、参加する場合は1〜5秒でランダム。
- * - ターン/リバー: 3〜15秒で熟考。難所を模して低頻度でタイムバンク的に延長する。
+ * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。
+ * 持ち時間そのものは人間と同じ20秒(ACTION_CLOCK_MS)固定で、その20秒の"どこで"動くかをばらけさせる:
+ * 早めに降りたり、ギリギリまで考えたり。まれに20秒以内に決めきれず、返り値が20秒を超える
+ * (=呼び出し側でタイムバンクを使って延長する)。難所ほど後ろ寄り・タイムバンク使用率が高い。
  */
-export function botThinkDelayMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
+export function botDecisionMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
   const isFold = action.kind === "fold";
-  if (street === "preflop" || street === "flop") {
-    if (isFold) {
-      // プリフロップのフォールドは「x/fで即降り」と「0.5〜1秒考えてからフォールド」を半々にする
-      // (スナップフォールドが多すぎて機械的に見えるのを防ぐ)。フロップは従来どおり即降り。
-      if (street === "preflop" && rand() < 0.5) return 500 + rand() * 500; // 0.5〜1秒考えてからフォールド
-      return 150 + rand() * 250; // 即おり(x/f)
-    }
-    return 1000 + rand() * 4000; // 1〜5秒
+  const hard = street === "turn" || street === "river";
+
+  // まれに20秒(ショットクロック)以内に決めきれず、タイムバンクを使って延長する。難所ほど高確率。
+  const overClockChance = hard ? 0.14 : isFold ? 0.03 : 0.06;
+  if (rand() < overClockChance) {
+    return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
   }
-  // turn / river
-  if (isFold) return 1500 + rand() * 3000; // 降りるにも少し考える(1.5〜4.5秒)
-  const base = 3000 + rand() * 12000; // 3〜15秒
-  if (rand() < 0.15) return base + 3000 + rand() * 7000; // 難所: タイムバンク的に延長(最大〜25秒)
-  return base;
+
+  // 20秒の持ち時間の"どこで"動くか。難所ほど後ろ寄り、フォールドは前寄りに分布させる。
+  const shape = hard ? 0.75 : isFold ? 2.0 : 1.2;
+  const frac = Math.pow(rand(), shape); // 0..1(shape<1で後ろ寄り、>1で前寄り)
+  return 600 + frac * (ACTION_CLOCK_MS - 1500); // 約0.6〜18.5秒
 }
 
 /** クライアントの席バッジ表示用に、実行したアクションを表示種別+bb換算前の額に正規化する。 */
@@ -565,19 +564,9 @@ export class TableSession implements GameSession {
     const human = this.humansBySeat.get(actingSeat);
 
     if (!human) {
-      // 人間がいない卓(全員自動)は消化を高速化。人間がいる卓では、実際に選ぶアクションを
-      // 先に確定し、それに応じて人間らしい思考時間(即おり/数秒〜熟考)で送出する。
+      // 実際に選ぶアクションを先に確定し、人間と同じ20秒のショットクロックの中で動かす。
       const botAction = this.computeBotAction(actingSeat);
-      const street = this.hand?.getPublicState().street ?? "preflop";
-      const delay = this.isAccelerated() ? FAST_BOT_DELAY_MS : botThinkDelayMs(street, botAction);
-      // 自動プレイヤーも「考え中」の残り時間リングを人間と全く同じ仕様で表示する(人間が見ている卓のみ)。
-      if (!this.isAccelerated()) {
-        this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + delay, durationMs: delay });
-      }
-      this.turnTimer = setTimeout(() => {
-        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handlePlayerAction(actingSeat, botAction);
-      }, delay);
+      this.scheduleBotTurn(actingSeat, botAction);
       return;
     }
 
@@ -590,6 +579,36 @@ export class TableSession implements GameSession {
     }
 
     this.armHumanClock(actingSeat, human, ACTION_CLOCK_MS);
+  }
+
+  /**
+   * 自動プレイヤーの手番。人間と同じ20秒のショットクロックを表示し、その中の決めた時刻でアクション
+   * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する(他プレイヤーの画面では
+   * リングが延びて見える)。人間不在の卓は演出を省いて即消化する。
+   */
+  private scheduleBotTurn(actingSeat: number, botAction: PlayerAction): void {
+    const act = () => {
+      if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+      this.handlePlayerAction(actingSeat, botAction);
+    };
+    if (this.isAccelerated()) {
+      this.turnTimer = setTimeout(act, FAST_BOT_DELAY_MS);
+      return;
+    }
+    const street = this.hand?.getPublicState().street ?? "preflop";
+    const decision = botDecisionMs(street, botAction);
+    // 人間と全く同じ20秒のショットクロックを表示する。
+    this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + ACTION_CLOCK_MS, durationMs: ACTION_CLOCK_MS });
+    if (decision <= ACTION_CLOCK_MS) {
+      this.turnTimer = setTimeout(act, decision);
+      return;
+    }
+    // 20秒で決めきれず、タイムバンクを使って延長する。
+    this.turnTimer = setTimeout(() => {
+      if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+      this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + TIME_BANK_EXTENSION_MS, durationMs: TIME_BANK_EXTENSION_MS });
+      this.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
+    }, ACTION_CLOCK_MS);
   }
 
   private armHumanClock(actingSeat: number, human: HumanSeat, durationMs: number): void {

@@ -153,6 +153,8 @@ export interface PokerSocketState {
   waiting: WaitingInfo | null;
   /** ゲーム参加(joinGame)が失敗した場合のエラーメッセージ */
   joinError: string | null;
+  /** 再接続時に進行中の卓が見つからなかった(=ロビーへ戻すべき)。新規ゲームは作らない。 */
+  gameGone: boolean;
   /**
    * オールインでベッティングが閉じた時点で(残りのボードが開く前に)テーブルアップされた
    * 手札。TDAルールの「ショウダウン→ランアウト」の公開順を再現するためにhandEndedより先に届く。
@@ -179,6 +181,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   const socketRef = useRef<Socket | null>(null);
   // 席ごとのアクションバッジ消去タイマー。座席index→timeout id。
   const badgeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  // 一度でも joinGame(新規参加)を送ったか。再接続時は resumeGame にして新規ゲームを作らせない。
+  const hasJoinedRef = useRef(false);
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
     spectating: false,
@@ -203,6 +207,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     matching: null,
     waiting: null,
     joinError: null,
+    gameGone: false,
     runoutHoleCards: null,
   });
 
@@ -211,6 +216,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       for (const id of Object.values(badgeTimersRef.current)) clearTimeout(id);
       badgeTimersRef.current = {};
     };
+    hasJoinedRef.current = false;
     const socket = io(SOCKET_URL, {
       auth: { displayName, avatarKey, accessToken },
       transports: ["websocket", "polling"],
@@ -219,9 +225,17 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
 
     socket.on("connect", () => {
       setData((d) => ({ ...d, connected: true }));
-      socket.emit("joinGame", { gameKey });
+      // 初回だけ joinGame(新規参加)。以降の再接続は resumeGame にして、進行中の卓へ戻すだけにする
+      // (新しいSNG卓を勝手に立てて「メンバーが変わる/100BBに戻る」不具合を防ぐ)。
+      if (!hasJoinedRef.current) {
+        hasJoinedRef.current = true;
+        socket.emit("joinGame", { gameKey });
+      } else {
+        socket.emit("resumeGame");
+      }
     });
     socket.on("disconnect", () => setData((d) => ({ ...d, connected: false })));
+    socket.on("noActiveGame", () => setData((d) => ({ ...d, gameGone: true })));
     socket.on("joinGameError", (payload: { message: string }) =>
       setData((d) => ({ ...d, joinError: payload.message })),
     );

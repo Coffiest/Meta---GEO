@@ -7,7 +7,7 @@ import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
   MTT_TIME_BANK_CARDS,
-  botThinkDelayMs,
+  botDecisionMs,
   buildSeatAction,
   ensureBotUsers,
   scheduleStagedRunout,
@@ -451,21 +451,9 @@ export class MttSession implements GameSession {
     const human = playerId ? this.humans.get(playerId) : undefined;
 
     if (!human) {
-      // 実際に選ぶアクションを先に確定し、人間らしい思考時間で送出する(人間不在卓は高速化)。
+      // 実際に選ぶアクションを先に確定し、人間と同じ20秒のショットクロックの中で動かす。
       const botAction = this.computeBotAction(actingSeat);
-      const street = this.hand?.getPublicState().street ?? "preflop";
-      const hasHuman = this.tableHasHuman(this.activeTableId!);
-      const delay = hasHuman ? botThinkDelayMs(street, botAction) : FAST_DELAY_MS;
-      // 自動プレイヤーも「考え中」の残り時間リングを人間と全く同じ仕様で表示する(人間が見ている卓のみ)。
-      if (hasHuman) {
-        this.io
-          .to(this.tableRoom(this.activeTableId!))
-          .emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + delay, durationMs: delay });
-      }
-      this.turnTimer = setTimeout(() => {
-        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handleAction(actingSeat, botAction);
-      }, delay);
+      this.scheduleBotTurn(actingSeat, botAction);
       return;
     }
 
@@ -478,6 +466,35 @@ export class MttSession implements GameSession {
     }
 
     this.armHumanClock(actingSeat, human, ACTION_CLOCK_MS);
+  }
+
+  /**
+   * 自動プレイヤーの手番。人間と同じ20秒のショットクロックを表示し、その中の決めた時刻でアクション
+   * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する。人間不在卓は即消化。
+   */
+  private scheduleBotTurn(actingSeat: number, botAction: PlayerAction): void {
+    const room = this.tableRoom(this.activeTableId!);
+    const act = () => {
+      if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+      this.handleAction(actingSeat, botAction);
+    };
+    if (!this.tableHasHuman(this.activeTableId!)) {
+      this.turnTimer = setTimeout(act, FAST_DELAY_MS);
+      return;
+    }
+    const street = this.hand?.getPublicState().street ?? "preflop";
+    const decision = botDecisionMs(street, botAction);
+    this.io.to(room).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + ACTION_CLOCK_MS, durationMs: ACTION_CLOCK_MS });
+    if (decision <= ACTION_CLOCK_MS) {
+      this.turnTimer = setTimeout(act, decision);
+      return;
+    }
+    // 20秒で決めきれず、タイムバンクを使って延長する。
+    this.turnTimer = setTimeout(() => {
+      if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+      this.io.to(room).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + TIME_BANK_EXTENSION_MS, durationMs: TIME_BANK_EXTENSION_MS });
+      this.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
+    }, ACTION_CLOCK_MS);
   }
 
   private armHumanClock(actingSeat: number, human: HumanEntry, durationMs: number): void {
