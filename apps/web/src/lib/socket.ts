@@ -162,36 +162,8 @@ export interface PokerSocketState {
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
-/**
- * 直前のstateと新しいstateを比較し、各座席が「レイズ/コール/チェック/フォールド」のどれを
- * 行ったかを推定する。ブラインドの強制ポスト(hasActedThisStreetがfalseのまま)は除外される。
- */
-function diffSeatActions(prev: PublicHandState, next: PublicHandState): Record<number, SeatAction> {
-  const result: Record<number, SeatAction> = {};
-  for (const seat of next.seats) {
-    const prevSeat = prev.seats.find((s) => s.seatIndex === seat.seatIndex);
-    if (!prevSeat) continue;
-
-    if (seat.status === "folded" && prevSeat.status !== "folded") {
-      result[seat.seatIndex] = { kind: "fold", toAmount: 0 };
-    } else if (seat.streetContribution !== prevSeat.streetContribution) {
-      const wasFacingBet = prev.currentBetToMatch > 0;
-      // プリフロップはブラインド自体が「最初のベット」に相当するため、そこへの追加アクションは
-      // 常にレイズ表記にする(ポストフロップだけ最初のアグレッションを「ベット」と呼ぶ)。
-      const isPreflop = next.street === "preflop";
-      if (seat.status === "allIn") {
-        result[seat.seatIndex] = { kind: "allIn", toAmount: seat.streetContribution };
-      } else if (seat.streetContribution > prev.currentBetToMatch) {
-        result[seat.seatIndex] = { kind: isPreflop || wasFacingBet ? "raise" : "bet", toAmount: seat.streetContribution };
-      } else if (wasFacingBet) {
-        result[seat.seatIndex] = { kind: "call", toAmount: seat.streetContribution };
-      }
-    } else if (seat.hasActedThisStreet && !prevSeat.hasActedThisStreet && seat.streetContribution === 0) {
-      result[seat.seatIndex] = { kind: "check", toAmount: 0 };
-    }
-  }
-  return result;
-}
+/** 各席のアクションバッジ(Call/Check等)の表示時間(ms)。ストリートが進んでも一瞬は残す。 */
+const SEAT_ACTION_BADGE_MS = 1700;
 
 export type GameKey = "sng" | "mtt";
 
@@ -205,6 +177,8 @@ export interface PokerSocketParams {
 
 export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
+  // 席ごとのアクションバッジ消去タイマー。座席index→timeout id。
+  const badgeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
     spectating: false,
@@ -233,6 +207,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   });
 
   useEffect(() => {
+    const clearBadgeTimers = () => {
+      for (const id of Object.values(badgeTimersRef.current)) clearTimeout(id);
+      badgeTimersRef.current = {};
+    };
     const socket = io(SOCKET_URL, {
       auth: { displayName, avatarKey, accessToken },
       transports: ["websocket", "polling"],
@@ -252,8 +230,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         const prev = d.state;
         // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
         const isNewHand = !prev || prev.isComplete || state.board.length < prev.board.length;
-        // アクションバッジはそのストリート中だけ表示する(ストリートが変わったら消える)。
-        const lastActionBySeat = isNewHand || prev.street !== state.street ? {} : { ...d.lastActionBySeat, ...diffSeatActions(prev, state) };
+        // アクションバッジは seatAction イベント側で管理する(ストリートを閉じる直前のアクションも
+        // 一瞬表示できるように)。ここでは新しいハンドの開始時にだけクリアする。
+        if (isNewHand) clearBadgeTimers();
         return {
           ...d,
           state,
@@ -261,7 +240,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
           runoutHoleCards: isNewHand ? null : d.runoutHoleCards,
           actionError: null,
-          lastActionBySeat,
+          lastActionBySeat: isNewHand ? {} : d.lastActionBySeat,
           matching: null,
           waiting: null,
         };
@@ -292,6 +271,23 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         })),
     );
     socket.on("turnTimer", (payload: TurnTimerInfo) => setData((d) => ({ ...d, turnTimer: payload })));
+    // 各席のアクション(bet/raise/call/check/fold/allIn)をアイコン脇のバッジに表示する。状態更新と
+    // 独立して発火するため、ストリートを閉じるコール/チェックも消えずに一瞬表示される。一定時間後に消す。
+    socket.on("seatAction", (payload: { seatIndex: number; kind: SeatActionKind; toAmount: number }) => {
+      const { seatIndex, kind, toAmount } = payload;
+      setData((d) => ({ ...d, lastActionBySeat: { ...d.lastActionBySeat, [seatIndex]: { kind, toAmount } } }));
+      const timers = badgeTimersRef.current;
+      if (timers[seatIndex]) clearTimeout(timers[seatIndex]);
+      timers[seatIndex] = setTimeout(() => {
+        delete timers[seatIndex];
+        setData((d) => {
+          if (!(seatIndex in d.lastActionBySeat)) return d;
+          const next = { ...d.lastActionBySeat };
+          delete next[seatIndex];
+          return { ...d, lastActionBySeat: next };
+        });
+      }, SEAT_ACTION_BADGE_MS);
+    });
     socket.on("showdownReveal", (payload: { holeCards: Record<number, string[]> }) =>
       setData((d) => ({ ...d, runoutHoleCards: payload.holeCards })),
     );
@@ -361,6 +357,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socket.on("mttWaiting", (payload: WaitingInfo) => setData((d) => ({ ...d, waiting: payload })));
 
     return () => {
+      clearBadgeTimers();
       socket.disconnect();
     };
   }, [displayName, avatarKey, gameKey, accessToken]);
