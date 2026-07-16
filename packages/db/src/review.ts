@@ -489,18 +489,25 @@ function heroNotSeated(seats: { userId: string }[], heroUserId: string): boolean
 }
 
 /**
- * 「正しい定型フォールドだけのハンド」か(解析・再生・カウントの対象外にする)。
- * heroの意思決定が1件だけで、それがプリフロップのフォールドかつ悪手/大悪手でない(常識/対象外)場合。
- * ・AAを降りた等、EVを損したフォールド(悪手/大悪手) → false(=含める)。
- * ・オープン後に3betへフォールド等、意思決定が2件以上 → false(=含める)。
- * ・プリフロップで降りていない(コール後フロップフォールド等) → false(=含める)。
+ * 「振り返る価値が無いハンド」か(解析・再生・カウントの対象外にする)。
+ * ・heroが何もしなかった(意思決定0件): BBまでフォールドで回ってきてBBがそのまま勝った(ウォーク)等。
+ * ・heroの意思決定が「プリフロップのチェックだけ」(BBオプションをチェックしただけで何もしなかった)。
+ * ・heroの意思決定が「プリフロップの正しいフォールドだけ」(常識/対象外の定型フォールド)。
+ * 一方、次は対象に含める(=falseを返す):
+ * ・AAを降りた等、EVを損したフォールド(悪手/大悪手)。
+ * ・オープン後に3betへフォールド等、意思決定が2件以上。
+ * ・プリフロップで降りていない(コール後フロップフォールド等)や、自発的に参加したハンド。
  */
-function isRoutineCorrectFoldHand(decisions: ReviewedDecision[]): boolean {
+function isNonReviewableHand(decisions: ReviewedDecision[]): boolean {
+  if (decisions.length === 0) return true; // 何もしなかった(BBウォーク等)。
   if (decisions.length !== 1) return false;
   const d = decisions[0]!;
-  if (d.street !== "preflop" || d.actionTaken.kind !== "fold") return false;
-  // 悪手/大悪手のフォールドは含める。常識(book)/対象外(null)の定型フォールドのみ除外。
-  return !(d.classification !== null && isMistake(d.classification));
+  if (d.street !== "preflop") return false;
+  // BBオプションをチェックしただけ(何もしなかった)。
+  if (d.actionTaken.kind === "check") return true;
+  // 正しい定型フォールドのみ除外(悪手/大悪手のフォールドは含める)。
+  if (d.actionTaken.kind === "fold") return !(d.classification !== null && isMistake(d.classification));
+  return false;
 }
 
 /**
@@ -557,8 +564,8 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     };
     const analyzed = analyzeExtractedHand(extractHand, heroUserId);
     if (!analyzed) continue;
-    // 分類後に「正しい定型フォールドだけ」のハンドを除外(損したフォールドは含める)。
-    if (isRoutineCorrectFoldHand(analyzed.decisions)) continue;
+    // 分類後に「振り返る価値が無いハンド」(何もしなかった/BBウォーク/BBチェックのみ/正しい定型フォールド)を除外。
+    if (isNonReviewableHand(analyzed.decisions)) continue;
     const stillSolving = await applySavedSolverResults(h.id, heroUserId, analyzed.decisions);
     anySolving = anySolving || stillSolving;
     const summary = summarize(analyzed.decisions);

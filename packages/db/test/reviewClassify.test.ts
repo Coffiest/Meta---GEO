@@ -61,14 +61,26 @@ describe("classifyDecision", () => {
     expect(classifyDecision({ gtoActions: small, chosenBucket: "fold", isPreflop: true })?.classification).not.toBe("inaccuracy");
   });
 
-  it("EV損に応じて緩手/悪手/大悪手", () => {
-    const gto = acts([["raise3-4", 0.6, 1.0], ["call", 0.2, 0.4], ["fold", 0.2, -1.5]]);
+  it("GTOがプレイしない(頻度0)手のみEV損で緩手/悪手/大悪手", () => {
+    // raiseのみGTOが100%プレイ。call/foldは頻度0=GTO非推奨手なのでEV損で格付けする。
+    const gto = acts([["raise3-4", 1.0, 1.0], ["call", 0.0, 0.4], ["fold", 0.0, -1.5]]);
     expect(classifyDecision({ gtoActions: gto, chosenBucket: "call", isPreflop: false })?.classification).toBe(
       "inaccuracy",
-    ); // 損0.6
+    ); // 損0.6(基準1.0 − 0.4)
     expect(classifyDecision({ gtoActions: gto, chosenBucket: "fold", isPreflop: false })?.classification).toBe(
       "blunder",
-    ); // 損2.5
+    ); // 損2.5(基準1.0 −(−1.5))
+  });
+
+  it("GTOがプレイする(頻度>0)手は、モデルEVが低くても正解(大悪手にしない)", () => {
+    // GTOがフォールドを推奨(頻度100%)。頻度0の幻の高EV手があってもEV損0=常識にする(画像のバグ回帰)。
+    const gto = acts([["fold", 1.0, -0.5], ["raise2-2.5", 0.0, 0.68]]);
+    const r = classifyDecision({ gtoActions: gto, chosenBucket: "fold", isPreflop: true });
+    expect(r?.classification).toBe("book");
+    expect(r?.evLossBb).toBeCloseTo(0);
+    // 等EVの混合戦略なら、非最大頻度側を選んでもEV損≈0で正解(悪手にしない)。
+    const mix = acts([["checkOrCall", 0.7, 0.5], ["bet60-80", 0.3, 0.5]]);
+    expect(classifyDecision({ gtoActions: mix, chosenBucket: "bet60-80", isPreflop: false })?.evLossBb).toBeCloseTo(0);
   });
 
   it("難しい好手(低頻度・EV損ゼロ・対象種別)は artistic で上書き", () => {

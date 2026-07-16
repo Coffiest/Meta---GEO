@@ -136,13 +136,28 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
   const { gtoActions, chosenBucket, isPreflop, difficultKind } = input;
   if (gtoActions.length === 0) return null;
 
-  const max = bestEv(gtoActions);
   const chosen = findChosen(gtoActions, chosenBucket);
   // GTOツリーに無いアクション(頻度0で解が割り当てていない手)は、最善EVから見て
   // 最も低いEVの手と同等かそれ以下と見なし、大きめのEV損を割り当てる。
   const chosenEv = chosen ? chosen.evBb : Math.min(...gtoActions.map((a) => a.evBb));
   const chosenFreq = chosen ? chosen.frequency : 0;
-  const evLossBb = Math.max(0, max - chosenEv);
+
+  // 基準(=均衡のゲーム値)は「GTOが実際にプレイする(頻度>0)アクションのEV最大値」。
+  // 頻度0の幻のアクション(解が割り当てていないのにモデルEVだけ高い手)で基準が吊り上がり、
+  // EV損を過大評価するのを防ぐ。
+  const played = gtoActions.filter((a) => a.frequency > 0);
+  const baseline = played.length > 0 ? bestEv(played) : bestEv(gtoActions);
+
+  // GTOが最も推奨する(最大頻度の)アクションを選んだなら、それがGTOの推し手=EV損0(正解)とみなす。
+  // 例: GTOがフォールドを推奨(頻度100%)→フォールド。モデル上のfold EVが負(幻の高EV手のせい)でも
+  // 大悪手にしない(常識/正着として扱う)。
+  // 一方、AAを10bbジャムに降りる等はコールが最大頻度でフォールドは推奨手でないため、
+  // EV損(コールEV−フォールドEV)で評価され大悪手になる。
+  // 混合戦略の非最大頻度側を選んだ場合は、GTOが等EVでプレイする手ならEV損≈0で常識/最善に落ち、
+  // モデル上EVが大きく劣る手だけが悪手として拾われる。
+  const maxFreq = gtoActions.reduce((m, a) => Math.max(m, a.frequency), 0);
+  const choseRecommended = chosenFreq > 0 && chosenFreq >= maxFreq - 1e-9;
+  const evLossBb = choseRecommended ? 0 : Math.max(0, baseline - chosenEv);
 
   // --- プリフロップは3段階(確定仕様): 正着=常識(book) / 悪手 / 大悪手 ---
   // 「合っていたら常識、間違っていたらEV損で段階分け」。緩手/芸術的/最善/Great等は付けない。
@@ -168,7 +183,7 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
     // Great: +EVが実質一択の局面(最善と次善のEV差が大きい)で、その最善を選んだ。
     const sorted = [...gtoActions].sort((a, b) => b.evBb - a.evBb);
     const gap = sorted.length >= 2 ? (sorted[0]!.evBb - sorted[1]!.evBb) : Number.POSITIVE_INFINITY;
-    if (gap >= 1.0 && chosen !== null && chosen.evBb >= max - EV_BANDS.best) {
+    if (gap >= 1.0 && chosenFreq > 0 && chosenEv >= baseline - EV_BANDS.best) {
       return { classification: "great", evLossBb, chosenFreq };
     }
     return { classification: "best", evLossBb, chosenFreq };
