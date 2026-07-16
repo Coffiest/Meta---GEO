@@ -79,6 +79,12 @@ jobs:
             .
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # マッチング待合・進行中の卓をインメモリで保持するため、必ず単一マシンで動かす。
+      # (複数マシンだと別マシンのプレイヤー同士が同卓できず、常にBOT卓になる。)
+      - name: Pin to a single machine
+        run: flyctl scale count 1 --app meta---geo --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Health check
         run: |
           for i in 1 2 3 4 5 6 7 8; do

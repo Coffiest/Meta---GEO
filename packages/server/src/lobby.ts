@@ -23,6 +23,10 @@ interface ResolvedUser {
  * 「プレイヤーがテーブルを立てるのではなく、システムがゲームを用意し参加する」という
  * 仕組み上、SNGはマッチング待合室(6人揃うか15秒で余り枠にBOT補充)、MTTは常時オープンな
  * 30分ローテーションのレジストレーション窓口(SngMatchmaker/MttScheduler)に委譲する。
+ *
+ * 重要: マッチング待合も進行中の卓(Socket.IOルーム)もインメモリで保持するため、サーバーは
+ * 単一マシンで動かす必要がある(fly.toml で max_machines_running=1 / scale count 1)。複数マシンに
+ * 分散すると、別マシンに接続したプレイヤー同士が同じ待合/卓へ入れず、人間同士がマッチングできない。
  */
 export class Lobby {
   private readonly io: Server;
