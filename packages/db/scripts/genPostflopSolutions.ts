@@ -24,7 +24,7 @@
  *               プロセスごとに別ファイル(例: postflopSolutions.part-band14-UTGvBB.json)を指定し、
  *               完了後に scripts/mergePostflopSolutions.ts で本体へマージする。
  */
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -217,10 +217,13 @@ async function main() {
   console.error(`[genPostflopSolutions] wrote ${bySpot.size} spots -> ${outPath}`);
 }
 
+/** 一時ファイルへ書いてからrenameする(atomic)。実行中のプロセスのshardを安全に途中マージできるように。 */
 function writeBundle(outPath: string, bySpot: Map<string, BundleEntry>): void {
   mkdirSync(dirname(outPath), { recursive: true });
   const entries = [...bySpot.values()].sort((a, b) => a.spotKey.localeCompare(b.spotKey));
-  writeFileSync(outPath, JSON.stringify({ model: GTO_POSTFLOP_SOLVER_VERSION, entries }, null, 0));
+  const tmpPath = `${outPath}.${process.pid}.tmp`;
+  writeFileSync(tmpPath, JSON.stringify({ model: GTO_POSTFLOP_SOLVER_VERSION, entries }, null, 0));
+  renameSync(tmpPath, outPath);
 }
 
 main().catch((err) => {
