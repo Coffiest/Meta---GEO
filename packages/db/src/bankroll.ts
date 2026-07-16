@@ -196,7 +196,7 @@ async function getPreflopStats(userId: string): Promise<PreflopStats> {
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   const [entries, leaderboard, preflop] = await Promise.all([
     prisma.tournamentEntry.findMany({
-      where: { userId, tournament: { status: "finished" } },
+      where: { userId, finishPosition: { not: null } },
       select: { payout: true, tournament: { select: { buyIn: true } } },
     }),
     getLeaderboard(100000),
@@ -250,7 +250,7 @@ export interface BankrollGraphPoint {
 export async function getBankrollGraph(userId: string, limit = 1000): Promise<BankrollGraphPoint[]> {
   // 「直近limitトーナメント」を対象にするため、新しい順に取得してから古い順へ並べ替える
   const entriesDesc = await prisma.tournamentEntry.findMany({
-    where: { userId, tournament: { status: "finished" } },
+    where: { userId, finishPosition: { not: null } },
     orderBy: { tournament: { createdAt: "desc" } },
     take: limit,
     select: { payout: true, tournament: { select: { buyIn: true } } },
@@ -299,7 +299,7 @@ export interface TournamentHistoryPoint {
 export async function getTournamentHistory(userId: string, limit = 20): Promise<TournamentHistoryPoint[]> {
   const [entriesDesc, populationStats] = await Promise.all([
     prisma.tournamentEntry.findMany({
-      where: { userId, tournament: { status: "finished" } },
+      where: { userId, finishPosition: { not: null } },
       orderBy: { tournament: { createdAt: "desc" } },
       take: limit,
       select: {
@@ -475,7 +475,7 @@ export interface LeaderboardRow {
  */
 export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
   const entries = await prisma.tournamentEntry.findMany({
-    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    where: { finishPosition: { not: null }, user: { isBot: false } },
     select: {
       payout: true,
       tournament: { select: { buyIn: true } },

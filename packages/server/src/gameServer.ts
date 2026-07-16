@@ -60,25 +60,33 @@ function shuffled<T>(arr: readonly T[]): T[] {
 }
 
 /**
- * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。
- * 持ち時間そのものは人間と同じ20秒(ACTION_CLOCK_MS)固定で、その20秒の"どこで"動くかをばらけさせる:
- * 早めに降りたり、ギリギリまで考えたり。まれに20秒以内に決めきれず、返り値が20秒を超える
- * (=呼び出し側でタイムバンクを使って延長する)。難所ほど後ろ寄り・タイムバンク使用率が高い。
+ * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。持ち時間そのものは
+ * 人間と同じ20秒(ACTION_CLOCK_MS)固定で、その中の"どこで"動くかをストリートごとにばらけさせる。
+ * 返り値が20秒を超えると、呼び出し側(scheduleBotTurn)がタイムバンクを使って延長する。
+ * - プリフロップ: フォールドは半分がx/f(即降り)、半分は0.5〜2秒考えてからフォールド。参加は0.8〜5秒。
+ * - フロップ: 全アクション0〜5秒でランダム。
+ * - ターン以降: 2〜20秒で考える。たまに20秒を超えてタイムバンクを使う。
  */
 export function botDecisionMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
   const isFold = action.kind === "fold";
-  const hard = street === "turn" || street === "river";
 
-  // まれに20秒(ショットクロック)以内に決めきれず、タイムバンクを使って延長する。難所ほど高確率。
-  const overClockChance = hard ? 0.14 : isFold ? 0.03 : 0.06;
-  if (rand() < overClockChance) {
-    return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
+  if (street === "preflop") {
+    if (isFold) {
+      // 半分はx/fで即降り、半分は0.5〜2秒考えてからフォールド。
+      return rand() < 0.5 ? 100 + rand() * 200 : 500 + rand() * 1500;
+    }
+    return 800 + rand() * 4200; // 参加: 0.8〜5秒
   }
 
-  // 20秒の持ち時間の"どこで"動くか。難所ほど後ろ寄り、フォールドは前寄りに分布させる。
-  const shape = hard ? 0.75 : isFold ? 2.0 : 1.2;
-  const frac = Math.pow(rand(), shape); // 0..1(shape<1で後ろ寄り、>1で前寄り)
-  return 600 + frac * (ACTION_CLOCK_MS - 1500); // 約0.6〜18.5秒
+  if (street === "flop") {
+    return rand() * 5000; // 0〜5秒でランダム
+  }
+
+  // ターン/リバー: 2〜20秒で考える。たまにタイムバンクで延長。
+  if (rand() < 0.15) {
+    return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
+  }
+  return 2000 + rand() * 18000; // 2〜20秒
 }
 
 /** クライアントの席バッジ表示用に、実行したアクションを表示種別+bb換算前の額に正規化する。 */
@@ -426,6 +434,9 @@ export class TableSession implements GameSession {
     human.left = true;
     // チップを破棄しての離脱は即敗退扱いにする(自動フォールドで生き残らせない)。
     this.tournament?.forceEliminate(seatIndex);
+    // 参加費(バイイン)を確実に成績へ反映するため、離脱時点で着順を確定・記録する
+    // (トーナメント全体の終了を待たない=サーバー再起動でも取りこぼさない)。
+    void this.recordHumanFinish(seatIndex, human);
     if (this.hand && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
       this.handlePlayerAction(seatIndex, { kind: "fold" });
     }
