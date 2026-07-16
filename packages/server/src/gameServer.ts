@@ -67,7 +67,12 @@ function shuffled<T>(arr: readonly T[]): T[] {
 export function botThinkDelayMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
   const isFold = action.kind === "fold";
   if (street === "preflop" || street === "flop") {
-    if (isFold) return 150 + rand() * 250; // 即おり
+    if (isFold) {
+      // プリフロップのフォールドは「x/fで即降り」と「0.5〜1秒考えてからフォールド」を半々にする
+      // (スナップフォールドが多すぎて機械的に見えるのを防ぐ)。フロップは従来どおり即降り。
+      if (street === "preflop" && rand() < 0.5) return 500 + rand() * 500; // 0.5〜1秒考えてからフォールド
+      return 150 + rand() * 250; // 即おり(x/f)
+    }
     return 1000 + rand() * 4000; // 1〜5秒
   }
   // turn / river

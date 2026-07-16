@@ -87,16 +87,37 @@ function MetricCard({
   );
 }
 
+const PROD_URL = "https://meta-geo-poker.vercel.app";
+
+/** 英語の序数表記(1st / 2nd / 3rd / 4th ...)。着順を「1th.」風に大きく見せるために使う。 */
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 /**
- * トーナメント結果画面(みんなの銀行風のリッチな数字演出)。着順+賞金に加え、
- * 収支 / ROI / インマネ率 / 全国ランク が今回どう変化したかを、数字カウントアップ+
- * 「+OO / -OO」の増減バッジで表示する。before(ゲーム開始時)→after(終了時)のスナップショット差分。
+ * トーナメント結果画面。上半分に着順を超特大表示(SNGは「1st.」風の序数、MTTは「6 / 521」の
+ * 着順/エントリー数)。その下に獲得プライズと、今回で自分の成績(収支/ROI/インマネ率/全国ランク)が
+ * どう変化したかを数字カウントアップ+増減バッジで表示。さらに目立つ「棋譜解析」ボタン、
+ * 最後に「閉じる(ホームへ)」「シェア」ボタンをバランスよく並べる。
  */
 export function TournamentResultScreen({
   info,
   accessToken,
   statsBefore,
   tournamentId,
+  gameKey,
+  totalEntrants,
   onExit,
 }: {
   info: TournamentOverInfo;
@@ -104,10 +125,15 @@ export function TournamentResultScreen({
   statsBefore: ResultStatsSnapshot | null;
   /** このトーナメントのDB ID。あれば「棋譜解析へ」導線を出す。 */
   tournamentId?: string | null;
+  /** ゲーム種別。MTTは着順/エントリー数表記にする。 */
+  gameKey?: "sng" | "mtt";
+  /** 総エントリー数(MTTの「6 / 521」表記用)。 */
+  totalEntrants?: number | null;
   onExit: () => void;
 }) {
   const { t } = useI18n();
   const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
+  const [shared, setShared] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -126,6 +152,31 @@ export function TournamentResultScreen({
   const roiPct = (v: number) => `${(v * 100).toFixed(0)}%`;
   const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 
+  const pos = info.yourFinishPosition;
+  // MTTは「着順 / 総エントリー数」、それ以外(SNG)は「1st.」風の英語序数で超特大表示する。
+  const useRatio = gameKey === "mtt" && pos != null && totalEntrants != null && totalEntrants > 0;
+  const rankPlain = pos == null ? t("result.finished") : useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos);
+
+  async function handleShare() {
+    const parts = [t("common.appName")];
+    if (pos != null) parts.push(useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos));
+    if (info.yourPayout > 0) parts.push(`${t("result.prizePrefix")} +${info.yourPayout.toLocaleString()}`);
+    const text = parts.join(" · ");
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: t("common.appName"), text, url: PROD_URL });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text}\n${PROD_URL}`);
+        setShared(true);
+        window.setTimeout(() => setShared(false), 1600);
+      }
+    } catch {
+      /* ユーザーが共有シートをキャンセルした等。無視する。 */
+    }
+  }
+
   // 各指標の増減。beforeが取れないゲスト等では増減バッジは出さず現在値のみ表示。
   function delta(cur: number, prev: number | undefined, fmt: (v: number) => string, higherBetter = true): { text: string; tone: DeltaTone; show: boolean } {
     if (prev === undefined || before === null) return { text: "", tone: "flat", show: false };
@@ -141,41 +192,42 @@ export function TournamentResultScreen({
       className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-white/97 backdrop-blur px-5 py-8"
     >
       <div className="w-full max-w-sm">
-        {/* 着順ヘッダー */}
+        {/* 着順ヘッダー(上半分・超特大) */}
         <motion.div
           initial={{ opacity: 0, y: -12, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 360, damping: 22 }}
-          className="mb-5 text-center"
+          className="mb-6 pt-4 text-center"
         >
           {isWin && (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 h-12 w-12 text-gold-500">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 h-14 w-14 text-gold-500">
               <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" />
               <path d="M7 5.4H4.4A2.6 2.6 0 0 0 7 8.6M17 5.4h2.6A2.6 2.6 0 0 1 17 8.6" />
               <path d="M12 13.5v3.5M8.5 21h7M9.5 21v-1.2a2.5 2.5 0 0 1 5 0V21" />
             </svg>
           )}
-          <p className="text-[10px] font-black uppercase tracking-[0.32em] text-ink-400">Tournament Result</p>
-          {/* 大きな文字を10度傾けるアプリ共通テーマ(トランプの傾いた大文字に合わせる)。 */}
+          <p className="text-[11px] font-black uppercase tracking-[0.34em] text-ink-400">Tournament Result</p>
           <p
-            className="mt-1 inline-block text-5xl font-black tracking-tight text-ink-950"
-            style={{ transform: "rotate(-10deg)", transformOrigin: "center" }}
+            className={`mt-2 font-black leading-[0.9] tracking-tight text-ink-950 tabular-nums ${
+              useRatio ? "text-[64px]" : "text-[88px]"
+            }`}
           >
-            {isWin ? t("result.win") : info.yourFinishPosition !== null ? t("result.place", { n: info.yourFinishPosition }) : t("result.finished")}
+            {rankPlain}
+            {!useRatio && pos != null && <span className="text-gold-500">.</span>}
           </p>
           {info.yourPayout > 0 && (
             <motion.p
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.25, type: "spring", stiffness: 460, damping: 20 }}
-              className="mt-2 inline-block rounded-full bg-gold-500/15 px-4 py-1 text-[15px] font-black tabular-nums text-gold-700"
+              className="mt-3 inline-block rounded-full bg-gold-500/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-gold-700"
             >
               {t("result.prizePrefix")} +{info.yourPayout.toLocaleString()}
             </motion.p>
           )}
         </motion.div>
 
-        {/* 指標カード群(収支/ROI/インマネ率/全国ランク) */}
+        {/* 指標カード群(収支/ROI/インマネ率/全国ランク) = 成績がどう変化したか */}
         {after ? (
           <div className="grid grid-cols-2 gap-2.5">
             <MetricCard
@@ -234,25 +286,40 @@ export function TournamentResultScreen({
           </div>
         )}
 
-        {/* 棋譜解析(局後検討)への導線。tournamentIdがあるときだけ表示。 */}
+        {/* 棋譜解析(局後検討)への導線 = 一番目立たせる主役CTA。tournamentIdがあるときだけ。 */}
         {tournamentId && (
           <Link
             href={`/review/tournament/${tournamentId}`}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"
+            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gold-500 py-5 text-[17px] font-black text-white shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-gold-600/40 transition-transform active:scale-[0.98]"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
               <path d="M4 19V5M4 15l4-4 3 3 6-6M14 8h3v3" />
             </svg>
             {t("result.reviewCta")}
           </Link>
         )}
 
-        <button
-          onClick={onExit}
-          className={`w-full rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98] ${tournamentId ? "mt-2.5" : "mt-6"}`}
-        >
-          {t("result.backToLobby")}
-        </button>
+        {/* 閉じる(ホームへ) / シェア をバランスよく並べる */}
+        <div className={`grid grid-cols-2 gap-2.5 ${tournamentId ? "mt-3" : "mt-6"}`}>
+          <button
+            onClick={onExit}
+            className="rounded-2xl border border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"
+          >
+            {t("common.close")}
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className="h-[17px] w-[17px]">
+              <circle cx="18" cy="5" r="2.6" />
+              <circle cx="6" cy="12" r="2.6" />
+              <circle cx="18" cy="19" r="2.6" />
+              <path d="M8.3 10.8 15.7 6.4M8.3 13.2l7.4 4.4" />
+            </svg>
+            {shared ? t("result.shareDone") : t("result.share")}
+          </button>
+        </div>
       </div>
     </motion.div>
   );
