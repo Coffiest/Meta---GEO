@@ -141,15 +141,19 @@ export function PlayerDetailModal({
           <p className="py-10 text-center text-sm text-ink-500">スタッツを取得できませんでした。</p>
         ) : (
           <>
-            {/* 主要指標 */}
+            {/* 主要指標。自動プレイヤーは収支・全国順位を伏せる(枠は残し値のみ「ー」)。 */}
             <div className="grid grid-cols-2 gap-2">
-              {!isBot && <Metric label="収支" value={`${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`} accent={s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"} />}
+              <Metric
+                label="収支"
+                value={isBot ? "ー" : `${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
+                accent={isBot ? "flat" : s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
+              />
               <Metric label="ROI(還元率)" value={roiPct(s.roi)} />
               <Metric label="インマネ率" value={pct(s.itmRate)} />
-              {!isBot && <Metric
+              <Metric
                 label="全国順位"
-                value={rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
-              />}
+                value={isBot ? "ー" : rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
+              />
             </div>
 
             {/* プリフロップ傾向 */}
