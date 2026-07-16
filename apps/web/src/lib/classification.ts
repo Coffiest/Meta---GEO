@@ -28,7 +28,7 @@ export const CLASSIFICATION_META: Record<Classification, ClassificationMeta> = {
   great: { label: "Great", glyph: "!", color: "#3b82f6" },
   excellent: { label: "良手", glyph: "", color: "#34a853" },
   good: { label: "好手", glyph: "", color: "#86b817" },
-  book: { label: "Book", glyph: "B", color: "#a97142" },
+  book: { label: "常識", glyph: "", color: "#a97142" },
   inaccuracy: { label: "緩手", glyph: "?!", color: "#f2c744" },
   mistake: { label: "悪手", glyph: "?", color: "#ef8a3c" },
   blunder: { label: "大悪手", glyph: "??", color: "#e5484d" },

@@ -18,6 +18,7 @@ import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingD
 import { HomeGreeting } from "./HomeGreeting";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
+import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
 
 interface PlayerStats {
@@ -204,6 +205,7 @@ function TournamentResultsSection({
   tournamentHistory: TournamentHistoryPoint[] | null;
 }) {
   const { t } = useI18n();
+  const [reviewTournamentId, setReviewTournamentId] = useState<string | null>(null);
   if (!accessToken) {
     return (
       <SectionCard>
@@ -227,15 +229,40 @@ function TournamentResultsSection({
   }
   // 一覧の上の集計(エントリー数/インマネ回数/インマネ率)はここでは不要なため表示しない。
   return (
-    <div className="space-y-2.5">
-      {[...tournamentHistory].reverse().map((p, i) => (
-        <TournamentHistoryCard key={p.tournamentId} point={p} delay={Math.min(i * 0.03, 0.4)} />
-      ))}
-    </div>
+    <>
+      <div className="space-y-2.5">
+        {[...tournamentHistory].reverse().map((p, i) => (
+          <TournamentHistoryCard
+            key={p.tournamentId}
+            point={p}
+            delay={Math.min(i * 0.03, 0.4)}
+            onOpenReview={setReviewTournamentId}
+          />
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {reviewTournamentId && (
+          <TournamentReviewModal
+            tournamentId={reviewTournamentId}
+            accessToken={accessToken}
+            onClose={() => setReviewTournamentId(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
-function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryPoint; delay?: number }) {
+function TournamentHistoryCard({
+  point,
+  delay = 0,
+  onOpenReview,
+}: {
+  point: TournamentHistoryPoint;
+  delay?: number;
+  onOpenReview?: (tournamentId: string) => void;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const date = new Date(point.finishedAt);
@@ -338,13 +365,18 @@ function TournamentHistoryCard({ point, delay = 0 }: { point: TournamentHistoryP
                   )}
                 </div>
               </div>
-              {/* 過去トナメの棋譜解析(局後検討)への導線。 */}
-              <Link
-                href={`/review/tournament/${point.tournamentId}`}
-                className="mt-3 block w-full rounded-xl bg-ink-950 py-3 text-center text-[13px] font-bold text-white active:opacity-80"
-              >
-                {t("result.reviewCta")}
-              </Link>
+              {/* 過去トナメの棋譜解析(局後検討)への導線。モーダルで開く。 */}
+              {onOpenReview && point.tournamentId && (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenReview(point.tournamentId);
+                  }}
+                  className="mt-3 block w-full rounded-xl bg-ink-950 py-3 text-center text-[13px] font-bold text-white active:opacity-80"
+                >
+                  {t("result.reviewCta")}
+                </button>
+              )}
             </motion.div>
           </div>
         )}
@@ -844,6 +876,7 @@ export function Lobby({
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
+  const [reviewTournamentId, setReviewTournamentId] = useState<string | null>(null);
   // Historyタブの表示種別: ハンド履歴 / トーナメント履歴(過去トナメの棋譜解析への導線)。
   const [historyView, setHistoryView] = useState<"hands" | "tournaments">("hands");
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
@@ -1314,12 +1347,12 @@ export function Lobby({
                           <div key={group.tournamentId}>
                             <div className="flex items-center justify-between mb-1.5 px-0.5">
                               <p className="text-[11px] font-semibold text-ink-600">{group.tournamentLabel}</p>
-                              <Link
-                                href={`/review/tournament/${group.tournamentId}`}
+                              <button
+                                onClick={() => setReviewTournamentId(group.tournamentId)}
                                 className="rounded-full bg-ink-950 px-2.5 py-[3px] text-[9px] font-black tracking-wide text-white active:opacity-80"
                               >
                                 {t("lobby.batchAnalyze")}
-                              </Link>
+                              </button>
                             </div>
                             <div className="space-y-2">
                               {group.rows.map((h, i) => {
@@ -1440,6 +1473,17 @@ export function Lobby({
                   }
                 : undefined
             }
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Historyタブから開く棋譜解析モーダル(総括→再生)。 */}
+      <AnimatePresence>
+        {reviewTournamentId && (
+          <TournamentReviewModal
+            tournamentId={reviewTournamentId}
+            accessToken={accessToken}
+            onClose={() => setReviewTournamentId(null)}
           />
         )}
       </AnimatePresence>

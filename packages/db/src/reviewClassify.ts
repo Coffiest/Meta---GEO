@@ -41,7 +41,7 @@ export const CLASSIFICATION_LABEL: Record<Classification, string> = {
   great: "Great",
   excellent: "良手",
   good: "好手",
-  book: "Book",
+  book: "常識",
   inaccuracy: "緩手",
   mistake: "悪手",
   blunder: "大悪手",
@@ -54,7 +54,7 @@ export const CLASSIFICATION_GLYPH: Record<Classification, string> = {
   great: "!",
   excellent: "",
   good: "",
-  book: "B",
+  book: "",
   inaccuracy: "?!",
   mistake: "?",
   blunder: "??",
@@ -70,6 +70,18 @@ export const EV_BANDS = {
   good: 0.3,
   inaccuracy: 0.8,
   mistake: 2.0,
+} as const;
+
+/**
+ * プリフロップ専用の3段階バンド(確定仕様)。緩手は付けず、Book(常識)/悪手/大悪手のみ。
+ *   常識(book): EV損 < 0.01bb(実質最適。混合戦略の等EV手は理論上ロス0なのでここに残る。0.01は解/丸め誤差の吸収)
+ *   悪手(mistake): 0.01 ≤ EV損 < 0.1bb
+ *   大悪手(blunder): EV損 ≥ 0.1bb(本来参加すべき手を降りて損した等、全て大悪手)
+ * フォールドも他アクションと同じ「最善EV−選択EV」で格付けする(AAフォールドは大悪手)。
+ */
+export const PREFLOP_BANDS = {
+  book: 0.01,
+  blunder: 0.1,
 } as const;
 
 /** 芸術的(難しい好手)判定のパラメータ。 */
@@ -132,12 +144,12 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
   const chosenFreq = chosen ? chosen.frequency : 0;
   const evLossBb = Math.max(0, max - chosenEv);
 
-  // --- プリフロップは4段階(確定仕様): 正着=Book / ミス=?!(緩手)・?(悪手)・??(大悪手) ---
-  // 「合っていたら全てBook、間違っていたらEV損で段階分け」。芸術的/最善/Great等は付けない。
+  // --- プリフロップは3段階(確定仕様): 正着=常識(book) / 悪手 / 大悪手 ---
+  // 「合っていたら常識、間違っていたらEV損で段階分け」。緩手/芸術的/最善/Great等は付けない。
+  // EV損0.1bb以上は全て大悪手。フォールドも他アクションと同じEV損で格付けする。
   if (isPreflop) {
-    if (evLossBb < EV_BANDS.good) return { classification: "book", evLossBb, chosenFreq };
-    if (evLossBb < EV_BANDS.inaccuracy) return { classification: "inaccuracy", evLossBb, chosenFreq };
-    if (evLossBb < EV_BANDS.mistake) return { classification: "mistake", evLossBb, chosenFreq };
+    if (evLossBb < PREFLOP_BANDS.book) return { classification: "book", evLossBb, chosenFreq };
+    if (evLossBb < PREFLOP_BANDS.blunder) return { classification: "mistake", evLossBb, chosenFreq };
     return { classification: "blunder", evLossBb, chosenFreq };
   }
 

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
+import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -134,6 +134,7 @@ export function TournamentResultScreen({
   const { t } = useI18n();
   const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
   const [shared, setShared] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -286,17 +287,17 @@ export function TournamentResultScreen({
           </div>
         )}
 
-        {/* 棋譜解析(局後検討)への導線 = 一番目立たせる主役CTA。tournamentIdがあるときだけ。 */}
+        {/* 棋譜解析(局後検討)への導線 = 一番目立たせる主役CTA。tournamentIdがあるときだけ。モーダルで開く。 */}
         {tournamentId && (
-          <Link
-            href={`/review/tournament/${tournamentId}`}
+          <button
+            onClick={() => setReviewOpen(true)}
             className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gold-500 py-5 text-[17px] font-black text-white shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-gold-600/40 transition-transform active:scale-[0.98]"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
               <path d="M4 19V5M4 15l4-4 3 3 6-6M14 8h3v3" />
             </svg>
             {t("result.reviewCta")}
-          </Link>
+          </button>
         )}
 
         {/* 閉じる(ホームへ) / シェア をバランスよく並べる */}
@@ -321,6 +322,17 @@ export function TournamentResultScreen({
           </button>
         </div>
       </div>
+
+      {/* 棋譜解析モーダル(総括→再生)。 */}
+      <AnimatePresence>
+        {reviewOpen && tournamentId && (
+          <TournamentReviewModal
+            tournamentId={tournamentId}
+            accessToken={accessToken}
+            onClose={() => setReviewOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

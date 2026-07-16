@@ -483,24 +483,30 @@ export async function applySavedSolverResults(
   return solving;
 }
 
+/** heroが着席していないハンド(敵vs敵)か。分類前の安価な除外に使う。 */
+function heroNotSeated(seats: { userId: string }[], heroUserId: string): boolean {
+  return !seats.some((s) => s.userId === heroUserId);
+}
+
 /**
- * heroがプリフロップでフォールドして降りたハンドか(確定仕様: 解析対象外)。
- * heroが着席していないハンド(敵vs敵)もあわせて対象外にする。
+ * 「正しい定型フォールドだけのハンド」か(解析・再生・カウントの対象外にする)。
+ * heroの意思決定が1件だけで、それがプリフロップのフォールドかつ悪手/大悪手でない(常識/対象外)場合。
+ * ・AAを降りた等、EVを損したフォールド(悪手/大悪手) → false(=含める)。
+ * ・オープン後に3betへフォールド等、意思決定が2件以上 → false(=含める)。
+ * ・プリフロップで降りていない(コール後フロップフォールド等) → false(=含める)。
  */
-function isHeroFoldedPreflopHand(
-  seats: { seatIndex: number; userId: string }[],
-  actions: { seatIndex: number; street: string; kind: string }[],
-  heroUserId: string
-): boolean {
-  const heroSeatIdx = seats.find((s) => s.userId === heroUserId)?.seatIndex;
-  if (heroSeatIdx === undefined) return true; // 敵vs敵(hero不参加)
-  return actions.some((a) => a.seatIndex === heroSeatIdx && a.kind === "fold" && a.street === "preflop");
+function isRoutineCorrectFoldHand(decisions: ReviewedDecision[]): boolean {
+  if (decisions.length !== 1) return false;
+  const d = decisions[0]!;
+  if (d.street !== "preflop" || d.actionTaken.kind !== "fold") return false;
+  // 悪手/大悪手のフォールドは含める。常識(book)/対象外(null)の定型フォールドのみ除外。
+  return !(d.classification !== null && isMistake(d.classification));
 }
 
 /**
  * 1トーナメントの、heroが着席した全ハンドをまとめて解析する(チェスドットコム風の一括解析)。
  * 各ハンドに再生用タイムラインを含み、保存済みソルバー結果をマージして返す。
- * heroがプリフロップで降りたハンドと敵vs敵のハンドは解析・再生の対象外(確定仕様)。
+ * 敵vs敵のハンドと「正しい定型フォールドだけ」のハンドは対象外。ただし降りて損したフォールドは含める。
  */
 export async function analyzeTournamentForHero(tournamentId: string, heroUserId: string): Promise<TournamentReview> {
   const hands = await prisma.hand.findMany({
@@ -535,8 +541,8 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
   const reviewed: TournamentReviewHand[] = [];
   let anySolving = false;
   for (const h of hands) {
-    // 対象外: heroがプリフロップでフォールドしたハンド / 敵vs敵。
-    if (isHeroFoldedPreflopHand(h.seats, h.actions, heroUserId)) continue;
+    // 敵vs敵(hero不参加)は分類前に安価に除外。
+    if (heroNotSeated(h.seats, heroUserId)) continue;
     const extractHand: ExtractHand = {
       buttonFixedPos: h.buttonFixedPos,
       levelBigBlind: h.levelBigBlind,
@@ -551,6 +557,8 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     };
     const analyzed = analyzeExtractedHand(extractHand, heroUserId);
     if (!analyzed) continue;
+    // 分類後に「正しい定型フォールドだけ」のハンドを除外(損したフォールドは含める)。
+    if (isRoutineCorrectFoldHand(analyzed.decisions)) continue;
     const stillSolving = await applySavedSolverResults(h.id, heroUserId, analyzed.decisions);
     anySolving = anySolving || stillSolving;
     const summary = summarize(analyzed.decisions);
@@ -613,8 +621,11 @@ export async function prewarmTournamentReview(tournamentId: string, heroUserId: 
     },
   });
   for (const h of hands) {
-    // 解析対象外のハンド(heroプリフロップフォールド/敵vs敵)はソルバー計算も不要。
-    if (isHeroFoldedPreflopHand(h.seats, h.actions, heroUserId)) continue;
+    // ソルバー(HUポストフロップ)が不要なハンドは事前計算をスキップ:
+    // 敵vs敵、またはheroがプリフロップでフォールドした(=ポストフロップの意思決定が無い)ハンド。
+    const heroSeatIdx = h.seats.find((s) => s.userId === heroUserId)?.seatIndex;
+    if (heroSeatIdx === undefined) continue;
+    if (h.actions.some((a) => a.seatIndex === heroSeatIdx && a.kind === "fold" && a.street === "preflop")) continue;
     try {
       // 保存済みでsolving行が無ければスキップ(冪等)。
       const saved = await getSavedReviewDecisions(h.id, heroUserId);

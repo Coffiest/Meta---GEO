@@ -19,7 +19,7 @@ describe("classifyDecision", () => {
     expect(r?.evLossBb).toBeCloseTo(0);
   });
 
-  it("プリフロップの正着は全て Book(4段階仕様)", () => {
+  it("プリフロップの正着は全て 常識(book)(3段階仕様)", () => {
     const r = classifyDecision({
       gtoActions: acts([["raise3-4", 0.5, 1.0], ["call", 0.3, 0.9], ["fold", 0.2, 0.0]]),
       chosenBucket: "raise3-4",
@@ -47,10 +47,18 @@ describe("classifyDecision", () => {
     expect(r?.classification).toBe("great");
   });
 
-  it("プリフロップのミスはEV損で ?!/?/?? に段階分け", () => {
-    const gto = acts([["raise2-2.5", 1.0, 0.5], ["fold", 0.0, 0.0], ["allIn", 0.0, -2.0]]);
-    expect(classifyDecision({ gtoActions: gto, chosenBucket: "fold", isPreflop: true })?.classification).toBe("inaccuracy");
-    expect(classifyDecision({ gtoActions: gto, chosenBucket: "allIn", isPreflop: true })?.classification).toBe("blunder");
+  it("プリフロップは3段階(常識/悪手/大悪手)。EV損0.1bb以上は全て大悪手", () => {
+    // 本来ほぼ最適の手を降りて僅かに損(0.05bb) → 悪手。
+    const small = acts([["raise2-2.5", 1.0, 0.05], ["fold", 0.0, 0.0]]);
+    expect(classifyDecision({ gtoActions: small, chosenBucket: "fold", isPreflop: true })?.classification).toBe("mistake");
+    // EV損がちょうど0.1bb以上 → 大悪手。
+    const mid = acts([["raise2-2.5", 1.0, 0.12], ["fold", 0.0, 0.0]]);
+    expect(classifyDecision({ gtoActions: mid, chosenBucket: "fold", isPreflop: true })?.classification).toBe("blunder");
+    // 本来+5bbのAAを降りる → 大悪手(降りて損したEVで判定)。
+    const aaFold = acts([["raise2-2.5", 1.0, 5.0], ["fold", 0.0, 0.0]]);
+    expect(classifyDecision({ gtoActions: aaFold, chosenBucket: "fold", isPreflop: true })?.classification).toBe("blunder");
+    // 緩手はプリフロップでは付かない。
+    expect(classifyDecision({ gtoActions: small, chosenBucket: "fold", isPreflop: true })?.classification).not.toBe("inaccuracy");
   });
 
   it("EV損に応じて緩手/悪手/大悪手", () => {
