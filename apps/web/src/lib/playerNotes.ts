@@ -55,6 +55,58 @@ export interface PublicPlayerProfile {
   rrRating: RRRatingSummary;
 }
 
+// --- 自動プレイヤー用の擬似スタッツ ---
+// 対戦相手として着席する自動プレイヤーも、タップしたときに通常プレイヤーと同じ内容(収支/ROI/
+// インマネ率/全国順位/VPIP/PFR/3BET/偏差値)を表示する。userId をシードにした決定論的な擬似乱数で
+// 生成するため、同じ相手なら常に同じ数字になり、リアルなプレイヤーと見分けがつかない。
+
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** userId から決定論的に、通常プレイヤーと区別のつかない現実的なスタッツを生成する。 */
+export function syntheticPlayerProfile(userId: string, displayName: string, avatarKey: string | null): PublicPlayerProfile {
+  const r = mulberry32(hashString(userId || displayName));
+  const between = (lo: number, hi: number) => lo + r() * (hi - lo);
+
+  const tournamentsPlayed = Math.floor(between(35, 420));
+  const itmRate = between(0.12, 0.34);
+  const roi = between(0.78, 1.55);
+  const avgBuyIn = between(1000, 2000);
+  const profit = Math.round((roi - 1) * avgBuyIn * tournamentsPlayed);
+  const vpipRate = between(0.16, 0.36);
+  const pfrRate = Math.min(vpipRate - 0.02, between(0.1, 0.28));
+  const threeBetRate = between(0.03, 0.1);
+  const rrRating = between(41, 63);
+  const totalRankedPlayers = Math.floor(between(1200, 4800));
+  // 偏差値が高いほど順位が上(数字が小さい)になるよう素朴にマッピングする。
+  const pctile = Math.min(0.99, Math.max(0.01, 1 - (rrRating - 35) / 30));
+  const nationalRank = Math.max(1, Math.round(pctile * totalRankedPlayers));
+
+  return {
+    id: userId,
+    displayName,
+    avatarKey,
+    stats: { tournamentsPlayed, itmRate, profit, roi, nationalRank, totalRankedPlayers, vpipRate, pfrRate, threeBetRate },
+    rrRating: { rrRating, nationalRank, totalRankedPlayers, tournamentsPlayed },
+  };
+}
+
 /** 対戦相手の公開プロフィール(スタッツ+偏差値)を取得。BOT/存在しない場合はnull。 */
 export async function fetchPlayerProfile(accessToken: string, userId: string): Promise<PublicPlayerProfile | null> {
   const res = await fetch(`${SERVER_URL}/api/lobby/player?userId=${encodeURIComponent(userId)}`, {

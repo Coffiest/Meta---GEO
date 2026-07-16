@@ -198,11 +198,12 @@ function GameScreen({
     [state, yourSeatIndex],
   );
 
-  // 着席中の相手(非BOT)のマーキングをまとめて取得し、テーブルの席ドットに反映する。
+  // 着席中の相手のマーキングをまとめて取得し、テーブルの席ドットに反映する
+  // (自動プレイヤーも通常プレイヤーと同様に扱い、マーキングを表示できるようにする)。
   const opponentUserIds = useMemo(
     () =>
       Object.values(players)
-        .filter((p) => !p.isBot && Boolean(p.userId))
+        .filter((p) => Boolean(p.userId))
         .map((p) => p.userId),
     [players],
   );
@@ -424,7 +425,7 @@ function GameScreen({
               {matching ? `${matching.registered} / ${matching.needed} 人集まりました` : `${waiting!.registered} / ${waiting!.needed} 人登録済み`}
             </div>
             {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-ink-500 mt-0.5">残り{matchingSecondsLeft}秒でBOTが自動補充されます</div>
+              <div className="text-[11px] text-ink-500 mt-0.5">プレイヤーが集まり次第スタートします</div>
             )}
             {waiting && <div className="text-[11px] text-ink-500 mt-0.5">4人集まり次第すぐに開始します</div>}
           </motion.div>
