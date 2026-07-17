@@ -17,10 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#ffffff",
     theme_color: "#ffffff",
     lang: "ja",
-    icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-    ],
+    // アイコンは既存のワードマークロゴ(/logos/Logo_s.png)を使用する。新規アイコンは作らない。
+    icons: [{ src: "/logos/Logo_s.png", sizes: "2000x2000", type: "image/png", purpose: "any" }],
   };
 }
