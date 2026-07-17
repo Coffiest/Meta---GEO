@@ -13,95 +13,107 @@ export interface SeatBadge {
   tone: SeatBadgeTone;
 }
 
-// オールインの炎リング: アバターの円周に沿って放射状に配置する火柱群。決定論的な擬似乱数で
-// 各火柱の角度・長さ・幅・傾き・揺らぎ位相を生成し、上側(火は上に立ち上る)ほど長く、下側は
-// 短くして「燃え上がるリング」に見せる。値はアバター直径に対する比率で持ち、size に比例させる。
-function fireSeed(n: number): number {
+// オールインの「電撃(びりびり)」エフェクト用: アバターの円周に沿って放射する稲妻の
+// 角度・長さ・明滅タイミングを決定論的な擬似乱数で生成する。値はアバター直径に対する比率。
+function elecSeed(n: number): number {
   const x = Math.sin(n * 127.1) * 43758.5453;
   return x - Math.floor(x);
 }
-const RING_FLAMES = (() => {
-  const N = 22;
-  const out: { ang: number; lean: number; hFrac: number; wFrac: number; rimFrac: number; dur: number; delay: number }[] = [];
-  for (let layer = 0; layer < 2; layer++) {
-    for (let i = 0; i < N; i++) {
-      const ang = (360 / N) * i + (layer ? 360 / N / 2 : 0);
-      const up = Math.cos((ang * Math.PI) / 180); // 上=+1 / 下=-1
-      const lean = (fireSeed(i + layer * 20) * 2 - 1) * (layer ? 12 : 10);
-      const hFrac = layer
-        ? 0.1 + fireSeed(i + 11) * 0.11
-        : 0.17 + 0.295 * (0.35 + 0.65 * (0.5 + 0.5 * up)) + fireSeed(i + 9) * 0.1;
-      const wFrac = layer ? 0.068 + fireSeed(i + 13) * 0.045 : 0.08 + fireSeed(i + 3) * 0.057;
-      const rimFrac = layer ? 0.477 : 0.5;
-      const dur = (layer ? 0.45 : 0.5) + fireSeed(i + 7 + layer) * 0.33;
-      const delay = -fireSeed(i + 2 + layer) * 0.8;
-      out.push({ ang, lean, hFrac, wFrac, rimFrac, dur, delay });
-    }
+const ELECTRIC_BOLTS = (() => {
+  const N = 10;
+  const out: { ang: number; len: number; dur: number; delay: number; flip: boolean }[] = [];
+  for (let i = 0; i < N; i++) {
+    const ang = (360 / N) * i + (elecSeed(i + 5) * 2 - 1) * 12;
+    const len = 0.16 + elecSeed(i + 3) * 0.16;
+    const dur = 0.5 + elecSeed(i + 7) * 0.5;
+    const delay = -elecSeed(i + 2) * 1.2;
+    out.push({ ang, len, dur, delay, flip: elecSeed(i) > 0.5 });
   }
   return out;
 })();
 
-const FLAME_GRADIENT =
-  "linear-gradient(to top, #fff3d0 0%, #ffd24a 14%, #ffab1e 34%, #ff6a12 58%, #ef2a06 80%, rgba(200,20,4,0) 100%)";
-
 /**
- * オールイン中のアバターの縁を包む「炎のリング」。円周に沿って多数の火柱を放射状に立て、位相の
- * ずれた揺らぎ(allin-flick)でメラメラ踊らせる。根本(縁側)を白〜黄の高温色、先端を赤にして
- * 立ち上る炎の熱を表現。火柱と外周グローはアバター背面(z-0)、縁の赤いホットリングは前面(z-20)に
- * 置き、プレイヤーの顔は隠さず縁だけが赤熱して燃える。背景色に依存しない不透明グラデで描く。
+ * オールイン中のアバターを囲む「電撃リング」。回転するエネルギー弧(conic)、外周の青白い
+ * グロー、円周から放射しランダムに明滅する稲妻(=びりびり)、縁の高輝度リングを重ねる。
+ * 稲妻/グローは背面(z-0)、縁のリングは前面(z-20)に置き、プレイヤーの顔は隠さない。炎(赤)を
+ * 廃し、エレクトリックシアン〜白で高エネルギーをモダンに表現する。背景色に依存しない色で描く。
  */
-function AllInFlame({ size }: { size: number }) {
+function AllInElectric({ size }: { size: number }) {
+  const ringThickness = Math.max(2, size * 0.06);
+  const ringMask = `radial-gradient(farthest-side, transparent calc(100% - ${ringThickness}px), #000 calc(100% - ${ringThickness}px))`;
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
-      {/* 外周の暖色グロー(背面) */}
+      {/* 外周の青白いグロー(背面) */}
       <div
         className="absolute left-1/2 top-1/2 rounded-full"
         style={{
-          width: size * 1.8,
-          height: size * 1.8,
+          width: size * 1.75,
+          height: size * 1.75,
           zIndex: 0,
           transform: "translate(-50%, -50%)",
-          background: "radial-gradient(circle, rgba(255,90,20,0.5) 40%, rgba(255,50,10,0.26) 52%, rgba(255,40,10,0) 70%)",
+          background:
+            "radial-gradient(circle, rgba(56,189,248,0.5) 40%, rgba(37,99,235,0.24) 54%, rgba(37,99,235,0) 72%)",
           filter: `blur(${Math.max(2, size * 0.05)}px)`,
-          animation: "allin-halo 1.1s ease-in-out infinite",
+          animation: "allin-elec-glow 0.9s ease-in-out infinite",
         }}
       />
-      {/* 円周の火柱(背面) */}
+      {/* 回転するエネルギー弧(背面) */}
       <div
-        className="absolute left-1/2 top-1/2"
-        style={{ width: 0, height: 0, zIndex: 0, filter: `drop-shadow(0 0 ${size * 0.09}px rgba(255,110,25,0.6))` }}
-      >
-        {RING_FLAMES.map((f, i) => (
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{
+          width: size * 1.26,
+          height: size * 1.26,
+          zIndex: 0,
+          background:
+            "conic-gradient(from 0deg, rgba(125,211,252,0) 0deg, rgba(125,211,252,0.9) 42deg, rgba(255,255,255,0.98) 60deg, rgba(125,211,252,0) 120deg, rgba(56,189,248,0) 190deg, rgba(125,211,252,0.85) 232deg, rgba(255,255,255,0.95) 250deg, rgba(125,211,252,0) 310deg)",
+          WebkitMask: ringMask,
+          mask: ringMask,
+          filter: `drop-shadow(0 0 ${size * 0.06}px rgba(56,189,248,0.85))`,
+          animation: "allin-elec-spin 0.8s linear infinite",
+        }}
+      />
+      {/* 円周から放射する稲妻(背面・ランダム明滅) */}
+      <div className="absolute left-1/2 top-1/2" style={{ width: 0, height: 0, zIndex: 0 }}>
+        {ELECTRIC_BOLTS.map((b, i) => (
           <span
             key={i}
             className="absolute left-0 top-0"
-            style={{ transform: `rotate(${f.ang}deg) translateY(${-f.rimFrac * size}px) rotate(${f.lean}deg)` }}
+            style={{ transform: `rotate(${b.ang}deg) translateY(${-0.5 * size}px)` }}
           >
-            <span
+            <svg
+              width={size * 0.22}
+              height={size * b.len * 2.6}
+              viewBox="0 0 10 26"
               style={{
                 position: "absolute",
-                bottom: 0,
-                left: -(f.wFrac * size) / 2,
-                width: f.wFrac * size,
-                height: f.hFrac * size,
-                transformOrigin: "50% 100%",
-                background: FLAME_GRADIENT,
-                borderRadius: "50% 50% 44% 44% / 86% 86% 18% 18%",
-                filter: "blur(0.4px)",
-                animation: `allin-flick ${f.dur}s ease-in-out infinite`,
-                animationDelay: `${f.delay}s`,
+                left: -(size * 0.22) / 2,
+                top: 0,
+                transform: b.flip ? "scaleX(-1)" : undefined,
+                overflow: "visible",
+                filter: "drop-shadow(0 0 1.4px rgba(125,211,252,0.95))",
+                animation: `allin-elec-flick ${b.dur}s linear infinite`,
+                animationDelay: `${b.delay}s`,
               }}
-            />
+            >
+              <polyline
+                points="5,0 3,6 6.5,11 3.5,17 6,26"
+                fill="none"
+                stroke="#eafaff"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </span>
         ))}
       </div>
-      {/* 縁の赤熱ホットリング(前面) */}
+      {/* 縁の高輝度リング(前面) */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
           zIndex: 20,
-          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(255,110,25,0.85), inset 0 0 ${size * 0.1}px 0 rgba(255,150,45,0.5)`,
-          animation: "allin-halo 0.6s ease-in-out infinite",
+          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(56,189,248,0.9), inset 0 0 ${size * 0.09}px 0 rgba(191,240,255,0.65)`,
+          animation: "allin-elec-glow 0.5s ease-in-out infinite",
         }}
       />
     </div>
@@ -270,7 +282,7 @@ export function Seat({
         {!isEmpty && (
           <>
             <div className="relative">
-              {status === "allIn" && <AllInFlame size={size === "lg" ? 44 : 34} />}
+              {status === "allIn" && <AllInElectric size={size === "lg" ? 44 : 34} />}
               <div className="relative z-10">
                 <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
               </div>

@@ -168,18 +168,28 @@ textarea:focus-visible,
   box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
 }
 
-/* オールイン: アバターの縁を包む炎リングのキーフレーム。各火柱の揺らぎ(flick)と、
-   外周グロー/赤熱リングの明滅(halo)を別々に重ねる。背景色に依存しない不透明グラデで描く。 */
-@keyframes allin-flick {
-  0% { transform: scaleY(1) scaleX(1) skewX(0deg); }
-  22% { transform: scaleY(1.34) scaleX(0.78) skewX(6deg); }
-  52% { transform: scaleY(0.82) scaleX(1.12) skewX(-5deg); }
-  78% { transform: scaleY(1.2) scaleX(0.9) skewX(4deg); }
-  100% { transform: scaleY(1) scaleX(1) skewX(0deg); }
+/* オールイン: アバターを囲む電撃(びりびり)エフェクトのキーフレーム。回転するエネルギー弧
+   (spin)、外周グロー/縁リングの明滅(glow)、円周から放射する稲妻のランダム明滅(flick)を
+   別々に重ねる。エレクトリックシアン〜白で描き、背景色に依存しない。 */
+@keyframes allin-elec-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-@keyframes allin-halo {
-  0%, 100% { opacity: 0.72; }
+@keyframes allin-elec-glow {
+  0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
+}
+/* 稲妻は大半の時間は消えていて、短時間だけバチッと点灯する(位相を各稲妻でずらして「びりびり」に)。 */
+@keyframes allin-elec-flick {
+  0%, 100% { opacity: 0; }
+  6% { opacity: 1; }
+  10% { opacity: 0.2; }
+  14% { opacity: 0.9; }
+  20% { opacity: 0; }
+  55% { opacity: 0; }
+  60% { opacity: 0.85; }
+  64% { opacity: 0.15; }
+  68% { opacity: 0; }
 }
 
 /* テーブル画面の画像(felt/カード/アバター)は右クリック保存・ドラッグ選択の対象外にする。 */
