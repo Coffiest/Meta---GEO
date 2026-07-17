@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/useAuth";
 import { fetchHandReview, type HandReviewResponse, type ReviewedDecision } from "@/lib/reviewApi";
-import { CLASSIFICATION_META } from "@/lib/classification";
+import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
@@ -41,20 +41,13 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
             ソルバー解析中…
           </span>
         ) : (
-          <span className="text-[10px] font-bold text-ink-400">
-            {!d.analyzable
-              ? "多人数のため対象外"
-              : d.outOfScopeReason === "3bet-line"
-              ? "対象外(3ベット以降のライン)"
-              : d.outOfScopeReason === "squeeze"
-              ? "対象外(スクイーズ)"
-              : d.outOfScopeReason === "limped-pot"
-              ? "対象外(リンプポット)"
-              : d.outOfScopeReason === "reopened-line"
-              ? "対象外(リレイズに直面)"
-              : d.outOfScopeReason === "out-of-range"
-              ? "対象外(GTOレンジ外のプリフロップ)"
-              : "解析待ち(未対応スポット)"}
+          <span className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-600">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3 shrink-0">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v4.5" strokeLinecap="round" />
+              <circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
+            </svg>
+            解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
           </span>
         )}
       </div>

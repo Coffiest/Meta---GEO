@@ -8,7 +8,13 @@ import {
   type TournamentReview,
   type TournamentReviewHand,
 } from "@/lib/reviewApi";
-import { CLASSIFICATION_META, CLASSIFICATION_ORDER, type Classification } from "@/lib/classification";
+import {
+  CLASSIFICATION_META,
+  DISPLAY_CLASSIFICATION_ORDER,
+  displayCount,
+  outOfScopeLabel,
+  type Classification,
+} from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -61,10 +67,17 @@ function DecisionPanel({ d }: { d: ReviewedDecision }) {
       );
     }
     return (
-      <p className="text-[12px] font-bold text-ink-400">
-        あなた: {d.actionName}
-        <span className="ml-2 text-[10px] font-bold text-ink-300">(このスポットは解析対象外)</span>
-      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[12px] font-bold text-ink-700">あなた: {d.actionName}</span>
+        <span className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-600">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3 shrink-0">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v4.5" strokeLinecap="round" />
+            <circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
+          </svg>
+          解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
+        </span>
+      </div>
     );
   }
   return (
@@ -425,10 +438,6 @@ export function TournamentReviewModal({
           </div>
         ) : data ? (
           <>
-            {/* 課金予告(現在は完全無料。将来の有料化を予告するシーム)。 */}
-            <div className="rounded-xl bg-gold-500/10 ring-1 ring-gold-500/30 text-ink-700 text-[11px] px-3 py-2 mb-3">
-              現在すべて無料でご利用いただけます。近日、1日2回目以降のトーナメント解析は有料（月額¥980・無制限）になる予定です。
-            </div>
 
             {/* GTOスコア + 総ロスEV */}
             <div className="rounded-2xl border border-ink-950 bg-white p-4 mb-3">
@@ -455,20 +464,31 @@ export function TournamentReviewModal({
               )}
             </div>
 
-            {/* 分類カウント表(chess.com風) */}
-            <div className="rounded-2xl border border-ink-200 bg-white p-3.5 mb-3">
-              <div className="space-y-1">
-                {CLASSIFICATION_ORDER.map((c) => (
-                  <div key={c} className="flex items-center gap-2.5 py-0.5">
-                    <ClassificationBadge classification={c} size={20} />
-                    <span className="text-[12px] font-bold" style={{ color: CLASSIFICATION_META[c].color }}>
-                      {CLASSIFICATION_META[c].label}
-                    </span>
-                    <span className="ml-auto text-[13px] font-black text-ink-950 tabular-nums">{summary.counts[c]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* 分類カウント表(chess.com風)。発生した評価のみ表示(0件は非表示)。 */}
+            {(() => {
+              const shown = DISPLAY_CLASSIFICATION_ORDER.map((c) => ({ c, n: displayCount(summary.counts, c) })).filter(
+                (x) => x.n > 0
+              );
+              return (
+                <div className="rounded-2xl border border-ink-200 bg-white p-3.5 mb-3">
+                  {shown.length > 0 ? (
+                    <div className="space-y-1">
+                      {shown.map(({ c, n }) => (
+                        <div key={c} className="flex items-center gap-2.5 py-0.5">
+                          <ClassificationBadge classification={c} size={20} />
+                          <span className="text-[12px] font-bold" style={{ color: CLASSIFICATION_META[c].color }}>
+                            {CLASSIFICATION_META[c].label}
+                          </span>
+                          <span className="ml-auto text-[13px] font-black text-ink-950 tabular-nums">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] font-bold text-ink-400 text-center py-2">解析対象のスポットがありませんでした。</p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ワースト / ベスト ハイライト(タップで該当アクションへ) */}
             {(summary.worst || summary.best) && (
