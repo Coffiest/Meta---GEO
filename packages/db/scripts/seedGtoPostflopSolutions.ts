@@ -38,25 +38,32 @@ async function main() {
     return;
   }
 
+  // 直列だとデータ増加につれてseed時間が線形に伸びるため、チャンク単位で並列upsertする。
+  const CONCURRENCY = 16;
   let count = 0;
-  for (const e of entries) {
-    await prisma.gtoSolution.upsert({
-      where: { spotKey: e.spotKey },
-      create: {
-        spotKey: e.spotKey,
-        street: e.street,
-        effStackBucket: e.effStackBucket,
-        heroPos: e.heroPos,
-        boardCanon: e.boardCanon,
-        actionLine: e.actionLine,
-        betTree: e.betTree,
-        solution: e.solution as object,
-        exploitability: 0,
-        solverVersion: GTO_POSTFLOP_SOLVER_VERSION,
-      },
-      update: { solution: e.solution as object, solverVersion: GTO_POSTFLOP_SOLVER_VERSION },
-    });
-    count++;
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const chunk = entries.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      chunk.map((e) =>
+        prisma.gtoSolution.upsert({
+          where: { spotKey: e.spotKey },
+          create: {
+            spotKey: e.spotKey,
+            street: e.street,
+            effStackBucket: e.effStackBucket,
+            heroPos: e.heroPos,
+            boardCanon: e.boardCanon,
+            actionLine: e.actionLine,
+            betTree: e.betTree,
+            solution: e.solution as object,
+            exploitability: 0,
+            solverVersion: GTO_POSTFLOP_SOLVER_VERSION,
+          },
+          update: { solution: e.solution as object, solverVersion: GTO_POSTFLOP_SOLVER_VERSION },
+        }),
+      ),
+    );
+    count += chunk.length;
   }
   console.error(`[seedGtoPostflopSolutions] upserted ${count} postflop GtoSolution rows`);
   await prisma.$disconnect();
