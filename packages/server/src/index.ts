@@ -3,7 +3,6 @@ import { Server } from "socket.io";
 import { Lobby } from "./lobby.js";
 import { handleGeoTreeApiRequest } from "./geoTreeApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
-import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
@@ -17,15 +16,12 @@ const httpServer = createServer((req, res) => {
 
   handleLobbyApiRequest(req, res).then((handled) => {
     if (handled) return;
-    handleSubscriptionApiRequest(req, res).then((handledSub) => {
-      if (handledSub) return;
-      handleGeoTreeApiRequest(req, res).then((handled2) => {
-        if (handled2) return;
-        handleReviewApiRequest(req, res).then((handled3) => {
-          if (handled3) return;
-          res.writeHead(404);
-          res.end();
-        });
+    handleGeoTreeApiRequest(req, res).then((handled2) => {
+      if (handled2) return;
+      handleReviewApiRequest(req, res).then((handled3) => {
+        if (handled3) return;
+        res.writeHead(404);
+        res.end();
       });
     });
   });
