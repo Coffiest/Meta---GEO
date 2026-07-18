@@ -260,7 +260,7 @@ export function RRRatingCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 overflow-hidden"
+      className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden"
     >
       <div className="relative px-5 pt-4 pb-5">
         <div className="flex items-center justify-between mb-4">

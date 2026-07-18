@@ -150,7 +150,7 @@ function signedClass(n: number): string {
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4">{children}</div>;
+  return <div className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
 }
 
 /**
@@ -184,7 +184,7 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-white ring-[1.5px] ring-ink-950 p-4"
+      className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4"
     >
       {children}
     </motion.div>
@@ -275,7 +275,7 @@ function TournamentHistoryCard({
         transition={{ duration: 0.3, delay }}
         whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
-        className="w-full text-left rounded-[18px] bg-white ring-[1.5px] ring-ink-950 p-3.5"
+        className="w-full text-left rounded-[18px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
           <div className="min-w-0">
@@ -291,15 +291,15 @@ function TournamentHistoryCard({
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
+          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">{t("play.buyIn")}</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
+          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">{t("lobby.payout")}</p>
             <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-ink-950 bg-white p-2 text-center">
+          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
             <p className="text-[9px] text-ink-600 mb-0.5">{t("result.m.profit")}</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
@@ -335,15 +335,15 @@ function TournamentHistoryCard({
                 {point.finishPosition != null && ` ・ ${t("result.place", { n: point.finishPosition })}`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
+                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">{t("play.buyIn")}</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
+                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">{t("lobby.payout")}</p>
                   <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-ink-950 bg-white p-3 text-center">
+                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
                   <p className="text-[10px] text-ink-600 mb-1">{t("result.m.profit")}</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
