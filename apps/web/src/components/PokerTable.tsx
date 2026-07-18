@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
@@ -126,6 +126,70 @@ function badgeForSeat(params: {
 const BOARD_ROW_CLASS = "absolute inset-x-0 top-[42.5%] flex justify-center gap-[1.16%]";
 const BOARD_CELL_CLASS = "w-[8.1%]";
 
+/**
+ * オールインが発生した瞬間に一度だけ走る、テーブル全体の電撃バースト演出。
+ * 既存のアバター電撃リング(Seat.AllInElectric)と同じシアン〜白のエレクトリック言語で統一し、
+ * 「テーブル外周の青白フラッシュ」+「中央のALL INワードマーク」+「走る稲妻ライン」を重ねる。
+ * pointer-events-none で操作は透過。reduced-motion 時は静かなフェードのみに落とす。
+ */
+function AllInBurst({ reduced }: { reduced: boolean }) {
+  if (reduced) {
+    return (
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 0] }}
+        transition={{ duration: 1.1, times: [0, 0.25, 1] }}
+      >
+        <span
+          className="font-black italic tracking-[0.08em] text-white text-[54px]"
+          style={{ textShadow: "0 0 16px rgba(56,189,248,0.9), 0 0 3px #fff" }}
+        >
+          ALL IN
+        </span>
+      </motion.div>
+    );
+  }
+  return (
+    <motion.div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+      {/* テーブル外周の青白フラッシュ(内側シャドウ) */}
+      <motion.div
+        className="absolute inset-0 rounded-[46%]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 0.45, 0] }}
+        transition={{ duration: 1.3, times: [0, 0.12, 0.5, 1], ease: "easeOut" }}
+        style={{ boxShadow: "inset 0 0 70px 14px rgba(56,189,248,0.75), inset 0 0 22px 2px rgba(255,255,255,0.55)" }}
+      />
+      {/* 中央から広がるリングパルス */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 rounded-full"
+        style={{ width: 40, height: 40, border: "2px solid rgba(191,240,255,0.9)", boxShadow: "0 0 18px rgba(56,189,248,0.8)" }}
+        initial={{ opacity: 0.9, scale: 0.4, x: "-50%", y: "-50%" }}
+        animate={{ opacity: 0, scale: 9 }}
+        transition={{ duration: 0.9, ease: "easeOut" }}
+      />
+      {/* 中央のALL INワードマーク */}
+      <motion.div
+        className="absolute inset-0 flex items-center justify-center"
+        initial={{ opacity: 0, scale: 0.55 }}
+        animate={{ opacity: [0, 1, 1, 0], scale: [0.55, 1.12, 1, 1.06] }}
+        transition={{ duration: 1.35, times: [0, 0.18, 0.72, 1], ease: [0.22, 1, 0.36, 1] }}
+      >
+        <span
+          className="font-black italic tracking-[0.06em] text-white leading-none whitespace-nowrap"
+          style={{
+            fontSize: "clamp(44px, 15vw, 84px)",
+            textShadow: "0 0 22px rgba(56,189,248,0.95), 0 0 6px rgba(255,255,255,0.9), 0 2px 0 rgba(37,99,235,0.6)",
+          }}
+        >
+          ALL IN
+        </span>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export function PokerTable({
   state,
   yourSeatIndex,
@@ -162,7 +226,33 @@ export function PokerTable({
   onHeroChatClick?: () => void;
 }) {
   const { t } = useI18n();
+  const reducedMotion = useReducedMotion() ?? false;
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
+
+  // オールインの瞬間を検知して、一度だけテーブル全体の電撃バーストを出す。
+  // lastActionBySeat はハンド中「直近アクション」を保持し続けるため、オールインの
+  // 署名(席:額)が新しく変わったときだけ発火し、同じオールインで再発火しないようにする。
+  const [allInFxId, setAllInFxId] = useState<number | null>(null);
+  const lastAllInSig = useRef<string>("");
+  const fxSeq = useRef(0);
+  useEffect(() => {
+    const sig = Object.entries(lastActionBySeat)
+      .filter(([, a]) => a.kind === "allIn")
+      .map(([i, a]) => `${i}:${a.toAmount}`)
+      .sort()
+      .join("|");
+    if (!sig) {
+      lastAllInSig.current = "";
+      return;
+    }
+    if (sig === lastAllInSig.current) return;
+    lastAllInSig.current = sig;
+    fxSeq.current += 1;
+    const id = fxSeq.current;
+    setAllInFxId(id);
+    const timer = setTimeout(() => setAllInFxId((cur) => (cur === id ? null : cur)), 1500);
+    return () => clearTimeout(timer);
+  }, [lastActionBySeat]);
 
   // 自分の席が常に画面下(スロット0)に来るよう、実席番号→表示スロットへ回転させる。
   // MTTでは卓移動により自分の席番号が変わるため、この回転が必須になる。
@@ -294,6 +384,11 @@ export function PokerTable({
           </div>
         );
       })}
+
+      {/* オールイン瞬間の電撃バースト(既存のアバター電撃リングと調和・操作は透過) */}
+      <AnimatePresence>
+        {allInFxId !== null && <AllInBurst key={allInFxId} reduced={reducedMotion} />}
+      </AnimatePresence>
     </div>
   );
 }
