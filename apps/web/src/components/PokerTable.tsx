@@ -205,6 +205,8 @@ export function PokerTable({
   markingBySeat,
   seatBubbles,
   onHeroChatClick,
+  heroShowIntent = false,
+  onToggleHeroShow,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -224,6 +226,10 @@ export function PokerTable({
   seatBubbles?: Record<number, { text: string; ts: number }>;
   /** 自分の席のチャット入力ボタンを押したとき。 */
   onHeroChatClick?: () => void;
+  /** ハンドショウ: 自席のカードをハンド終了時に公開する意思がONか。 */
+  heroShowIntent?: boolean;
+  /** ハンドショウ: 自席のカードをタップしたとき(意思のトグル)。 */
+  onToggleHeroShow?: () => void;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -336,9 +342,20 @@ export function PokerTable({
             ? ((k) => (k ? t(k) : null))(describeMadeHand(yourCards, (state?.board ?? []).map(cardToString)))
             : null;
 
+        // ハンドショウ: 相手席はrevealedHoleCardsに含まれれば(フォールド公開含む)裏返す。
+        // 自席は「フォールド後もショウ意思があれば自分の画面にも表示」する(演出はしない)。
+        const seatRevealed = Boolean(revealedHoleCards?.[seatIndex]);
+        const shown = isHero ? heroShowIntent && status === "folded" : seatRevealed;
+        // 自席かつハンド進行中(フォールド前後どちらでも可)はカードをタップしてショウをトグルできる。
+        const canToggleShow =
+          isHero && Boolean(onToggleHeroShow) && Boolean(state) && !state!.isComplete && status !== "empty";
+
         const seatNode = (
           <Seat
             handRankLabel={heroHandLabel}
+            shown={shown}
+            showEyeIcon={isHero && heroShowIntent}
+            onCardsTap={canToggleShow ? onToggleHeroShow : undefined}
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
             markingColor={markingColor}

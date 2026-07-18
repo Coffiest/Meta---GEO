@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
@@ -172,6 +172,7 @@ function GameScreen({
     armTimeBank,
     setAway,
     sendChat,
+    showCards,
     chatLog,
     seatBubbles,
     gameHandHistory,
@@ -190,6 +191,8 @@ function GameScreen({
   const [leftResult, setLeftResult] = useState<TournamentOverInfo | null>(null);
   // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
+  // ハンドショウ: 自分の手札をハンド終了時に公開する意思(自席のカードをタップでトグル)。
+  const [heroShowIntent, setHeroShowIntent] = useState(false);
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
   // 注意: 再接続で進行中の卓が見つからなくても、絶対にホームへ強制退出させない(プレイ中に突然
@@ -260,6 +263,20 @@ function GameScreen({
   const revealedHoleCards = shownHoleCards
     ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
+
+  // ハンドが終わったら次のハンドのためにショウ意思をリセットする(サーバー側も毎ハンド初期化)。
+  useEffect(() => {
+    if (lastHandEnded) setHeroShowIntent(false);
+  }, [lastHandEnded]);
+
+  // 自席のカードをタップしてショウ意思をトグルし、サーバーへ通知する。
+  const toggleHeroShow = useCallback(() => {
+    setHeroShowIntent((prev) => {
+      const next = !prev;
+      showCards(next);
+      return next;
+    });
+  }, [showCards]);
 
   return (
     <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
@@ -358,6 +375,8 @@ function GameScreen({
             markingBySeat={markingBySeat}
             seatBubbles={seatBubbles}
             onHeroChatClick={() => setChatInputOpen(true)}
+            heroShowIntent={heroShowIntent}
+            onToggleHeroShow={toggleHeroShow}
           />
         )}
       </main>

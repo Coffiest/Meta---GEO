@@ -409,5 +409,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     if (trimmed.length > 0) socketRef.current?.emit("chat", { text: trimmed });
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat };
+  /** ハンドショウ: 自分の手札をハンド終了時に公開(ショウ)する意思をトグルする。 */
+  const showCards = useCallback((show: boolean) => {
+    socketRef.current?.emit("showCards", { show });
+  }, []);
+
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards };
 }

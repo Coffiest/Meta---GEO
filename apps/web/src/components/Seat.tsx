@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatBb } from "@/lib/format";
@@ -120,6 +120,41 @@ function AllInElectric({ size }: { size: number }) {
   );
 }
 
+/**
+ * ハンドショウ/ショウダウンで公開されるカードの「ペラッ」めくり演出。
+ * 3Dの Y軸回転で、伏せた裏面(前面)→表面(背面)へ半回転して表を見せる。
+ * reduced-motion 時やカード未確定時は演出せず、そのまま表示する。
+ */
+function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl"; delay: number }) {
+  const reduced = useReducedMotion();
+  if (reduced || !card) {
+    return <PlayingCard card={card} faceDown={!card} size={size} />;
+  }
+  return (
+    <div style={{ perspective: 700 }}>
+      <motion.div
+        className="relative"
+        style={{ transformStyle: "preserve-3d" }}
+        initial={{ rotateY: 0 }}
+        animate={{ rotateY: 180 }}
+        transition={{ duration: 0.5, delay, ease: [0.2, 0.7, 0.25, 1] }}
+      >
+        {/* 前面: 裏面(めくり始めに見えている面) */}
+        <div style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}>
+          <PlayingCard faceDown size={size} />
+        </div>
+        {/* 背面: 表面(半回転しきると見える面) */}
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          <PlayingCard card={card} size={size} />
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   call: "bg-mint-500 text-white",
   win: "bg-mint-500 text-white",
@@ -159,6 +194,12 @@ export interface SeatViewProps {
   onChatClick?: () => void;
   /** 自分の席のとき、現在成立している役(例: 「ツーペア」)を手札の直下に表示する。 */
   handRankLabel?: string | null;
+  /** ハンドショウで公開された席。フォールド済みでも手札を表示し、相手席なら裏返る演出を再生する。 */
+  shown?: boolean;
+  /** 自席のハンドショウ意思がON。カードに目のアイコンを重ねる。 */
+  showEyeIcon?: boolean;
+  /** 自席のカードをタップしたとき(ハンドショウのトグル)。 */
+  onCardsTap?: () => void;
 }
 
 export function Seat({
@@ -182,12 +223,15 @@ export function Seat({
   chatBubble = null,
   onChatClick,
   handRankLabel = null,
+  shown = false,
+  showEyeIcon = false,
+  onCardsTap,
 }: SeatViewProps) {
   const { t } = useI18n();
   const isEmpty = status === "empty";
   const folded = status === "folded";
-  // フォールドした席は手札を見せる意味がないため、伏せカードごと表示しない。
-  const showCards = !isEmpty && !folded;
+  // フォールドした席は通常伏せカードごと表示しないが、ハンドショウで公開された席は表示する。
+  const showCards = !isEmpty && (!folded || shown);
 
   return (
     <div
@@ -217,18 +261,56 @@ export function Seat({
         )}
       </AnimatePresence>
 
-      <div className="relative z-30 flex gap-1">
-        {showCards &&
-          holeCards.map((c, i) => (
-            <PlayingCard
-              key={i}
-              card={revealCards ? c ?? undefined : undefined}
-              faceDown={!revealCards}
-              size={size === "lg" ? "xl" : "sm"}
-              dealDelay={i * 0.05}
-            />
-          ))}
-      </div>
+      {(() => {
+        const cardSize = size === "lg" ? "xl" : "sm";
+        const cardsInner = (
+          <div className="relative z-30 flex gap-1">
+            {showCards &&
+              holeCards.map((c, i) =>
+                shown && !isHero ? (
+                  // 相手席のハンドショウ/ショウダウン公開: 裏面→表面の「ペラッ」フリップ。
+                  <FlipRevealCard key={i} card={c ?? undefined} size={cardSize} delay={i * 0.09} />
+                ) : (
+                  <PlayingCard
+                    key={i}
+                    card={revealCards ? c ?? undefined : undefined}
+                    faceDown={!revealCards}
+                    size={cardSize}
+                    dealDelay={i * 0.05}
+                  />
+                ),
+              )}
+            {/* ハンドショウ意思ON: カードに小さな目のアイコンを重ねる。 */}
+            {showEyeIcon && showCards && (
+              <motion.span
+                aria-hidden
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="pointer-events-none absolute -top-1.5 -right-1.5 z-40 flex h-5 w-5 items-center justify-center rounded-full bg-ink-950 text-white ring-2 ring-white"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" strokeLinejoin="round" />
+                  <circle cx="12" cy="12" r="2.4" />
+                </svg>
+              </motion.span>
+            )}
+          </div>
+        );
+        // 自席かつハンド進行中はカードをタップしてハンドショウをトグルできる。
+        return onCardsTap ? (
+          <button
+            type="button"
+            onClick={onCardsTap}
+            aria-label={showEyeIcon ? "ハンドショウを取り消す" : "このハンドをショウする"}
+            aria-pressed={showEyeIcon}
+            className="appearance-none bg-transparent p-0 active:scale-[0.96] transition-transform"
+          >
+            {cardsInner}
+          </button>
+        ) : (
+          cardsInner
+        );
+      })()}
 
       {/* 自分の現在の役(手札の直下)。ボードが進むたびに更新される。 */}
       {handRankLabel && showCards && (
