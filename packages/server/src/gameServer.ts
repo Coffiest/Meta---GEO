@@ -273,6 +273,9 @@ export class TableSession implements GameSession {
   private dbTournamentId: string | null = null;
   private players = new Map<number, SeatPlayer>();
   private humansBySeat = new Map<number, HumanSeat>();
+  // 自主的にハンドを公開(ショウ)する席。プレイ中に本人がカードをタップして意思表示し、
+  // ハンド終了時に公開義務の有無にかかわらず手札を公開する。ハンド開始ごとにリセットする。
+  private readonly showRequests = new Set<number>();
   /** 同卓チャットのログ(直近50件)。再接続時にまとめて送る。 */
   private chatLog: ChatMessage[] = [];
   private finished = false;
@@ -401,6 +404,13 @@ export class TableSession implements GameSession {
       if (this.chatLog.length > 50) this.chatLog.shift();
       this.io.to(this.roomId).emit("chat", msg);
     });
+    // ハンドショウ: 本人がプレイ中にカードをタップして自主公開の意思をトグルする。
+    // 記録のみ行い(他者へは即時通知しない)、ハンド終了時にまとめて公開する。
+    socket.on("showCards", (payload: { show?: boolean }) => {
+      if (!this.hand || this.hand.isHandComplete()) return;
+      if (payload?.show === false) this.showRequests.delete(seatIndex);
+      else this.showRequests.add(seatIndex);
+    });
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
       human.socket = null;
@@ -496,6 +506,7 @@ export class TableSession implements GameSession {
       return;
     }
     this.hand = this.tournament.startNextHand();
+    this.showRequests.clear();
     this.broadcastState();
     this.broadcastTournamentInfo();
     this.scheduleTurn();
@@ -710,11 +721,12 @@ export class TableSession implements GameSession {
       }).catch((err) => console.error("[sng] recordHand failed:", err));
     }
 
-    // 公開義務のある席だけをクライアントへ公開する(それ以外はマック)
-    const revealedSeats = computeRevealedSeats(hand);
+    // 公開義務のある席 + 自主公開(ショウ)を選んだ席をクライアントへ公開する(それ以外はマック)
+    const revealedSeats = new Set([...computeRevealedSeats(hand), ...this.showRequests]);
     const revealedHoleCards = Object.fromEntries(
       [...hand.getAllHoleCards()].filter(([seat]) => revealedSeats.has(seat)).map(([seat, cards]) => [seat, cards.map(cardToString)]),
     );
+    this.showRequests.clear();
 
     tournament.settleFinishedHand();
     this.io.to(this.roomId).emit("handEnded", {
