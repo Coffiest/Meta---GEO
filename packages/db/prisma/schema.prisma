@@ -59,6 +59,18 @@ model GeoViewUsage {
   @@unique([userId, date])
 }
 
+/// 棋譜解析(トーナメント単位)の無料枠トラッキング。無料プランは24時間ローリングで1回まで。
+/// (userId, tournamentId)で一意=同一トナメの再解析は消費しない(冪等)。直近24時間の行数で判定する。
+model ReviewUsage {
+  id           String   @id @default(uuid())
+  userId       String
+  tournamentId String
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, tournamentId])
+  @@index([userId, createdAt])
+}
+
 /// プレイヤーメモ&マーキング。あるユーザー(author)が対戦相手(target)につける
 /// 色分類(赤/橙/黄/青/紫)+自由記述メモ。GTO WizardやTenFourのHUD的な「相手ノート」機能。
 /// author×targetで一意(1相手につき1メモ)。

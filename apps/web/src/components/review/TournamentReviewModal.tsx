@@ -5,9 +5,12 @@ import { motion } from "framer-motion";
 import {
   fetchTournamentReview,
   type ReviewedDecision,
+  type ReviewQuotaInfo,
   type TournamentReview,
   type TournamentReviewHand,
 } from "@/lib/reviewApi";
+import { useSubscriptionStatus } from "@/lib/subscription";
+import { ReviewPaywall } from "@/components/review/ReviewPaywall";
 import {
   CLASSIFICATION_META,
   DISPLAY_CLASSIFICATION_ORDER,
@@ -129,9 +132,14 @@ export function TournamentReviewModal({
   const [data, setData] = useState<TournamentReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 無料枠超過(402)時のペイウォール情報。
+  const [quota, setQuota] = useState<ReviewQuotaInfo | null>(null);
   const [view, setView] = useState<"summary" | "replay">("summary");
   const [stepIndex, setStepIndex] = useState(0);
   const pollTries = useRef(0);
+
+  // サブスク状態(残り無料枠・加入バッジ表示用)。
+  const { status: subStatus } = useSubscriptionStatus(accessToken);
 
   // 初回取得。
   useEffect(() => {
@@ -144,11 +152,13 @@ export function TournamentReviewModal({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setQuota(null);
     fetchTournamentReview(tournamentId, accessToken)
       .then((res) => {
         if (cancelled) return;
-        if (!res) setError("このトーナメントの解析を取得できませんでした。");
-        else setData(res);
+        if (res.status === "ok") setData(res.data);
+        else if (res.status === "quota") setQuota(res.info);
+        else setError("このトーナメントの解析を取得できませんでした。");
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -166,7 +176,7 @@ export function TournamentReviewModal({
         return;
       }
       fetchTournamentReview(tournamentId, accessToken).then((res) => {
-        if (res) setData(res);
+        if (res.status === "ok") setData(res.data);
       });
     }, 5000);
     return () => clearInterval(timer);
@@ -416,6 +426,15 @@ export function TournamentReviewModal({
         <div className="flex items-center gap-2 mb-4">
           <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">棋譜解析 — 総括</p>
+          {subStatus?.active ? (
+            <span className="rounded-full bg-gold-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
+              使い放題
+            </span>
+          ) : subStatus && !quota ? (
+            <span className="rounded-full border border-ink-300 px-2 py-0.5 text-[9px] font-bold text-ink-500 tabular-nums">
+              残り無料 {subStatus.reviewsRemaining}回
+            </span>
+          ) : null}
           <button
             onClick={onClose}
             className="ml-auto h-8 w-8 rounded-full border border-ink-200 bg-white flex items-center justify-center active:scale-95 transition-transform"
@@ -436,6 +455,8 @@ export function TournamentReviewModal({
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3">
             {error}
           </div>
+        ) : quota ? (
+          <ReviewPaywall tournamentId={tournamentId} accessToken={accessToken} nextFreeAt={quota.nextFreeAt} />
         ) : data ? (
           <>
 

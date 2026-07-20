@@ -129,14 +129,39 @@ export async function fetchHandReview(handId: string, accessToken: string): Prom
   return (await res.json()) as HandReviewResponse;
 }
 
-/** 1トーナメントの一括解析を取得。 */
-export async function fetchTournamentReview(tournamentId: string, accessToken: string): Promise<TournamentReview | null> {
+/** 無料枠超過(402)の情報。次に無料解析できる時刻(ISO)を含む。 */
+export interface ReviewQuotaInfo {
+  remaining: number;
+  limit: number;
+  nextFreeAt: string | null;
+}
+
+/**
+ * 1トーナメントの一括解析取得の結果。
+ * - ok: 解析データ
+ * - quota: 無料枠超過(402) → ペイウォールを表示
+ * - error: それ以外のエラー
+ */
+export type TournamentReviewResult =
+  | { status: "ok"; data: TournamentReview }
+  | { status: "quota"; info: ReviewQuotaInfo }
+  | { status: "error" };
+
+/** 1トーナメントの一括解析を取得。402(無料枠超過)は quota として区別する。 */
+export async function fetchTournamentReview(tournamentId: string, accessToken: string): Promise<TournamentReviewResult> {
   const res = await fetch(`${SERVER_URL}/api/review/tournament`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ tournamentId }),
     cache: "no-store",
   });
-  if (!res.ok) return null;
-  return (await res.json()) as TournamentReview;
+  if (res.status === 402) {
+    const info = (await res.json().catch(() => ({}))) as Partial<ReviewQuotaInfo>;
+    return {
+      status: "quota",
+      info: { remaining: info.remaining ?? 0, limit: info.limit ?? 1, nextFreeAt: info.nextFreeAt ?? null },
+    };
+  }
+  if (!res.ok) return { status: "error" };
+  return { status: "ok", data: (await res.json()) as TournamentReview };
 }

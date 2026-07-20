@@ -10,3 +10,7 @@ build/
 coverage/
 *.tsbuildinfo
 packages/db/src/data/shards/
+
+# Python bytecode (skill scripts)
+__pycache__/
+*.pyc
