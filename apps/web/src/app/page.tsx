@@ -279,7 +279,20 @@ function GameScreen({
   }, [showCards]);
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-white overflow-hidden">
+    <div className="relative isolate h-[100dvh] flex flex-col bg-white overflow-hidden">
+      {/* テーブル(黒縁)の外側に敷く背景パターン。元画像は黒地+白線のため、
+          grayscale+invertで「白地+黒線」に変換し、低不透明度で薄い灰色の柄として馴染ませる。 */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage: "url(/table/bg-pattern.jpeg)",
+          backgroundSize: "380px auto",
+          backgroundRepeat: "repeat",
+          filter: "grayscale(1) invert(1)",
+          opacity: 0.06,
+        }}
+      />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
         {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
             Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}

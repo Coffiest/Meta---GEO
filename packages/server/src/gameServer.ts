@@ -824,26 +824,9 @@ export class TableSession implements GameSession {
     });
   }
 
-  /** ハンド終了時、勝った自動プレイヤーがまれに自然な一言を送る(人間が同卓にいるときのみ)。 */
-  private maybeBotHandEndChat(hand: HandEngine): void {
-    if (this.isAccelerated() || this.humansBySeat.size === 0) return;
-    const result = hand.getResult();
-    // payouts は playerId(=userId)→獲得額。勝った自動プレイヤーの席を割り出す。
-    const winnerIds = new Set([...result.payouts.entries()].filter(([, amt]) => amt > 0).map(([pid]) => pid));
-    const botWinners = [...this.players.values()].filter((p) => p.isBot && winnerIds.has(p.userId)).map((p) => p.seatIndex);
-    if (botWinners.length === 0 || Math.random() > 0.14) return;
-    const seat = botWinners[Math.floor(Math.random() * botWinners.length)]!;
-    const line = pickBotChatLine(result.wonByFold ? "steal" : "win");
-    setTimeout(() => this.sendBotChat(seat, line), 700 + Math.random() * 1600);
-  }
-
-  private sendBotChat(seatIndex: number, text: string): void {
-    const p = this.players.get(seatIndex);
-    if (!p || !p.isBot) return;
-    const msg: ChatMessage = { seatIndex, userId: p.userId, displayName: p.displayName, text, ts: Date.now() };
-    this.chatLog.push(msg);
-    if (this.chatLog.length > 50) this.chatLog.shift();
-    this.io.to(this.roomId).emit("chat", msg);
+  /** ハンド終了時のBotの一言。オーナー指示によりBotのチャット発言は全面無効化(no-op)。 */
+  private maybeBotHandEndChat(_hand: HandEngine): void {
+    // Botはチャットを一切発言しない。
   }
 
   private serializeResult(hand: HandEngine) {

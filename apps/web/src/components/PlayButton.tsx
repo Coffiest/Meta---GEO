@@ -14,9 +14,28 @@ interface GameChoice {
 }
 
 /**
- * ホーム画面の主役ボタン。タップすると、単一のボタンが泡が分裂するように2つの選択肢
- * (Sit&Go / MTT)へアニメーションで分かれる。もう一度背景をタップすると元の単一ボタンに戻る。
+ * ホーム画面の主役CTA(Appleネイティブ風)。
+ * 微細な縦グラデーション+内側ハイライト+柔らかな落ち影のカプセルボタンで、iOSの
+ * Filled Buttonの質感を再現する。タップすると泡が分裂するように Sit&Go / MTT の
+ * 2択カードへスプリングで展開し、背景タップで元に戻る。配色は周囲と同じ ink+gold。
  */
+
+/** iOSボタンの質感: 縦グラデ+内側トップハイライト+2層シャドウ。 */
+const CAPSULE_SURFACE: React.CSSProperties = {
+  background: "linear-gradient(180deg, #2b2b2e 0%, #161618 55%, #0a0a0a 100%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.5), 0 12px 28px -10px rgba(10,10,10,0.45), 0 2px 6px rgba(10,10,10,0.18)",
+};
+
+/** SF Symbols風の再生グリフ(角丸トライアングル)。 */
+function PlayGlyph({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8.5 5.9c0-1.5 1.6-2.4 2.9-1.7l9.2 5.4c1.3.7 1.3 2.6 0 3.4l-9.2 5.4c-1.3.7-2.9-.2-2.9-1.7V5.9Z" />
+    </svg>
+  );
+}
+
 export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (key: GameKey) => void }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -34,65 +53,63 @@ export function PlayButton({ games, onJoin }: { games: GameChoice[]; onJoin: (ke
         />
       )}
       <div className="relative z-[6]">
-      <AnimatePresence mode="popLayout">
-        {!expanded ? (
-          <motion.button
-            key="single"
-            layoutId="play-bubble"
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            whileTap={{ scale: 0.96 }}
-            transition={{ type: "spring", damping: 20, stiffness: 260 }}
-            onClick={() => setExpanded(true)}
-            aria-label={t("play.play")}
-            className="relative h-[100px] w-[260px] overflow-hidden rounded-[28px] bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
-          >
-            {/* トランプ札の意匠。黒い札に大きく傾けた「Play」を置き、内枠より外側を黒で塗りつぶす
-                マスクを重ねることで、枠からはみ出した部分を隠す(=Playの一部が黒に隠れて覗く)。
-                内枠のフチがそのまま黒い枠線になる。overflow-hiddenでマスクは札の内側にとどまる。 */}
-            <span
-              className="pointer-events-none absolute left-1/2 top-1/2 z-[2] select-none whitespace-nowrap font-black text-white"
-              style={{
-                fontSize: 90,
-                lineHeight: 0.7,
-                letterSpacing: "-0.045em",
-                transform: "translate(-50%, -52%) rotate(-10deg)",
-                transformOrigin: "center",
-              }}
+        <AnimatePresence mode="popLayout">
+          {!expanded ? (
+            <motion.button
+              key="single"
+              layoutId="play-bubble"
+              initial={{ opacity: 0, scale: 0.9, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", damping: 22, stiffness: 300 }}
+              onClick={() => setExpanded(true)}
+              aria-label={t("play.play")}
+              className="relative flex h-[64px] w-[248px] items-center justify-center gap-3 rounded-full text-white"
+              style={CAPSULE_SURFACE}
             >
-              Play
-            </span>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-[10px] z-[3] rounded-[20px]"
-              style={{ boxShadow: "0 0 0 200px #0a0a0a" }}
-            />
-          </motion.button>
-        ) : (
-          <motion.div key="split" className="flex items-center gap-4">
-            {games.map((game, i) => (
-              <motion.button
-                key={game.key}
-                layoutId={i === 0 ? "play-bubble" : undefined}
-                initial={{ opacity: 0, scale: 0.4, x: i === 0 ? 40 : -40 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.4, x: i === 0 ? 40 : -40 }}
-                whileTap={{ scale: 0.94 }}
-                transition={{ type: "spring", damping: 16, stiffness: 240, delay: i * 0.04 }}
-                onClick={() => onJoin(game.key)}
-                className="flex h-[86px] w-[128px] flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink-950 shadow-[0_6px_20px_-6px_rgba(10,10,10,0.35)]"
-              >
-                <span className="text-[15px] font-black tracking-wide text-white">{game.title}</span>
-                {game.caption && <span className="text-[9px] font-medium text-white/55">{game.caption}</span>}
-                <span className="mt-0.5 rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-bold text-white/70 tabular-nums">
-                  {t("play.buyIn")} {game.buyIn.toLocaleString()}
-                </span>
-              </motion.button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* 再生グリフ: ゴールドの円プレートに黒トライアングル(唯一のアクセント) */}
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-500 text-ink-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_3px_rgba(10,10,10,0.35)]">
+                <PlayGlyph />
+              </span>
+              <span className="text-[21px] font-bold tracking-[-0.02em]">Play</span>
+              {/* カプセル表面の微細な光沢(上半分のガラスハイライト) */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-x-2 top-[2px] h-1/2 rounded-full"
+                style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0))" }}
+              />
+            </motion.button>
+          ) : (
+            <motion.div key="split" className="flex items-center gap-3.5">
+              {games.map((game, i) => (
+                <motion.button
+                  key={game.key}
+                  layoutId={i === 0 ? "play-bubble" : undefined}
+                  initial={{ opacity: 0, scale: 0.4, x: i === 0 ? 40 : -40 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.4, x: i === 0 ? 40 : -40 }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", damping: 18, stiffness: 280, delay: i * 0.04 }}
+                  onClick={() => onJoin(game.key)}
+                  className="relative flex h-[92px] w-[132px] flex-col items-center justify-center gap-1 overflow-hidden rounded-[24px] text-white"
+                  style={CAPSULE_SURFACE}
+                >
+                  <span className="text-[16px] font-bold tracking-[-0.01em]">{game.title}</span>
+                  {game.caption && <span className="text-[9px] font-medium text-white/55">{game.caption}</span>}
+                  <span className="mt-1 rounded-full bg-white/[0.09] px-2.5 py-0.5 text-[10px] font-semibold text-white/75 tabular-nums shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    {t("play.buyIn")} {game.buyIn.toLocaleString()}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-1.5 top-[2px] h-1/3 rounded-[20px]"
+                    style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0))" }}
+                  />
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
