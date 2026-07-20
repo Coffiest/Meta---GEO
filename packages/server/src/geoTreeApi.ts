@@ -36,6 +36,18 @@ const BUCKET_TO_BAND: Record<string, string> = {
   "0-5": "7",
 };
 
+/** GTOタブで有効なバンドキー(実スタック選択で band を直接指定できる)。 */
+const VALID_BANDS = new Set(["100", "30", "20", "14", "10", "7"]);
+/**
+ * リクエストの band(実スタック選択)を優先し、無ければ stackBucket から写像する。
+ * バンド系ノード(RFI/vsOpen/vs3bet/ポストフロップ)で使う。
+ */
+function resolveBand(body: Record<string, unknown>, stackBucket: string): string {
+  const b = body["band"];
+  if (typeof b === "string" && VALID_BANDS.has(b)) return b;
+  return BUCKET_TO_BAND[stackBucket] ?? "100";
+}
+
 /**
  * GTOポストフロップ(SRP)のスポットキャッシュ(2段: メモリ + DB永続層)。
  * key = spotKey(スート正規化込み。suit-isomorphicなボードは同一キーへ集約)。
@@ -225,7 +237,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
           lastStep.position === raises[1]!.position &&
           raises[1]!.position !== raises[0]!.position
         ) {
-          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const band = resolveBand(body, sb);
           const opener = raises[0]!.position;
           const threeBettor = raises[1]!.position;
           const gto = buildPreflopOpenerVs3betNode(band, opener, threeBettor);
@@ -244,7 +256,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
             sendJson(res, 200, empty);
             return true;
           }
-          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const band = resolveBand(body, sb);
           const gto = buildPreflopBandNode(band, heroPos);
           sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
           return true;
@@ -260,7 +272,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         // ちょうど1人が(非オールインの)オープンレイズ → ディフェンス(fold/call/3bet/allin)ノード。
         // genPreflopVsOpen.ts が転記オープンレンジに対して解いた混合戦略(バンド: 100/20/14bb)。
         if (nonFold.length === 1) {
-          const band = BUCKET_TO_BAND[sb] ?? "100";
+          const band = resolveBand(body, sb);
           const gto = buildPreflopVsOpenNode(band, nonFold[0]!.position, heroPos);
           sendJson(res, 200, gto.unsupported ? empty : toWireNode(gto));
           return true;
@@ -304,7 +316,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       const empty = { node: { position: null, sampleSize: 0, options: [], isGto: true }, matrix: { cells: [], totalSamples: 0 } };
-      const band = BUCKET_TO_BAND[sb] ?? "100";
+      const band = resolveBand(body, sb);
       const boardArr = board as string[];
       // ライン形状の分類:
       //   SRP  : 非フォールド = [レイズ(非allin/非call), コール]  → prepareGtoPostflopSpot

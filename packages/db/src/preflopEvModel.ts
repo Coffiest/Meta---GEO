@@ -137,9 +137,10 @@ export function deadOthersOf(a: string, b: string): number {
   return dead;
 }
 
-/** effStackBb → 転記レンジのバンドキー。 */
+/** effStackBb → 転記レンジのバンドキー。"100"と"30"は別レンジ(100bb深度 vs 30bb深度)。 */
 export function bandOfStack(effStackBb: number): string {
-  if (effStackBb >= 30) return "100";
+  if (effStackBb >= 50) return "100";
+  if (effStackBb >= 25) return "30";
   if (effStackBb >= 20) return "20";
   if (effStackBb >= 15) return "14";
   if (effStackBb >= 10) return "10";
@@ -147,4 +148,4 @@ export function bandOfStack(effStackBb: number): string {
 }
 
 /** バンドキー → 代表スタック深度(bb)。 */
-export const BAND_DEPTH: Record<string, number> = { "100": 100, "20": 20, "14": 14, "10": 10, "7": 7 };
+export const BAND_DEPTH: Record<string, number> = { "100": 100, "30": 30, "20": 20, "14": 14, "10": 10, "7": 7 };
