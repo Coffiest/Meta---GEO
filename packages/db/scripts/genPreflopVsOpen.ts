@@ -80,8 +80,8 @@ const ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 /** ポストフロップ行動順(SBが先、BTNが最後)。IP/OOP判定に使う。 */
 const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
 const POSTED: Record<string, number> = { UTG: 0, HJ: 0, CO: 0, BTN: 0, SB: 0.5, BB: 2.0 }; // BB= blind1 + ante1
-/** バンドキー → スタック深度(bb)。 */
-const BAND_DEPTH: Record<string, number> = { "100": 100, "20": 20, "14": 14 };
+/** バンドキー → スタック深度(bb)。"30"は100bbと別レンジにするため depth=30 で解く。 */
+const BAND_DEPTH: Record<string, number> = { "100": 100, "30": 30, "20": 20, "14": 14 };
 
 const RANK_OF: Record<string, number> = { A: 14, K: 13, Q: 12, J: 11, T: 10, "9": 9, "8": 8, "7": 7, "6": 6, "5": 5, "4": 4, "3": 3, "2": 2 };
 /**
@@ -148,7 +148,8 @@ function solveDefense(band: string, opener: string, defender: string): DefStrat 
   if (rangeMass(openFreq) <= 0) return null;
 
   const defIsOOP = defender === "SB" || defender === "BB";
-  const use3bet = band === "100";
+  // 30bb以上は3betを混合(30bbはショート3bet/4betジャム主体、100bbは通常3bet)。20bb以下はジャム主体。
+  const use3bet = band === "100" || band === "30";
   // 3betサイズ: 3bettor(defender)がポストフロップOOPなら大きめ4.2x、IPなら3.3x。
   const defenderIpForSize = POSTFLOP_ORDER.indexOf(defender) > POSTFLOP_ORDER.indexOf(opener);
   const B3 = use3bet ? Math.min(S, R * (defenderIpForSize ? 3.3 : 4.2)) : 0;

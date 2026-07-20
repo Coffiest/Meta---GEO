@@ -195,10 +195,14 @@ export const PREFLOP_7: Record<string, Preflop100Pos> = { UTG: LJ7, HJ: HJ7, CO:
 
 /**
  * スタックバンドキー → ポジション別レンジ。
- * "100"=30-100bb, "20"=20-29bb, "14"=15-20bb, "10"=10-15bb, "7"=10bb以下。
+ * "100"=50-100bb, "30"=25-49bb, "20"=20-24bb, "14"=15-19bb, "10"=10-14bb, "7"=10bb以下。
+ * "30"帯のオープン(RFI)レンジは30-100bbでほぼ不変のため PREFLOP_100 を流用する。
+ * 30bbと100bbの戦略差はディフェンス(vsOpen)/3bet/ポストフロップ(SPR)側で生じ、
+ * genPreflopVsOpen.ts が band="30" を depth=30 で解くことで区別される。
  */
 export const PREFLOP_BANDS: Record<string, Record<string, Preflop100Pos>> = {
   "100": PREFLOP_100,
+  "30": PREFLOP_100,
   "20": PREFLOP_20,
   "14": PREFLOP_14,
   "10": PREFLOP_10,

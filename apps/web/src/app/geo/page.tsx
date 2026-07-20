@@ -7,8 +7,12 @@ import {
   PREFLOP_BUCKET_LABELS,
   POSTFLOP_BUCKET_LABELS,
   STACK_BUCKET_LABELS,
+  GTO_STACK_LABELS,
+  GTO_STACK_TO_BAND,
+  GTO_STACK_TO_BUCKET,
   BUBBLE_STAGE_LABELS,
   type BubbleStage,
+  type GtoStack,
   type HandClassMatrixResult,
   type LineStep,
   type StackBucket,
@@ -57,6 +61,8 @@ function GeoDatabase() {
   // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
   const [mode, setMode] = useState<"geo" | "gto">("geo");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
+  // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
+  const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
   const [ratingRange, setRatingRange] = useState({ min: RATING_MIN, max: RATING_MAX });
@@ -126,11 +132,14 @@ function GeoDatabase() {
     setLoading(true);
     setError(null);
 
+    // GTOタブは実スタック選択(gtoStackBb)を band へ写像して送る。push/fold/Nashノード用に近い範囲バケットも併送。
+    const gtoBand = GTO_STACK_TO_BAND[gtoStackBb];
+    const gtoBucket = GTO_STACK_TO_BUCKET[gtoStackBb];
     const request =
       mode === "gto"
         ? street === "preflop"
-          ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket })
-          : geoTreeApi.gtoPostflopNode({ stackBucket, line: preflopLine, board, postflopLine: streetLines[street] })
+          ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket: gtoBucket, band: gtoBand })
+          : geoTreeApi.gtoPostflopNode({ stackBucket: gtoBucket, band: gtoBand, line: preflopLine, board, postflopLine: streetLines[street] })
         : street === "preflop"
         ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
         : geoTreeApi.postflopNode({
@@ -167,7 +176,7 @@ function GeoDatabase() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stackBucket, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, pollTick]);
+  }, [mode, stackBucket, gtoStackBb, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, pollTick]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -367,8 +376,9 @@ function GeoDatabase() {
                     設定
                   </div>
                   <div className="text-[11px] font-bold text-ink-950 whitespace-nowrap">
-                    {STACK_BUCKET_LABELS[stackBucket]} · {BUBBLE_STAGE_LABELS[bubbleStage]}
-                    {ratingActive && ` · 偏差${ratingRange.min}-${ratingRange.max}`}
+                    {mode === "gto"
+                      ? GTO_STACK_LABELS[gtoStackBb]
+                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
                   </div>
                 </motion.button>
                 <PositionPillBar
@@ -451,10 +461,13 @@ function GeoDatabase() {
       <AnimatePresence>
         {settingsOpen && (
           <GeoSettingsModal
+            mode={mode}
             stackBucket={stackBucket}
+            gtoStackBb={gtoStackBb}
             bubbleStage={bubbleStage}
             ratingRange={ratingRange}
             onChangeStackBucket={setStackBucket}
+            onChangeGtoStackBb={setGtoStackBb}
             onChangeBubbleStage={setBubbleStage}
             onChangeRatingRange={setRatingRange}
             onClose={() => setSettingsOpen(false)}

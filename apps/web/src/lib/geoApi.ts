@@ -12,6 +12,39 @@ export const STACK_BUCKET_LABELS: Record<StackBucket, string> = {
   "30+": "30bb+",
 };
 
+/**
+ * GTOタブのエフェクティブスタック選択(実スタック深度)。GEOタブの範囲バケットとは別軸で、
+ * GTO Wizard風に 100/30/20/15/10/5 BB の6段を直接選ぶ。各深度を転記レンジのバンドキーへ写像する
+ * (packages/db preflopEvModel.bandOfStack と整合)。push/fold/Nashノードはband非対応のため
+ * 併せて近い範囲バケットも送る。
+ */
+export const GTO_STACKS = [100, 30, 20, 15, 10, 5] as const;
+export type GtoStack = (typeof GTO_STACKS)[number];
+export const GTO_STACK_LABELS: Record<GtoStack, string> = {
+  100: "100BB",
+  30: "30BB",
+  20: "20BB",
+  15: "15BB",
+  10: "10BB",
+  5: "5BB",
+};
+export const GTO_STACK_TO_BAND: Record<GtoStack, string> = {
+  100: "100",
+  30: "30",
+  20: "20",
+  15: "14",
+  10: "10",
+  5: "7",
+};
+export const GTO_STACK_TO_BUCKET: Record<GtoStack, StackBucket> = {
+  100: "30+",
+  30: "30+",
+  20: "20-30",
+  15: "15-20",
+  10: "10-15",
+  5: "5-10",
+};
+
 export type BubbleStage = "normal" | "30" | "20" | "10" | "5" | "4" | "3" | "2" | "1" | "finalTable";
 export const BUBBLE_STAGES: BubbleStage[] = ["normal", "30", "20", "10", "5", "4", "3", "2", "1", "finalTable"];
 export const BUBBLE_STAGE_LABELS: Record<BubbleStage, string> = {
@@ -132,9 +165,10 @@ export const geoTreeApi = {
     postflopLine: LineStep[];
     ratingRange?: RatingRange;
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
-  /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。 */
-  gtoNode: (params: { line?: LineStep[]; variant?: "pushfold" | "full"; stackBucket?: StackBucket; side?: "jam" | "call" }) =>
+  /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。
+   * band を渡すとバンド系ノード(RFI/vsOpen/vs3bet)はそのバンドを直接使う(実スタック選択用)。 */
+  gtoNode: (params: { line?: LineStep[]; variant?: "pushfold" | "full"; stackBucket?: StackBucket; band?: string; side?: "jam" | "call" }) =>
     postJson<NodeResult>("/api/geo-tree/gto-node", params),
-  gtoPostflopNode: (params: { stackBucket: StackBucket; line: LineStep[]; board: string[]; postflopLine: LineStep[] }) =>
+  gtoPostflopNode: (params: { stackBucket: StackBucket; band?: string; line: LineStep[]; board: string[]; postflopLine: LineStep[] }) =>
     postJson<NodeResult>("/api/geo-tree/gto-postflop-node", params),
 };

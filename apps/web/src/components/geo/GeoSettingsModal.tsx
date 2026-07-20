@@ -4,9 +4,12 @@ import { motion } from "framer-motion";
 import {
   STACK_BUCKETS,
   STACK_BUCKET_LABELS,
+  GTO_STACKS,
+  GTO_STACK_LABELS,
   BUBBLE_STAGES,
   BUBBLE_STAGE_LABELS,
   type StackBucket,
+  type GtoStack,
   type BubbleStage,
 } from "@/lib/geoApi";
 
@@ -61,24 +64,32 @@ function RatingRangeSlider({
   );
 }
 
-/** 左上の設定ボタンから開く詳細設定モーダル。エフェクティブスタック・ICM・トナメ偏差値レンジを選ぶ。 */
+/** 左上の設定ボタンから開く詳細設定モーダル。エフェクティブスタック・ICM・トナメ偏差値レンジを選ぶ。
+ * GTOタブ(mode="gto")では実スタック深度(100/30/20/15/10/5 BB)を選び、GEO専用のICM/偏差値は非表示。 */
 export function GeoSettingsModal({
+  mode = "geo",
   stackBucket,
+  gtoStackBb,
   bubbleStage,
   ratingRange,
   onChangeStackBucket,
+  onChangeGtoStackBb,
   onChangeBubbleStage,
   onChangeRatingRange,
   onClose,
 }: {
+  mode?: "geo" | "gto";
   stackBucket: StackBucket;
+  gtoStackBb: GtoStack;
   bubbleStage: BubbleStage;
   ratingRange: { min: number; max: number };
   onChangeStackBucket: (v: StackBucket) => void;
+  onChangeGtoStackBb: (v: GtoStack) => void;
   onChangeBubbleStage: (v: BubbleStage) => void;
   onChangeRatingRange: (r: { min: number; max: number }) => void;
   onClose: () => void;
 }) {
+  const isGto = mode === "gto";
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -102,57 +113,82 @@ export function GeoSettingsModal({
           </button>
         </div>
 
-        <div className="mb-5">
+        <div className={isGto ? "" : "mb-5"}>
           <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">エフェクティブスタック</p>
-          <div className="flex flex-wrap gap-1.5">
-            {STACK_BUCKETS.map((bucket) => (
-              <motion.button
-                key={bucket}
-                whileTap={{ scale: 0.94 }}
-                onClick={() => onChangeStackBucket(bucket)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                  stackBucket === bucket ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
-                }`}
-              >
-                {STACK_BUCKET_LABELS[bucket]}
-              </motion.button>
-            ))}
-          </div>
+          {isGto ? (
+            <div className="flex flex-wrap gap-1.5">
+              {GTO_STACKS.map((bb) => (
+                <motion.button
+                  key={bb}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => onChangeGtoStackBb(bb)}
+                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
+                    gtoStackBb === bb ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
+                  }`}
+                >
+                  {GTO_STACK_LABELS[bb]}
+                </motion.button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {STACK_BUCKETS.map((bucket) => (
+                <motion.button
+                  key={bucket}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => onChangeStackBucket(bucket)}
+                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
+                    stackBucket === bucket ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
+                  }`}
+                >
+                  {STACK_BUCKET_LABELS[bucket]}
+                </motion.button>
+              ))}
+            </div>
+          )}
+          {isGto && (
+            <p className="mt-1.5 text-[10px] text-ink-400">選んだスタック深度のGTO混合戦略(RFI/ディフェンス/3bet)を表示します。</p>
+          )}
         </div>
 
-        <div className="mb-5">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold">トナメ偏差値レンジ</p>
-            {(ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX) && (
-              <button
-                onClick={() => onChangeRatingRange({ min: RATING_MIN, max: RATING_MAX })}
-                className="text-[10px] font-bold text-ink-400 underline underline-offset-2"
-              >
-                全体に戻す
-              </button>
-            )}
-          </div>
-          <RatingRangeSlider range={ratingRange} onChange={onChangeRatingRange} />
-          <p className="mt-1.5 text-[10px] text-ink-400">この偏差値帯のプレイヤーの意思決定だけを集計します。</p>
-        </div>
+        {/* ICM・偏差値はGEO(実測DB)専用フィルタ。GTOタブでは非表示。 */}
+        {!isGto && (
+          <>
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold">トナメ偏差値レンジ</p>
+                {(ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX) && (
+                  <button
+                    onClick={() => onChangeRatingRange({ min: RATING_MIN, max: RATING_MAX })}
+                    className="text-[10px] font-bold text-ink-400 underline underline-offset-2"
+                  >
+                    全体に戻す
+                  </button>
+                )}
+              </div>
+              <RatingRangeSlider range={ratingRange} onChange={onChangeRatingRange} />
+              <p className="mt-1.5 text-[10px] text-ink-400">この偏差値帯のプレイヤーの意思決定だけを集計します。</p>
+            </div>
 
-        <div>
-          <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">ICM設定(インマネまでの残り人数)</p>
-          <div className="flex flex-wrap gap-1.5">
-            {BUBBLE_STAGES.map((stage) => (
-              <motion.button
-                key={stage}
-                whileTap={{ scale: 0.94 }}
-                onClick={() => onChangeBubbleStage(stage)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
-                  bubbleStage === stage ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
-                }`}
-              >
-                {BUBBLE_STAGE_LABELS[stage]}
-              </motion.button>
-            ))}
-          </div>
-        </div>
+            <div>
+              <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">ICM設定(インマネまでの残り人数)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {BUBBLE_STAGES.map((stage) => (
+                  <motion.button
+                    key={stage}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => onChangeBubbleStage(stage)}
+                    className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
+                      bubbleStage === stage ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
+                    }`}
+                  >
+                    {BUBBLE_STAGE_LABELS[stage]}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
