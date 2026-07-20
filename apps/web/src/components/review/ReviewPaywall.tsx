@@ -83,7 +83,7 @@ export function ReviewPaywall({
       {/* ロックされた解析のチラ見せ */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-        className="relative overflow-hidden rounded-2xl border border-ink-950 bg-ink-950 p-5"
+        className="relative overflow-hidden rounded-[24px] bg-ink-950 p-5 shadow-[0_8px_28px_-12px_rgba(10,10,10,0.5)]"
       >
         {/* 背面: ぼかしたスコアのプレビュー */}
         <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-between px-5 opacity-20 blur-[3px]">
@@ -114,7 +114,7 @@ export function ReviewPaywall({
       {/* プランカード(ゴールド強調) */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 rounded-2xl border-2 border-gold-500 bg-white p-4 shadow-[0_8px_28px_-12px_rgba(242,169,0,0.5)]"
+        className="mt-3 rounded-[24px] border-2 border-gold-500 bg-white p-4 shadow-[0_8px_28px_-12px_rgba(242,169,0,0.5)]"
       >
         <div className="flex items-end justify-between">
           <div>
