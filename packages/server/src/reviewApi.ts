@@ -9,6 +9,7 @@ import {
   summarizeReviewedDecisions,
   getHandTimeline,
   getOrCreateUserByAuthId,
+  checkAndConsumeReviewQuota,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 
@@ -84,7 +85,18 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         sendJson(res, 400, { error: "tournamentId required" });
         return true;
       }
-      // 課金シーム(将来): const q = await checkQuota(user.id); if (!q.allowed) { sendJson(res,402,...); return true; }
+      // 課金ゲート: 無料枠は24時間ローリングで1回まで。超過かつサブスク未加入なら402(ペイウォール)。
+      // 同一トナメの再解析は消費しない(冪等)ため、ポーリング再POSTでも二重消費しない。
+      const quota = await checkAndConsumeReviewQuota(user.id, tournamentId);
+      if (!quota.allowed) {
+        sendJson(res, 402, {
+          error: "quota_exceeded",
+          remaining: quota.remaining,
+          limit: quota.limit,
+          nextFreeAt: quota.nextFreeAt,
+        });
+        return true;
+      }
       const review = await analyzeTournamentForHero(tournamentId, user.id);
       // ソルバー未完了が残っていればバックグラウンドで事前計算を起動(クライアントはポーリング)。
       if (review.solving) {
