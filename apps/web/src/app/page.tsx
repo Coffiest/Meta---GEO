@@ -290,7 +290,7 @@ function GameScreen({
           backgroundSize: "380px auto",
           backgroundRepeat: "repeat",
           filter: "grayscale(1) invert(1)",
-          opacity: 0.06,
+          opacity: 0.14,
         }}
       />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
