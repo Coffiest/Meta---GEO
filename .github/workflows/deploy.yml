@@ -13,9 +13,12 @@ name: Deploy
 #   - STRIPE_SECRET_KEY         Stripeのシークレットキー (サーバー側、GEOサブスク決済用)
 #   - STRIPE_WEBHOOK_SECRET     StripeのWebhook署名シークレット
 #   - STRIPE_PRICE_ID           GEOサブスクの月額プランのPrice ID
+#   - NEXT_PUBLIC_ADSENSE_CLIENT_ID      Google AdSenseの発行者ID (ca-pub-...、ブラウザ用、公開値)
+#   - NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID 棋譜解析の無料要約画面に出す広告ユニットのスロットID
 # Supabase系の4つが未設定でもデプロイ自体は失敗しない(ログイン機能が自動的に無効化され、
 # 従来のゲスト名入力フローにフォールバックする)。Stripe系の3つが未設定でもデプロイは失敗せず、
 # サブスク機能(checkout/webhook/portal)のみ503を返して無効化される(GEO閲覧の日次無料枠は動作する)。
+# AdSense系の2つが未設定でもデプロイは失敗せず、広告枠(AdSlot)自体が非表示になるだけ。
 # 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
 
 on:
@@ -126,6 +129,12 @@ jobs:
           printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" | vercel env add NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN"
           vercel env rm NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --yes || true
           printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN"
+
+          # Google AdSense未設定の場合は空文字を渡す(AdSlot側で広告枠自体が非表示になる)
+          vercel env rm NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --yes || true
+          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN"
+          vercel env rm NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN" --yes || true
+          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN"
 
           DEPLOY_URL=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN")
           echo "Deployed to: $DEPLOY_URL"

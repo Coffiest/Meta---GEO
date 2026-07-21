@@ -77,7 +77,33 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
     }
     const user = await resolveDbUser(verified);
 
-    // 1トーナメントの一括解析。hero=ログイン中ユーザー。
+    // 無料の要約(広告つき画面用)。「最善が何個」等の分類件数のみを返し、課金ゲートは掛けない。
+    // ハンドごとの詳細(hands)は含めない(=詳細を見るには下の /api/review/tournament が必要)。
+    // 内部の解析処理自体は詳細版と同じ関数を呼ぶが、結果はDBキャッシュされるため
+    // 「無料の要約→有料の詳細」と2回呼んでも計算コストが二重にはならない。
+    if (url.pathname === "/api/review/tournament/summary" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const tournamentId = body["tournamentId"];
+      if (typeof tournamentId !== "string") {
+        sendJson(res, 400, { error: "tournamentId required" });
+        return true;
+      }
+      const review = await analyzeTournamentForHero(tournamentId, user.id);
+      if (review.solving) {
+        const key = `tourney:${tournamentId}|${user.id}`;
+        if (!enrichInFlight.has(key)) {
+          enrichInFlight.add(key);
+          void prewarmTournamentReview(tournamentId, user.id)
+            .catch((err) => console.error("[reviewApi] tournament prewarm failed:", err))
+            .finally(() => enrichInFlight.delete(key));
+        }
+      }
+      const { hands: _hands, ...summary } = review;
+      sendJson(res, 200, summary);
+      return true;
+    }
+
+    // 1トーナメントの一括解析(局後検討=詳細画面)。hero=ログイン中ユーザー。
     if (url.pathname === "/api/review/tournament" && req.method === "POST") {
       const body = await readJsonBody(req);
       const tournamentId = body["tournamentId"];

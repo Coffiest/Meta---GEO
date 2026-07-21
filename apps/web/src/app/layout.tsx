@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/i18n";
+
+// Google AdSense。NEXT_PUBLIC_ADSENSE_CLIENT_ID(ca-pub-...)が未設定の間はスクリプト自体を
+// 読み込まない(審査未通過の状態で広告タグを配信しないため)。設定後は再デプロイのみで有効化される。
+const ADSENSE_CLIENT_ID = process.env["NEXT_PUBLIC_ADSENSE_CLIENT_ID"];
 
 // 姉妹アプリRRPokerと統一したフォント。
 const jakarta = Plus_Jakarta_Sans({
@@ -111,6 +116,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <h1 className="sr-only">Poker ART（ポーカーアート／POKERART）— 無料バーチャルチップ・ポーカートーナメント</h1>
         <p className="sr-only">{SITE_DESCRIPTION}</p>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+        {ADSENSE_CLIENT_ID && (
+          <Script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+          />
+        )}
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
