@@ -456,6 +456,8 @@ export interface TournamentReview {
   classifiedDecisions: number;
   mistakeCount: number;
   artisticCount: number;
+  /** 9段階分類ごとの件数(トナメ全体)。無料の要約画面(広告付き)で「最善が何個」等の表示に使う。 */
+  classificationCounts: Record<Classification, number>;
   hands: TournamentReviewHand[];
   /** HUポストフロップのソルバー解析が未完了の決定が残っているか(クライアントはポーリング)。 */
   solving: boolean;
@@ -613,9 +615,29 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     classifiedDecisions: allClassified.length,
     mistakeCount: reviewed.reduce((s, h) => s + h.mistakeCount, 0),
     artisticCount: reviewed.reduce((s, h) => s + h.artisticCount, 0),
+    classificationCounts: tallyClassifications(allClassified),
     hands: reviewed,
     solving: anySolving,
   };
+}
+
+/** 9段階分類ごとの件数を集計する(広告付き無料要約画面の「最善が何個」表示に使う)。 */
+function tallyClassifications(decisions: { classification: Classification | null }[]): Record<Classification, number> {
+  const counts: Record<Classification, number> = {
+    artistic: 0,
+    best: 0,
+    great: 0,
+    excellent: 0,
+    good: 0,
+    book: 0,
+    inaccuracy: 0,
+    mistake: 0,
+    blunder: 0,
+  };
+  for (const d of decisions) {
+    if (d.classification) counts[d.classification]++;
+  }
+  return counts;
 }
 
 /**

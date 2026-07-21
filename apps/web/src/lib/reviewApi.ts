@@ -65,10 +65,14 @@ export interface TournamentReview {
   classifiedDecisions: number;
   mistakeCount: number;
   artisticCount: number;
+  classificationCounts: Record<Classification, number>;
   hands: TournamentReviewHand[];
   /** HUポストフロップのソルバー解析が未完了(ポーリングで再取得)。 */
   solving: boolean;
 }
+
+/** 無料の要約(広告つき画面用)。TournamentReviewから hands を除いたもの。課金ゲート無し。 */
+export type TournamentReviewSummary = Omit<TournamentReview, "hands">;
 
 /** 事前計算(トナメ終了時にソルバー解析をバックグラウンド起動)。fire-and-forgetで呼ぶ。 */
 export async function prewarmTournamentReview(tournamentId: string, accessToken: string): Promise<void> {
@@ -147,7 +151,25 @@ export type TournamentReviewResult =
   | { status: "quota"; info: ReviewQuotaInfo }
   | { status: "error" };
 
-/** 1トーナメントの一括解析を取得。402(無料枠超過)は quota として区別する。 */
+/** 無料の要約(広告つき画面用)取得結果。課金ゲートが無いため quota は発生しない。 */
+export type TournamentReviewSummaryResult = { status: "ok"; data: TournamentReviewSummary } | { status: "error" };
+
+/**
+ * トーナメントの要約(分類件数・GTO精度のみ、ハンド詳細なし)を取得する。無料・ゲート無し。
+ * 「棋譜解析」を押した直後の広告つき要約画面で使う。詳細(局後検討)は fetchTournamentReview を使う。
+ */
+export async function fetchTournamentReviewSummary(tournamentId: string, accessToken: string): Promise<TournamentReviewSummaryResult> {
+  const res = await fetch(`${SERVER_URL}/api/review/tournament/summary`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ tournamentId }),
+    cache: "no-store",
+  });
+  if (!res.ok) return { status: "error" };
+  return { status: "ok", data: (await res.json()) as TournamentReviewSummary };
+}
+
+/** 1トーナメントの一括解析(局後検討=詳細)を取得。402(無料枠超過)は quota として区別する。 */
 export async function fetchTournamentReview(tournamentId: string, accessToken: string): Promise<TournamentReviewResult> {
   const res = await fetch(`${SERVER_URL}/api/review/tournament`, {
     method: "POST",

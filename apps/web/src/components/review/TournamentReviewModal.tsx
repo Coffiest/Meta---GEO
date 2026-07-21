@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   fetchTournamentReview,
+  fetchTournamentReviewSummary,
   type ReviewedDecision,
   type ReviewQuotaInfo,
   type TournamentReview,
   type TournamentReviewHand,
+  type TournamentReviewSummary,
 } from "@/lib/reviewApi";
 import { useSubscriptionStatus } from "@/lib/subscription";
 import { ReviewPaywall } from "@/components/review/ReviewPaywall";
@@ -25,6 +27,7 @@ import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type 
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor } from "@/components/geo/colors";
 import { useCountUp } from "@/lib/useCountUp";
+import { AdSlot } from "@/components/AdSlot";
 
 /**
  * トーナメント棋譜解析。Appleネイティブ(iOS HIG)風のデザイン言語で構成する:
@@ -55,6 +58,9 @@ const ACTION_KIND_LABEL: Record<string, string> = {
 const SHEET_BG = "#f2f2f7";
 /** iOSのヘアライン分割線。 */
 const HAIRLINE = "rgba(60,60,67,0.12)";
+
+/** 無料要約画面の広告枠スロットID。未設定の間はAdSlot自体が非表示になる。 */
+const ADSENSE_REVIEW_SLOT = process.env["NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID"];
 
 /** スタッガー入場(親)。 */
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
@@ -200,21 +206,69 @@ export function TournamentReviewModal({
   accessToken: string | undefined;
   onClose: () => void;
 }) {
+  // 無料の要約(広告つき画面)。分類件数のみで課金ゲート無し。開いた瞬間に取得する。
+  const [freeData, setFreeData] = useState<TournamentReviewSummary | null>(null);
+  const [freeLoading, setFreeLoading] = useState(true);
+  const [freeError, setFreeError] = useState<string | null>(null);
+
+  // 局後検討(詳細解析)。「局後検討」ボタンを押した時だけ取得を開始する(=課金ゲートが働くのは
+  // この時点)。detailRequestedがfalseのままなら、無料の要約画面だけが表示され続ける。
+  const [detailRequested, setDetailRequested] = useState(false);
   const [data, setData] = useState<TournamentReview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 無料枠超過(402)時のペイウォール情報。
   const [quota, setQuota] = useState<ReviewQuotaInfo | null>(null);
-  const [view, setView] = useState<"summary" | "replay">("summary");
+  const [view, setView] = useState<"free" | "detail" | "replay">("free");
   const [stepIndex, setStepIndex] = useState(0);
   const pollTries = useRef(0);
+  const freePollTries = useRef(0);
 
   // サブスク状態(残り無料枠・加入バッジ表示用)。
   const { status: subStatus } = useSubscriptionStatus(accessToken);
 
-  // 初回取得。
+  // 無料要約の取得(常時・課金ゲート無し)。
   useEffect(() => {
     if (!tournamentId) return;
+    if (!accessToken) {
+      setFreeLoading(false);
+      setFreeError("ログインが必要です。");
+      return;
+    }
+    let cancelled = false;
+    setFreeLoading(true);
+    setFreeError(null);
+    fetchTournamentReviewSummary(tournamentId, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.status === "ok") setFreeData(res.data);
+        else setFreeError("このトーナメントの解析を取得できませんでした。");
+      })
+      .finally(() => !cancelled && setFreeLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId, accessToken]);
+
+  // 無料要約側もソルバー解析が未完了の間はポーリングして件数を更新する(最大5分)。
+  useEffect(() => {
+    if (!freeData?.solving || !accessToken) return;
+    const timer = setInterval(() => {
+      freePollTries.current += 1;
+      if (freePollTries.current > 60) {
+        clearInterval(timer);
+        return;
+      }
+      fetchTournamentReviewSummary(tournamentId, accessToken).then((res) => {
+        if (res.status === "ok") setFreeData(res.data);
+      });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [freeData?.solving, accessToken, tournamentId]);
+
+  // 局後検討(詳細)の取得。「局後検討」ボタンが押された後にのみ発火する。
+  useEffect(() => {
+    if (!detailRequested || !tournamentId) return;
     if (!accessToken) {
       setLoading(false);
       setError("ログインが必要です。");
@@ -235,7 +289,7 @@ export function TournamentReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [tournamentId, accessToken]);
+  }, [detailRequested, tournamentId, accessToken]);
 
   // ソルバー解析が未完了の間は約5秒間隔でポーリングし、「解析中…」をあとから埋める(最大5分)。
   useEffect(() => {
@@ -252,6 +306,13 @@ export function TournamentReviewModal({
     }, 5000);
     return () => clearInterval(timer);
   }, [data?.solving, accessToken, tournamentId]);
+
+  /** 「局後検討」ボタン: 初回クリックで詳細解析(課金ゲートあり)の取得を開始する。 */
+  function openReview() {
+    setDetailRequested(true);
+    setLoading(true); // フェッチ開始までの1フレームの空白を防ぐ
+    setView("detail");
+  }
 
   const heroUserId = data?.hands[0]?.heroUserId ?? "";
   const replay = useMemo(
@@ -352,7 +413,7 @@ export function TournamentReviewModal({
         >
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => setView("summary")}
+            onClick={() => setView("detail")}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-black/[0.05] text-ink-950"
             aria-label="総括へ戻る"
           >
@@ -495,7 +556,133 @@ export function TournamentReviewModal({
     );
   }
 
-  // ================= 総括ビュー(iOSシート) =================
+  // ================= 無料要約ビュー(広告つき・課金ゲート無し) =================
+  if (view === "free") {
+    const freeShown = freeData
+      ? DISPLAY_CLASSIFICATION_ORDER.map((c) => ({ c, n: displayCount(freeData.classificationCounts, c) })).filter((x) => x.n > 0)
+      : [];
+    const freeMax = Math.max(1, ...freeShown.map((x) => x.n));
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 backdrop-blur-[2px]"
+      >
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 30, stiffness: 300 }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)]"
+          style={{ background: SHEET_BG }}
+        >
+          <div className="sticky top-0 z-10 -mx-4 px-4 pt-2.5 pb-1" style={{ background: SHEET_BG }}>
+            <div className="mx-auto h-[5px] w-9 rounded-full bg-black/20" />
+          </div>
+
+          <div className="mt-2 mb-4 flex items-start gap-2">
+            <div className="min-w-0">
+              <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink-950">棋譜解析</h2>
+              <p className="mt-1 text-[13px] font-medium text-ink-500">今回の結果</p>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose}
+              className="ml-auto mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-ink-600"
+              aria-label="閉じる"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} className="h-3.5 w-3.5">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              </svg>
+            </motion.button>
+          </div>
+
+          {freeLoading ? (
+            <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-white p-10 text-[14px] font-medium text-ink-500 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+              集計中…
+            </div>
+          ) : freeError ? (
+            <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-500">{freeError}</div>
+          ) : freeData ? (
+            <motion.div variants={stagger} initial="hidden" animate="show">
+              {/* 分類の件数(広告つき・誰でも無料で見られる範囲)。 */}
+              <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                {freeShown.length > 0 ? (
+                  freeShown.map(({ c, n }, i) => (
+                    <div
+                      key={c}
+                      className="flex items-center gap-3 px-4 py-3"
+                      style={i > 0 ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
+                    >
+                      <ClassificationBadge classification={c} size={22} />
+                      <span className="w-[74px] shrink-0 text-[13px] font-semibold" style={{ color: CLASSIFICATION_META[c].color }}>
+                        {CLASSIFICATION_META[c].label}
+                      </span>
+                      <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-black/[0.05]">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: CLASSIFICATION_META[c].color, originX: 0 }}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: n / freeMax }}
+                          transition={{ duration: 0.7, delay: 0.35 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                        />
+                      </div>
+                      <span className="w-7 shrink-0 text-right text-[15px] font-bold text-ink-950 tabular-nums">{n}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-4 py-5 text-center text-[13px] font-medium text-ink-400">解析対象のスポットがありませんでした。</p>
+                )}
+              </motion.div>
+
+              {freeData.solving && (
+                <motion.p variants={riseIn} className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-ink-500">
+                  <span className="h-3 w-3 rounded-full border-2 border-ink-500 border-t-transparent animate-spin" />
+                  ソルバー解析中… 件数は自動で更新されます
+                </motion.p>
+              )}
+
+              {/* 広告枠(AdSense未設定の間は自動的に非表示)。 */}
+              {ADSENSE_REVIEW_SLOT && (
+                <motion.div variants={riseIn} className="mb-4">
+                  <AdSlot slot={ADSENSE_REVIEW_SLOT} />
+                </motion.div>
+              )}
+
+              {/* 局後検討へ(ここから先が課金ゲート: 1日1回無料→使い放題プラン)。 */}
+              <motion.div variants={riseIn}>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={openReview}
+                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-ink-950 text-[17px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(10,10,10,0.5)]"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+                    <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
+                    <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  局後検討
+                  {subStatus?.active ? (
+                    <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">使い放題</span>
+                  ) : subStatus ? (
+                    <span className="ml-1 rounded-full bg-white/15 px-2 py-[2px] text-[10px] font-bold tabular-nums">
+                      残り無料{subStatus.reviewsRemaining}回
+                    </span>
+                  ) : null}
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // ================= 局後検討: 総括ビュー(iOSシート) =================
   const shownClasses = DISPLAY_CLASSIFICATION_ORDER.map((c) => ({ c, n: displayCount(summary.counts, c) })).filter(
     (x) => x.n > 0
   );
@@ -525,8 +712,18 @@ export function TournamentReviewModal({
 
         {/* ラージタイトル行 */}
         <div className="mt-2 mb-4 flex items-start gap-2">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setView("free")}
+            className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-ink-600"
+            aria-label="結果画面へ戻る"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-4 w-4">
+              <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </motion.button>
           <div className="min-w-0">
-            <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink-950">棋譜解析</h2>
+            <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink-950">局後検討</h2>
             <div className="mt-1 flex items-center gap-1.5">
               <p className="text-[13px] font-medium text-ink-500">総括レポート</p>
               {subStatus?.active ? (
