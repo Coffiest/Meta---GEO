@@ -280,18 +280,18 @@ function GameScreen({
   }, [showCards]);
 
   return (
-    <div className="relative isolate h-[100dvh] flex flex-col overflow-hidden bg-[#050508]">
-      {/* テーブル(黒縁)の外側に敷く背景パターン。元画像(黒地+白線のドット柄)をそのまま濃いまま
-          敷き、near-black地に白いドット柄が浮かぶ「本物のポーカールーム」風の暗い背景にする。 */}
+    <div className="relative isolate h-[100dvh] flex flex-col bg-white overflow-hidden">
+      {/* テーブル(黒縁)の外側に敷く背景パターン。元画像は黒地+白線のため、
+          grayscale+invertで「白地+黒線」に変換し、低不透明度で薄い灰色の柄として馴染ませる。 */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
-          backgroundColor: "#050508",
           backgroundImage: "url(/table/bg-pattern.jpeg)",
-          backgroundSize: "420px auto",
+          backgroundSize: "380px auto",
           backgroundRepeat: "repeat",
-          opacity: 0.85,
+          filter: "grayscale(1) invert(1)",
+          opacity: 0.14,
         }}
       />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
