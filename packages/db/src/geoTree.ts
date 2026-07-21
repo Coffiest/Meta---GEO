@@ -121,7 +121,7 @@ const RAW_HAND_SELECT = {
     },
   },
   seats: {
-    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true, user: { select: { isBot: true } } },
+    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true },
   },
   actions: {
     orderBy: { sequenceNumber: "asc" as const },
@@ -132,8 +132,9 @@ const RAW_HAND_SELECT = {
 type RawHand = Awaited<ReturnType<typeof fetchRawHands>>[number];
 
 async function fetchRawHands() {
+  // 全ハンドを対象にする(Botのみの卓も含む)。GEOは「このアプリでプレイされた全プレイヤーの
+  // 全アクション」を集計対象とするため、人間在席ハンドへの絞り込みは行わない。
   return prisma.hand.findMany({
-    where: { seats: { some: { user: { isBot: false } } } },
     // 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
     // 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
     // 結果が不安定になりうる。
@@ -202,44 +203,53 @@ interface ReplayedDecision {
   stackBb: number;
   isGeometric: boolean;
   holeCards: string[];
-  /** そのアクションを打ったのが人間プレイヤーか(bot席は集計対象外だが、ポジション順の整合性のため
+  /** そのアクションが集計対象か(離席中・偏差値レンジ外の席はfalse。ポジション順の整合性のため
    * シーケンス自体には含める。詳細はreplayPreflopDecisionsのコメント参照)。 */
-  isHuman: boolean;
+  isCounted: boolean;
 }
 
 /**
  * ハンド1件のプリフロップ意思決定を、座席→ポジション変換・スタック深度(bb)算出・
  * bb倍率バケット分類までまとめて時系列に並べる。ブラインド(postBlind/postAnte)は除外する。
  *
- * bot席のアクションも(isHuman: falseとして)シーケンスに含める。人間だけを間引くと、
- * bot混在卓(実運用でごく一般的)でシーケンスのインデックスと実際のポジション順がズレてしまい、
- * 例えば「line=[]の次の意思決定」が本来UTGであるべきなのに、たまたま最初に人間が座っていた
- * ポジション(例: BB)にすり替わってしまう。集計(サンプル数・options)はisHumanで人間分のみに絞る。
+ * 集計対象外の席(離席中など)のアクションも(isCounted: falseとして)シーケンスに含める。
+ * 対象席だけを間引くと、シーケンスのインデックスと実際のポジション順がズレてしまい、
+ * 例えば「line=[]の次の意思決定」が本来UTGであるべきなのに、たまたま最初の対象席の
+ * ポジション(例: BB)にすり替わってしまう。集計(サンプル数・options)はisCountedで絞る。
  */
-function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>): ReplayedDecision[] {
+function replayPreflopDecisions(hand: RawHand, countedSeats: Map<number, string[]>): ReplayedDecision[] {
   const seatCount = 6;
   const bigBlind = hand.levelBigBlind;
   const startingStackBySeat = new Map(hand.seats.map((s) => [s.seatIndex, s.startingStack]));
-  const handContribution = new Map<number, number>();
+  // アンティはストリート外拠出、ブラインドはストリート内拠出(後続アクションのtoAmount=ストリート
+  // 累計に含まれる)。混ぜて1つのマップで持つと、アクションのtoAmountで上書きした時にアンティ分が
+  // 消えたり、ブラインド分が二重計上されたりするため、分けて追跡する。
+  const anteContribution = new Map<number, number>();
+  const streetContribution = new Map<number, number>();
 
   const decisions: ReplayedDecision[] = [];
 
   for (const action of hand.actions) {
     if (action.street !== "preflop") break;
-    if (action.kind === "postBlind" || action.kind === "postAnte") {
-      handContribution.set(action.seatIndex, (handContribution.get(action.seatIndex) ?? 0) + (action.toAmount ?? 0));
+    if (action.kind === "postAnte") {
+      anteContribution.set(action.seatIndex, (anteContribution.get(action.seatIndex) ?? 0) + (action.toAmount ?? 0));
+      continue;
+    }
+    if (action.kind === "postBlind") {
+      streetContribution.set(action.seatIndex, (streetContribution.get(action.seatIndex) ?? 0) + (action.toAmount ?? 0));
       continue;
     }
 
-    const priorContribution = handContribution.get(action.seatIndex) ?? 0;
+    const priorStreet = streetContribution.get(action.seatIndex) ?? 0;
+    const priorTotal = priorStreet + (anteContribution.get(action.seatIndex) ?? 0);
     const startingStack = startingStackBySeat.get(action.seatIndex) ?? 0;
-    const stackBeforeAction = startingStack - priorContribution;
+    const stackBeforeAction = startingStack - priorTotal;
     const stackBb = bigBlind > 0 ? stackBeforeAction / bigBlind : 0;
 
     const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
     const position = POSITION_NAMES[offset] ?? "";
-    const toAmount = action.toAmount ?? priorContribution;
-    const maxPossible = priorContribution + stackBeforeAction;
+    const toAmount = action.toAmount ?? priorStreet;
+    const maxPossible = priorStreet + stackBeforeAction;
     const isAllIn = action.kind === "allIn" || toAmount >= maxPossible;
 
     let bucket: PreflopBucket;
@@ -254,14 +264,13 @@ function replayPreflopDecisions(hand: RawHand, humanSeats: Map<number, string[]>
       bucket,
       stackBb,
       isGeometric: false,
-      holeCards: humanSeats.get(action.seatIndex) ?? [],
-      isHuman: humanSeats.has(action.seatIndex),
+      holeCards: countedSeats.get(action.seatIndex) ?? [],
+      isCounted: countedSeats.has(action.seatIndex),
     });
 
-    // toAmountはそのストリート内の累計拠出額そのもの(handEngine.commit()と同じ意味論)なので、
-    // プリフロップ(=このハンド内で唯一のストリート扱い)ではhandContributionへそのまま設定する。
+    // toAmountはそのストリート内の累計拠出額そのもの(handEngine.commit()と同じ意味論)。
     if (action.toAmount !== null) {
-      handContribution.set(action.seatIndex, action.toAmount);
+      streetContribution.set(action.seatIndex, action.toAmount);
     }
   }
 
@@ -364,13 +373,14 @@ export async function getPreflopNode(params: {
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
-    // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
-    const humanSeats = new Map(
-      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、および偏差値レンジ外の
+    // プレイヤーのみGEO集計から除外する。
+    const countedSeats = new Map(
+      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (humanSeats.size === 0) continue;
+    if (countedSeats.size === 0) continue;
 
-    const decisions = replayPreflopDecisions(hand, humanSeats);
+    const decisions = replayPreflopDecisions(hand, countedSeats);
     if (!linesMatch(decisions, params.line)) continue;
     const next = decisions[params.line.length];
     if (!next) continue;
@@ -378,7 +388,7 @@ export async function getPreflopNode(params: {
     // 後続のハンドで無条件に上書きすると、万一データに異常のあるハンドが1件混ざっただけで
     // 正しい大多数の結果が塗り替えられてしまう)。
     if (expectedPosition === null) expectedPosition = next.position;
-    if (next.isHuman) nextDecisions.push(next);
+    if (next.isCounted) nextDecisions.push(next);
   }
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
@@ -394,7 +404,7 @@ interface ReplayedPostflopDecision extends ReplayedDecision {
  */
 function replayPostflopDecisions(
   hand: RawHand,
-  humanSeats: Map<number, string[]>,
+  countedSeats: Map<number, string[]>,
   foldedSeats: Set<number>,
 ): ReplayedPostflopDecision[] {
   const seatCount = 6;
@@ -416,8 +426,15 @@ function replayPostflopDecisions(
       currentStreet = action.street;
     }
 
-    if (action.kind === "postBlind" || action.kind === "postAnte") {
+    if (action.kind === "postAnte") {
+      // アンティはストリート外拠出なのでhandContributionへ直接足す。
       handContribution.set(action.seatIndex, (handContribution.get(action.seatIndex) ?? 0) + (action.toAmount ?? 0));
+      continue;
+    }
+    if (action.kind === "postBlind") {
+      // ブラインドはプリフロップのストリート内拠出。後続アクションのtoAmount(ストリート累計)に
+      // 含まれるため、handContributionへ直接足すとストリート切替時の繰り込みと二重計上になる。
+      streetContribution.set(action.seatIndex, (streetContribution.get(action.seatIndex) ?? 0) + (action.toAmount ?? 0));
       continue;
     }
 
@@ -425,7 +442,7 @@ function replayPostflopDecisions(
     // foldedSeatsへの追加は判定・記録の後に行う(そうしないとfold自体が記録されなくなる)。
     const wasAlreadyFolded = foldedSeats.has(action.seatIndex);
 
-    // bot席も(isHuman: falseとして)シーケンスに含める。理由はreplayPreflopDecisionsのコメント参照
+    // 集計対象外の席も(isCounted: falseとして)シーケンスに含める。理由はreplayPreflopDecisionsのコメント参照
     // (人間だけを間引くとポジション順とシーケンスのインデックスがズレるため)。
     if (currentStreet !== "preflop" && !wasAlreadyFolded) {
       const priorStreetContribution = streetContribution.get(action.seatIndex) ?? 0;
@@ -468,8 +485,8 @@ function replayPostflopDecisions(
         bucket,
         stackBb: bigBlind > 0 ? behindStack / bigBlind : 0,
         isGeometric,
-        holeCards: humanSeats.get(action.seatIndex) ?? [],
-        isHuman: humanSeats.has(action.seatIndex),
+        holeCards: countedSeats.get(action.seatIndex) ?? [],
+        isCounted: countedSeats.has(action.seatIndex),
         street: currentStreet,
       });
     }
@@ -515,19 +532,20 @@ export async function getPostflopNode(params: {
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
-    // 離席中(wasAway)の席、および偏差値レンジ外のプレイヤーはGEO集計から除外する。
-    const humanSeats = new Map(
-      hand.seats.filter((s) => !s.user.isBot && !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、および偏差値レンジ外の
+    // プレイヤーのみGEO集計から除外する。
+    const countedSeats = new Map(
+      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (humanSeats.size === 0) continue;
+    if (countedSeats.size === 0) continue;
 
-    const preflopDecisions = replayPreflopDecisions(hand, humanSeats);
+    const preflopDecisions = replayPreflopDecisions(hand, countedSeats);
     if (!linesMatch(preflopDecisions, params.preflopLine)) continue;
 
     // フォールド済み座席は「実際のハンドで起きた全プリフロップフォールド」を対象にする
     // (要求ラインの範囲内だけではない。ライン一致判定と実際のゲーム進行は別物)。
     const foldedSeats = new Set(preflopDecisions.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
-    const allPostflop = replayPostflopDecisions(hand, humanSeats, foldedSeats);
+    const allPostflop = replayPostflopDecisions(hand, countedSeats, foldedSeats);
     const streetDecisions = allPostflop.filter((d) => d.street === params.street);
     if (!linesMatch(streetDecisions, params.postflopLine)) continue;
 
@@ -535,7 +553,7 @@ export async function getPostflopNode(params: {
     if (!next) continue;
     // getPreflopNodeと同じ理由で、最初に一致したハンドの値のみ採用する。
     if (expectedPosition === null) expectedPosition = next.position;
-    if (next.isHuman) nextDecisions.push(next);
+    if (next.isCounted) nextDecisions.push(next);
   }
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);

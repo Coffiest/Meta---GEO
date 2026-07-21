@@ -48,7 +48,7 @@ export const GTO_STACK_TO_BUCKET: Record<GtoStack, StackBucket> = {
 export type BubbleStage = "normal" | "30" | "20" | "10" | "5" | "4" | "3" | "2" | "1" | "finalTable";
 export const BUBBLE_STAGES: BubbleStage[] = ["normal", "30", "20", "10", "5", "4", "3", "2", "1", "finalTable"];
 export const BUBBLE_STAGE_LABELS: Record<BubbleStage, string> = {
-  normal: "通常",
+  normal: "全体",
   "30": "残り30人",
   "20": "残り20人",
   "10": "残り10人",
