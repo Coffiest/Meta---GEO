@@ -103,10 +103,10 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(emptyNode.sampleSize).toBe(0);
   });
 
-  it("keeps the root node correctly labeled UTG even when only the BB seat is human (bot-mixed table)", async () => {
-    // 回帰テスト: 以前はbot席のアクションをシーケンスから完全に除外していたため、
-    // 「人間が最初に登場するポジション」がline=[]の答えとしてすり替わってしまうバグがあった
-    // (例: BBだけ人間・他5席がbotの卓では、本来UTGであるべきroot nodeがBBとして返っていた)。
+  it("counts bot actions as first-class GEO samples on a bot-mixed table", async () => {
+    // GEOは「全プレイヤー(Bot含む)の全アクション」を集計対象にする。BBだけ人間・他5席がbotの
+    // 卓でも、root node(line=[])は正しくUTGを指し、かつUTG(bot)のオープンレイズが実測サンプル
+    // として計上される。ライン追跡のシーケンス整合(ポジション順)の回帰確認も兼ねる。
     const humanUser = await prisma.user.create({ data: { displayName: "GeoTreeTest-BBOnly", isBot: false } });
     const botUsers = await Promise.all(
       Array.from({ length: 5 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-Bot-${i}`, isBot: true } })),
@@ -170,11 +170,14 @@ describe("geoTree (integration, real Postgres)", () => {
       hand,
     });
 
-    // root node(line=[])は、たまたま最初に人間が座っていたBBではなく、正しくUTGを指すべき。
-    // UTGはbotなのでサンプルは0件(「サンプルなし」)だが、ポジション名は正しくUTG。
+    // root node(line=[])は、たまたま最初に人間が座っていたBBではなく、正しくUTGを指す。
+    // UTG(bot)のオープンレイズも全プレイヤー集計の対象なので、サンプルとして計上される。
     const { node: rootNode } = await getPreflopNode({ stackBucket: "10-15", bubbleStage: "normal", line: [] });
     expect(rootNode.position).toBe("UTG");
-    expect(rootNode.sampleSize).toBe(0);
+    expect(rootNode.sampleSize).toBeGreaterThanOrEqual(1);
+    const utgRaise = rootNode.options.find((o) => o.bucket === "raise2-2.5");
+    expect(utgRaise).toBeDefined();
+    expect(utgRaise!.count).toBeGreaterThanOrEqual(1);
 
     // bot達の実際のアクションでラインを辿ってBBまで到達すると、人間(BB)の実測コールが見える。
     const { node: bbNode } = await getPreflopNode({
@@ -203,9 +206,10 @@ describe("geoTree (integration, real Postgres)", () => {
     // root nodeの答えが誤ったポジション名にすり替わってしまっていた。
     // 修正後は「最初に一致したハンド」の値のみを採用するため、この上書きが起きない。
     //
-    // 両ハンドともroot決定(decisions[0])を打つのはbotにし、実測サンプル(filtered)を空に保つ
-    // ことで、expectedPositionのフォールバック経路自体を確実に検証する(サンプルがあると
-    // buildNodeFromDecisionsはfiltered[0]の値を優先するため、この経路を通らなくなってしまう)。
+    // 両ハンドともroot決定(decisions[0])を打つ席をwasAway(離席扱い=集計対象外)にして、
+    // 実測サンプル(filtered)を空に保つことで、expectedPositionのフォールバック経路自体を
+    // 確実に検証する(サンプルがあるとbuildNodeFromDecisionsはfiltered[0]の値を優先するため、
+    // この経路を通らなくなってしまう)。
 
     // ハンド1(先に作成): 正常な6-max。UTG(bot)が2.2bbオープンし、BB(人間)以外は全員フォールド
     // -> root=UTGが正解。
@@ -256,6 +260,7 @@ describe("geoTree (integration, real Postgres)", () => {
         startingStack: 4_000,
         isSmallBlind: i === 1,
         isBigBlind: i === 2,
+        wasAway: i === 3, // root決定を打つUTG席を離席扱いにして集計対象外に保つ
       })),
       hand: normalHand,
     });
@@ -305,15 +310,16 @@ describe("geoTree (integration, real Postgres)", () => {
       levelBigBlind: 200,
       levelAnte: 0,
       seats: [
-        { seatIndex: 2, userId: botUser2.id, startingStack: 4_000, isSmallBlind: true, isBigBlind: false },
+        // root決定を打つseat2を離席扱いにして集計対象外に保つ
+        { seatIndex: 2, userId: botUser2.id, startingStack: 4_000, isSmallBlind: true, isBigBlind: false, wasAway: true },
         { seatIndex: 5, userId: humanUser2.id, startingStack: 4_000, isSmallBlind: false, isBigBlind: true },
       ],
       hand: shortHand,
     });
 
     // 4,000チップ/200bb = 20bb -> "15-20"バケット。他テストのバケットと衝突しないよう分離。
-    // root決定を打ったのは両ハンドともbotなので、実測サンプルは0件(filteredは空) -> 返る
-    // position は expectedPosition のフォールバック値そのものになる。
+    // root決定を打った席は両ハンドともwasAway(集計対象外)なので、実測サンプルは0件(filteredは空)
+    // -> 返る position は expectedPosition のフォールバック値そのものになる。
     const { node: rootNode } = await getPreflopNode({ stackBucket: "15-20", bubbleStage: "normal", line: [] });
     expect(rootNode.sampleSize).toBe(0);
     expect(rootNode.position).toBe("UTG");
