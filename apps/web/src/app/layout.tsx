@@ -117,11 +117,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <p className="sr-only">{SITE_DESCRIPTION}</p>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         {ADSENSE_CLIENT_ID && (
+          // beforeInteractive: 初回のサーバーHTMLに直接<script>タグとして出力される。
+          // afterInteractiveだとJS実行後にクライアント側で挿入されるため、JSを実行しない
+          // AdSenseの所有権確認クローラーからはタグが存在しないと判定されてしまう。
           <Script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
             crossOrigin="anonymous"
-            strategy="afterInteractive"
+            strategy="beforeInteractive"
           />
         )}
         <LocaleProvider>{children}</LocaleProvider>
