@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/i18n";
 
@@ -117,14 +116,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <p className="sr-only">{SITE_DESCRIPTION}</p>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         {ADSENSE_CLIENT_ID && (
-          // beforeInteractive: 初回のサーバーHTMLに直接<script>タグとして出力される。
-          // afterInteractiveだとJS実行後にクライアント側で挿入されるため、JSを実行しない
-          // AdSenseの所有権確認クローラーからはタグが存在しないと判定されてしまう。
-          <Script
+          // next/script の Script コンポーネント(strategy問わず)は、生の<script src>タグを
+          // 直接HTMLへ出力せず、<link rel="preload">+ JS実行時に組み立てる仕組みになっている。
+          // AdSenseの所有権確認クローラーはJSを実行せず、静的HTML中の文字どおりの<script src=...>
+          // タグを探すため、next/scriptでは検出されずサイト確認が失敗し続けていた。
+          // そのため、素のHTML <script> タグとして直接出力する。
+          // eslint-disable-next-line @next/next/no-sync-scripts -- AdSense所有権確認は静的HTML中の生<script>タグを要求するため、next/scriptは使えない
+          <script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
             crossOrigin="anonymous"
-            strategy="beforeInteractive"
           />
         )}
         <LocaleProvider>{children}</LocaleProvider>
