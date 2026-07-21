@@ -24,18 +24,44 @@ export const SHOWDOWN_TABLE_PAUSE_MS = 1400;
 /** オールインランアウト: ストリート1つ開くごとの待ち時間 */
 export const RUNOUT_STREET_PAUSE_MS = 1100;
 
-// 対戦相手として着席する自動プレイヤーの名前プール。人間のプレイヤーと見分けがつかないよう、
-// 本名っぽさやID丸出し(river_king等)を避け、ゆるいハンドルネーム(食べ物・動物・かわいい造語・
-// 短い英字)を多数用意し、卓ごとにランダムに重複なく選ぶ。avatarKey は null(共通アイコンで表示)。
-export const BOT_PROFILES: readonly { name: string; avatarKey: string | null }[] = [
-  "たこやき", "こんぶ", "あんこ", "きなこ", "おもち", "プリン", "メロンパン", "チョコ", "なっとう", "せんべい",
-  "だんご", "おにぎり", "みたらし", "わらび", "ようかん", "カステラ", "からあげ", "ずんだ", "らむね", "きゃらめる",
-  "はちみつ", "みるく", "でどだむ", "ぷにぷに", "もふもふ", "ふわり", "ぽんず", "むぎ", "ぴよ", "ころん",
-  "くるみ", "ぽち", "もこ", "ちび", "まる", "ばぶ", "にゃんこ", "ぷち", "てるてる", "こたつ",
-  "めがね", "ざぶとん", "ぺんぎん", "くらげ", "しろくま", "はりねずみ", "かえる", "らっこ", "あざらし", "かぴ",
-  "ぱんだ", "うさぎ", "たぬき", "いるか", "ふくろう", "こあら", "ぱんけーき", "むにゅ", "ぽむ", "きのこ",
-  "Goma", "momo", "kuma", "pino", "yuzu", "poni", "saku", "tama", "nori", "uni",
-].map((name) => ({ name, avatarKey: null }));
+// 対戦相手として着席する自動プレイヤーの名前プール。人間と絶対に見分けがつかないよう、実在プレイヤーに
+// ありがちな「系統」を4つに分け、同卓時にどの系統も均等に混じるようにする(選出は下記 pickBotProfiles で
+// 系統ごとにシャッフル→ラウンドロビン)。avatarKey は null(人間と同じ共通アイコンで表示)。
+const BOT_NAME_GROUPS: readonly (readonly string[])[] = [
+  // A. ゆるいハンドル(食べ物・動物・かわいい造語)
+  [
+    "たこやき", "こんぶ", "あんこ", "きなこ", "おもち", "プリン", "メロンパン", "なっとう", "せんべい", "だんご",
+    "ずんだ", "らむね", "はちみつ", "みるく", "でどだむ", "ぷにぷに", "もふもふ", "ぽんず", "ぺんぎん", "くらげ",
+    "しろくま", "らっこ", "ぱんだ", "たぬき", "ふくろう", "きのこ",
+  ],
+  // B. テキトーに付けた風(雑・打ち間違い・未設定っぽさ)
+  [
+    "あああああ", "ああ", "あー", "てすと", "なまえ", "ゲスト", "ぬ", "ん", "ほげ", "ふが",
+    "aaaa", "asdf", "qwerty", "wwww", "zzz", "・・・", "123", "てきとう", "あいうえお", "うぇ",
+    "っっ", "ぽぽ", "なし", "aaの",
+  ],
+  // C. ネタ(ポーカー用語いじり・お笑い系)
+  [
+    "オナホールデム", "全ツッパ", "降りない男", "とりまコール", "ぶっぱ太郎", "沼", "養分", "レイズしか勝たん",
+    "課金は正義", "ノールック", "フロップの妖精", "おりたくない", "万年ドベ", "初手オールイン", "チップは飾り",
+    "気合いでコール", "運だけ", "まくり最強", "リバー爆弾", "実質勝ち", "たぶん勝てる", "おっつけ番長",
+    "ベット魔", "全部乗せ",
+  ],
+  // D. ローマ字ハンドル/名前
+  [
+    "Akira", "ChanYasu", "Kenji", "Hiro", "Yuto", "Sho", "Kaz", "Ryo", "Taku", "NaoK",
+    "DaiG", "MasaP", "Shinji", "Tatsu", "koba", "yktk", "TKG", "aki_p", "Ken1", "Shun",
+    "Ryu", "Mao", "GotoH", "nabe",
+  ],
+];
+
+export interface BotProfile {
+  readonly name: string;
+  readonly avatarKey: string | null;
+}
+
+/** 全系統をまとめた一覧(互換用)。avatarKey は常に null。 */
+export const BOT_PROFILES: readonly BotProfile[] = BOT_NAME_GROUPS.flat().map((name) => ({ name, avatarKey: null }));
 
 // 自動プレイヤーがたまに送る自然な短いチャット。人間は勝ったときなどに一言つぶやくが、bot が完全に
 // 無言だと不自然なため、低頻度で文脈に合った短文を送る(過剰にならないよう頻度は抑える)。
@@ -57,6 +83,20 @@ function shuffled<T>(arr: readonly T[]): T[] {
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+/**
+ * count人ぶんのBOTプロフィールを、名前の系統(ハンドル/テキトー/ネタ/ローマ字)がなるべく均等に
+ * 混ざる順序で返す。各系統を個別にシャッフルし、ラウンドロビンで先頭から取り出すため、5人程度の
+ * 卓でも必ず複数系統が混在し「全員同じ雰囲気=BOTっぽさ」が出ない。count が総数を超える場合は循環する。
+ */
+export function pickBotProfiles(count: number): BotProfile[] {
+  const groups = BOT_NAME_GROUPS.map((g) => shuffled(g));
+  const order: string[] = [];
+  for (let i = 0; order.length < BOT_PROFILES.length; i++) {
+    for (const g of groups) if (i < g.length) order.push(g[i]!);
+  }
+  return Array.from({ length: count }, (_, i) => ({ name: order[i % order.length]!, avatarKey: null }));
 }
 
 /**
@@ -185,9 +225,8 @@ export async function ensureBotUsers(
   count: number,
   offset = 0,
 ): Promise<{ id: string; displayName: string; avatarKey: string | null }[]> {
-  void offset; // 互換のため引数は残すが、選出はランダム化した
-  const pool = shuffled(BOT_PROFILES);
-  const profiles = Array.from({ length: count }, (_, i) => pool[i % pool.length]!);
+  void offset; // 互換のため引数は残すが、選出は系統均等のラウンドロビン化した
+  const profiles = pickBotProfiles(count);
   return Promise.all(
     profiles.map(async (p) => {
       const u = await prisma.user.upsert({

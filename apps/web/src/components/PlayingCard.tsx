@@ -75,11 +75,11 @@ function CardBack({ dims }: { dims: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src="/cards/back.png"
+        src="/table/bg-pattern.jpeg"
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} rounded-md object-contain ring-1 ring-ink-950 select-none`}
+        className={`${dims} rounded-md object-cover ring-1 ring-ink-950 select-none`}
       />
     );
   }
