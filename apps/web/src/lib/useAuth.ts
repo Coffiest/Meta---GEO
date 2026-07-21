@@ -16,6 +16,8 @@ export interface AuthState {
   clearOauthError: () => void;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
+  /** 確認メールの再送(新規登録後にメールが届かない場合)。 */
+  resendConfirmation: (email: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -112,6 +114,11 @@ export function useAuth(): AuthState {
       // メール確認が有効なプロジェクトでは、登録直後はまだセッションが発行されない
       // (確認メール内のリンクを踏んで初めてログイン状態になる)。
       return { error: null, needsConfirmation: !data.session };
+    },
+    resendConfirmation: async (email: string) => {
+      if (!supabase) return { error: "認証機能が設定されていません" };
+      const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: redirectTo } });
+      return { error: error ? translateAuthError(error.message) : null };
     },
     resetPassword: async (email: string) => {
       if (!supabase) return { error: "認証機能が設定されていません" };

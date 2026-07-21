@@ -51,6 +51,9 @@ export const metadata: Metadata = {
     // 白テーマに合わせ、ステータスバーは黒文字が読める明るい既定スタイルにする。
     statusBarStyle: "default",
   },
+  // Android(Chrome)版の「ホーム画面に追加」でもアドレスバー無しのスタンドアロン表示にする
+  // 明示的なヒント。manifest.ts の display:standalone が主だが、一部Chromeはこのmetaも見る。
+  other: { "mobile-web-app-capable": "yes" },
   formatDetection: { telephone: false },
   robots: {
     index: true,

@@ -15,6 +15,7 @@ import { TournamentResultScreen, fetchResultSnapshot, type ResultStatsSnapshot }
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
+import { WelcomeTour, hasTourBeenSeen } from "@/components/WelcomeTour";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 import { useI18n } from "@/lib/i18n";
 
@@ -575,6 +576,15 @@ export default function Page() {
   // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
   const [resultSuggestion, setResultSuggestion] = useState<TournamentOverInfo | null>(null);
   const [resumeChecked, setResumeChecked] = useState(false);
+  // 初回ログイン時のみ一度だけ表示するチュートリアル。オンボーディング(名前+アバター設定)完了後、
+  // 未読(localStorage未記録)なら出す。判定はマウント後(クライアントのみ)に行い、SSRとの不一致を避ける。
+  const [tourChecked, setTourChecked] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    if (!profile?.onboarded || tourChecked) return;
+    setShowTour(!hasTourBeenSeen());
+    setTourChecked(true);
+  }, [profile?.onboarded, tourChecked]);
 
   useEffect(() => {
     if (!accessToken || !profile?.onboarded || gameKey || resumeChecked) return;
@@ -691,6 +701,9 @@ export default function Page() {
   // 進行中ゲームの有無が確定するまではホームを出さない。リフレッシュ直後にホームが一瞬見えたり、
   // 進行中ゲームがあるのに新規ゲームを開始できてしまうことを防ぐ(確定するまで check() が再試行し続ける)。
   if (!resumeChecked) return <LoadingScreen />;
+
+  // 初回ログイン時のみ一度だけ: ホームを出す直前にチュートリアルを挟む。
+  if (showTour) return <WelcomeTour onDone={() => setShowTour(false)} />;
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
