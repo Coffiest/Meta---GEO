@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
 import type { AuthState } from "@/lib/useAuth";
 import { useI18n } from "@/lib/i18n";
+import { APP_VERSION } from "@/lib/version";
 import { Header, HeaderLogo } from "./Header";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { PasscodeModal } from "./PasscodeModal";
 
 function GoogleIcon() {
   return (
@@ -102,6 +105,12 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /** 新規登録後、確認メールを送ったアドレス(セット中は手順ガイドパネルを表示)。 */
+  const [confirmSentTo, setConfirmSentTo] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  /** バージョン表記タップ→パスコード(2357)→管理者画面への隠し導線。 */
+  const [adminGateOpen, setAdminGateOpen] = useState(false);
+  const router = useRouter();
   const reduce = useReducedMotion();
   const { t } = useI18n();
 
@@ -139,7 +148,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
       }
       const { error, needsConfirmation } = await auth.signUpWithPassword(email.trim(), password);
       if (error) setError(error);
-      else if (needsConfirmation) setInfo(t("login.info.confirm", { email }));
+      else if (needsConfirmation) setConfirmSentTo(email.trim());
     } else {
       const { error } = await auth.resetPassword(email.trim());
       if (error) setError(error);
@@ -193,6 +202,71 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           transition={{ delay: 0.22, duration: 0.55, ease: EASE }}
           className="mt-6 rounded-2xl border border-ink-200 bg-white p-6 shadow-panel"
         >
+          {confirmSentTo ? (
+            /* 新規登録直後: 確認メールの手順ガイド。何をすればいいかを1ステップずつ示す。 */
+            <div>
+              <div className="flex justify-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold-500">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth={1.8} className="h-6 w-6">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m3 7 9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </div>
+              <h2 className="mt-3 text-center text-lg font-extrabold tracking-tight">確認メールを送信しました</h2>
+              <p className="mt-1.5 text-center text-[12px] leading-relaxed text-ink-600">
+                <span className="font-bold text-ink-950">{confirmSentTo}</span> 宛に
+                <br />
+                登録確認のメールをお送りしました。
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {[
+                  { n: "1", text: "メールアプリを開いて、受信箱を確認してください。見当たらない場合は迷惑メールフォルダもご確認ください。" },
+                  { n: "2", text: "「Poker ART」からのメールを開き、中の確認リンク(Confirm)をタップしてください。" },
+                  { n: "3", text: "このアプリに戻れば登録完了。そのままログインしてご利用いただけます。" },
+                ].map((s) => (
+                  <div key={s.n} className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950 text-[11px] font-black text-white">
+                      {s.n}
+                    </span>
+                    <p className="pt-0.5 text-[12px] leading-relaxed text-ink-700">{s.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (resendState === "sending") return;
+                  setResendState("sending");
+                  const { error } = await auth.resendConfirmation(confirmSentTo);
+                  if (error) {
+                    setError(error);
+                    setResendState("idle");
+                  } else {
+                    setResendState("sent");
+                  }
+                }}
+                disabled={resendState !== "idle"}
+                className="mt-5 w-full rounded-xl border border-ink-300 py-3 text-[13px] font-semibold text-ink-950 transition-colors hover:bg-ink-50 active:scale-[0.98] disabled:opacity-50"
+              >
+                {resendState === "sending" ? "再送信中…" : resendState === "sent" ? "再送信しました" : "メールが届かない場合は再送信"}
+              </button>
+              {error && <p className="mt-3 text-center text-[12px] text-crimson-500">{error}</p>}
+
+              <button
+                onClick={() => {
+                  setConfirmSentTo(null);
+                  setResendState("idle");
+                  goTo("login");
+                }}
+                className="mt-4 w-full text-center text-[13px] font-semibold text-ink-950 underline underline-offset-2"
+              >
+                ログイン画面へ戻る
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="mb-5 flex items-baseline justify-between">
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
             <span className="text-[12px] text-ink-500">{subtitle}</span>
@@ -330,6 +404,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               </button>
             )}
           </div>
+            </>
+          )}
         </motion.div>
 
         {/* 流れるキーワード帯 */}
@@ -368,7 +444,35 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             ))}
           </motion.ul>
         </div>
+
+        {/* バージョン表記(タップ→パスコード2357→管理者画面への隠し導線) */}
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={() => setAdminGateOpen(true)}
+            className="cursor-pointer text-[11px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-600"
+          >
+            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+          </button>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {adminGateOpen && (
+          <PasscodeModal
+            expected="2357"
+            title="パスコードを入力"
+            onSuccess={(code) => {
+              try {
+                sessionStorage.setItem("adminPasscode", code);
+              } catch {
+                /* プライベートブラウズ等でsessionStorage不可でも/admin側で再入力できる */
+              }
+              router.push("/admin");
+            }}
+            onClose={() => setAdminGateOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

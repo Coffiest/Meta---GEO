@@ -14,6 +14,11 @@ export function getSupabaseClient(): SupabaseClient | null {
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const anonKey = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"];
   if (!url || !anonKey) return null;
-  client = createClient(url, anonKey);
+  // セッションをlocalStorageへ永続化し、期限切れ前に自動リフレッシュする。これにより
+  // 一度ログインしたら、明示的にログアウトするまでアプリを閉じても再ログイン不要になる。
+  // (storageKeyは既定のまま変更しない — 変えると既存ユーザーのセッションが全て無効になる)
+  client = createClient(url, anonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
   return client;
 }

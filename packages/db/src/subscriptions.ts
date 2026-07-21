@@ -17,12 +17,15 @@ export interface SubscriptionStatus {
   currentPeriodEnd: Date | null;
 }
 
-/** ユーザーのサブスク状態を返す。未加入(レコード無し)ならactive=falseを返す。 */
+/** ユーザーのサブスク状態を返す。未加入(レコード無し)ならactive=falseを返す。
+ * status="comp"(管理者による無料付与)は currentPeriodEnd までの期限付きactive扱い。
+ * Stripe由来のstatus(active/trialing)はWebhookが失効を同期するため期限判定しない。 */
 export async function getSubscriptionStatusForUser(userId: string): Promise<SubscriptionStatus> {
   const sub = await prisma.subscription.findUnique({ where: { userId } });
   if (!sub) return { active: false, status: null, currentPeriodEnd: null };
+  const compActive = sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > new Date();
   return {
-    active: ACTIVE_STATUSES.has(sub.status),
+    active: ACTIVE_STATUSES.has(sub.status) || compActive,
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
   };
@@ -117,6 +120,102 @@ export async function checkAndConsumeReviewQuota(userId: string, tournamentId: s
     limit: FREE_REVIEW_LIMIT,
     nextFreeAt: null,
   };
+}
+
+// ---- 管理者用: 無料付与(comp)とユーザー検索 ----
+
+export type CompDurationUnit = "week" | "month";
+
+function compPeriodEnd(unit: CompDurationUnit, amount: number, from = new Date()): Date {
+  const end = new Date(from);
+  if (unit === "week") end.setDate(end.getDate() + amount * 7);
+  else end.setMonth(end.getMonth() + amount);
+  return end;
+}
+
+/**
+ * 管理者が任意ユーザーへ棋譜解析プランを無料付与する。status="comp" + currentPeriodEnd で
+ * 期限管理し、期限が過ぎると getSubscriptionStatusForUser が自動的に非activeへ戻す。
+ * Stripe未連携ユーザーには合成customerId(comp_userId)で行を作る(既存行があればstatusのみ更新)。
+ */
+export async function grantCompSubscription(params: {
+  userId: string;
+  unit: CompDurationUnit;
+  amount: number;
+}): Promise<{ currentPeriodEnd: Date }> {
+  if (!Number.isFinite(params.amount) || params.amount <= 0 || params.amount > 120) {
+    throw new Error("amount must be between 1 and 120");
+  }
+  const end = compPeriodEnd(params.unit, Math.floor(params.amount));
+  await prisma.subscription.upsert({
+    where: { userId: params.userId },
+    create: {
+      userId: params.userId,
+      stripeCustomerId: `comp_${params.userId}`,
+      status: "comp",
+      currentPeriodEnd: end,
+    },
+    update: { status: "comp", currentPeriodEnd: end },
+  });
+  return { currentPeriodEnd: end };
+}
+
+/** 管理者による無料付与(comp)の取り消し。Stripe由来のサブスクには触れない。 */
+export async function revokeCompSubscription(userId: string): Promise<boolean> {
+  const result = await prisma.subscription.updateMany({
+    where: { userId, status: "comp" },
+    data: { status: "canceled", currentPeriodEnd: new Date() },
+  });
+  return result.count > 0;
+}
+
+export interface AdminUserSearchResult {
+  id: string;
+  displayName: string;
+  email: string | null;
+  createdAt: Date;
+  subscription: { status: string; currentPeriodEnd: Date | null; active: boolean } | null;
+}
+
+/** 管理者画面用: プレイヤー名またはメールアドレスの部分一致で検索する(Bot除外・最大20件)。 */
+export async function searchUsersForAdmin(query: string): Promise<AdminUserSearchResult[]> {
+  const q = query.trim();
+  const users = await prisma.user.findMany({
+    where: {
+      isBot: false,
+      ...(q
+        ? {
+            OR: [
+              { displayName: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      createdAt: true,
+      subscription: { select: { status: true, currentPeriodEnd: true } },
+    },
+  });
+  const now = new Date();
+  return users.map((u) => ({
+    ...u,
+    subscription: u.subscription
+      ? {
+          ...u.subscription,
+          active:
+            ACTIVE_STATUSES.has(u.subscription.status) ||
+            (u.subscription.status === "comp" &&
+              u.subscription.currentPeriodEnd != null &&
+              u.subscription.currentPeriodEnd > now),
+        }
+      : null,
+  }));
 }
 
 /** 消費せずに残り無料枠を確認する(ステータス表示用)。 */
