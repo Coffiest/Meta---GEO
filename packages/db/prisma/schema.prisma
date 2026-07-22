@@ -182,6 +182,9 @@ model HandSeat {
   /// そのハンド中、このプレイヤーが離席状態(自動チェック/フォールド)だったか。
   /// 離席中の意思決定は本人の戦略ではないため、GEO戦略分析の集計から除外する。
   wasAway          Boolean @default(false)
+  /// 管理者がGEO戦略DBから除外(論理削除)したか。アクション行そのものは残す(物理削除すると
+  /// 同卓他プレイヤーのライン再生が壊れるため)が、GEO集計のサンプルには一切含めない。
+  excludedFromGeo  Boolean @default(false)
 
   @@unique([handId, seatIndex])
   @@index([userId])

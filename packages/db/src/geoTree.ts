@@ -121,7 +121,7 @@ const RAW_HAND_SELECT = {
     },
   },
   seats: {
-    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true },
+    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true, excludedFromGeo: true },
   },
   actions: {
     orderBy: { sequenceNumber: "asc" as const },
@@ -373,10 +373,10 @@ export async function getPreflopNode(params: {
 
   for (const hand of hands) {
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
-    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、および偏差値レンジ外の
-    // プレイヤーのみGEO集計から除外する。
+    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、管理者が除外(論理削除)した席、
+    // および偏差値レンジ外のプレイヤーのみGEO集計から除外する。
     const countedSeats = new Map(
-      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+      hand.seats.filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) continue;
 
@@ -532,10 +532,10 @@ export async function getPostflopNode(params: {
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
-    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、および偏差値レンジ外の
-    // プレイヤーのみGEO集計から除外する。
+    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、管理者が除外(論理削除)した席、
+    // および偏差値レンジ外のプレイヤーのみGEO集計から除外する。
     const countedSeats = new Map(
-      hand.seats.filter((s) => !s.wasAway && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+      hand.seats.filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) continue;
 
