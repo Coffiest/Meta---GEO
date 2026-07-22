@@ -8,6 +8,7 @@ export * from "./pots.js";
 export * from "./bettingLogic.js";
 export * from "./seatOrder.js";
 export * from "./buttonRotation.js";
+export * from "./positionLabels.js";
 export * from "./handEngine.js";
 export * from "./tournament.js";
 export * from "./tableBalancer.js";

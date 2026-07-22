@@ -160,6 +160,13 @@ export interface PokerSocketState {
    * 手札。TDAルールの「ショウダウン→ランアウト」の公開順を再現するためにhandEndedより先に届く。
    */
   runoutHoleCards: Record<number, string[]> | null;
+  /** サーバーからの卓ノイズ通知(次ハンド開始の再試行中/停止など)。新ハンド開始で消える。 */
+  tableNotice: { kind: string; message: string } | null;
+  /**
+   * ハンド終了後、一定時間たっても次のハンドが始まらない(サーバーからの通知が途絶している)。
+   * trueの間、画面に停止診断オーバーレイを表示し、裏で自動的に再同期(resumeGame)を試みる。
+   */
+  stalled: boolean;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -212,12 +219,25 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     joinError: null,
     gameGone: false,
     runoutHoleCards: null,
+    tableNotice: null,
+    stalled: false,
   });
+
+  // ショウダウン後フリーズの監視タイマー。handEndedから一定時間ハンドが進まなければ
+  // stalled=true にして診断オーバーレイを出し、以降5秒おきに resumeGame で再同期を試みる。
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const clearBadgeTimers = () => {
       for (const id of Object.values(badgeTimersRef.current)) clearTimeout(id);
       badgeTimersRef.current = {};
+    };
+    const clearStallWatch = () => {
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+      if (resyncTimerRef.current) clearInterval(resyncTimerRef.current);
+      resyncTimerRef.current = null;
     };
     hasJoinedRef.current = false;
     hasStartedRef.current = false;
@@ -255,6 +275,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         // アクションバッジは seatAction イベント側で管理する(ストリートを閉じる直前のアクションも
         // 一瞬表示できるように)。ここでは新しいハンドの開始時にだけクリアする。
         if (isNewHand) clearBadgeTimers();
+        // 新しいハンドが始まった=進行は生きている。停止監視を解除する。
+        if (isNewHand) clearStallWatch();
         return {
           ...d,
           state,
@@ -265,6 +287,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           lastActionBySeat: isNewHand ? {} : d.lastActionBySeat,
           matching: null,
           waiting: null,
+          tableNotice: isNewHand ? null : d.tableNotice,
+          stalled: isNewHand ? false : d.stalled,
         };
       });
     });
@@ -344,6 +368,20 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         return { ...d, lastHandEnded: payload, lastHandDeltaBySeat, handHistory, gameHandHistory };
       }),
     );
+    // ショウダウン後フリーズの監視: handEndedから15秒たっても次のハンドが始まらなければ
+    // 停止と判定し、診断オーバーレイの表示と自動再同期(resumeGame)を開始する。
+    // 正常時は次のstate(新ハンド)受信でclearStallWatchされるため何も起きない。
+    socket.on("handEnded", () => {
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = setTimeout(() => {
+        setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
+        if (resyncTimerRef.current) clearInterval(resyncTimerRef.current);
+        resyncTimerRef.current = setInterval(() => {
+          if (socket.connected) socket.emit("resumeGame");
+          else socket.connect();
+        }, 5000);
+      }, 15_000);
+    });
     socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
       setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
     );
@@ -368,8 +406,12 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         });
       }, 5000);
     });
-    socket.on("tournamentOver", (payload: TournamentOverInfo) =>
-      setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null })),
+    socket.on("tournamentOver", (payload: TournamentOverInfo) => {
+      clearStallWatch();
+      setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null, stalled: false }));
+    });
+    socket.on("tableNotice", (payload: { kind: string; message: string }) =>
+      setData((d) => ({ ...d, tableNotice: payload })),
     );
     socket.on("actionError", (payload: { message: string }) =>
       setData((d) => ({ ...d, actionError: payload.message })),
@@ -380,6 +422,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
 
     return () => {
       clearBadgeTimers();
+      clearStallWatch();
       socket.disconnect();
     };
   }, [displayName, avatarKey, gameKey, accessToken]);

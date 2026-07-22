@@ -10,7 +10,7 @@ import { describeMadeHand } from "@/lib/handRank";
 import { useI18n } from "@/lib/i18n";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
-import { positionLabel } from "@/lib/position";
+import { positionLabelsForState } from "@/lib/position";
 import { formatBb, formatSignedBb } from "@/lib/format";
 import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
 
@@ -271,6 +271,9 @@ export function PokerTable({
   const effectiveStack = activeStacks.length ? Math.min(...activeStacks) : 0;
   const spr = state && state.potTotal > 0 ? effectiveStack / state.potTotal : null;
 
+  // ポジション名はブラインド位置基準(BTN/SB/BB/UTG...)。ハンド不参加の席はラベルなし。
+  const positionLabels = state ? positionLabelsForState(state, seatCount) : null;
+
   return (
     <div
       className="no-image-actions relative w-full max-w-md max-h-full aspect-[3/4] mx-auto"
@@ -279,12 +282,14 @@ export function PokerTable({
       <TableFelt />
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
-          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。 */}
-      <div className="absolute inset-x-0 top-[33%] flex justify-center">
+          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
+          表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
+          各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
+      <div className="absolute inset-x-0 top-[33%] flex flex-col items-center gap-1">
         <AnimatePresence mode="popLayout">
-          {state && state.potTotal > 0 && (
+          {state && state.collectedPot > 0 && (
             <motion.div
-              key={state.potTotal}
+              key={state.collectedPot}
               initial={{ opacity: 0, y: -6, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -292,7 +297,7 @@ export function PokerTable({
               className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
             >
               <span className="text-[8px] font-black tracking-[0.22em] text-ink-400 uppercase">Pot</span>
-              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatBb(state.potTotal, bigBlind)}</span>
+              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatBb(state.collectedPot, bigBlind)}</span>
               {spr !== null && (
                 <span className="text-[10px] font-bold text-ink-400 tabular-nums leading-none border-l border-ink-200 pl-2">
                   SPR {spr.toFixed(1)}
@@ -301,6 +306,23 @@ export function PokerTable({
             </motion.div>
           )}
         </AnimatePresence>
+        {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示) */}
+        {state && state.pots.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-wrap justify-center gap-1"
+          >
+            {state.pots.map((pot, i) => (
+              <span
+                key={i}
+                className="rounded-full bg-white/90 border border-ink-300 px-2 py-0.5 text-[9px] font-bold text-ink-700 tabular-nums leading-none"
+              >
+                {i === 0 ? "メイン" : `サイド${i}`} {formatBb(pot.amount, bigBlind)}
+              </span>
+            ))}
+          </motion.div>
+        )}
       </div>
 
       {/* コミュニティカード。空きスロットはfelt.png自体に描かれた破線枠が見えるので何も描かない */}
@@ -361,7 +383,7 @@ export function PokerTable({
             markingColor={markingColor}
             chatBubble={seatBubbles?.[seatIndex]?.text ?? null}
             onChatClick={isHero ? onHeroChatClick : undefined}
-            position={state ? positionLabel(seatIndex, state.buttonFixedPos, seatCount) : ""}
+            position={positionLabels?.get(seatIndex) ?? ""}
             stack={seat?.stack ?? 0}
             streetContribution={seat?.streetContribution ?? 0}
             bigBlind={bigBlind}
