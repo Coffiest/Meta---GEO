@@ -1,3 +1,4 @@
+import { computePositionLabels } from "@meta-geo/engine";
 import { prisma } from "./client.js";
 import { computeMttPrizeStructure, SNG_PAYOUTS } from "./bankroll.js";
 import { computeRRRatings } from "./rrRating.js";
@@ -27,8 +28,24 @@ async function buildRatingFilter(range?: RatingRange): Promise<(userId: string) 
  */
 
 const RANK_ORDER = "AKQJT98765432";
-/** 6-maxボタンオフセット(0=ボタン)ごとのポジション名。既存rangeMatrix.ts/geoStats.tsと同じ並び。 */
-const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
+
+/**
+ * ハンド1件のポジション名(席番号→BTN/SB/BB/UTG...)。固定席オフセットではなく、記録された
+ * 実際のブラインド席(isSmallBlind/isBigBlind)から blind基準で決める(卓表示と同一ロジック)。
+ * これにより人数が減った卓のハンド(3人=BTN/SB/BB、ヘッズアップ=BTN(SB)/BB等)も正しく命名される。
+ */
+function positionLabelsForHand(hand: RawHand): Map<number, string> {
+  const sbSeat = hand.seats.find((s) => s.isSmallBlind)?.seatIndex ?? null;
+  const bbSeat = hand.seats.find((s) => s.isBigBlind)?.seatIndex;
+  return computePositionLabels({
+    seatIndexes: hand.seats.map((s) => s.seatIndex),
+    buttonFixedPos: hand.buttonFixedPos,
+    smallBlindSeat: sbSeat,
+    // 記録不備でBBフラグが無い場合のみ、慣例位置(ボタンの2つ左)へフォールバック。
+    bigBlindSeat: bbSeat ?? (hand.buttonFixedPos + 2) % 6,
+    seatCount: 6,
+  });
+}
 
 export type StackBucket = "0-5" | "5-10" | "10-15" | "15-20" | "20-30" | "30+";
 export const STACK_BUCKETS: StackBucket[] = ["0-5", "5-10", "10-15", "15-20", "20-30", "30+"];
@@ -121,7 +138,16 @@ const RAW_HAND_SELECT = {
     },
   },
   seats: {
-    select: { seatIndex: true, userId: true, startingStack: true, holeCards: true, wasAway: true, excludedFromGeo: true },
+    select: {
+      seatIndex: true,
+      userId: true,
+      startingStack: true,
+      holeCards: true,
+      wasAway: true,
+      excludedFromGeo: true,
+      isSmallBlind: true,
+      isBigBlind: true,
+    },
   },
   actions: {
     orderBy: { sequenceNumber: "asc" as const },
@@ -218,7 +244,7 @@ interface ReplayedDecision {
  * ポジション(例: BB)にすり替わってしまう。集計(サンプル数・options)はisCountedで絞る。
  */
 function replayPreflopDecisions(hand: RawHand, countedSeats: Map<number, string[]>): ReplayedDecision[] {
-  const seatCount = 6;
+  const positionLabels = positionLabelsForHand(hand);
   const bigBlind = hand.levelBigBlind;
   const startingStackBySeat = new Map(hand.seats.map((s) => [s.seatIndex, s.startingStack]));
   // アンティはストリート外拠出、ブラインドはストリート内拠出(後続アクションのtoAmount=ストリート
@@ -246,8 +272,7 @@ function replayPreflopDecisions(hand: RawHand, countedSeats: Map<number, string[
     const stackBeforeAction = startingStack - priorTotal;
     const stackBb = bigBlind > 0 ? stackBeforeAction / bigBlind : 0;
 
-    const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
-    const position = POSITION_NAMES[offset] ?? "";
+    const position = positionLabels.get(action.seatIndex) ?? "";
     const toAmount = action.toAmount ?? priorStreet;
     const maxPossible = priorStreet + stackBeforeAction;
     const isAllIn = action.kind === "allIn" || toAmount >= maxPossible;
@@ -366,12 +391,15 @@ export async function getPreflopNode(params: {
   bubbleStage: BubbleStage;
   line: LineStep[];
   ratingRange?: RatingRange | undefined;
+  /** 卓の参加人数(2〜6)で絞り込む。未指定なら全人数のハンドを対象にする。 */
+  playerCount?: number | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
   const [hands, ratingOk] = await Promise.all([fetchRawHands(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedDecision[] = [];
   let expectedPosition: string | null = null;
 
   for (const hand of hands) {
+    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
     // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、管理者が除外(論理削除)した席、
     // および偏差値レンジ外のプレイヤーのみGEO集計から除外する。
@@ -407,7 +435,7 @@ function replayPostflopDecisions(
   countedSeats: Map<number, string[]>,
   foldedSeats: Set<number>,
 ): ReplayedPostflopDecision[] {
-  const seatCount = 6;
+  const positionLabels = positionLabelsForHand(hand);
   const bigBlind = hand.levelBigBlind;
   const startingStackBySeat = new Map(hand.seats.map((s) => [s.seatIndex, s.startingStack]));
   const handContribution = new Map<number, number>();
@@ -450,8 +478,7 @@ function replayPostflopDecisions(
       const startingStack = startingStackBySeat.get(action.seatIndex) ?? 0;
       const behindStack = startingStack - priorHandContribution - priorStreetContribution;
 
-      const offset = (((action.seatIndex - hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
-      const position = POSITION_NAMES[offset] ?? "";
+      const position = positionLabels.get(action.seatIndex) ?? "";
       const potBefore = action.potBefore;
       const toAmount = action.toAmount ?? priorStreetContribution;
       const maxPossible = priorStreetContribution + behindStack;
@@ -516,6 +543,8 @@ export async function getPostflopNode(params: {
   street: "flop" | "turn" | "river";
   postflopLine: LineStep[];
   ratingRange?: RatingRange | undefined;
+  /** 卓の参加人数(2〜6)で絞り込む。未指定なら全人数のハンドを対象にする。 */
+  playerCount?: number | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
   const boardLenForStreet: Record<string, number> = { flop: 3, turn: 4, river: 5 };
   const requiredBoardLen = boardLenForStreet[params.street]!;
@@ -528,6 +557,7 @@ export async function getPostflopNode(params: {
   let expectedPosition: string | null = null;
 
   for (const hand of hands) {
+    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;

@@ -168,6 +168,12 @@ function parseRatingRange(v: unknown): { min: number; max: number } | undefined 
   return { min: Math.min(min, max), max: Math.max(min, max) };
 }
 
+/** 卓の参加人数フィルタ(2〜6)をパースする。未指定/不正なら undefined(=全人数)。 */
+function parsePlayerCount(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 2 || v > 6) return undefined;
+  return v;
+}
+
 function parseLine(v: unknown): LineStep[] | null {
   if (!Array.isArray(v)) return null;
   const line: LineStep[] = [];
@@ -205,7 +211,8 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       const ratingRange = parseRatingRange(body["ratingRange"]);
-      sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line, ratingRange }));
+      const playerCount = parsePlayerCount(body["playerCount"]);
+      sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line, ratingRange, playerCount }));
       return true;
     }
 
@@ -418,10 +425,11 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         return true;
       }
       const ratingRange = parseRatingRange(body["ratingRange"]);
+      const playerCount = parsePlayerCount(body["playerCount"]);
       sendJson(
         res,
         200,
-        await getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine, ratingRange }),
+        await getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine, ratingRange, playerCount }),
       );
       return true;
     }
