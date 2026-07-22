@@ -325,6 +325,79 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(rootNode.position).toBe("UTG");
   });
 
+  it("excludes admin-deleted (excludedFromGeo) seats from GEO aggregation while keeping line integrity", async () => {
+    const users = await Promise.all(
+      Array.from({ length: 6 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-Excl-${i}`, isBot: false } })),
+    );
+    createdUserIds.push(...users.map((u) => u.id));
+
+    // 5,000チップ/200bb = 25bb -> "20-30"バケット(他テストのバケットと衝突しないよう分離)。
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 5_000, status: "running", gameType: "sng" },
+    });
+    createdTournamentIds.push(tournament.id);
+    await prisma.tournamentEntry.createMany({
+      data: users.map((u, i) => ({ tournamentId: tournament.id, userId: u.id, seatIndex: i })),
+    });
+
+    const hand = new HandEngine({
+      seats: users.map((u, i) => ({ seatIndex: i, playerId: u.id, stack: 5_000 })),
+      seatCount: 6,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+    });
+    hand.applyAction(3, { kind: "raise", toAmount: 440 }); // UTGオープン
+    hand.applyAction(4, { kind: "fold" });
+    hand.applyAction(5, { kind: "fold" });
+    hand.applyAction(0, { kind: "fold" });
+    hand.applyAction(1, { kind: "fold" });
+    hand.applyAction(2, { kind: "fold" });
+    expect(hand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: tournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: users.map((u, i) => ({
+        seatIndex: i,
+        userId: u.id,
+        startingStack: 5_000,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+      })),
+      hand,
+    });
+
+    // 管理者がUTG席のプレイヤーをGEOから削除(論理削除)した想定。
+    await prisma.handSeat.updateMany({
+      where: { hand: { tournamentId: tournament.id }, seatIndex: 3 },
+      data: { excludedFromGeo: true },
+    });
+
+    // rootのUTGオープンはサンプルから消えるが、ポジション名は正しくUTGのまま。
+    const { node: rootNode } = await getPreflopNode({ stackBucket: "20-30", bubbleStage: "normal", line: [] });
+    expect(rootNode.position).toBe("UTG");
+    expect(rootNode.sampleSize).toBe(0);
+
+    // ライン追跡は壊れない: UTGのレイズを辿った先のHJ(除外されていない)のフォールドは集計される。
+    const { node: hjNode } = await getPreflopNode({
+      stackBucket: "20-30",
+      bubbleStage: "normal",
+      line: [{ position: "UTG", bucket: "raise2-2.5" }],
+    });
+    expect(hjNode.position).toBe("HJ");
+    const foldOption = hjNode.options.find((o) => o.bucket === "fold");
+    expect(foldOption).toBeDefined();
+    expect(foldOption!.count).toBeGreaterThanOrEqual(1);
+  });
+
   it("returns an empty postflop node when the exact board never occurred", async () => {
     const { node } = await getPostflopNode({
       stackBucket: "30+",

@@ -1,31 +1,32 @@
 import { PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
 
 /**
- * GTO Wizardの配色に合わせたアクションカラー。ユーザー提供のGTO Wizardスクリーンショット
- * (Actions凡例)から色を採取して一致させている:
- *   Fold=ブルー / Call・Check=グリーン / Raise=レッド /
- *   Small=オレンジ → Medium=クリムゾン → Large=マゼンタ → Overbet=パープル、Allin=ディープパープル。
- * ベット/レイズはサイズが大きくなるほど オレンジ→赤→クリムゾン→マゼンタ→パープル と暖色から寒色へ推移。
+ * アクションカラー。紫はAllinだけの特別色として予約し、ベット/レイズはサイズが大きくなるほど
+ * オレンジ → 赤 → 濃い赤 → 血のような暗赤 と、赤系のまま深くなる:
+ *   Fold=ブルー / Call・Check=グリーン /
+ *   Small=オレンジ → Medium=レッド → Large=ダークレッド → Overbet=ブラッドレッド、
+ *   Allin=ディープパープル(紫はここのみ)。
  */
 const FOLD_COLOR = "#4C86C6"; // ブルー(Fold)
 const CALL_COLOR = "#57A64A"; // グリーン(Call/Check)
-const ALLIN_COLOR = "#4A1D96"; // ディープパープル(Allin)
-const GEOMETRIC_COLOR = "#8E24AA";
+const ALLIN_COLOR = "#4A1D96"; // ディープパープル(Allin専用。他では紫を使わない)
+/** ジオメトリックサイズの強調色。紫はAllin専用のため、深いティールで区別する。 */
+const GEOMETRIC_COLOR = "#0F766E";
 
-// GTO Wizard凡例のサイズ色。
+// サイズ帯の色(小→大で赤が深くなる)。
 const SMALL_ORANGE = "#E8823C";
 const RAISE_RED = "#E15361";
-const MEDIUM_CRIMSON = "#D42D6B";
-const LARGE_MAGENTA = "#A32BA0";
-const OVERBET_PURPLE = "#6D2BB0";
+const MEDIUM_RED = "#C62F3B";
+const LARGE_DARK_RED = "#8E1B1B";
+const OVERBET_BLOOD_RED = "#5E0B0B";
 
 export const PREFLOP_BUCKET_COLOR: Record<PreflopBucket, string> = {
   fold: FOLD_COLOR,
   call: CALL_COLOR,
   "raise2-2.5": SMALL_ORANGE,
-  "raise2.5-3": MEDIUM_CRIMSON,
-  "raise3-4": LARGE_MAGENTA,
-  "raise4+": OVERBET_PURPLE,
+  "raise2.5-3": MEDIUM_RED,
+  "raise3-4": LARGE_DARK_RED,
+  "raise4+": OVERBET_BLOOD_RED,
   allIn: ALLIN_COLOR,
 };
 
@@ -34,15 +35,15 @@ export const POSTFLOP_BUCKET_COLOR: Record<PostflopBucket, string> = {
   checkOrCall: CALL_COLOR,
   "bet20-40": SMALL_ORANGE,
   "bet40-60": RAISE_RED,
-  "bet60-80": MEDIUM_CRIMSON,
-  "bet80-100": LARGE_MAGENTA,
-  "bet100+": OVERBET_PURPLE,
+  "bet60-80": MEDIUM_RED,
+  "bet80-100": LARGE_DARK_RED,
+  "bet100+": OVERBET_BLOOD_RED,
   allIn: ALLIN_COLOR,
 };
 
 /**
  * geometricRatio(そのバケットの中でジオメトリックサイズだった割合)が高い場合は
- * サイズ帯の色より優先して紫を返す。Allinは常にインディゴ。
+ * サイズ帯の色より優先してティールを返す。Allinは常にディープパープル(紫はAllin専用)。
  */
 export function bucketColor(bucket: string, geometricRatio = 0): string {
   if (bucket === "allIn") return ALLIN_COLOR;

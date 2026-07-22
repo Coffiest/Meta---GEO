@@ -177,7 +177,7 @@ export interface AdminUserSearchResult {
   subscription: { status: string; currentPeriodEnd: Date | null; active: boolean } | null;
 }
 
-/** 管理者画面用: プレイヤー名またはメールアドレスの部分一致で検索する(Bot除外・最大20件)。 */
+/** 管理者画面用: プレイヤー名・メールアドレス・ユーザーIDの部分一致で検索する(Bot除外・最大20件)。 */
 export async function searchUsersForAdmin(query: string): Promise<AdminUserSearchResult[]> {
   const q = query.trim();
   const users = await prisma.user.findMany({
@@ -188,6 +188,7 @@ export async function searchUsersForAdmin(query: string): Promise<AdminUserSearc
             OR: [
               { displayName: { contains: q, mode: "insensitive" } },
               { email: { contains: q, mode: "insensitive" } },
+              { id: { contains: q, mode: "insensitive" } },
             ],
           }
         : {}),

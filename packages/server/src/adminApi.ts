@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  excludeGeoData,
+  getGeoDataCounts,
   grantCompSubscription,
+  restoreGeoData,
   revokeCompSubscription,
   searchUsersForAdmin,
   type CompDurationUnit,
@@ -62,11 +65,50 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
   }
 
   try {
-    // プレイヤー検索(名前/メール部分一致)
+    // プレイヤー検索(名前/メール/ID部分一致)。GEOデータ件数(総ハンド/除外済み)も添える。
     if (url.pathname === "/api/admin/users" && req.method === "GET") {
       const q = url.searchParams.get("q") ?? "";
       const users = await searchUsersForAdmin(q);
-      sendJson(res, 200, { users });
+      const geoCounts = await getGeoDataCounts(users.map((u) => u.id));
+      sendJson(res, 200, {
+        users: users.map((u) => ({ ...u, geo: geoCounts.get(u.id) ?? { totalHands: 0, excludedHands: 0 } })),
+      });
+      return true;
+    }
+
+    // GEOプレイラインの除外(論理削除)。from/to(ISO日時)指定でその期間のみ、未指定で全期間。
+    if (url.pathname === "/api/admin/geo-delete" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const userId = typeof body["userId"] === "string" ? body["userId"] : "";
+      const fromRaw = typeof body["from"] === "string" ? new Date(body["from"]) : null;
+      const toRaw = typeof body["to"] === "string" ? new Date(body["to"]) : null;
+      if (!userId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      if ((fromRaw && Number.isNaN(fromRaw.getTime())) || (toRaw && Number.isNaN(toRaw.getTime()))) {
+        sendJson(res, 400, { error: "from/to must be valid ISO datetimes" });
+        return true;
+      }
+      const count = await excludeGeoData({
+        userId,
+        ...(fromRaw ? { from: fromRaw } : {}),
+        ...(toRaw ? { to: toRaw } : {}),
+      });
+      sendJson(res, 200, { ok: true, count });
+      return true;
+    }
+
+    // GEOプレイラインの除外を全解除(復元)。
+    if (url.pathname === "/api/admin/geo-restore" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const userId = typeof body["userId"] === "string" ? body["userId"] : "";
+      if (!userId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      const count = await restoreGeoData(userId);
+      sendJson(res, 200, { ok: true, count });
       return true;
     }
 

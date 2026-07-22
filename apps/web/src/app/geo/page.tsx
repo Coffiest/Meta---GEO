@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   geoTreeApi,
@@ -27,6 +28,8 @@ import { Icon } from "@/components/Lobby";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { GeoComingSoon } from "@/components/geo/GeoComingSoon";
+import { PasscodeModal } from "@/components/PasscodeModal";
+import { APP_VERSION } from "@/lib/version";
 
 /**
  * /geo のゲート。DATABASEタブを開くたびに毎回「近日公開」プロモ画面(GeoComingSoon)を表示し、
@@ -58,6 +61,9 @@ function bucketLabelFor(street: Street, bucket: string): string {
 
 function GeoDatabase() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 最下部バージョン表記タップ→パスコード(2357)→管理者画面(GEOデータ削除等)への隠し導線。 */
+  const [adminGateOpen, setAdminGateOpen] = useState(false);
+  const router = useRouter();
   // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
   const [mode, setMode] = useState<"geo" | "gto">("geo");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
@@ -445,7 +451,35 @@ function GeoDatabase() {
             <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
           ) : null}
         </div>
+
+        {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等) */}
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={() => setAdminGateOpen(true)}
+            className="cursor-pointer text-[11px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-600"
+          >
+            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+          </button>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {adminGateOpen && (
+          <PasscodeModal
+            expected="2357"
+            title="管理者パスコード"
+            onSuccess={(code) => {
+              try {
+                sessionStorage.setItem("adminPasscode", code);
+              } catch {
+                /* sessionStorage不可でも/admin側で再入力できる */
+              }
+              router.push("/admin");
+            }}
+            onClose={() => setAdminGateOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {pendingStreet && (
