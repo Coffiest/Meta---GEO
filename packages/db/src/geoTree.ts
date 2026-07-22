@@ -147,6 +147,7 @@ const RAW_HAND_SELECT = {
       excludedFromGeo: true,
       isSmallBlind: true,
       isBigBlind: true,
+      user: { select: { isBot: true } },
     },
   },
   actions: {
@@ -158,9 +159,11 @@ const RAW_HAND_SELECT = {
 type RawHand = Awaited<ReturnType<typeof fetchRawHands>>[number];
 
 async function fetchRawHands() {
-  // 全ハンドを対象にする(Botのみの卓も含む)。GEOは「このアプリでプレイされた全プレイヤーの
-  // 全アクション」を集計対象とするため、人間在席ハンドへの絞り込みは行わない。
+  // BOTのアクションはGEO(実プレイヤーの戦略DB)の集計対象にしない。BOTのみの卓は人間の
+  // サンプルを1つも生まないので、あらかじめ「人間が最低1人いる卓」に絞り込んで取得量を削る。
+  // (BOT席の記録自体は、同卓の人間のライン再生=ポジション順の整合のために保持している。)
   return prisma.hand.findMany({
+    where: { seats: { some: { user: { isBot: false } } } },
     // 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
     // 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
     // 結果が不安定になりうる。
@@ -401,10 +404,12 @@ export async function getPreflopNode(params: {
   for (const hand of hands) {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
     if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
-    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、管理者が除外(論理削除)した席、
-    // および偏差値レンジ外のプレイヤーのみGEO集計から除外する。
+    // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
+    // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
-      hand.seats.filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+      hand.seats
+        .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
+        .map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) continue;
 
@@ -562,10 +567,12 @@ export async function getPostflopNode(params: {
     if (hand.board.length < requiredBoardLen) continue;
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
-    // 全プレイヤー(Bot含む)を集計対象にする。離席中(wasAway)の席、管理者が除外(論理削除)した席、
-    // および偏差値レンジ外のプレイヤーのみGEO集計から除外する。
+    // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
+    // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
-      hand.seats.filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId)).map((s) => [s.seatIndex, s.holeCards]),
+      hand.seats
+        .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
+        .map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) continue;
 
