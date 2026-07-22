@@ -42,8 +42,26 @@ export default function GeoPage() {
   return <GeoDatabase />;
 }
 
-const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
-const POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
+const FULL_PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+const FULL_POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
+
+/** GEOタブ: 人数ごとのブラインド基準ポジション並び(プリフロップのアクション順)。
+ * サーバー(geoTree)のブラインド基準ラベルと同じ命名: 3人=BTN/SB/BB、4人=UTG/BTN/SB/BB、
+ * ヘッズアップはボタンがSBを兼ねるため BTN(SB)。 */
+const GEO_PREFLOP_ORDER: Record<number, string[]> = {
+  2: ["BTN(SB)", "BB"],
+  3: ["BTN", "SB", "BB"],
+  4: ["UTG", "BTN", "SB", "BB"],
+  5: ["UTG", "CO", "BTN", "SB", "BB"],
+  6: FULL_PREFLOP_ORDER,
+};
+const GEO_POSTFLOP_ORDER: Record<number, string[]> = {
+  2: ["BB", "BTN(SB)"],
+  3: ["SB", "BB", "BTN"],
+  4: ["SB", "BB", "UTG", "BTN"],
+  5: ["SB", "BB", "UTG", "CO", "BTN"],
+  6: FULL_POSTFLOP_ORDER,
+};
 
 type LineStepWithMeta = LineStep & { geometricRatio?: number };
 
@@ -70,6 +88,10 @@ function GeoDatabase() {
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
+  /** GEOタブ: 卓の参加人数フィルタ(2〜6)。null=全人数。 */
+  const [playerCount, setPlayerCount] = useState<number | null>(null);
+  /** GTOタブ: 人数(2〜6)。6未満はアーリーポジションの自動フォールド接頭辞で表現する。 */
+  const [gtoPlayerCount, setGtoPlayerCount] = useState(6);
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
   const [ratingRange, setRatingRange] = useState({ min: RATING_MIN, max: RATING_MAX });
   const ratingFilter =
@@ -98,6 +120,28 @@ function GeoDatabase() {
 
   const bucketLabels: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
 
+  /** GTOタブで人数<6のとき、不在のアーリーポジションを自動フォールド扱いにする接頭辞。
+   * リクエスト時のみラインの先頭に付与し、画面のピルには表示しない。 */
+  const gtoFoldPrefix: LineStep[] =
+    mode === "gto" && gtoPlayerCount < 6
+      ? FULL_PREFLOP_ORDER.slice(0, 6 - gtoPlayerCount).map((p) => ({ position: p, bucket: "fold" }))
+      : [];
+
+  /** 現在のモード/人数でのプリフロップのアクション順(表示対象ポジション)。 */
+  function preflopOrder(): string[] {
+    if (mode === "gto") return FULL_PREFLOP_ORDER.slice(6 - gtoPlayerCount);
+    return GEO_PREFLOP_ORDER[playerCount ?? 6] ?? FULL_PREFLOP_ORDER;
+  }
+
+  /** 現在のモード/人数でのポストフロップのアクション順。 */
+  function postflopOrderAll(): string[] {
+    if (mode === "gto") {
+      const visible = new Set(preflopOrder());
+      return FULL_POSTFLOP_ORDER.filter((p) => visible.has(p));
+    }
+    return GEO_POSTFLOP_ORDER[playerCount ?? 6] ?? FULL_POSTFLOP_ORDER;
+  }
+
   function foldedBeforeStreet(streetKey: Street): Set<string> {
     const folded = new Set<string>();
     preflopLine.forEach((s) => {
@@ -118,7 +162,7 @@ function GeoDatabase() {
 
   function activePositions(streetKey: Street): string[] {
     const before = foldedBeforeStreet(streetKey);
-    const order = streetKey === "preflop" ? PREFLOP_ORDER : POSTFLOP_ORDER;
+    const order = streetKey === "preflop" ? preflopOrder() : postflopOrderAll();
     return order.filter((p) => !before.has(p));
   }
 
@@ -144,10 +188,22 @@ function GeoDatabase() {
     const request =
       mode === "gto"
         ? street === "preflop"
-          ? geoTreeApi.gtoNode({ variant: "full", line: preflopLine, stackBucket: gtoBucket, band: gtoBand })
-          : geoTreeApi.gtoPostflopNode({ stackBucket: gtoBucket, band: gtoBand, line: preflopLine, board, postflopLine: streetLines[street] })
+          ? geoTreeApi.gtoNode({ variant: "full", line: [...gtoFoldPrefix, ...preflopLine], stackBucket: gtoBucket, band: gtoBand })
+          : geoTreeApi.gtoPostflopNode({
+              stackBucket: gtoBucket,
+              band: gtoBand,
+              line: [...gtoFoldPrefix, ...preflopLine],
+              board,
+              postflopLine: streetLines[street],
+            })
         : street === "preflop"
-        ? geoTreeApi.preflopNode({ stackBucket, bubbleStage, line: preflopLine, ratingRange: ratingFilter })
+        ? geoTreeApi.preflopNode({
+            stackBucket,
+            bubbleStage,
+            line: preflopLine,
+            ratingRange: ratingFilter,
+            ...(playerCount !== null ? { playerCount } : {}),
+          })
         : geoTreeApi.postflopNode({
             stackBucket,
             bubbleStage,
@@ -156,6 +212,7 @@ function GeoDatabase() {
             street,
             postflopLine: streetLines[street],
             ratingRange: ratingFilter,
+            ...(playerCount !== null ? { playerCount } : {}),
           });
 
     request
@@ -182,7 +239,7 @@ function GeoDatabase() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stackBucket, gtoStackBb, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, pollTick]);
+  }, [mode, stackBucket, gtoStackBb, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, playerCount, gtoPlayerCount, pollTick]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -196,10 +253,8 @@ function GeoDatabase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node, street, pendingStreet, dismissedStreet, justPickedBoard, preflopLine, streetLines, board]);
 
-  function switchMode(next: "geo" | "gto") {
-    if (next === mode) return;
-    // 切替時はラインをリセットしてプリフロップ先頭へ戻す。
-    setMode(next);
+  /** ラインをリセットしてプリフロップ先頭へ戻す(モード/人数の切替時)。 */
+  function resetLines() {
     setStreet("preflop");
     setPreflopLine([]);
     setBoard([]);
@@ -207,6 +262,24 @@ function GeoDatabase() {
     setPendingStreet(null);
     setDismissedStreet(null);
     setJustPickedBoard(false);
+  }
+
+  function switchMode(next: "geo" | "gto") {
+    if (next === mode) return;
+    setMode(next);
+    resetLines();
+  }
+
+  function changePlayerCount(next: number | null) {
+    if (next === playerCount) return;
+    setPlayerCount(next);
+    resetLines();
+  }
+
+  function changeGtoPlayerCount(next: number) {
+    if (next === gtoPlayerCount) return;
+    setGtoPlayerCount(next);
+    resetLines();
   }
 
   function selectBucket(bucket: string) {
@@ -289,7 +362,7 @@ function GeoDatabase() {
     });
   }
 
-  const items: PillBarItem[] = [...buildPositionPills("preflop", PREFLOP_ORDER, preflopLine, street === "preflop")];
+  const items: PillBarItem[] = [...buildPositionPills("preflop", preflopOrder(), preflopLine, street === "preflop")];
   // 2巡目(オープナーがスクイーズ/3betに応答)対応。1周モデルの buildPositionPills は各ポジションを
   // 1回しか描かないため、2回目以降のアクション(オープナーのvs3bet応答=fold/call/4bet)を明示的に足す。
   // 標準ラインでは preflopLine に重複ポジションが無く、この追加は空になるので既存挙動は不変(GEO側も安全)。
@@ -383,8 +456,8 @@ function GeoDatabase() {
                   </div>
                   <div className="text-[11px] font-bold text-ink-950 whitespace-nowrap">
                     {mode === "gto"
-                      ? GTO_STACK_LABELS[gtoStackBb]
-                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+                      ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
+                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount !== null ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
                   </div>
                 </motion.button>
                 <PositionPillBar
@@ -500,10 +573,14 @@ function GeoDatabase() {
             gtoStackBb={gtoStackBb}
             bubbleStage={bubbleStage}
             ratingRange={ratingRange}
+            playerCount={playerCount}
+            gtoPlayerCount={gtoPlayerCount}
             onChangeStackBucket={setStackBucket}
             onChangeGtoStackBb={setGtoStackBb}
             onChangeBubbleStage={setBubbleStage}
             onChangeRatingRange={setRatingRange}
+            onChangePlayerCount={changePlayerCount}
+            onChangeGtoPlayerCount={changeGtoPlayerCount}
             onClose={() => setSettingsOpen(false)}
           />
         )}

@@ -72,10 +72,14 @@ export function GeoSettingsModal({
   gtoStackBb,
   bubbleStage,
   ratingRange,
+  playerCount,
+  gtoPlayerCount,
   onChangeStackBucket,
   onChangeGtoStackBb,
   onChangeBubbleStage,
   onChangeRatingRange,
+  onChangePlayerCount,
+  onChangeGtoPlayerCount,
   onClose,
 }: {
   mode?: "geo" | "gto";
@@ -83,10 +87,16 @@ export function GeoSettingsModal({
   gtoStackBb: GtoStack;
   bubbleStage: BubbleStage;
   ratingRange: { min: number; max: number };
+  /** GEOタブの人数フィルタ。null=全人数(フィルタなし)。 */
+  playerCount: number | null;
+  /** GTOタブの人数(2〜6)。少人数はアーリーポジションの自動フォールドで表現する。 */
+  gtoPlayerCount: number;
   onChangeStackBucket: (v: StackBucket) => void;
   onChangeGtoStackBb: (v: GtoStack) => void;
   onChangeBubbleStage: (v: BubbleStage) => void;
   onChangeRatingRange: (r: { min: number; max: number }) => void;
+  onChangePlayerCount: (v: number | null) => void;
+  onChangeGtoPlayerCount: (v: number) => void;
   onClose: () => void;
 }) {
   const isGto = mode === "gto";
@@ -149,6 +159,45 @@ export function GeoSettingsModal({
           {isGto && (
             <p className="mt-1.5 text-[10px] text-ink-400">選んだスタック深度のGTO混合戦略(RFI/ディフェンス/3bet)を表示します。</p>
           )}
+        </div>
+
+        {/* 人数(2〜6)。GEOは実測ハンドの参加人数フィルタ(全人数も選べる)、
+            GTOは少人数卓(アーリーポジションがフォールド済みのツリー)の表示。 */}
+        <div className={isGto ? "mt-5" : "mb-5"}>
+          <p className="text-[11px] tracking-wide text-ink-500 uppercase font-bold mb-2">人数</p>
+          <div className="flex flex-wrap gap-1.5">
+            {!isGto && (
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => onChangePlayerCount(null)}
+                className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
+                  playerCount === null ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
+                }`}
+              >
+                全体
+              </motion.button>
+            )}
+            {[2, 3, 4, 5, 6].map((n) => {
+              const selected = isGto ? gtoPlayerCount === n : playerCount === n;
+              return (
+                <motion.button
+                  key={n}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => (isGto ? onChangeGtoPlayerCount(n) : onChangePlayerCount(n))}
+                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
+                    selected ? "bg-ink-950 text-white border-ink-950" : "bg-white text-ink-700 border-ink-300"
+                  }`}
+                >
+                  {n}人
+                </motion.button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[10px] text-ink-400">
+            {isGto
+              ? "少人数はアーリーポジションがフォールドした局面のGTO戦略を表示します。"
+              : "その人数でプレイされたハンドだけを集計します(変更するとラインはリセット)。"}
+          </p>
         </div>
 
         {/* ICM・偏差値はGEO(実測DB)専用フィルタ。GTOタブでは非表示。 */}

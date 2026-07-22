@@ -398,6 +398,84 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(foldOption!.count).toBeGreaterThanOrEqual(1);
   });
 
+  it("filters by playerCount and names 3-handed positions BTN/SB/BB (blind-based labels)", async () => {
+    const users = await Promise.all(
+      Array.from({ length: 3 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-3max-${i}`, isBot: false } })),
+    );
+    createdUserIds.push(...users.map((u) => u.id));
+
+    // 1,600チップ/200bb = 8bb -> "5-10"バケット(他テストと分離)。
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 1_600, status: "running", gameType: "sng" },
+    });
+    createdTournamentIds.push(tournament.id);
+    await prisma.tournamentEntry.createMany({
+      data: users.map((u, i) => ({ tournamentId: tournament.id, userId: u.id, seatIndex: i })),
+    });
+
+    // 3人卓: seat0=BTN, seat1=SB, seat2=BB。プリフロップはBTNが最初にアクション。
+    const hand = new HandEngine({
+      seats: users.map((u, i) => ({ seatIndex: i, playerId: u.id, stack: 1_600 })),
+      seatCount: 6,
+      buttonFixedPos: 0,
+      smallBlindSeat: 1,
+      bigBlindSeat: 2,
+      smallBlind: 100,
+      bigBlind: 200,
+      bbAnte: 0,
+    });
+    hand.applyAction(0, { kind: "raise", toAmount: 440 });
+    hand.applyAction(1, { kind: "fold" });
+    hand.applyAction(2, { kind: "fold" });
+    expect(hand.isHandComplete()).toBe(true);
+
+    await recordHand({
+      tournamentId: tournament.id,
+      handNumber: 1,
+      buttonFixedPos: 0,
+      levelSmallBlind: 100,
+      levelBigBlind: 200,
+      levelAnte: 0,
+      seats: users.map((u, i) => ({
+        seatIndex: i,
+        userId: u.id,
+        startingStack: 1_600,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+      })),
+      hand,
+    });
+
+    // 人数=3: 3人卓のハンドが対象になり、rootは(HJ等ではなく)正しくBTN。
+    const { node: rootNode } = await getPreflopNode({
+      stackBucket: "5-10",
+      bubbleStage: "normal",
+      line: [],
+      playerCount: 3,
+    });
+    expect(rootNode.position).toBe("BTN");
+    expect(rootNode.sampleSize).toBeGreaterThanOrEqual(1);
+    expect(rootNode.options.find((o) => o.bucket === "raise2-2.5")).toBeDefined();
+
+    // BTNのオープンに対する次のノードはSB。
+    const { node: sbNode } = await getPreflopNode({
+      stackBucket: "5-10",
+      bubbleStage: "normal",
+      line: [{ position: "BTN", bucket: "raise2-2.5" }],
+      playerCount: 3,
+    });
+    expect(sbNode.position).toBe("SB");
+
+    // 人数=6ではこの3人卓のハンドは対象外。
+    const { node: sixMaxNode } = await getPreflopNode({
+      stackBucket: "5-10",
+      bubbleStage: "normal",
+      line: [],
+      playerCount: 6,
+    });
+    expect(sixMaxNode.sampleSize).toBe(0);
+  });
+
   it("returns an empty postflop node when the exact board never occurred", async () => {
     const { node } = await getPostflopNode({
       stackBucket: "30+",

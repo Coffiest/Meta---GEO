@@ -154,8 +154,14 @@ export interface RatingRange {
 }
 
 export const geoTreeApi = {
-  preflopNode: (params: { stackBucket: StackBucket; bubbleStage: BubbleStage; line: LineStep[]; ratingRange?: RatingRange }) =>
-    postJson<NodeResult>("/api/geo-tree/preflop-node", params),
+  preflopNode: (params: {
+    stackBucket: StackBucket;
+    bubbleStage: BubbleStage;
+    line: LineStep[];
+    ratingRange?: RatingRange;
+    /** 卓の参加人数(2〜6)。未指定なら全人数。 */
+    playerCount?: number;
+  }) => postJson<NodeResult>("/api/geo-tree/preflop-node", params),
   postflopNode: (params: {
     stackBucket: StackBucket;
     bubbleStage: BubbleStage;
@@ -164,6 +170,8 @@ export const geoTreeApi = {
     street: "flop" | "turn" | "river";
     postflopLine: LineStep[];
     ratingRange?: RatingRange;
+    /** 卓の参加人数(2〜6)。未指定なら全人数。 */
+    playerCount?: number;
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
   /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。
    * band を渡すとバンド系ノード(RFI/vsOpen/vs3bet)はそのバンドを直接使う(実スタック選択用)。 */
