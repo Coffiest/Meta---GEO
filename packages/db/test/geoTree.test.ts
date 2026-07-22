@@ -103,10 +103,11 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(emptyNode.sampleSize).toBe(0);
   });
 
-  it("counts bot actions as first-class GEO samples on a bot-mixed table", async () => {
-    // GEOは「全プレイヤー(Bot含む)の全アクション」を集計対象にする。BBだけ人間・他5席がbotの
-    // 卓でも、root node(line=[])は正しくUTGを指し、かつUTG(bot)のオープンレイズが実測サンプル
-    // として計上される。ライン追跡のシーケンス整合(ポジション順)の回帰確認も兼ねる。
+  it("excludes bot actions from GEO samples but keeps line integrity on a bot-mixed table", async () => {
+    // GEOは実プレイヤーの戦略DBなので、BOTのアクションはサンプルに計上しない。BBだけ人間・
+    // 他5席がbotの卓では、root node(line=[])はUTG(bot)のオープンなのでサンプル0だが、ポジション名は
+    // 正しくUTGを指す(BOT席はライン順の整合のためシーケンスに残す)。bot達のラインを辿った先の
+    // 人間(BB)のコールは正しく計上される。
     const humanUser = await prisma.user.create({ data: { displayName: "GeoTreeTest-BBOnly", isBot: false } });
     const botUsers = await Promise.all(
       Array.from({ length: 5 }, (_, i) => prisma.user.create({ data: { displayName: `GeoTreeTest-Bot-${i}`, isBot: true } })),
@@ -171,13 +172,10 @@ describe("geoTree (integration, real Postgres)", () => {
     });
 
     // root node(line=[])は、たまたま最初に人間が座っていたBBではなく、正しくUTGを指す。
-    // UTG(bot)のオープンレイズも全プレイヤー集計の対象なので、サンプルとして計上される。
+    // ただしUTGはbotなのでサンプルは0(BOTのオープンレイズは計上されない)。
     const { node: rootNode } = await getPreflopNode({ stackBucket: "10-15", bubbleStage: "normal", line: [] });
     expect(rootNode.position).toBe("UTG");
-    expect(rootNode.sampleSize).toBeGreaterThanOrEqual(1);
-    const utgRaise = rootNode.options.find((o) => o.bucket === "raise2-2.5");
-    expect(utgRaise).toBeDefined();
-    expect(utgRaise!.count).toBeGreaterThanOrEqual(1);
+    expect(rootNode.sampleSize).toBe(0);
 
     // bot達の実際のアクションでラインを辿ってBBまで到達すると、人間(BB)の実測コールが見える。
     const { node: bbNode } = await getPreflopNode({
