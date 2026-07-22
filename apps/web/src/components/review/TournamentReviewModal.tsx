@@ -26,6 +26,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor } from "@/components/geo/colors";
+import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { useCountUp } from "@/lib/useCountUp";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -124,8 +125,56 @@ function ScoreRing({ score }: { score: number | null }) {
   );
 }
 
-/** heroの意思決定パネル(バッジ + アクション名 + EV損 + GTO推奨チップ)。 */
-function DecisionPanel({ d }: { d: ReviewedDecision }) {
+/** GEO母集団解(頻度チップ + タップで169レンジ表を展開)。heroの決定でn≥5000のときのみ。 */
+function GeoSolution({ d }: { d: ReviewedDecision }) {
+  const [open, setOpen] = useState(false);
+  if (!d.geo) return null;
+  const geo = d.geo;
+  const bucketTable = d.street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  const shown = [...geo.options].filter((o) => o.frequency > 0).sort((a, b) => b.frequency - a.frequency);
+  return (
+    <div className="mt-2.5 rounded-2xl bg-mint-500/[0.08] px-3 py-2.5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-600">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-3 w-3">
+            <path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          GEO解
+        </span>
+        <span className="text-[11px] font-semibold text-ink-500 tabular-nums">母集団 n={geo.sampleSize.toLocaleString()}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.4}
+          className={`ml-auto h-4 w-4 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {shown.map((o) => (
+          <div key={o.bucket} className="rounded-full px-2.5 py-1 text-white" style={{ background: bucketColor(o.bucket) }}>
+            <span className="text-[11px] font-bold">{bucketLabel(d.street, o.bucket)}</span>
+            <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(o.frequency * 100)}%</span>
+          </div>
+        ))}
+      </div>
+      {open && (
+        <div className="mt-2.5">
+          <HandClassMatrix matrix={geo.matrix} bucketLabels={bucketTable} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 意思決定パネル(バッジ + アクション名 + EV損 + GTO推奨チップ + GEO母集団解)。主語はhero=あなた/相手=名前。 */
+function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string }) {
   if (d.classification === null) {
     if (d.outOfScopeReason === "solving") {
       return (
@@ -137,7 +186,7 @@ function DecisionPanel({ d }: { d: ReviewedDecision }) {
     }
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold text-ink-700">あなた: {d.actionName}</span>
+        <span className="text-[13px] font-semibold text-ink-700">{subject}: {d.actionName}</span>
         <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-semibold text-ink-500">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3 shrink-0">
             <circle cx="12" cy="12" r="9" />
@@ -153,7 +202,7 @@ function DecisionPanel({ d }: { d: ReviewedDecision }) {
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <ClassificationBadge classification={d.classification} showLabel size={24} />
-        <span className="text-[14px] font-bold text-ink-950">あなた: {d.actionName}</span>
+        <span className="text-[14px] font-bold text-ink-950">{subject}: {d.actionName}</span>
         {d.evLossBb !== null && d.evLossBb > 0.02 && (
           <span className="rounded-full bg-crimson-500/10 px-2 py-0.5 text-[11px] font-bold text-crimson-500 tabular-nums">
             EV −{d.evLossBb.toFixed(2)}bb
@@ -176,6 +225,7 @@ function DecisionPanel({ d }: { d: ReviewedDecision }) {
             ))}
         </div>
       )}
+      <GeoSolution d={d} />
     </div>
   );
 }
@@ -472,8 +522,15 @@ export function TournamentReviewModal({
                   </div>
                 )}
               </div>
-            ) : step.actorIsHero && step.decision ? (
-              <DecisionPanel d={step.decision} />
+            ) : step.decision ? (
+              <DecisionPanel
+                d={step.decision}
+                subject={
+                  step.actorIsHero
+                    ? "あなた"
+                    : playersFromTimeline(currentHand.timeline)[step.actorSeat]?.displayName ?? `Seat ${step.actorSeat + 1}`
+                }
+              />
             ) : step.actorIsHero ? (
               <p className="text-[13px] font-semibold text-ink-500">
                 あなた: {ACTION_KIND_LABEL[step.actionKind] ?? step.actionKind}

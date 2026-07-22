@@ -14,12 +14,15 @@ import { getVsOpenCallRange } from "./preflopVsOpenBaseline.js";
 import { bandOfStack } from "./preflopEvModel.js";
 import {
   classifyDecision,
+  detectGeoExploit,
   gtoAccuracyPct,
   isMistake,
+  EXPLOIT,
   type Classification,
   type DifficultActionKind,
   type GtoActionEV,
 } from "./reviewClassify.js";
+import { getGeoNodeForReviewSpot, type HandClassMatrixResult } from "./geoTree.js";
 
 /**
  * 局後検討のオーケストレーション。1ハンド×1hero(自分)の意思決定を抽出→GTO基準で分類→永続化する。
@@ -158,12 +161,21 @@ function actionNameOf(decision: HeroDecision, spot: PreflopSpot | null): string 
   return k;
 }
 
+/** GEO母集団(n≥5000)の同一スポットのソリューション。棋譜解析で頻度チップ+169レンジ表を出す。 */
+export interface GeoDecisionInfo {
+  sampleSize: number;
+  options: { bucket: string; frequency: number }[];
+  matrix: HandClassMatrixResult;
+}
+
 export interface ReviewedDecision {
   sequenceNumber: number;
   street: string;
   analyzable: boolean;
   outOfScopeReason: string | null;
   heroPos: string;
+  /** この決定を行った席番号(全プレイヤー評価の紐付け・再生バッジ用)。 */
+  seatIndex: number;
   effStackBb: number;
   potBb: number;
   facingSizeBb: number | null;
@@ -172,6 +184,8 @@ export interface ReviewedDecision {
   evLossBb: number | null;
   classification: Classification | null;
   actionName: string;
+  /** GEO母集団解(n≥5000のときのみ非null)。頻度+169レンジ表。heroの決定にのみ付く。 */
+  geo: GeoDecisionInfo | null;
 }
 
 export interface ReviewResult {
@@ -287,6 +301,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       analyzable: d.analyzable,
       outOfScopeReason,
       heroPos: d.heroPos,
+      seatIndex: heroSeat,
       effStackBb: d.effStackBb,
       potBb: d.potBb,
       facingSizeBb: d.facingSizeBb,
@@ -295,6 +310,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       evLossBb,
       classification,
       actionName: actionNameOf(d, spot),
+      geo: null,
     };
   });
 }
@@ -367,6 +383,48 @@ export async function analyzeHand(handId: string, heroUserId: string): Promise<R
   if (!analyzed) return null;
   void heroSeatEntry;
   return { handId, heroUserId, decisions: analyzed.decisions, ...analyzed.summary };
+}
+
+/**
+ * heroの各分類済み決定について、GEO母集団(n≥minGeoSamples)の同一スポットの解を引いて decision.geo に
+ * 格納し、エクスプロイトが成立していれば分類を「芸術的」に上書きする。
+ * GEO集計は全ハンド走査で高コストなため、heroのみ・解析対象(analyzable・分類済み)の決定に限定して呼ぶ。
+ * fetchRawHandsの短TTLキャッシュにより、同一レビュー内の多数の決定はDB往復を共有する。
+ */
+async function enrichHeroDecisionsWithGeo(
+  handId: string,
+  playerCount: number,
+  decisions: ReviewedDecision[],
+): Promise<void> {
+  for (const d of decisions) {
+    if (!d.analyzable || d.classification === null || d.gtoActions === null) continue;
+    let geoNode: Awaited<ReturnType<typeof getGeoNodeForReviewSpot>> = null;
+    try {
+      geoNode = await getGeoNodeForReviewSpot({
+        handId,
+        sequenceNumber: d.sequenceNumber,
+        street: d.street,
+        playerCount,
+      });
+    } catch (err) {
+      console.error("[review] GEO node fetch failed:", err);
+      geoNode = null;
+    }
+    if (!geoNode || geoNode.sampleSize < EXPLOIT.minGeoSamples) continue;
+    const options = geoNode.options.map((o) => ({ bucket: o.bucket, frequency: o.frequency }));
+    d.geo = { sampleSize: geoNode.sampleSize, options, matrix: geoNode.matrix };
+    // エクスプロイト成立 → 最上位評価「芸術的」に上書き(全ストリート対象)。
+    if (
+      detectGeoExploit({
+        gtoActions: d.gtoActions,
+        geoOptions: options,
+        chosenBucket: d.actionTaken.bucket,
+        evLossBb: d.evLossBb ?? 0,
+      })
+    ) {
+      d.classification = "artistic";
+    }
+  }
 }
 
 /** 解析結果を HandReview / ReviewDecision に永続化(upsert)する。 */
@@ -446,6 +504,8 @@ export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
   /** 通し再生用のタイムライン。 */
   timeline: ReviewHandTimeline;
+  /** hero以外の全プレイヤー(BOT含む)の分類済み決定。再生バッジ専用。要約件数には含めない(自分の分だけ)。 */
+  villainDecisions: ReviewedDecision[];
 }
 
 export interface TournamentReview {
@@ -576,11 +636,20 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     if (isNonReviewableHand(analyzed.decisions)) continue;
     const stillSolving = await applySavedSolverResults(h.id, heroUserId, analyzed.decisions);
     anySolving = anySolving || stillSolving;
+    // GEO母集団解(n≥5000)を引いて decision.geo に格納し、エクスプロイト成立なら「芸術的」に上書き(heroのみ)。
+    // summarize より前に行い、要約件数・GTO精度に芸術的の上書きを反映する。
+    await enrichHeroDecisionsWithGeo(h.id, extractHand.seats.length, analyzed.decisions);
+    // 全プレイヤー評価: hero以外の着席者(BOT含む)の分類済み決定を集める(再生バッジ専用。要約には含めない)。
+    const otherUserIds = [...new Set(h.seats.map((s) => s.userId))].filter((uid) => uid !== heroUserId);
+    const villainDecisions = otherUserIds.flatMap(
+      (uid) => analyzeExtractedHand(extractHand, uid)?.decisions.filter((d) => d.classification !== null) ?? [],
+    );
     const summary = summarize(analyzed.decisions);
     reviewed.push({
       handId: h.id,
       heroUserId,
       decisions: analyzed.decisions,
+      villainDecisions,
       ...summary,
       handNumber: h.handNumber,
       timeline: {

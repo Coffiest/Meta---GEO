@@ -65,7 +65,10 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
   const t = hand.timeline;
   const heroSeatEntry = t.seats.find((s) => s.userId === heroUserId);
   const heroSeat = heroSeatEntry?.seatIndex ?? -1;
-  const decisionBySeq = new Map(hand.decisions.map((d) => [d.sequenceNumber, d]));
+  // hero + 全プレイヤー(villain)の決定を1つのマップに統合(再生の各アクションに評価バッジを付ける)。
+  const decisionBySeq = new Map<number, ReviewedDecision>();
+  for (const d of hand.decisions) decisionBySeq.set(d.sequenceNumber, d);
+  for (const d of hand.villainDecisions) decisionBySeq.set(d.sequenceNumber, d);
 
   // 席ごとの畳み込み状態。
   const stack = new Map<number, number>();
@@ -195,7 +198,8 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
       seatAction,
       actionKind: a.kind,
       street: a.street,
-      decision: a.seatIndex === heroSeat ? decisionBySeq.get(a.sequenceNumber) ?? null : null,
+      // hero/villain問わず、そのアクションの評価(あれば)を付ける。
+      decision: decisionBySeq.get(a.sequenceNumber) ?? null,
     });
   }
 
@@ -218,8 +222,8 @@ export function buildTournamentReplay(hands: TournamentReviewHand[], heroUserId:
       } else {
         stepIndexByDecision[`${step.handId}:${step.sequenceNumber}`] = idx;
         const c = step.decision?.classification;
-        // ピンは ? / ?? / !! のみ(確定仕様)。
-        if (c === "mistake" || c === "blunder" || c === "artistic") {
+        // ピン(シークバーのマーカー)は ? / ?? / !! のみ、かつ hero(自分)の決定だけ(全員入れると煩雑)。
+        if (step.actorIsHero && (c === "mistake" || c === "blunder" || c === "artistic")) {
           pins.push({ stepIndex: idx, classification: c });
         }
       }

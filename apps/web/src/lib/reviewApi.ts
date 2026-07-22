@@ -1,4 +1,5 @@
 import type { Classification } from "./classification";
+import type { HandClassMatrixResult } from "./geoApi";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -8,12 +9,21 @@ export interface GtoActionEV {
   evBb: number;
 }
 
+/** GEO母集団(n≥5000)の同一スポットのソリューション(頻度チップ+169レンジ表)。 */
+export interface GeoDecisionInfo {
+  sampleSize: number;
+  options: { bucket: string; frequency: number }[];
+  matrix: HandClassMatrixResult;
+}
+
 export interface ReviewedDecision {
   sequenceNumber: number;
   street: string;
   analyzable: boolean;
   outOfScopeReason: string | null;
   heroPos: string;
+  /** この決定を行った席番号(全プレイヤー評価の再生バッジ紐付け用)。 */
+  seatIndex: number;
   effStackBb: number;
   potBb: number;
   facingSizeBb: number | null;
@@ -22,6 +32,8 @@ export interface ReviewedDecision {
   evLossBb: number | null;
   classification: Classification | null;
   actionName: string;
+  /** GEO母集団解(n≥5000のときのみ非null)。heroの決定にのみ付く。 */
+  geo: GeoDecisionInfo | null;
 }
 
 export interface ReviewResult {
@@ -56,6 +68,8 @@ export interface ReviewHandTimeline {
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
   timeline: ReviewHandTimeline;
+  /** hero以外の全プレイヤー(BOT含む)の分類済み決定。再生バッジ専用。要約件数には含めない。 */
+  villainDecisions: ReviewedDecision[];
 }
 
 export interface TournamentReview {

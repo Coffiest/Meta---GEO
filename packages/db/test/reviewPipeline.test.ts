@@ -182,4 +182,32 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     expect(r.summary.gtoAccuracy!).toBeLessThan(60); // AAフォールドで精度は大きく下がる
     expect(r.summary.mistakeCount).toBe(1);
   });
+
+  it("全プレイヤー評価: 各決定に席番号が付き、プレイヤーごとに独立して解析できる", () => {
+    seq = 0;
+    const hand: ExtractHand = {
+      buttonFixedPos: 0,
+      levelBigBlind: BB,
+      board: [],
+      seats: seats(10, 2, ["As", "Ah"]),
+      actions: [
+        ...blindsAndAnte(),
+        act(3, "preflop", "allIn", 10 * BB, 250), // UTG(seat3)ジャム
+        act(4, "preflop", "fold", null, 1250),
+        act(5, "preflop", "fold", null, 1250),
+        act(0, "preflop", "fold", null, 1250),
+        act(1, "preflop", "fold", null, 1250),
+        act(2, "preflop", "fold", null, 1250), // hero(BB=seat2) AAフォールド
+      ],
+    };
+    // hero(seat2)の決定は席2、geoは未エンリッチでnull。
+    const hero = analyzeExtractedHand(hand, "u2")!;
+    const heroFold = hero.decisions.find((x) => x.actionTaken.kind === "fold")!;
+    expect(heroFold.seatIndex).toBe(2);
+    expect(heroFold.geo).toBeNull();
+    // 相手(seat3=UTG)を独立に解析するとその席のジャム決定が得られる(全プレイヤー評価の基礎)。
+    const villain = analyzeExtractedHand(hand, "u3")!;
+    const villainJam = villain.decisions.find((x) => x.actionTaken.kind === "allIn");
+    expect(villainJam?.seatIndex).toBe(3);
+  });
 });
