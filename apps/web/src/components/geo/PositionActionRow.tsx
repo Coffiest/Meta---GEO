@@ -24,9 +24,9 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-ink-200 bg-ink-50 p-6 text-center"
+        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
       >
-        <p className="text-sm text-ink-600">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
+        <p className="text-sm text-navy-300">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
     );
   }
@@ -36,10 +36,10 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-ink-200 bg-ink-50 p-6 text-center"
+        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
       >
-        <p className="text-[11px] tracking-[0.2em] text-ink-500 uppercase mb-1 font-bold">{node.position}</p>
-        <p className="text-sm text-ink-400">サンプルなし</p>
+        <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase mb-1 font-bold">{node.position}</p>
+        <p className="text-sm text-navy-500">サンプルなし</p>
       </motion.div>
     );
   }
