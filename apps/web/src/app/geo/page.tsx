@@ -446,24 +446,28 @@ function GeoDatabase() {
     remainingActiveCount(street) >= 2;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-navy-950">
       <div className="max-w-3xl mx-auto">
         <Header
+          tone="dark"
           left={
             <div className="w-full">
               <div className="mb-2 flex items-center justify-between gap-2">
+                {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
                 <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">Database</p>
+                  <span className="h-2 w-2 rounded-full bg-gold-500 shadow-[0_0_8px_theme(colors.gold.500)]" />
+                  <p className="text-[15px] font-black tracking-tight text-navy-50 leading-none">
+                    GEO<span className="text-gold-500"> Database</span>
+                  </p>
                 </div>
                 {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
-                <div className="flex rounded-lg border border-ink-950 overflow-hidden text-[10px] font-black">
+                <div className="flex rounded-lg border border-navy-700 overflow-hidden text-[10px] font-black">
                   {(["geo", "gto"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => switchMode(m)}
                       className={`px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
-                        mode === m ? "bg-ink-950 text-white" : "bg-white text-ink-500 active:bg-ink-50"
+                        mode === m ? "bg-gold-500 text-navy-950" : "bg-navy-900 text-navy-400 active:bg-navy-800"
                       }`}
                     >
                       {m}
@@ -478,14 +482,14 @@ function GeoDatabase() {
                 <motion.button
                   onClick={() => setSettingsOpen(true)}
                   whileTap={{ scale: 0.94 }}
-                  className="shrink-0 flex flex-col justify-center rounded-xl border border-ink-950 bg-white px-3 py-1.5 text-left active:bg-ink-50 transition-colors"
+                  className="shrink-0 flex flex-col justify-center rounded-xl border border-navy-700 bg-navy-900 px-3 py-1.5 text-left active:bg-navy-800 transition-colors"
                   aria-label="詳細設定を変更"
                 >
-                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-ink-500">
+                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-navy-400">
                     <Icon name="settings" className="h-3 w-3" />
                     設定
                   </div>
-                  <div className="text-[11px] font-bold text-ink-950 whitespace-nowrap">
+                  <div className="text-[11px] font-bold text-navy-50 whitespace-nowrap">
                     {mode === "gto"
                       ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
                       : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount !== null ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
@@ -507,15 +511,29 @@ function GeoDatabase() {
 
       <div className="max-w-3xl mx-auto px-4 pb-28">
         {error && (
-          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3 mb-4">{error}</div>
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-400 text-sm px-4 py-3 mb-4">{error}</div>
+        )}
+
+        {/* サンプル数が少ない(n<5000)実測ノードの注意書き。レンジ表自体は表示するが、統計的に不十分な旨を明示する。 */}
+        {node && !node.isGto && node.sampleSize > 0 && node.sampleSize < 5000 && (
+          <div className="mt-1 flex items-start gap-2.5 rounded-2xl border border-gold-500/40 bg-gold-500/10 px-4 py-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="mt-0.5 h-4 w-4 shrink-0 text-gold-500" aria-hidden>
+              <path d="M12 4.5 2.5 20h19L12 4.5Z" strokeLinejoin="round" />
+              <path d="M12 10v4.5" strokeLinecap="round" />
+              <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none" />
+            </svg>
+            <p className="text-[12px] leading-snug text-gold-100">
+              このノードはサンプル数が少なめです（n={node.sampleSize.toLocaleString()}）。レンジ表として不十分なため、参考程度にご覧ください。
+            </p>
+          </div>
         )}
 
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
 
         <div className="mt-3">
           {loading || solving ? (
-            <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-center text-sm text-ink-500">
-              <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+            <div className="flex items-center justify-center gap-2 rounded-2xl border border-navy-800 bg-navy-900 p-8 text-center text-sm text-navy-400">
+              <span className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
               {solving
                 ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
                 : reconnecting
@@ -526,13 +544,13 @@ function GeoDatabase() {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-ink-950 bg-white p-6 text-center"
+              className="rounded-2xl border border-navy-700 bg-navy-900 p-6 text-center"
             >
-              <p className="text-sm text-ink-700 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
+              <p className="text-sm text-navy-300 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={retryBoard}
-                className="rounded-full bg-ink-950 text-white text-[12px] font-bold px-5 py-2.5"
+                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-bold px-5 py-2.5"
               >
                 板面を選び直す
               </motion.button>
@@ -541,16 +559,16 @@ function GeoDatabase() {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-ink-950 bg-white p-6 text-center"
+              className="rounded-2xl border border-navy-700 bg-navy-900 p-6 text-center"
             >
-              <p className="text-sm text-ink-700 mb-3">次のストリートに進むにはボードを選択してください。</p>
+              <p className="text-sm text-navy-300 mb-3">次のストリートに進むにはボードを選択してください。</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setDismissedStreet(null);
                   setPendingStreet(nextStreetOf(street));
                 }}
-                className="rounded-full bg-ink-950 text-white text-[12px] font-bold px-5 py-2.5"
+                className="rounded-full bg-gold-500 text-navy-950 text-[12px] font-bold px-5 py-2.5"
               >
                 ボードを選択
               </motion.button>
@@ -564,7 +582,7 @@ function GeoDatabase() {
         <div className="mt-10 flex justify-center">
           <button
             onClick={() => setAdminGateOpen(true)}
-            className="cursor-pointer text-[11px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-600"
+            className="cursor-pointer text-[11px] font-medium tracking-wide text-navy-500 transition-colors active:text-navy-300"
           >
             Poker ART v{APP_VERSION} ・ © 2026 Poker ART
           </button>

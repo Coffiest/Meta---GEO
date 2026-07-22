@@ -157,9 +157,7 @@ const RAW_HAND_SELECT = {
   },
 };
 
-type RawHand = Awaited<ReturnType<typeof fetchRawHands>>[number];
-
-async function fetchRawHands() {
+async function fetchRawHandsUncached() {
   // BOTのアクションはGEO(実プレイヤーの戦略DB)の集計対象にしない。BOTのみの卓は人間の
   // サンプルを1つも生まないので、あらかじめ「人間が最低1人いる卓」に絞り込んで取得量を削る。
   // (BOT席の記録自体は、同卓の人間のライン再生=ポジション順の整合のために保持している。)
@@ -171,6 +169,30 @@ async function fetchRawHands() {
     orderBy: { createdAt: "asc" },
     select: RAW_HAND_SELECT,
   });
+}
+
+type RawHand = Awaited<ReturnType<typeof fetchRawHandsUncached>>[number];
+
+// 全ハンド走査は高コスト。棋譜解析は1トナメで多数の決定について同じ全ハンド集合を繰り返し
+// 参照するため、短TTLでメモ化してDB往復を1回に集約する(GEOタブの連続操作にも効く)。
+// TTLは短く保ち、直近のプレイや管理者の除外操作がすぐ反映されるようにする。
+const RAW_HANDS_TTL_MS = 10_000;
+let rawHandsCache: { at: number; data: RawHand[] } | null = null;
+// テスト(vitest)は1プロセス内でDBを繰り返しseed→集計するため、キャッシュがstaleになり結果が壊れる。
+// テスト時はキャッシュを無効化し、常に最新を取得する(本番は短TTLで有効)。
+const RAW_HANDS_CACHE_ENABLED = !process.env["VITEST"];
+
+async function fetchRawHands(): Promise<RawHand[]> {
+  const now = Date.now();
+  if (RAW_HANDS_CACHE_ENABLED && rawHandsCache && now - rawHandsCache.at < RAW_HANDS_TTL_MS) return rawHandsCache.data;
+  const data = await fetchRawHandsUncached();
+  if (RAW_HANDS_CACHE_ENABLED) rawHandsCache = { at: now, data };
+  return data;
+}
+
+/** キャッシュを明示的に破棄する(直近のプレイ/管理者の除外操作を即時反映したい場合)。 */
+export function clearRawHandsCache(): void {
+  rawHandsCache = null;
 }
 
 /** そのハンド時点で生存していた参加者数(バスト済みでない人数)を数える。 */
@@ -236,6 +258,8 @@ interface ReplayedDecision {
   /** そのアクションが集計対象か(離席中・偏差値レンジ外の席はfalse。ポジション順の整合性のため
    * シーケンス自体には含める。詳細はreplayPreflopDecisionsのコメント参照)。 */
   isCounted: boolean;
+  /** 元アクションのsequenceNumber(棋譜解析からGEOノードを引く際、対象決定を特定するのに使う)。 */
+  sequenceNumber: number;
 }
 
 /**
@@ -295,6 +319,7 @@ function replayPreflopDecisions(hand: RawHand, countedSeats: Map<number, string[
       isGeometric: false,
       holeCards: countedSeats.get(action.seatIndex) ?? [],
       isCounted: countedSeats.has(action.seatIndex),
+      sequenceNumber: action.sequenceNumber,
     });
 
     // toAmountはそのストリート内の累計拠出額そのもの(handEngine.commit()と同じ意味論)。
@@ -520,6 +545,7 @@ function replayPostflopDecisions(
         isGeometric,
         holeCards: countedSeats.get(action.seatIndex) ?? [],
         isCounted: countedSeats.has(action.seatIndex),
+        sequenceNumber: action.sequenceNumber,
         street: currentStreet,
       });
     }
@@ -595,4 +621,82 @@ export async function getPostflopNode(params: {
   }
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
+}
+
+// ============================================================================
+// 棋譜解析(局後検討)からGEO母集団ノードを引く
+// ============================================================================
+
+/** 棋譜解析の1決定に対応するGEO母集団ノード(母集団のアクション頻度+169レンジ表)。 */
+export interface GeoReviewNode {
+  position: string | null;
+  sampleSize: number;
+  options: ActionOption[];
+  matrix: HandClassMatrixResult;
+}
+
+/**
+ * 棋譜解析の1つの意思決定(handId + そのアクションのsequenceNumber + street)に対応する、
+ * GEO母集団の同一スポットのノードを返す。
+ *
+ * ライン復元は「対象ハンド自身を geoTree と同じ関数(replay*Decisions + positionLabelsForHand)で
+ * リプレイし、対象決定の直前までを line として切り出す」ことで行う。これにより、集計側
+ * (getPreflopNode/getPostflopNode)の母集団ハンドと同一のブラインド基準ポジション命名・
+ * バケット分類が保証され、ライン一致がぶれない。
+ *
+ * ICM段階は "normal"(=全段階を集計)で引き、人数は対象ハンドと同数に絞る(スポットの
+ * ストラテジー的同一性を保つ)。母集団に対象ハンド自身が1件含まれるが、数千規模の集計では無視できる。
+ */
+export async function getGeoNodeForReviewSpot(params: {
+  handId: string;
+  sequenceNumber: number;
+  street: string;
+  /** 集計する卓の人数。未指定なら対象ハンドの席数に一致させる。 */
+  playerCount?: number;
+}): Promise<GeoReviewNode | null> {
+  const hand = await prisma.hand.findUnique({ where: { id: params.handId }, select: RAW_HAND_SELECT });
+  if (!hand) return null;
+
+  // holeCardsはライン一致に不要。全席を counted に入れて、全アクションの position/bucket 系列を得る。
+  const allSeats = new Map(hand.seats.map((s) => [s.seatIndex, s.holeCards]));
+  const preflop = replayPreflopDecisions(hand, allSeats);
+  const playerCount = params.playerCount ?? hand.seats.length;
+
+  if (params.street === "preflop") {
+    const idx = preflop.findIndex((d) => d.sequenceNumber === params.sequenceNumber);
+    if (idx < 0) return null;
+    const target = preflop[idx]!;
+    const line: LineStep[] = preflop.slice(0, idx).map((d) => ({ position: d.position, bucket: d.bucket }));
+    const { node, matrix } = await getPreflopNode({
+      stackBucket: stackBucketOf(target.stackBb),
+      bubbleStage: "normal",
+      line,
+      playerCount,
+    });
+    return { position: node.position, sampleSize: node.sampleSize, options: node.options, matrix };
+  }
+
+  const boardLenForStreet: Record<string, number> = { flop: 3, turn: 4, river: 5 };
+  const requiredLen = boardLenForStreet[params.street];
+  if (!requiredLen || hand.board.length < requiredLen) return null;
+
+  const preflopLine: LineStep[] = preflop.map((d) => ({ position: d.position, bucket: d.bucket }));
+  const foldedSeats = new Set(preflop.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
+  const postflop = replayPostflopDecisions(hand, allSeats, foldedSeats);
+  const streetDecisions = postflop.filter((d) => d.street === params.street);
+  const idx = streetDecisions.findIndex((d) => d.sequenceNumber === params.sequenceNumber);
+  if (idx < 0) return null;
+  const target = streetDecisions[idx]!;
+  const postflopLine: LineStep[] = streetDecisions.slice(0, idx).map((d) => ({ position: d.position, bucket: d.bucket }));
+
+  const { node, matrix } = await getPostflopNode({
+    stackBucket: stackBucketOf(target.stackBb),
+    bubbleStage: "normal",
+    preflopLine,
+    board: hand.board.slice(0, requiredLen),
+    street: params.street as "flop" | "turn" | "river",
+    postflopLine,
+    playerCount,
+  });
+  return { position: node.position, sampleSize: node.sampleSize, options: node.options, matrix };
 }

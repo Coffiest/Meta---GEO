@@ -58,13 +58,13 @@ export function BoardCardPicker({
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
         transition={{ type: "spring", damping: 28, stiffness: 320 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-ink-950 bg-white p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-navy-700 bg-navy-900 p-4"
       >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-extrabold tracking-tight text-ink-950">
+          <p className="text-sm font-extrabold tracking-tight text-navy-50">
             ボードカードを選択({selected.length}/{cardsNeeded})
           </p>
-          <button onClick={onClose} className="text-ink-500 text-xs font-semibold">
+          <button onClick={onClose} className="text-navy-400 text-xs font-semibold">
             閉じる
           </button>
         </div>
@@ -86,9 +86,9 @@ export function BoardCardPicker({
                     onClick={() => toggle(card)}
                     className={`aspect-[3/4] rounded flex flex-col items-center justify-center text-[10px] font-bold transition-colors border ${
                       isUsed
-                        ? "bg-ink-100 text-ink-300 border-ink-200 cursor-not-allowed"
+                        ? "bg-navy-800 text-navy-600 border-navy-700 cursor-not-allowed"
                         : isSelected
-                          ? "bg-ink-950 text-white border-ink-950"
+                          ? "bg-gold-500 text-navy-950 border-gold-500"
                           : "bg-white border-ink-300 " + suit.colorClass
                     }`}
                   >
@@ -105,7 +105,7 @@ export function BoardCardPicker({
           whileTap={selected.length === cardsNeeded ? { scale: 0.97 } : undefined}
           onClick={() => selected.length === cardsNeeded && onConfirm(selected)}
           disabled={selected.length !== cardsNeeded}
-          className="w-full mt-4 rounded-xl bg-ink-950 text-white font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
+          className="w-full mt-4 rounded-xl bg-gold-500 text-navy-950 font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
         >
           確定
         </motion.button>

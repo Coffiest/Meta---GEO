@@ -92,6 +92,91 @@ export const ARTISTIC = {
   maxGtoFreq: 0.15,
 } as const;
 
+/**
+ * 芸術的(エクスプロイト成立)判定のパラメータ。GEO母集団(n≥minGeoSamples)がGTO均衡から
+ * 大きく乖離しているスポットで、heroがそのリークを突く定石アクションを取っていたら「芸術的」を付ける。
+ */
+export const EXPLOIT = {
+  /** 母集団頻度がGTOからこれ以上(pt)乖離していたら「リーク」とみなす。 */
+  minLeak: 0.2,
+  /** heroの選択がGTOでこれより高頻度(=標準的)ならエクスプロイトとはみなさない。 */
+  maxGtoFreq: 0.3,
+  /** GTO比のEV損がこれを超える手は、搾取ではなく単なるスプ―ウとみなし芸術的にしない。 */
+  maxGtoEvLossBb: 1.5,
+  /** 信頼できる母集団サイズ(これ未満のGEOノードはエクスプロイト判定に使わない)。 */
+  minGeoSamples: 5000,
+} as const;
+
+/** バケットがアグレッシブ(ベット/レイズ/オールイン)か。 */
+function isAggroBucket(b: string): boolean {
+  return b.startsWith("raise") || b.startsWith("bet") || b === "allIn";
+}
+/** バケットが受け身(コール/チェック)か。 */
+function isPassiveBucket(b: string): boolean {
+  return b === "call" || b === "checkOrCall";
+}
+
+export interface GeoExploitInput {
+  /** GTO基準の各アクション(頻度)。 */
+  gtoActions: GtoActionEV[];
+  /** GEO母集団(n≥minGeoSamples)の各アクション頻度。 */
+  geoOptions: { bucket: string; frequency: number }[];
+  /** heroが実際に取ったアクションのバケット。 */
+  chosenBucket: string;
+  /** GTO基準からのEV損(bb)。大きすぎる手は搾取ではなくスプ―ウ。 */
+  evLossBb: number;
+}
+
+/**
+ * 「母集団リーク × 定石カウンター」型のエクスプロイト成立判定。
+ *  - 母集団フォールド過多 → heroの攻撃(ブラフ含む)で搾取。
+ *  - 母集団コール/受け身過多(スティッキー) → heroの薄いバリュー攻撃で搾取。
+ *  - 母集団アグレッション過多(ブラフ/オーバーベット過多) → heroのヒーローコール/受け身継続で搾取。
+ * heroの選択はGTOで高頻度すぎない(=非自明な逸脱)ことを要求し、標準プレイを片端から芸術的にしない。
+ * また、GTO比のEV損が大きすぎる手は搾取ではなくスプ―ウとみなして除外する。
+ */
+export function detectGeoExploit(input: GeoExploitInput): boolean {
+  const { gtoActions, geoOptions, chosenBucket, evLossBb } = input;
+  if (geoOptions.length === 0) return false;
+  if (evLossBb > EXPLOIT.maxGtoEvLossBb) return false;
+
+  const gtoFreq = new Map(gtoActions.map((a) => [a.bucket, a.frequency]));
+  const geoFreq = new Map(geoOptions.map((o) => [o.bucket, o.frequency]));
+
+  const chosenGtoFreq = gtoFreq.get(chosenBucket) ?? 0;
+  // GTOで高頻度=標準的すぎる手はエクスプロイトではない。
+  if (chosenGtoFreq > EXPLOIT.maxGtoFreq) return false;
+
+  const buckets = new Set<string>([...gtoFreq.keys(), ...geoFreq.keys()]);
+  const overFold = (geoFreq.get("fold") ?? 0) - (gtoFreq.get("fold") ?? 0);
+  let geoPassive = 0;
+  let gtoPassive = 0;
+  let geoAggro = 0;
+  let gtoAggro = 0;
+  for (const b of buckets) {
+    if (isPassiveBucket(b)) {
+      geoPassive += geoFreq.get(b) ?? 0;
+      gtoPassive += gtoFreq.get(b) ?? 0;
+    } else if (isAggroBucket(b)) {
+      geoAggro += geoFreq.get(b) ?? 0;
+      gtoAggro += gtoFreq.get(b) ?? 0;
+    }
+  }
+  const overPassive = geoPassive - gtoPassive;
+  const overAggro = geoAggro - gtoAggro;
+
+  const chosenAggro = isAggroBucket(chosenBucket);
+  const chosenPassive = isPassiveBucket(chosenBucket);
+
+  // 1) 母集団フォールド過多 → heroの攻撃(フォールドエクイティ搾取)。
+  if (overFold >= EXPLOIT.minLeak && chosenAggro) return true;
+  // 2) 母集団コール/受け身過多 → heroの薄いバリュー攻撃(コールされて価値が出る)。
+  if (overPassive >= EXPLOIT.minLeak && chosenAggro) return true;
+  // 3) 母集団アグレッション過多(ブラフ/オーバーベット過多) → heroのヒーローコール/受け身継続。
+  if (overAggro >= EXPLOIT.minLeak && chosenPassive) return true;
+  return false;
+}
+
 /** 「難しい好手」の対象アクション種別(ユーザー確定: 薄いバリュー/オーバーベット/ヒーローコール/ライトフォールド)。 */
 export type DifficultActionKind = "thinValue" | "overbet" | "heroCall" | "lightFold";
 
