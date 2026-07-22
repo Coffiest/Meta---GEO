@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
 import type { AuthState } from "@/lib/useAuth";
@@ -445,8 +446,25 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           </motion.ul>
         </div>
 
+        {/* 公開コンテンツへの導線。ログイン前(クローラーを含む)でも、遊び方・戦略・用語集・規約などの
+            実コンテンツへ辿れるようにするための内部リンク。 */}
+        <nav className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-ink-200 pt-6">
+          {[
+            { href: "/guide", label: "遊び方" },
+            { href: "/strategy", label: "GEO戦略" },
+            { href: "/glossary", label: "用語集" },
+            { href: "/pricing", label: "料金プラン" },
+            { href: "/privacy", label: "プライバシー" },
+            { href: "/legal/tokushoho", label: "特商法表記" },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="text-[12px] font-semibold text-ink-500 underline-offset-2 hover:text-ink-900 hover:underline">
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
         {/* バージョン表記(タップ→パスコード2357→管理者画面への隠し導線) */}
-        <div className="mt-10 flex justify-center">
+        <div className="mt-8 flex justify-center">
           <button
             onClick={() => setAdminGateOpen(true)}
             className="cursor-pointer text-[11px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-600"
