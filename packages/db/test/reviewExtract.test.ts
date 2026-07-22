@@ -41,7 +41,7 @@ describe("extractHeroDecisions", () => {
     const [pre] = extractHeroDecisions(buildHUHand(), "u0");
     expect(pre?.street).toBe("preflop");
     expect(pre?.heroPos).toBe("BTN");
-    expect(pre?.actionTaken.bucket).toBe("raise2.5-3");
+    expect(pre?.actionTaken.bucket).toBe("raise2-5");
     expect(pre?.effStackBb).toBeCloseTo(100);
     expect(pre?.potBb).toBeCloseTo(1.5);
     expect(pre?.facingSizeBb).toBeCloseTo(1);

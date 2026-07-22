@@ -72,8 +72,8 @@ const RFI_RANGES: Record<string, Set<string>> = Object.fromEntries(
   Object.entries(RFI_TOKENS).map(([pos, toks]) => [pos, expandRange(toks)]),
 );
 
-/** RFIで開くときのオープンサイズバケット(v1は一律)。 */
-export const OPEN_BUCKET = "raise2-2.5";
+/** RFIで開くときのオープンサイズバケット(2〜5bbのオープンレンジ)。 */
+export const OPEN_BUCKET = "raise2-5";
 
 /** 2枚のホールカードを169ハンドクラスのラベル(例 "AKs"/"77"/"AQo")へ変換する。 */
 export function handClassLabel(holeCards: readonly string[]): string | null {

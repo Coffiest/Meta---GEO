@@ -13,7 +13,7 @@ describe("buildPreflopVsOpenNode (vsオープン・ディフェンス解)", () =
     const freq = Object.fromEntries(node.options.map((o) => [o.bucket, o.frequency]));
     // コールは広い(>20%)、3betは存在(>2%)、100bbのオープンジャムは無し。
     expect(freq["call"] ?? 0).toBeGreaterThan(0.2);
-    expect((freq["raise4+"] ?? 0) + (freq["raise3-4"] ?? 0)).toBeGreaterThan(0.02);
+    expect((freq["raise5+"] ?? 0) + (freq["raise2-5"] ?? 0)).toBeGreaterThan(0.02);
     expect(freq["allIn"] ?? 0).toBe(0);
     // 頻度合計はほぼ1。
     const totalFreq = node.options.reduce((a, o) => a + o.frequency, 0);

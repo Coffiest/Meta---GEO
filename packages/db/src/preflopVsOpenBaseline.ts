@@ -39,13 +39,10 @@ function loadData(): VsOpenData {
 }
 const DATA = loadData();
 
-/** 3betサイズ(bb)からUIバケットへ。 */
+/** 3betサイズ(bb)からUIバケットへ。3betは通常5bb超なので raise5+、稀な小サイズは raise2-5。 */
 function threeBetBucket(bb: number | undefined): string {
-  if (!bb) return "raise4+";
-  if (bb < 2.5) return "raise2-2.5";
-  if (bb < 3) return "raise2.5-3";
-  if (bb < 4) return "raise3-4";
-  return "raise4+";
+  if (!bb) return "raise5+";
+  return bb < 5 ? "raise2-5" : "raise5+";
 }
 
 /**

@@ -53,8 +53,10 @@ export const STACK_BUCKETS: StackBucket[] = ["0-5", "5-10", "10-15", "15-20", "2
 export type BubbleStage = "normal" | "30" | "20" | "10" | "5" | "4" | "3" | "2" | "1" | "finalTable";
 export const BUBBLE_STAGES: BubbleStage[] = ["normal", "30", "20", "10", "5", "4", "3", "2", "1", "finalTable"];
 
-export type PreflopBucket = "fold" | "call" | "raise2-2.5" | "raise2.5-3" | "raise3-4" | "raise4+" | "allIn";
-export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-2.5", "raise2.5-3", "raise3-4", "raise4+", "allIn"];
+// プリフロップのレイズはサイズ帯を細かく分けず、オープンレンジ(2〜5bb)を1つの "raise2-5" に
+// まとめる。5bbを超える大きなレイズ(主に3bet/4bet)は "raise5+" として区別する。allInは別。
+export type PreflopBucket = "fold" | "call" | "raise2-5" | "raise5+" | "allIn";
+export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-5", "raise5+", "allIn"];
 
 /**
  * ポストフロップは「ベットに直面していない(Check/Bet)」局面と「直面している(Fold/Call/Raise)」局面の
@@ -88,12 +90,11 @@ export function stackBucketOf(stackBb: number): StackBucket {
   return "30+";
 }
 
-/** プリフロップのレイズ額(bb)をバケットへ丸める。fold/call/allInは呼び出し側で先に判定する。 */
+/** プリフロップのレイズ額(bb)をバケットへ丸める。fold/call/allInは呼び出し側で先に判定する。
+ * オープンレイズ(概ね2〜5bb)は raise2-5 に統合。5bb以上(主に3bet/4bet)は raise5+。 */
 export function bucketPreflopRaiseBb(raiseBb: number): PreflopBucket {
-  if (raiseBb < 2.5) return "raise2-2.5";
-  if (raiseBb < 3) return "raise2.5-3";
-  if (raiseBb < 4) return "raise3-4";
-  return "raise4+";
+  if (raiseBb < 5) return "raise2-5";
+  return "raise5+";
 }
 
 /** ポストフロップのベット/レイズ額(ポット比%)をバケットへ丸める。fold/checkOrCall/allInは呼び出し側で先に判定する。 */

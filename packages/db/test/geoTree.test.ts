@@ -79,15 +79,15 @@ describe("geoTree (integration, real Postgres)", () => {
     const { node } = await getPreflopNode({ stackBucket: "30+", bubbleStage: "normal", line: [] });
     expect(node.position).toBe("UTG");
     expect(node.sampleSize).toBeGreaterThanOrEqual(1);
-    const raiseOption = node.options.find((o) => o.bucket === "raise2-2.5");
+    const raiseOption = node.options.find((o) => o.bucket === "raise2-5");
     expect(raiseOption).toBeDefined();
     expect(raiseOption!.count).toBeGreaterThanOrEqual(1);
 
-    // 次のノード(HJ)はUTGのraise2-2.5に対してfoldしたはず。
+    // 次のノード(HJ)はUTGのraise2-5に対してfoldしたはず。
     const { node: hjNode } = await getPreflopNode({
       stackBucket: "30+",
       bubbleStage: "normal",
-      line: [{ position: "UTG", bucket: "raise2-2.5" }],
+      line: [{ position: "UTG", bucket: "raise2-5" }],
     });
     expect(hjNode.position).toBe("HJ");
     const foldOption = hjNode.options.find((o) => o.bucket === "fold");
@@ -182,7 +182,7 @@ describe("geoTree (integration, real Postgres)", () => {
       stackBucket: "10-15",
       bubbleStage: "normal",
       line: [
-        { position: "UTG", bucket: "raise2-2.5" },
+        { position: "UTG", bucket: "raise2-5" },
         { position: "HJ", bucket: "fold" },
         { position: "CO", bucket: "fold" },
         { position: "BTN", bucket: "fold" },
@@ -388,7 +388,7 @@ describe("geoTree (integration, real Postgres)", () => {
     const { node: hjNode } = await getPreflopNode({
       stackBucket: "20-30",
       bubbleStage: "normal",
-      line: [{ position: "UTG", bucket: "raise2-2.5" }],
+      line: [{ position: "UTG", bucket: "raise2-5" }],
     });
     expect(hjNode.position).toBe("HJ");
     const foldOption = hjNode.options.find((o) => o.bucket === "fold");
@@ -453,13 +453,13 @@ describe("geoTree (integration, real Postgres)", () => {
     });
     expect(rootNode.position).toBe("BTN");
     expect(rootNode.sampleSize).toBeGreaterThanOrEqual(1);
-    expect(rootNode.options.find((o) => o.bucket === "raise2-2.5")).toBeDefined();
+    expect(rootNode.options.find((o) => o.bucket === "raise2-5")).toBeDefined();
 
     // BTNのオープンに対する次のノードはSB。
     const { node: sbNode } = await getPreflopNode({
       stackBucket: "5-10",
       bubbleStage: "normal",
-      line: [{ position: "BTN", bucket: "raise2-2.5" }],
+      line: [{ position: "BTN", bucket: "raise2-5" }],
       playerCount: 3,
     });
     expect(sbNode.position).toBe("SB");

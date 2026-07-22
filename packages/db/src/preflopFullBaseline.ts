@@ -25,7 +25,7 @@ const BAND_LABEL: Record<string, string> = {
 /**
  * ユーザー提供のGTO Wizardレンジ(転記)を13x13で返す。
  * バンド("100"/"20"/"14"/"10"/"7")ごとに jam/raise/limp/fold の混合を色分けする。
- * セルは jam(紫/allIn) → raise(オレンジ/raise2-2.5) → limp(緑/call) → fold(青) の優先順で
+ * セルは jam(紫/allIn) → raise(オレンジ/raise2-5) → limp(緑/call) → fold(青) の優先順で
  * 最初に一致したアクションで着色する(重複記載は上位が勝つ)。
  */
 export function buildPreflopBandNode(band: string, heroPos: string): GtoNodeResult {
@@ -44,7 +44,7 @@ export function buildPreflopBandNode(band: string, heroPos: string): GtoNodeResu
       total += combos;
       const byBucket: Record<string, number> = {};
       if (jamSet && jamSet.has(lbl)) { byBucket["allIn"] = 1; jamW += combos; }
-      else if (raiseSet && raiseSet.has(lbl)) { byBucket["raise2-2.5"] = 1; raiseW += combos; }
+      else if (raiseSet && raiseSet.has(lbl)) { byBucket["raise2-5"] = 1; raiseW += combos; }
       else if (limpSet && limpSet.has(lbl)) { byBucket["call"] = 1; limpW += combos; }
       else { byBucket["fold"] = 1; foldW += combos; }
       return { label: lbl, count: combos, byBucket, evByBucket: {} as Record<string, number> };
@@ -53,7 +53,7 @@ export function buildPreflopBandNode(band: string, heroPos: string): GtoNodeResu
 
   const options = [
     { bucket: "allIn", frequency: total > 0 ? jamW / total : 0, geometricRatio: 0, evBb: 0 },
-    { bucket: "raise2-2.5", frequency: total > 0 ? raiseW / total : 0, geometricRatio: 0, evBb: 0 },
+    { bucket: "raise2-5", frequency: total > 0 ? raiseW / total : 0, geometricRatio: 0, evBb: 0 },
     { bucket: "call", frequency: total > 0 ? limpW / total : 0, geometricRatio: 0, evBb: 0 },
     { bucket: "fold", frequency: total > 0 ? foldW / total : 0, geometricRatio: 0, evBb: 0 },
   ].filter((o) => o.frequency > 0.001);
@@ -125,7 +125,7 @@ export function preflopFullAvailable(): boolean {
   return DATA.stacks.length > 0;
 }
 
-const OPEN_BUCKET = "raise2-2.5"; // オープン(2-2.3bb)を表すバケット(色: オレンジ)
+const OPEN_BUCKET = "raise2-5"; // オープン(2-2.3bb)を表すバケット(色: オレンジ)
 
 /**
  * GTOタブ用: 指定ポジション・スタック帯の通常戦略(fold/open/jam混合)を13x13で返す。
