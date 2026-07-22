@@ -149,6 +149,7 @@ function GameScreen({
   onExit: () => void;
 }) {
   const {
+    connected,
     spectating,
     state,
     yourSeatIndex,
@@ -168,6 +169,8 @@ function GameScreen({
     waiting,
     joinError,
     runoutHoleCards,
+    tableNotice,
+    stalled,
     sendAction,
     leaveGame,
     armTimeBank,
@@ -476,6 +479,37 @@ function GameScreen({
             className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/10 ring-1 ring-crimson-500/40 text-crimson-600 text-xs px-4 py-1.5 text-center"
           >
             {actionError ?? joinError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 進行停止の診断オーバーレイ: ハンド終了後に一定時間進行が止まった場合、原因の説明と
+          自動再同期の実行中であることを表示する(サーバー通知tableNoticeがあればその文言を優先)。 */}
+      <AnimatePresence>
+        {(stalled || tableNotice) && !tournamentOver && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-ink-950 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+              <div className="min-w-0">
+                <p className="text-[13px] font-black text-ink-950">
+                  {tableNotice ? "サーバーからのお知らせ" : "次のハンドの開始が遅れています"}
+                </p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
+                  {tableNotice
+                    ? tableNotice.message
+                    : !connected
+                      ? "サーバーとの接続が切れています。自動で再接続を試みています…"
+                      : typeof navigator !== "undefined" && !navigator.onLine
+                        ? "インターネット接続がオフラインです。通信環境をご確認ください。"
+                        : "サーバーの応答待ちです。自動で再同期を試みています…(数秒お待ちください)"}
+                </p>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

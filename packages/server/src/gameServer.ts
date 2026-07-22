@@ -538,13 +538,42 @@ export class TableSession implements GameSession {
     }, level.durationMinutes * 60_000);
   }
 
-  private beginNextHand(): void {
-    if (!this.tournament) return;
+  /**
+   * 次のハンドを開始する。startNextHand が万一失敗しても卓が永久に止まらないよう、
+   * 再試行(最大5回・2秒間隔)と、クライアントへの理由通知(tableNotice)を行う。
+   * 初回失敗時は「直前ハンドの清算が未了のまま残っている」ケースに備えて清算を一度だけ再試行する。
+   */
+  private beginNextHand(attempt = 0): void {
+    if (!this.tournament || this.finished) return;
     if (this.tournament.isTournamentOver()) {
       void this.finishTournament();
       return;
     }
-    this.hand = this.tournament.startNextHand();
+    try {
+      this.hand = this.tournament.startNextHand();
+    } catch (err) {
+      console.error(`[sng] beginNextHand failed (attempt ${attempt}):`, err);
+      if (attempt === 0) {
+        try {
+          this.tournament.settleFinishedHand();
+        } catch {
+          /* 清算済み・清算対象なしなら無視 */
+        }
+      }
+      if (attempt < 5) {
+        this.io.to(this.roomId).emit("tableNotice", {
+          kind: "retrying",
+          message: "サーバー内部エラーのため、次のハンドの開始を再試行しています…",
+        });
+        setTimeout(() => this.beginNextHand(attempt + 1), 2000);
+      } else {
+        this.io.to(this.roomId).emit("tableNotice", {
+          kind: "stalled",
+          message: "サーバー内部エラーで次のハンドを開始できませんでした。アプリを再読み込みして卓へ復帰してください。",
+        });
+      }
+      return;
+    }
     this.showRequests.clear();
     this.broadcastState();
     this.broadcastTournamentInfo();
@@ -729,6 +758,37 @@ export class TableSession implements GameSession {
     const tournament = this.tournament;
     if (!hand || !tournament || !this.dbTournamentId) return;
 
+    // このメソッドの途中で何が失敗しても、末尾の「次のハンドをスケジュールする」処理には
+    // 必ず到達させる(ここが飛ぶと、ショウダウン直後に卓が永久に固まる)。
+    try {
+      await this.finishHandInner(hand, tournament);
+    } catch (err) {
+      console.error("[sng] finishHand failed (proceeding to next hand):", err);
+      // 清算(settleFinishedHand)前に失敗した可能性に備えて一度だけ清算を試みる。
+      try {
+        tournament.settleFinishedHand();
+      } catch {
+        /* 清算済みなら無視 */
+      }
+    }
+
+    if (tournament.isTournamentOver()) {
+      void this.finishTournament();
+      return;
+    }
+
+    if (this.isAccelerated()) {
+      this.acceleratedHands += 1;
+      if (this.acceleratedHands % 10 === 0) tournament.advanceToNextLevel();
+    }
+
+    const delay = this.isAccelerated() ? FAST_NEXT_HAND_DELAY_MS : NEXT_HAND_DELAY_MS;
+    setTimeout(() => this.beginNextHand(), delay);
+  }
+
+  private async finishHandInner(hand: HandEngine, tournament: Tournament): Promise<void> {
+    const dbTournamentId = this.dbTournamentId;
+    if (!dbTournamentId) return;
     const { smallBlindSeat, bigBlindSeat } = this.currentButtonInfo();
     const events = tournament.getEvents();
     const started = [...events].reverse().find((e) => e.type === "handStarted") as
@@ -740,7 +800,7 @@ export class TableSession implements GameSession {
       for (const seat of tournament.getSeats()) startingStacks.set(seat.seatIndex, seat.stack);
 
       await recordHand({
-        tournamentId: this.dbTournamentId,
+        tournamentId: dbTournamentId,
         handNumber: started.handNumber,
         buttonFixedPos: started.buttonFixedPos,
         levelSmallBlind: started.level.smallBlind,
@@ -774,26 +834,17 @@ export class TableSession implements GameSession {
     });
     this.maybeBotHandEndChat(hand);
 
-    // このハンドでバストした人間の着順・賞金を確定して個別に通知する
+    // このハンドでバストした人間の着順・賞金を確定して個別に通知する。
+    // DB障害等で失敗しても「次のハンドへ進む」流れを絶対に止めない(以前はここの例外で
+    // beginNextHandのスケジュールに到達せず、ショウダウン直後に卓が固まる原因になっていた)。
     for (const [seatIndex, human] of this.humansBySeat) {
       const seat = tournament.getSeats().find((s) => s.seatIndex === seatIndex);
       if (!human.done && seat && seat.bustedAtHand !== null) {
-        await this.recordHumanFinish(seatIndex, human);
+        await this.recordHumanFinish(seatIndex, human).catch((err) =>
+          console.error("[sng] recordHumanFinish failed:", err),
+        );
       }
     }
-
-    if (tournament.isTournamentOver()) {
-      void this.finishTournament();
-      return;
-    }
-
-    if (this.isAccelerated()) {
-      this.acceleratedHands += 1;
-      if (this.acceleratedHands % 10 === 0) tournament.advanceToNextLevel();
-    }
-
-    const delay = this.isAccelerated() ? FAST_NEXT_HAND_DELAY_MS : NEXT_HAND_DELAY_MS;
-    setTimeout(() => this.beginNextHand(), delay);
   }
 
   /** 指定人間の着順確定(バスト時 or 優勝時)。SNG固定プライズを記帳し、本人へ通知する。 */
@@ -807,12 +858,17 @@ export class TableSession implements GameSession {
     const place = seat.bustedAtHand === null ? 1 : remaining + 1;
     const payout = SNG_PAYOUTS.find((p) => p.place === place)?.amount ?? 0;
 
-    await prisma.tournamentEntry.updateMany({
-      where: { tournamentId: this.dbTournamentId, seatIndex },
-      data: { finishPosition: place, payout },
-    });
-    if (payout > 0) {
-      await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+    // DB書き込みが失敗しても、本人への結果通知とゲーム進行は止めない。
+    try {
+      await prisma.tournamentEntry.updateMany({
+        where: { tournamentId: this.dbTournamentId, seatIndex },
+        data: { finishPosition: place, payout },
+      });
+      if (payout > 0) {
+        await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+      }
+    } catch (err) {
+      console.error("[sng] recordHumanFinish db write failed:", err);
     }
 
     human.socket?.emit("tournamentOver", {

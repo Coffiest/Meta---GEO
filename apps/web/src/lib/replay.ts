@@ -81,6 +81,15 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
   let currentStreet = "preflop";
   let potSoFar = 0; // 現時点の総ポット(全席のhand+street拠出合計)
 
+  // ポジション表示用のSB/BB席。記録されたpostBlindアクションの額から特定する
+  // (SBデッドのハンドではlevelSmallBlind額のpostBlindが存在せずnullになる)。
+  const smallBlindSeat =
+    t.actions.find((a) => a.kind === "postBlind" && a.toAmount === t.levelSmallBlind)?.seatIndex ?? null;
+  const bigBlindSeat =
+    t.actions.find((a) => a.kind === "postBlind" && a.toAmount === t.levelBigBlind)?.seatIndex ??
+    t.seats[0]?.seatIndex ??
+    0;
+
   function snapshot(street: string, actingSeatIndex: number | null): PublicHandState {
     const seats: PublicSeatState[] = t.seats.map((s) => ({
       seatIndex: s.seatIndex,
@@ -91,6 +100,7 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
       handContribution: handContribution.get(s.seatIndex) ?? 0,
       hasActedThisStreet: false,
     }));
+    const streetTotal = [...streetContribution.values()].reduce((a, b) => a + b, 0);
     return {
       street: street as Street,
       board: boardFor(street, t.board),
@@ -99,6 +109,10 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
       lastFullRaiseSize: 0,
       actingSeatIndex,
       buttonFixedPos: t.buttonFixedPos,
+      smallBlindSeat,
+      bigBlindSeat,
+      collectedPot: Math.max(0, potSoFar - streetTotal),
+      pots: [],
       seats,
       isComplete: false,
       bigBlind: t.levelBigBlind,

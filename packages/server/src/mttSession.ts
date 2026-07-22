@@ -341,7 +341,7 @@ export class MttSession implements GameSession {
 
   // --- 進行のメインループ ---
 
-  private pump(): void {
+  private pump(attempt = 0): void {
     const mtt = this.mtt;
     if (!mtt || this.finished) return;
     if (mtt.isTournamentOver()) {
@@ -357,8 +357,30 @@ export class MttSession implements GameSession {
     const tableId = tableIds[this.tableRotation % tableIds.length]!;
     this.tableRotation += 1;
 
-    this.activeTableId = tableId;
-    this.hand = mtt.startNextHandOnTable(tableId);
+    // 万一startNextHandOnTable等が失敗してもトーナメント全体が固まらないよう、
+    // 再試行(最大5回・2秒間隔)と、クライアントへの理由通知を行う。
+    try {
+      this.activeTableId = tableId;
+      this.hand = mtt.startNextHandOnTable(tableId);
+    } catch (err) {
+      console.error(`[mtt] pump failed to start hand on table ${tableId} (attempt ${attempt}):`, err);
+      this.activeTableId = null;
+      this.hand = null;
+      const allTableRooms = mtt.getTableIds().map((id) => this.tableRoom(id));
+      if (attempt < 5) {
+        this.io.to(allTableRooms).emit("tableNotice", {
+          kind: "retrying",
+          message: "サーバー内部エラーのため、次のハンドの開始を再試行しています…",
+        });
+        setTimeout(() => this.pump(attempt + 1), 2000);
+      } else {
+        this.io.to(allTableRooms).emit("tableNotice", {
+          kind: "stalled",
+          message: "サーバー内部エラーで次のハンドを開始できませんでした。アプリを再読み込みして卓へ復帰してください。",
+        });
+      }
+      return;
+    }
 
     if (this.tableHasHuman(tableId)) {
       this.emitPlayersForTable(tableId);
@@ -554,13 +576,55 @@ export class MttSession implements GameSession {
     const tableId = this.activeTableId;
     if (!mtt || !hand || tableId === null || !this.dbTournamentId) return;
 
-    const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted");
     const tableHadHuman = this.tableHasHuman(tableId);
+
+    // このメソッドの途中で何が失敗しても、末尾の「pumpの再スケジュール」には必ず到達させる
+    // (ここが飛ぶと、ショウダウン直後にトーナメント全体が永久に固まる)。
+    try {
+      await this.finishHandInner(mtt, hand, tableId, tableHadHuman);
+    } catch (err) {
+      console.error("[mtt] finishHand failed (proceeding):", err);
+      // 清算前に失敗した可能性に備えて一度だけ清算を試みる。
+      try {
+        mtt.settleFinishedHandOnTable(tableId, hand);
+      } catch {
+        /* 清算済みなら無視 */
+      }
+    }
+
+    this.hand = null;
+    this.activeTableId = null;
+    this.syncHumanTables();
+
+    if (mtt.isTournamentOver()) {
+      void this.finishTournament();
+      return;
+    }
+
+    const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
+    if (!anyoneActive) {
+      this.acceleratedHands += 1;
+      if (this.acceleratedHands % 10 === 0) mtt.advanceToNextLevel();
+    }
+
+    const delay = tableHadHuman && anyoneActive ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
+    setTimeout(() => this.pump(), delay);
+  }
+
+  private async finishHandInner(
+    mtt: MultiTableTournament,
+    hand: HandEngine,
+    tableId: number,
+    tableHadHuman: boolean,
+  ): Promise<void> {
+    const dbTournamentId = this.dbTournamentId;
+    if (!dbTournamentId) return;
+    const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted");
 
     if (started && started.type === "handStarted") {
       const occupancy = mtt.getTableOccupancy(tableId);
       await recordHand({
-        tournamentId: this.dbTournamentId,
+        tournamentId: dbTournamentId,
         handNumber: started.handNumber,
         buttonFixedPos: started.buttonFixedPos,
         levelSmallBlind: started.level.smallBlind,
@@ -596,7 +660,9 @@ export class MttSession implements GameSession {
       this.bustedOrder.push(...settled.bustedPlayerIds);
       for (const playerId of settled.bustedPlayerIds) {
         const human = this.humans.get(playerId);
-        if (human && !human.done) await this.recordHumanFinish(human);
+        if (human && !human.done) {
+          await this.recordHumanFinish(human).catch((err) => console.error("[mtt] recordHumanFinish failed:", err));
+        }
       }
     }
 
@@ -608,26 +674,8 @@ export class MttSession implements GameSession {
       if (human.done) continue;
       mtt.forceEliminate(playerId);
       if (!this.bustedOrder.includes(playerId)) this.bustedOrder.push(playerId);
-      await this.recordHumanFinish(human);
+      await this.recordHumanFinish(human).catch((err) => console.error("[mtt] recordHumanFinish failed:", err));
     }
-
-    this.hand = null;
-    this.activeTableId = null;
-    this.syncHumanTables();
-
-    if (mtt.isTournamentOver()) {
-      void this.finishTournament();
-      return;
-    }
-
-    const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
-    if (!anyoneActive) {
-      this.acceleratedHands += 1;
-      if (this.acceleratedHands % 10 === 0) mtt.advanceToNextLevel();
-    }
-
-    const delay = tableHadHuman && anyoneActive ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
-    setTimeout(() => this.pump(), delay);
   }
 
   /** レジクロ(登録締切)。以降は新規登録・レイトレジを受け付けず、確定エントリー数でプライズを固定する。 */
@@ -651,12 +699,17 @@ export class MttSession implements GameSession {
     const place = this.placeOf(human.userId);
     const payout = this.prizeStructure.find((p) => p.place === place)?.amount ?? 0;
 
-    await prisma.tournamentEntry.updateMany({
-      where: { tournamentId: this.dbTournamentId, userId: human.userId },
-      data: { finishPosition: place, payout },
-    });
-    if (payout > 0) {
-      await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+    // DB書き込みが失敗しても、本人への結果通知とゲーム進行は止めない。
+    try {
+      await prisma.tournamentEntry.updateMany({
+        where: { tournamentId: this.dbTournamentId, userId: human.userId },
+        data: { finishPosition: place, payout },
+      });
+      if (payout > 0) {
+        await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+      }
+    } catch (err) {
+      console.error("[mtt] recordHumanFinish db write failed:", err);
     }
 
     human.socket?.emit("tournamentOver", {

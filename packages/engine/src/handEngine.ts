@@ -35,6 +35,9 @@ interface SeatState {
   status: "active" | "folded" | "allIn";
   /** そのハンド全体での拠出累計(アンテ含む)。サイドポット計算に使用。 */
   handContribution: number;
+  /** アンテとして拠出した額(handContributionに含まれる)。アンテはポット直行のデッドマネーで、
+   * ベットのマッチングやサイドポットのレイヤー分割に参加しないため分離して追跡する。 */
+  anteContribution: number;
   /** 現在のストリートでの拠出累計(アンテは含まない、ベットのマッチ判定用) */
   streetContribution: number;
   hasActedThisStreet: boolean;
@@ -64,6 +67,12 @@ export interface PublicSeatState {
   readonly hasActedThisStreet: boolean;
 }
 
+/** 確定済みポット(メイン/サイド)の公開内訳。eligibleSeatIndexesが空のポットは発生しない。 */
+export interface PublicPot {
+  readonly amount: number;
+  readonly eligibleSeatIndexes: readonly number[];
+}
+
 /** BOTやUIが意思決定・描画に必要な、ハンドの公開状態(ホールカードは含まない) */
 export interface PublicHandState {
   readonly street: Street;
@@ -73,6 +82,17 @@ export interface PublicHandState {
   readonly lastFullRaiseSize: number;
   readonly actingSeatIndex: number | null;
   readonly buttonFixedPos: number;
+  /** SBデッド(このハンドはSB徴収なし)の場合は null。ポジション表示に使う。 */
+  readonly smallBlindSeat: number | null;
+  readonly bigBlindSeat: number;
+  /**
+   * 「確定済み」のポット額(前ストリートまでの拠出+アンテ)。現在のストリートでまだ
+   * コール/確定していないベット(各席のstreetContribution)は含めない。表示上、ベットは
+   * ストリートが締まった瞬間にポットへ移動する(実際のテーブルと同じ挙動)。ハンド完了後は全額。
+   */
+  readonly collectedPot: number;
+  /** 確定済みポットのメイン/サイド内訳(collectedPotの分解)。オールインが絡むと2件以上になる。 */
+  readonly pots: readonly PublicPot[];
   readonly seats: readonly PublicSeatState[];
   readonly isComplete: boolean;
   /**
@@ -93,6 +113,8 @@ export class HandEngine {
   private readonly bigBlind: number;
   private readonly bbAnte: number;
   private readonly buttonFixedPos: number;
+  private readonly smallBlindSeat: number | null;
+  private readonly bigBlindSeat: number;
   private readonly dealer: Dealer;
   private readonly postflopOrder: readonly number[];
   private readonly preflopOrder: readonly number[];
@@ -114,6 +136,8 @@ export class HandEngine {
     this.bigBlind = config.bigBlind;
     this.bbAnte = config.bbAnte;
     this.buttonFixedPos = config.buttonFixedPos;
+    this.smallBlindSeat = config.smallBlindSeat;
+    this.bigBlindSeat = config.bigBlindSeat;
     this.lastFullRaiseSize = config.bigBlind;
     this.dealer = new Dealer(config.deck ?? createShuffledDeck());
 
@@ -124,6 +148,7 @@ export class HandEngine {
         stack: s.stack,
         status: "active",
         handContribution: 0,
+        anteContribution: 0,
         streetContribution: 0,
         hasActedThisStreet: false,
         holeCards: [],
@@ -195,6 +220,7 @@ export class HandEngine {
     const antePost = Math.min(this.bbAnte, bb.stack);
     bb.stack -= antePost;
     bb.handContribution += antePost; // アンテはポットに直行し、streetContribution(マッチ判定)には含めない
+    bb.anteContribution += antePost;
     if (bb.stack === 0) bb.status = "allIn";
     this.logEvent({ type: "postAnte", seatIndex: bbSeatIndex, amount: antePost, street: this.street, potBefore: potBeforeAnte });
 
@@ -488,19 +514,15 @@ export class HandEngine {
 
   private showdown(): void {
     const contenders = this.activeContenderSeats();
-    const contributions = new Map<string, number>();
-    const folded = new Set<string>();
-    for (const s of this.seats.values()) {
-      contributions.set(s.playerId, s.handContribution);
-      if (s.status === "folded") folded.add(s.playerId);
-    }
 
     const handRanks = new Map<string, HandRank>();
     for (const s of contenders) {
       handRanks.set(s.playerId, evaluateBest([...s.holeCards, ...this.board]));
     }
 
-    const pots = buildPots(contributions, folded);
+    // アンテをデッドマネーとしてメインポットへ合算したレイヤー構造で清算する。
+    // 未コール分はキャップせず、単独資格レイヤーとしてsettlePots経由で本人へ返す。
+    const pots = this.potLayers({ excludeCurrentStreet: false, capUncalled: false });
     const seatOrderFromButton = this.postflopOrder.map((idx) => this.seat(idx).playerId);
     const payouts = settlePots({ pots, handRanks, seatOrderFromButton });
 
@@ -529,7 +551,89 @@ export class HandEngine {
     return this.currentBetToMatch + this.lastFullRaiseSize;
   }
 
+  /**
+   * ポットのレイヤー構造を構築する共通経路。アンテはポット直行のデッドマネーであり、
+   * ベットのマッチングにもサイドポットのレイヤー分割にも参加しないため、
+   * 「ベット拠出(アンテ除く)でレイヤーを構築 → アンテ合計をメインポット(最初のレイヤー)へ合算」
+   * という手順で組む。こうしないと、BBアンテの非対称分が「BBだけが資格を持つレイヤー」になり、
+   * BBが負けたショーダウンでもアンテを取り戻してしまう(実ルール違反)。
+   *
+   * - excludeCurrentStreet: 進行中ストリートの未確定ベットを除く(表示用の「確定済みポット」)。
+   * - capUncalled: 最大拠出者の未コール分(2番手超過)をレイヤーから除く(表示用。清算経路では
+   *   除かずに単独資格レイヤーとしてsettlePots経由で本人へ返す)。
+   */
+  private potLayers(opts: { excludeCurrentStreet: boolean; capUncalled: boolean }): Pot[] {
+    const bettingContributions = new Map<string, number>();
+    const folded = new Set<string>();
+    let anteTotal = 0;
+    for (const s of this.seats.values()) {
+      const betting =
+        s.handContribution - s.anteContribution - (opts.excludeCurrentStreet ? s.streetContribution : 0);
+      bettingContributions.set(s.playerId, betting);
+      anteTotal += s.anteContribution;
+      if (s.status === "folded") folded.add(s.playerId);
+    }
+
+    // 稀ケース: アンテだけでスタックが尽きた(ベット拠出0の)オールイン競技者がいる場合、
+    // その席がどのレイヤーの資格も持てなくなるため、従来どおり全拠出でレイヤー分割する。
+    const anteOnlyAllInContender = [...this.seats.values()].some(
+      (s) => s.status !== "folded" && s.anteContribution > 0 && s.handContribution - s.anteContribution === 0,
+    );
+    if (anteOnlyAllInContender) {
+      const full = new Map<string, number>();
+      for (const s of this.seats.values()) {
+        full.set(s.playerId, s.handContribution - (opts.excludeCurrentStreet ? s.streetContribution : 0));
+      }
+      return buildPots(full, folded);
+    }
+
+    if (opts.capUncalled) {
+      const values = [...bettingContributions.values()].sort((a, b) => b - a);
+      if (values.length >= 2 && values[0]! > values[1]!) {
+        const cap = values[1]!;
+        for (const [id, v] of bettingContributions) {
+          if (v > cap) bettingContributions.set(id, cap);
+        }
+      }
+    }
+
+    const pots = buildPots(bettingContributions, folded);
+    if (anteTotal > 0) {
+      if (pots.length === 0) {
+        const contenders = [...this.seats.values()].filter((s) => s.status !== "folded").map((s) => s.playerId);
+        return [{ amount: anteTotal, eligiblePlayerIds: contenders }];
+      }
+      pots[0] = { amount: pots[0]!.amount + anteTotal, eligiblePlayerIds: pots[0]!.eligiblePlayerIds };
+    }
+    return pots;
+  }
+
+  /**
+   * 確定済み(前ストリートまで+アンテ)の拠出だけでポット内訳を組む(表示用)。現在ストリートの
+   * 未確定ベットは含めない。ハンド完了後はストリートのリセットが起きないため全額を対象にする。
+   * buildPotsはフォールド者の拠出境界でもレイヤーを分割するが、資格者が同一のポットは実質
+   * 1つのポットなので統合する(メイン/サイドの区別は資格者の違いでのみ生じる)。
+   */
+  private collectedPots(): PublicPot[] {
+    const complete = this.isHandComplete();
+    const seatByPlayerId = new Map<string, number>();
+    for (const s of this.seats.values()) seatByPlayerId.set(s.playerId, s.seatIndex);
+
+    const layers = this.potLayers({ excludeCurrentStreet: !complete, capUncalled: complete });
+
+    const merged: { amount: number; key: string; eligibleSeatIndexes: number[] }[] = [];
+    for (const p of layers) {
+      const seats = p.eligiblePlayerIds.map((id) => seatByPlayerId.get(id)!).sort((a, b) => a - b);
+      const key = seats.join(",");
+      const last = merged[merged.length - 1];
+      if (last && last.key === key) last.amount += p.amount;
+      else merged.push({ amount: p.amount, key, eligibleSeatIndexes: seats });
+    }
+    return merged.map(({ amount, eligibleSeatIndexes }) => ({ amount, eligibleSeatIndexes }));
+  }
+
   getPublicState(): PublicHandState {
+    const pots = this.collectedPots();
     return {
       street: this.street,
       board: [...this.board],
@@ -538,6 +642,10 @@ export class HandEngine {
       lastFullRaiseSize: this.lastFullRaiseSize,
       actingSeatIndex: this.actingSeatIndex,
       buttonFixedPos: this.buttonFixedPos,
+      smallBlindSeat: this.smallBlindSeat,
+      bigBlindSeat: this.bigBlindSeat,
+      collectedPot: pots.reduce((sum, p) => sum + p.amount, 0),
+      pots,
       isComplete: this.isHandComplete(),
       bigBlind: this.bigBlind,
       seats: [...this.seats.values()]
