@@ -176,6 +176,8 @@ function GeoDatabase() {
   // GTOポストフロップの「計算中」ポーリング。solving=true の応答が来たら数秒後に再取得する。
   const [solving, setSolving] = useState(false);
   const [pollTick, setPollTick] = useState(0);
+  /** 一時的な取得失敗をリトライ中(スピナー文言を「再試行中」に切り替える用)。 */
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +187,7 @@ function GeoDatabase() {
     // GTOタブは実スタック選択(gtoStackBb)を band へ写像して送る。push/fold/Nashノード用に近い範囲バケットも併送。
     const gtoBand = GTO_STACK_TO_BAND[gtoStackBb];
     const gtoBucket = GTO_STACK_TO_BUCKET[gtoStackBb];
-    const request =
+    const makeRequest = () =>
       mode === "gto"
         ? street === "preflop"
           ? geoTreeApi.gtoNode({ variant: "full", line: [...gtoFoldPrefix, ...preflopLine], stackBucket: gtoBucket, band: gtoBand })
@@ -215,25 +217,52 @@ function GeoDatabase() {
             ...(playerCount !== null ? { playerCount } : {}),
           });
 
-    request
-      .then((result) => {
+    // 取得は必ず自動リトライする。一時的な接続失敗(デプロイ中・コールドスタート・通信断)で
+    // ツリーが壊れたり「サーバーに接続できません」で操作不能になったりしないようにするため:
+    // - 成功するまで指数バックオフで最大6回再試行(この間はloading=trueで入力を凍結)。
+    // - それでも失敗したら node を破棄して、直前ノードへのアクション重複追加ループを断ち切り、
+    //   5秒後にeffectごと再実行してバックグラウンドで復帰し続ける(ユーザーは操作不能にならない)。
+    async function run() {
+      const MAX_ATTEMPTS = 6;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         if (cancelled) return;
-        setSolving(Boolean(result.solving));
-        if (result.solving) {
-          // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
-          setTimeout(() => {
-            if (!cancelled) setPollTick((t) => t + 1);
-          }, 3500);
+        try {
+          const result = await makeRequest();
+          if (cancelled) return;
+          setReconnecting(false);
+          setSolving(Boolean(result.solving));
+          if (result.solving) {
+            // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
+            setTimeout(() => {
+              if (!cancelled) setPollTick((t) => t + 1);
+            }, 3500);
+            return;
+          }
+          setNode(result.node);
+          setMatrix(result.matrix);
+          if (result.node.sampleSize > 0) setJustPickedBoard(false);
+          setError(null);
           return;
+        } catch {
+          if (cancelled) return;
+          if (attempt < MAX_ATTEMPTS - 1) {
+            setReconnecting(true);
+            await new Promise((r) => setTimeout(r, Math.min(5000, 700 * 2 ** attempt)));
+          } else {
+            setNode(null);
+            setReconnecting(false);
+            setError("サーバーに接続できません。自動的に再試行しています…");
+            setTimeout(() => {
+              if (!cancelled) setPollTick((t) => t + 1);
+            }, 5000);
+          }
         }
-        setNode(result.node);
-        setMatrix(result.matrix);
-        if (result.node.sampleSize > 0) setJustPickedBoard(false);
-      })
-      .catch(() => {
-        if (!cancelled) setError("対戦サーバーに接続できませんでした。packages/server が起動しているか確認してください。");
-      })
-      .finally(() => !cancelled && setLoading(false));
+      }
+    }
+
+    void run().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -283,7 +312,9 @@ function GeoDatabase() {
   }
 
   function selectBucket(bucket: string) {
-    if (!node?.position) return;
+    // 取得中/再試行中は選択を受け付けない。受け付けると、直前ノードが未確定のまま次の
+    // アクションが積まれてラインが重複・破損する(致命バグの再発防止)。
+    if (loading || !node?.position) return;
     const opt = node.options.find((o) => o.bucket === bucket);
     const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
     setDismissedStreet(null);
@@ -485,7 +516,11 @@ function GeoDatabase() {
           {loading || solving ? (
             <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-center text-sm text-ink-500">
               <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
-              {solving ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)" : "読み込み中…"}
+              {solving
+                ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
+                : reconnecting
+                ? "接続を再試行中…"
+                : "読み込み中…"}
             </div>
           ) : noBoardData ? (
             <motion.div

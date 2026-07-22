@@ -60,16 +60,15 @@ export const BUBBLE_STAGE_LABELS: Record<BubbleStage, string> = {
   finalTable: "ファイナルテーブル",
 };
 
-export type PreflopBucket = "fold" | "call" | "raise2-2.5" | "raise2.5-3" | "raise3-4" | "raise4+" | "allIn";
+// オープンレンジ(2〜5bb)を1つの raise2-5 に統合。5bb超(主に3bet/4bet)は raise5+。allInは別。
+export type PreflopBucket = "fold" | "call" | "raise2-5" | "raise5+" | "allIn";
 /** 弱→強(アグレッション順)の固定順。頻度ではなくこの順でセル/バーを並べる。 */
-export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-2.5", "raise2.5-3", "raise3-4", "raise4+", "allIn"];
+export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-5", "raise5+", "allIn"];
 export const PREFLOP_BUCKET_LABELS: Record<PreflopBucket, string> = {
   fold: "Fold",
   call: "Call",
-  "raise2-2.5": "Raise 2-2.5bb",
-  "raise2.5-3": "Raise 2.5-3bb",
-  "raise3-4": "Raise 3-4bb",
-  "raise4+": "Raise 4bb+",
+  "raise2-5": "Raise 2-5bb",
+  "raise5+": "Raise 5bb+",
   allIn: "Allin",
 };
 

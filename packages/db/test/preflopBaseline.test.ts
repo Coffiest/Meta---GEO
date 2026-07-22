@@ -19,14 +19,14 @@ describe("expandToken", () => {
 describe("getPreflopBaseline (RFI)", () => {
   it("レンジ内はオープン頻度1", () => {
     const r = getPreflopBaseline({ heroPos: "BTN", line: [], handClass: "AA" });
-    expect(r?.find((a) => a.frequency === 1)?.bucket).toBe("raise2-2.5");
+    expect(r?.find((a) => a.frequency === 1)?.bucket).toBe("raise2-5");
   });
   it("レンジ外はフォールド頻度1", () => {
     const r = getPreflopBaseline({ heroPos: "UTG", line: [], handClass: "72o" });
     expect(r?.find((a) => a.frequency === 1)?.bucket).toBe("fold");
   });
   it("フェイス(line非空)は未対応でnull", () => {
-    expect(getPreflopBaseline({ heroPos: "BTN", line: [{ position: "CO", bucket: "raise2-2.5" }], handClass: "AA" })).toBeNull();
+    expect(getPreflopBaseline({ heroPos: "BTN", line: [{ position: "CO", bucket: "raise2-5" }], handClass: "AA" })).toBeNull();
   });
 });
 
@@ -36,7 +36,7 @@ describe("buildPreflopGtoNode", () => {
     expect(node.matrix.cells).toHaveLength(13);
     expect(node.matrix.cells[0]).toHaveLength(13);
     // BTNは広いのでオープン頻度が相応にある。
-    const open = node.options.find((o) => o.bucket === "raise2-2.5");
+    const open = node.options.find((o) => o.bucket === "raise2-5");
     expect((open?.frequency ?? 0)).toBeGreaterThan(0.3);
   });
   it("未対応ポジションはunsupported", () => {

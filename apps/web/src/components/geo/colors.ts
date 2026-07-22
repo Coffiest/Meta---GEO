@@ -23,10 +23,8 @@ const OVERBET_BLOOD_RED = "#5E0B0B";
 export const PREFLOP_BUCKET_COLOR: Record<PreflopBucket, string> = {
   fold: FOLD_COLOR,
   call: CALL_COLOR,
-  "raise2-2.5": SMALL_ORANGE,
-  "raise2.5-3": MEDIUM_RED,
-  "raise3-4": LARGE_DARK_RED,
-  "raise4+": OVERBET_BLOOD_RED,
+  "raise2-5": SMALL_ORANGE, // オープンレンジ(2〜5bb)
+  "raise5+": LARGE_DARK_RED, // 5bb超(主に3bet/4bet)
   allIn: ALLIN_COLOR,
 };
 
