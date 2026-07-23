@@ -598,6 +598,38 @@ function LoadingScreen() {
   return <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm">読み込み中…</div>;
 }
 
+/**
+ * 進行中ゲームの復帰チェックが繰り返し失敗したときの脱出画面。「読み込み中…」で永久に固まらないよう、
+ * 手動の再試行とホームへの脱出を必ず提供する(再試行はバックグラウンドでも継続している)。
+ */
+function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: () => void }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-ink-50 px-6 text-center">
+      <div className="flex items-center gap-2 text-ink-700">
+        <span className="h-4 w-4 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+        <p className="text-sm font-medium">接続を再試行しています…</p>
+      </div>
+      <p className="max-w-xs text-[13px] leading-relaxed text-ink-500">
+        サーバーに接続できません。進行中のゲームがある場合は、接続が回復すると自動的に復帰します。
+      </p>
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={onRetry}
+          className="rounded-xl bg-ink-950 px-6 py-2.5 text-sm font-semibold text-white active:opacity-80"
+        >
+          今すぐ再試行
+        </button>
+        <button
+          onClick={onHome}
+          className="rounded-xl border border-ink-300 bg-white px-6 py-2.5 text-sm font-semibold text-ink-700 active:bg-ink-100"
+        >
+          ホーム画面へ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
@@ -610,6 +642,10 @@ export default function Page() {
   // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
   const [resultSuggestion, setResultSuggestion] = useState<TournamentOverInfo | null>(null);
   const [resumeChecked, setResumeChecked] = useState(false);
+  // 復帰チェックが数回失敗したら「読み込み中…」で固まらないよう脱出UI(再試行/ホームへ)を出す。
+  const [resumeFailed, setResumeFailed] = useState(false);
+  // 「再試行」で復帰チェックのeffectを即座に再起動するためのnonce。
+  const [resumeNonce, setResumeNonce] = useState(0);
   // 初回ログイン時のみ一度だけ表示するチュートリアル。オンボーディング(名前+アバター設定)完了後、
   // 未読(localStorage未記録)なら出す。判定はマウント後(クライアントのみ)に行い、SSRとの不一致を避ける。
   const [tourChecked, setTourChecked] = useState(false);
@@ -631,9 +667,14 @@ export default function Page() {
     // 一時的な回線断で進行中ゲームを取りこぼしてホームに取り残されることを厳密に防ぐ。
     const check = async (attempt: number): Promise<void> => {
       try {
+        // 応答が返らず固まる(サーバーのコールドスタート/ハング)場合に備えて10秒でタイムアウトさせ、
+        // catch経由でリトライ→脱出UIへ繋げる(タイムアウトが無いと永久に「読み込み中…」で固まる)。
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 10_000);
         const r = await fetch(`${serverUrl}/api/lobby/active-game`, {
           headers: { authorization: `Bearer ${accessToken}` },
-        });
+          signal: ctrl.signal,
+        }).finally(() => clearTimeout(to));
         if (!r.ok) throw new Error(`status ${r.status}`);
         const data = (await r.json()) as {
           gameKey?: string;
@@ -650,9 +691,12 @@ export default function Page() {
             yourPayout: data.result.yourPayout,
           });
         }
+        setResumeFailed(false);
         setResumeChecked(true); // 確定応答を得たときだけ確定にする。
       } catch {
         if (cancelled) return;
+        // 数回失敗したら「読み込み中…」で固まらないよう脱出UIを出す(再試行はバックグラウンドで継続)。
+        if (attempt >= 2) setResumeFailed(true);
         retryTimer = setTimeout(() => void check(attempt + 1), Math.min(8000, 1000 * 2 ** attempt));
       }
     };
@@ -661,7 +705,7 @@ export default function Page() {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [accessToken, profile?.onboarded, gameKey, resumeChecked]);
+  }, [accessToken, profile?.onboarded, gameKey, resumeChecked, resumeNonce]);
 
   // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
   useEffect(() => {
@@ -734,7 +778,24 @@ export default function Page() {
 
   // 進行中ゲームの有無が確定するまではホームを出さない。リフレッシュ直後にホームが一瞬見えたり、
   // 進行中ゲームがあるのに新規ゲームを開始できてしまうことを防ぐ(確定するまで check() が再試行し続ける)。
-  if (!resumeChecked) return <LoadingScreen />;
+  // ただし数回失敗して確定できないときは「読み込み中…」で永久に固まらないよう、脱出UI(再試行/ホームへ)を出す。
+  if (!resumeChecked) {
+    if (resumeFailed) {
+      return (
+        <ResumeErrorScreen
+          onRetry={() => {
+            setResumeFailed(false);
+            setResumeNonce((n) => n + 1);
+          }}
+          onHome={() => {
+            setResumeFailed(false);
+            setResumeChecked(true);
+          }}
+        />
+      );
+    }
+    return <LoadingScreen />;
+  }
 
   // 初回ログイン時のみ一度だけ: ホームを出す直前にチュートリアルを挟む。
   if (showTour) return <WelcomeTour onDone={() => setShowTour(false)} />;
