@@ -74,14 +74,14 @@ function FooterButton({ item, active, tone }: { item: FooterNavItem; active: boo
   const c = FOOTER_TONE[tone];
   const content = (
     <>
-      <div className={`relative h-7 w-7 rounded-full flex items-center justify-center transition-colors ${active ? c.activePill : ""}`}>
-        <Icon name={item.icon} className="h-[18px] w-[18px]" />
+      <div className={`relative h-8 w-8 rounded-full flex items-center justify-center transition-colors ${active ? c.activePill : ""}`}>
+        <Icon name={item.icon} className="h-5 w-5" />
         {active && <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-current" />}
       </div>
-      <span className="text-[9px] font-semibold">{item.label}</span>
+      <span className="text-[11px] font-semibold leading-none">{item.label}</span>
     </>
   );
-  const className = `flex flex-col items-center gap-0.5 py-2 transition-colors ${active ? c.active : c.inactive}`;
+  const className = `flex min-h-[52px] flex-col items-center justify-center gap-1 py-2 transition-colors ${active ? c.active : c.inactive}`;
   if (item.href) {
     return (
       <Link href={item.href} className={className}>
@@ -102,8 +102,8 @@ function CenterButton({ href, active, ringClass }: { href?: string; active: bool
   }`;
   const content = (
     <>
-      <Icon name="db" className="h-5 w-5" />
-      <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
+      <Icon name="db" className="h-[22px] w-[22px]" />
+      <span className="text-[9px] font-bold tracking-wide mt-[1px]">DATABASE</span>
     </>
   );
   if (!href || active) {

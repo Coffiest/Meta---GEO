@@ -154,6 +154,17 @@ function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
 }
 
+/** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
+function ReviewGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M15.5 15.5L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 11.5l1.8-2.2 1.7 1.4L13.2 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
  * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
  * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
@@ -1347,13 +1358,15 @@ export function Lobby({
                       <div className="space-y-4">
                         {groups.map((group) => (
                           <div key={group.tournamentId}>
-                            <div className="flex items-center justify-between mb-1.5 px-0.5">
-                              <p className="text-[11px] font-semibold text-ink-600">{group.tournamentLabel}</p>
+                            <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+                              <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-600">{group.tournamentLabel}</p>
+                              {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。 */}
                               <button
                                 onClick={() => setReviewTournamentId(group.tournamentId)}
-                                className="rounded-full bg-ink-950 px-2.5 py-[3px] text-[9px] font-black tracking-wide text-white active:opacity-80"
+                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink-950 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity active:opacity-80"
                               >
-                                {t("lobby.batchAnalyze")}
+                                <ReviewGlyph className="h-3.5 w-3.5" />
+                                {t("lobby.reviewHand")}
                               </button>
                             </div>
                             <div className="space-y-2">
@@ -1361,24 +1374,39 @@ export function Lobby({
                                 const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
                                 const rounded = Math.round(deltaBb * 10) / 10;
                                 const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                                // ハンド行そのものをタップで棋譜解析へ(トナメ単位の解析に一本化済み)。
+                                // お気に入り★だけは行タップと分離するため stopPropagation する。
+                                const openReview = () => setReviewTournamentId(group.tournamentId);
                                 return (
                                   <motion.div
                                     key={h.handId}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-                                    className="rounded-xl border border-ink-200 bg-white px-3 py-2.5"
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={openReview}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        openReview();
+                                      }
+                                    }}
+                                    aria-label={`${group.tournamentLabel} ${t("lobby.reviewRowHint")}`}
+                                    className="group cursor-pointer rounded-xl border border-ink-200 bg-white px-3 py-2.5 transition-colors hover:border-ink-400 hover:bg-ink-50 active:bg-ink-100 focus-visible:border-ink-950"
                                   >
-                                    <div className="flex items-center gap-2 text-[10px] text-ink-700 mb-1.5">
+                                    <div className="flex items-center gap-2 text-[11px] text-ink-700 mb-1.5">
                                       <span className="tabular-nums">
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
-                                      <span className="rounded border border-ink-950 bg-white px-1.5 py-[1px] text-ink-950 font-semibold">{h.position}</span>
-                                      {/* ハンド単位の局後検討は廃止(トナメ単位の棋譜解析に一本化)。 */}
+                                      <span className="rounded border border-ink-950 bg-white px-1.5 py-[1px] text-[11px] text-ink-950 font-semibold">{h.position}</span>
                                       <button
-                                        onClick={() => toggleFavorite(h.handId, !h.isFavorite)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleFavorite(h.handId, !h.isFavorite);
+                                        }}
                                         aria-label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
-                                        className="ml-auto text-gold-500"
+                                        className="ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-gold-500 transition-colors hover:bg-gold-500/10"
                                       >
                                         <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
                                       </button>
@@ -1394,6 +1422,14 @@ export function Lobby({
                                         ))}
                                       </div>
                                       <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
+                                    </div>
+                                    {/* 行がタップ可能=棋譜解析へ、を明示するヒント。 */}
+                                    <div className="mt-1.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-gold-600">
+                                      <ReviewGlyph className="h-3 w-3" />
+                                      <span>{t("lobby.reviewRowHint")}</span>
+                                      <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+                                        <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
                                     </div>
                                   </motion.div>
                                 );
