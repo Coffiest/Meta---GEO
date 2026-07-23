@@ -1,4 +1,12 @@
-import { compareHandRank, createOrderedDeck, evaluateBest, type Card, type PlayerAction, type Street } from "@meta-geo/engine";
+import {
+  compareHandRank,
+  createOrderedDeck,
+  evaluateBest,
+  HAND_CATEGORY,
+  type Card,
+  type PlayerAction,
+  type Street,
+} from "@meta-geo/engine";
 
 /**
  * モンテカルロ勝率推定ベースのBOT。以前は粗いChen Formula風スコアで意思決定していたが、
@@ -79,6 +87,138 @@ export function estimateEquity(
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
+// === プリフロップのハンド分類 & GTO準拠のレンジ表(169ハンドを関数で表現) ===
+interface PreflopClass {
+  readonly hi: number;
+  readonly lo: number;
+  readonly suited: boolean;
+  readonly pair: boolean;
+}
+function preflopClass(hole: readonly [Card, Card]): PreflopClass {
+  const hi = Math.max(hole[0].rank, hole[1].rank);
+  const lo = Math.min(hole[0].rank, hole[1].rank);
+  return { hi, lo, suited: hole[0].suit === hole[1].suit, pair: hole[0].rank === hole[1].rank };
+}
+
+/** ファーストイン時のオープンレイズレンジ(RFI, ~22%)。GTO準拠のブレンドレンジをハードコード。 */
+function inRfiOpen({ hi, lo, suited, pair }: PreflopClass): boolean {
+  if (pair) return true; // 22+
+  if (suited) {
+    if (hi === 14) return true; // A2s+
+    if (hi === 13) return lo >= 5; // K5s+
+    if (hi === 12) return lo >= 8; // Q8s+
+    if (hi === 11) return lo >= 8; // J8s+
+    if (hi === 10) return lo >= 7; // T7s+
+    if (hi === 9) return lo >= 7; // 97s+
+    if (hi === 8) return lo >= 6; // 86s+
+    if (hi === 7) return lo >= 6; // 76s
+    if (hi === 6) return lo >= 5; // 65s
+    if (hi === 5) return lo >= 4; // 54s
+    return false;
+  }
+  if (hi === 14) return lo >= 9; // A9o+
+  if (hi === 13) return lo >= 10; // KTo+
+  if (hi === 12) return lo >= 10; // QTo+
+  if (hi === 11) return lo >= 10; // JTo
+  return false;
+}
+
+/** 有効15BB以下のオープンプッシュ(ジャム)レンジ(~32%、RFIより広い)。 */
+function inJamShort({ hi, lo, suited, pair }: PreflopClass): boolean {
+  if (pair) return true;
+  if (suited) {
+    if (hi === 14) return true; // Axs
+    if (hi === 13) return lo >= 4;
+    if (hi === 12) return lo >= 7;
+    if (hi === 11) return lo >= 7;
+    if (hi === 10) return lo >= 6;
+    if (hi === 9) return lo >= 6;
+    if (hi === 8) return lo >= 6;
+    if (hi === 7) return lo >= 5;
+    if (hi === 6) return lo >= 5;
+    return false;
+  }
+  if (hi === 14) return lo >= 5; // A5o+
+  if (hi === 13) return lo >= 8; // K8o+
+  if (hi === 12) return lo >= 9; // Q9o+
+  if (hi === 11) return lo >= 9; // J9o+
+  if (hi === 10) return lo >= 9; // T9o
+  return false;
+}
+
+/** 有効15BB以下でレイズに直面したときのコール/リシャブ(再ジャム)レンジ(タイト)。 */
+function inCallJamShort({ hi, lo, suited, pair }: PreflopClass): boolean {
+  if (pair) return hi >= 5; // 55+
+  if (suited) {
+    if (hi === 14) return lo >= 9; // A9s+
+    if (hi === 13) return lo >= 11; // KJs+
+    if (hi === 12) return lo >= 11; // QJs
+    return false;
+  }
+  if (hi === 14) return lo >= 11; // AJo+
+  if (hi === 13) return lo >= 12; // KQo
+  return false;
+}
+
+// === ポストフロップのメイド手 & ドロー分類 ===
+interface MadeInfo {
+  /** ツーペア以上(セット/ストレート/フラッシュ等を含む)。 */
+  readonly strong: boolean;
+  readonly overpair: boolean;
+  readonly topPair: boolean;
+  /** トップペア・トップキッカー相当(キッカーQ以上)。 */
+  readonly tptk: boolean;
+  /** セカンドヒット以下(トップでないワンペア)or ノーペア。 */
+  readonly weak: boolean;
+}
+function classifyMade(hole: readonly [Card, Card], board: readonly Card[]): MadeInfo {
+  const best = evaluateBest([...hole, ...board]);
+  const cat = best.category;
+  const strong = cat >= HAND_CATEGORY.twoPair;
+  const topBoard = board.reduce((m, c) => Math.max(m, c.rank), 0);
+  const pocketPair = hole[0].rank === hole[1].rank;
+  const boardRanks = board.map((c) => c.rank);
+  const overpair = pocketPair && cat === HAND_CATEGORY.onePair && hole[0].rank > topBoard;
+  const hitsTop = hole.some((c) => c.rank === topBoard && boardRanks.includes(topBoard));
+  const topPair = !strong && cat === HAND_CATEGORY.onePair && hitsTop;
+  const kicker = topPair ? Math.max(...hole.filter((c) => c.rank !== topBoard).map((c) => c.rank), 0) : 0;
+  const tptk = topPair && kicker >= 12; // Q以上
+  const weak = !strong && !overpair && !(topPair && kicker >= 11);
+  return { strong, overpair, topPair, tptk, weak };
+}
+
+interface DrawInfo {
+  readonly flushDraw: boolean;
+  readonly oesd: boolean;
+  readonly gutshot: boolean;
+}
+function classifyDraw(hole: readonly [Card, Card], board: readonly Card[]): DrawInfo {
+  const all = [...hole, ...board];
+  // フラッシュドロー: いずれかのスートがちょうど4枚(まだ5枚目が来うる=board 3〜4枚)。
+  const suitCounts: Record<string, number> = {};
+  for (const c of all) suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+  const flushDraw = board.length <= 4 && Object.values(suitCounts).some((n) => n === 4);
+  // ストレートドロー: 距離1のランク集合(Aは1としても評価)から4連=OESD、飛び=ガットショット。
+  const rankSet = new Set<number>();
+  for (const c of all) {
+    rankSet.add(c.rank);
+    if (c.rank === 14) rankSet.add(1);
+  }
+  let oesd = false;
+  let gutshot = false;
+  for (let low = 1; low <= 11 && !oesd; low++) {
+    // 5枚窓 [low, low+4] に4枚あればドロー。両端が空=OESD、内側が空=ガットショット。
+    const present = [0, 1, 2, 3, 4].map((i) => rankSet.has(low + i));
+    const count = present.filter(Boolean).length;
+    if (count === 4) {
+      const missingIdx = present.indexOf(false);
+      if (missingIdx === 0 || missingIdx === 4) oesd = true;
+      else gutshot = true;
+    }
+  }
+  return { flushDraw, oesd, gutshot };
+}
+
 export interface BotDecisionInput {
   readonly street: Street;
   readonly holeCards: readonly [Card, Card];
@@ -95,10 +235,27 @@ export interface BotDecisionInput {
   readonly canRaise: boolean;
   /** まだ生きている相手の人数(自分を除く)。勝率推定の精度に直結する。未指定時は1人と仮定する。 */
   readonly activeOpponentCount?: number;
-  /** 現在のレベルのビッグブラインド額。プリフロップのリンプ禁止/2BBオープン判定に使う。未指定時は0(判定無効)。 */
+  /** 現在のレベルのビッグブラインド額。プリフロップのレンジ表/プッシュフォールド判定に使う。未指定時は0(判定無効)。 */
   readonly bigBlind?: number | undefined;
+  /**
+   * このハンドで最後にアグレッシブアクション(bet/raise/allIn)を取ったのが自分か。
+   * ドンクベット禁止(=アグレッサーでない席は、チェックされた場面でリードベットしない)の判定に使う。
+   */
+  readonly isAggressor?: boolean;
   /** 決定論的なテストのために乱数生成器を差し替え可能にする(未指定なら Math.random) */
   readonly random?: () => number;
+}
+
+/** このハンドで最後にアグレッシブアクション(bet/raise/allIn)を取った席番号を返す(ドンク判定用)。無ければnull。 */
+export function lastAggressorSeat(events: readonly unknown[]): number | null {
+  let seat: number | null = null;
+  for (const ev of events) {
+    const e = ev as { type?: string; seatIndex?: number };
+    if ((e.type === "bet" || e.type === "raise" || e.type === "allIn") && typeof e.seatIndex === "number") {
+      seat = e.seatIndex;
+    }
+  }
+  return seat;
 }
 
 export function decideBotAction(input: BotDecisionInput): PlayerAction {
@@ -130,11 +287,12 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
     return Math.max(0.33, Math.min(1.5, f));
   }
 
-  // baseを起点にジオメトリックサイズ分を上乗せしたtoAmountを返す。
-  // ベット後に残るスタックがポットの半分以下=実質ポットコミットになる場合は、
-  // 中途半端に残さずオールインに切り替える(ユーザー要望のポットコミット回避)。
+  // baseを起点に「フロップ33%・ターン/リバーはジオメトリック」のサイズを上乗せしたtoAmountを返す。
+  // ベット後に残るスタックがポットの半分以下=実質ポットコミットになる場合は、中途半端に残さず
+  // オールインに切り替える(ポットコミット回避)。ドンクは呼び出し側で禁止済み。
   function sizeBetTo(base: number): number {
-    const fraction = geometricFraction() * (0.9 + rand() * 0.2);
+    const fraction =
+      input.street === "flop" ? 0.33 * (0.92 + rand() * 0.16) : geometricFraction() * (0.9 + rand() * 0.2);
     const potNow = input.potBefore + Math.max(0, toCall);
     const raw = base + Math.round(potNow * fraction);
     const capped = Math.max(input.minRaiseToAmount, Math.min(maxPossible, raw));
@@ -146,60 +304,74 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
     return capped;
   }
 
-  // === プリフロップ: リンプ禁止・2BBオープン ===
-  // まだ誰もレイズしていない(現在のベット額がBB以下)プリフロップでは、コールでリンプせず、
-  // オープンするなら2BBへレイズ、しないならフォールド(BBの席はチェック可能なのでチェック)。
-  const preflopUnraised = input.street === "preflop" && bigBlind > 0 && input.currentBetToMatch <= bigBlind;
-  if (preflopUnraised) {
-    const openThreshold = 0.5 + 0.03 * (opponents - 1) - shortStackBonus;
-    const wantsToOpen = equity >= openThreshold;
-    if (!wantsToOpen) {
-      return toCall <= 0 ? { kind: "check" } : { kind: "fold" };
+  // === プリフロップ: GTO準拠のオープンレンジ表 + 15BB以下はプッシュ/フォールド ===
+  if (input.street === "preflop" && bigBlind > 0) {
+    const pc = preflopClass(input.holeCards);
+    const unraised = input.currentBetToMatch <= bigBlind;
+    const effBB = input.stack / bigBlind;
+
+    // 有効15BB以下: プッシュ・オア・フォールド。
+    if (effBB <= 15) {
+      if (unraised) {
+        if (inJamShort(pc)) return { kind: "allIn" };
+        return toCall <= 0 ? { kind: "check" } : { kind: "fold" };
+      }
+      // レイズに直面: タイトなレンジでのみ全部入れ(コール/リシャブ=オールイン)、それ以外は降りる。
+      if (inCallJamShort(pc)) return { kind: "allIn" };
+      return { kind: "fold" };
     }
-    if (!input.canRaise || input.minRaiseToAmount > maxPossible) {
-      // レイズ不可(再オープン不可 等)。チェックできるならチェック、無理ならオールイン/コール。
-      if (toCall <= 0) return { kind: "check" };
-      if (toCall >= input.stack) return { kind: "allIn" };
-      return { kind: "call" };
+
+    // ディープ: 未レイズならレンジ表でオープン(~2.2BB)、レイズ直面は下の勝率ベース継続へ。
+    if (unraised) {
+      if (!inRfiOpen(pc)) return toCall <= 0 ? { kind: "check" } : { kind: "fold" };
+      if (!input.canRaise || input.minRaiseToAmount > maxPossible) {
+        if (toCall <= 0) return { kind: "check" };
+        return toCall >= input.stack ? { kind: "allIn" } : { kind: "call" };
+      }
+      const openTo = Math.min(maxPossible, Math.max(input.minRaiseToAmount, Math.round(2.2 * bigBlind)));
+      if (maxPossible - openTo <= bigBlind * 1.5) return { kind: "allIn" };
+      return { kind: "raise", toAmount: openTo };
     }
-    const openTo = Math.min(maxPossible, Math.max(input.minRaiseToAmount, 2 * bigBlind));
-    // 2BBオープンでほぼコミットするショートスタックは最初からオールイン(プッシュ/フォールド)。
-    if (maxPossible - openTo <= bigBlind * 1.5) return { kind: "allIn" };
-    return { kind: "raise", toAmount: openTo };
+    // レイズ直面(ディープ)は下の勝率/ポットオッズベースの継続判定に委ねる。
   }
 
+  const made = input.street === "preflop" ? null : classifyMade(input.holeCards, input.board);
+  const draw = input.street === "preflop" ? null : classifyDraw(input.holeCards, input.board);
+  const hasStrongDraw = Boolean(draw && (draw.flushDraw || draw.oesd));
+
   if (toCall <= 0) {
-    // チェック可能な状況: 勝率が高いほどベット頻度・サイズが上がる。弱いハンドもごく低頻度で
-    // ブラフベットを混ぜ、常にチェックだけの読みやすい戦略にならないようにする。
-    if (input.canRaise && input.minRaiseToAmount <= maxPossible) {
-      const valueBetProb = equity > 0.55 ? clamp01((equity - 0.55) * 2.4) : 0;
-      const bluffProb = equity < 0.28 ? 0.14 : equity < 0.4 ? 0.06 : 0;
-      const betProb = Math.max(valueBetProb, bluffProb);
-      if (rand() < betProb) {
-        return { kind: "bet", toAmount: sizeBetTo(input.streetContribution) };
-      }
+    // チェックできる場面。
+    // ドンクベット禁止: このハンドのアグレッサーでない席は、チェックされてもリードベットしない。
+    // アグレッサー(=プリフロップ/直前ストリートで主導権を持つ席)のみ継続ベット(cベット)する。
+    const canBet = input.canRaise && input.minRaiseToAmount <= maxPossible;
+    if (canBet && input.isAggressor && made) {
+      // バリュー: TPTK以上/オーバーペア/ツーペア以上。セミブラフ: 強いドロー。
+      let betProb: number;
+      if (made.strong || made.overpair || made.tptk) betProb = 0.9; // バリュー厚め
+      else if (made.topPair) betProb = 0.5; // 中程度のトップペアは中頻度
+      else if (hasStrongDraw) betProb = 0.6; // セミブラフ
+      else betProb = equity > 0.5 ? 0.25 : 0.06; // 薄い/エアは低頻度
+      if (rand() < betProb) return { kind: "bet", toAmount: sizeBetTo(input.streetContribution) };
     }
     return { kind: "check" };
   }
 
+  // === ベット/レイズに直面 ===
   const potOdds = toCall / (input.potBefore + toCall);
-  // 相手はランダムハンドではなく実際にベット/レイズしたレンジを持つため、単純なポットオッズより
-  // 少し高めの勝率を要求する(相手のレンジがランダムより強いことへの補正マージン)。
-  const requiredEquity = clamp01(potOdds * 1.15 - shortStackBonus);
-
-  if (equity < requiredEquity) {
-    return { kind: "fold" };
+  let requiredEquity = clamp01(potOdds * 1.12 - shortStackBonus);
+  // ターン以降はセカンドヒット以下(weak)でドローも無いなら、明確に強くない限り降りる(GTO準拠の折り)。
+  if (made && made.weak && !hasStrongDraw && (input.street === "turn" || input.street === "river")) {
+    requiredEquity = Math.max(requiredEquity, 0.62);
   }
 
-  if (toCall >= input.stack) {
-    return { kind: "allIn" };
-  }
+  if (equity < requiredEquity) return { kind: "fold" };
+  if (toCall >= input.stack) return { kind: "allIn" };
 
+  // レイズ: バリュー(強いメイド手)を主体に、たまにドローでセミブラフレイズ。
   if (input.canRaise && input.minRaiseToAmount <= maxPossible) {
-    const raiseProb = clamp01((equity - Math.max(0.6, requiredEquity + 0.1)) * 2.2);
-    if (rand() < raiseProb) {
-      return { kind: "raise", toAmount: sizeBetTo(input.currentBetToMatch) };
-    }
+    const valueRaise = made ? made.strong || made.overpair || made.tptk : equity > 0.68;
+    const raiseProb = valueRaise ? clamp01((equity - 0.6) * 2.0) : hasStrongDraw ? 0.22 : 0;
+    if (rand() < raiseProb) return { kind: "raise", toAmount: sizeBetTo(input.currentBetToMatch) };
   }
 
   return { kind: "call" };

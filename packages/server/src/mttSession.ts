@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, MultiTableTournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
 import { prisma, recordHand, recordBuyIn, recordPayout, computeMttPrizeStructure, type PayoutPlace } from "@meta-geo/db";
-import { decideBotAction } from "./bot.js";
+import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
@@ -831,6 +831,7 @@ export class MttSession implements GameSession {
       canRaise: !seat.hasActedThisStreet,
       activeOpponentCount,
       bigBlind: this.mtt?.getCurrentLevel().bigBlind,
+      isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
     });
   }
 
