@@ -602,14 +602,14 @@ export interface MttPrizeStructure {
 
 /**
  * WSOPメインイベント準拠のMTTプライズ構造。
- *  - 還元率93%(WSOP $10Kバイインのうち$9,300がプールに入るのと同率)
+ *  - 還元率90%(オーナー指定。プール = バイイン総額 × 0.9)
  *  - 入賞はフィールドの上位15%(最低2名)
  *  - ミニマムキャッシュはバイインの約1.5倍(2025年ME: $10Kバイインで$15,000ミンキャッシュ)
  *  - 上位はべき乗則で減衰(大規模フィールドで1位がプールの11〜15%になるWSOPの実カーブに近似)
  *  - 2名入賞の小規模フィールドは65/35
  */
 export function computeMttPrizeStructure(fieldSize: number, buyIn: number): MttPrizeStructure {
-  const prizePool = Math.round((fieldSize * buyIn * 0.93) / 10) * 10;
+  const prizePool = Math.round((fieldSize * buyIn * 0.9) / 10) * 10;
   if (fieldSize <= 1 || prizePool <= 0) return { fieldSize, prizePool: 0, places: [] };
 
   const paidPlaces = Math.max(2, Math.round(fieldSize * 0.15));
