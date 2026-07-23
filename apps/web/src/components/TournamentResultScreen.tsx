@@ -119,6 +119,9 @@ export function TournamentResultScreen({
   gameKey,
   totalEntrants,
   onExit,
+  canReEntry,
+  reEntryCost,
+  onReEntry,
 }: {
   info: TournamentOverInfo;
   accessToken: string | undefined;
@@ -130,11 +133,24 @@ export function TournamentResultScreen({
   /** 総エントリー数(MTTの「6 / 521」表記用)。 */
   totalEntrants?: number | null;
   onExit: () => void;
+  /** MTTリエントリ可能か(レジクローズ前・満員でない)。 */
+  canReEntry?: boolean;
+  /** リエントリの参加費(チップ)。 */
+  reEntryCost?: number;
+  /** リエントリ実行(-2000演出後にサーバーへ通知)。 */
+  onReEntry?: () => void;
 }) {
   const { t } = useI18n();
   const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
   const [shared, setShared] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // リエントリ演出: ボタン押下→「-2,000」を見せてからサーバーへreEntryを送る。
+  const [reEntering, setReEntering] = useState(false);
+  const doReEntry = () => {
+    if (reEntering || !onReEntry) return;
+    setReEntering(true);
+    setTimeout(() => onReEntry(), 900); // -2,000演出を見せてから復帰
+  };
 
   useEffect(() => {
     if (!accessToken) return;
@@ -300,8 +316,29 @@ export function TournamentResultScreen({
           </button>
         )}
 
+        {/* MTTリエントリ(レジクローズ前・満員でないとき)。押下→-2,000演出→復帰。 */}
+        {canReEntry && onReEntry && (
+          <button
+            onClick={doReEntry}
+            disabled={reEntering}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-500 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] transition-transform active:scale-[0.98] disabled:opacity-90"
+          >
+            {reEntering ? (
+              <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()} …復帰中</span>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d="M3 12a9 9 0 1 0 9-9" />
+                  <path d="M3 4v5h5" />
+                </svg>
+                リエントリ（−{(reEntryCost ?? 2000).toLocaleString()}）
+              </>
+            )}
+          </button>
+        )}
+
         {/* 閉じる(ホームへ) / シェア をバランスよく並べる */}
-        <div className={`grid grid-cols-2 gap-2.5 ${tournamentId ? "mt-3" : "mt-6"}`}>
+        <div className={`grid grid-cols-2 gap-2.5 ${tournamentId || canReEntry ? "mt-3" : "mt-6"}`}>
           <button
             onClick={onExit}
             className="rounded-2xl border border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"

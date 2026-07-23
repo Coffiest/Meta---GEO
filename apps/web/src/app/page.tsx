@@ -177,6 +177,7 @@ function GameScreen({
     setAway,
     sendChat,
     showCards,
+    reEntry,
     chatLog,
     seatBubbles,
     gameHandHistory,
@@ -199,6 +200,10 @@ function GameScreen({
   const [heroShowIntent, setHeroShowIntent] = useState(false);
   const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
+  // レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。
+  const regCloseCountdown = useLevelCountdown(
+    gameKey === "mtt" && !tournamentInfo?.registrationClosed ? tournamentInfo?.registrationClosesAt ?? null : null,
+  );
   // 注意: 再接続で進行中の卓が見つからなくても、絶対にホームへ強制退出させない(プレイ中に突然
   // ロビーへ戻される致命バグの再発防止)。再接続時は resumeGame で自動的に卓へ復帰する。
 
@@ -311,8 +316,18 @@ function GameScreen({
             {gameKey === "mtt" && (
               <span className="rounded bg-ink-950 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
             )}
+            {tournamentInfo?.isFinalTable && (
+              <span className="rounded bg-gold-500 px-1 py-[1px] text-[7px] font-black tracking-widest text-ink-950">FINAL TABLE</span>
+            )}
           </div>
           <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
+          {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
+          {gameKey === "mtt" && regCloseCountdown && (
+            <div className="mt-0.5 flex items-center gap-1 leading-none">
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Reg締切</span>
+              <span className="text-[10px] font-black tabular-nums text-crimson-500">{regCloseCountdown}</span>
+            </div>
+          )}
           <div className="mt-1 flex items-end gap-2 leading-none">
             <div>
               <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Blind</span>
@@ -465,7 +480,11 @@ function GameScreen({
             {matchingSecondsLeft !== null && !matching?.starting && (
               <div className="text-[11px] text-ink-500 mt-0.5">プレイヤーが集まり次第スタートします</div>
             )}
-            {waiting && <div className="text-[11px] text-ink-500 mt-0.5">4人集まり次第すぐに開始します</div>}
+            {waiting && (
+              <div className="text-[11px] text-ink-500 mt-0.5">
+                4人集まり次第開始（最大15秒でボットが加わって開始します）
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -524,6 +543,9 @@ function GameScreen({
             gameKey={gameKey}
             totalEntrants={tournamentInfo?.total ?? null}
             onExit={onExit}
+            canReEntry={gameKey === "mtt" && !leftResult && Boolean(tournamentOver?.canReEntry)}
+            reEntryCost={tournamentOver?.reEntryCost ?? 2000}
+            onReEntry={reEntry}
           />
         )}
       </AnimatePresence>
