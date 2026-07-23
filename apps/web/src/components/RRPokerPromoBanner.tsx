@@ -5,9 +5,8 @@ import { motion } from "framer-motion";
 /**
  * 姉妹アプリ「RRPoker」の告知バナー(PokerARTホームに掲出)。
  *
- * デザインは RRPoker のブランド(黒白ボールド + アンバーゴールドのR)を踏襲し、
- * PokerART の白いSwissカード群の中であえて黒地カードとして際立たせる。ロゴは
- * リポジトリの公式アイコン(/logos/rrpoker-icon.png)をそのまま使う。
+ * 白背景のカードに、RRPokerの公式アイコン(/logos/rrpoker-icon.png)とアンバーゴールドの
+ * アクセントを合わせた、PokerARTのSwiss/エディトリアルなトーンに馴染む意匠。
  *
  * タップ動線:
  *  - カード全体 → RRPoker 本体(https://rrpoker.com)。ストレッチリンクで実装。
@@ -23,7 +22,7 @@ export function RRPokerPromoBanner() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
       aria-label="姉妹アプリ RRPoker のご案内"
-      className="relative overflow-hidden rounded-2xl bg-ink-950 ring-1 ring-gold-500/25"
+      className="relative overflow-hidden rounded-2xl bg-white ring-1 ring-ink-950/10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_26px_-16px_rgba(0,0,0,0.18)]"
     >
       {/* カード全体のタップ先(RRPoker本体)。ストレッチリンクで背面全域を覆う。 */}
       <a
@@ -39,22 +38,22 @@ export function RRPokerPromoBanner() {
 
       <div className="pointer-events-none relative z-10 p-4">
         <div className="flex items-center gap-3.5">
-          {/* リポジトリ公式アイコンを白タイルに載せる(アプリアイコン風)。 */}
-          <div className="shrink-0 grid place-items-center h-14 w-14 rounded-xl bg-white ring-1 ring-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.35)]">
+          {/* リポジトリ公式アイコン(白地の黒+金のRロゴ)をそのまま掲出。 */}
+          <div className="shrink-0 grid place-items-center h-14 w-14 rounded-xl bg-white ring-1 ring-ink-950/10 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logos/rrpoker-icon.png" alt="RRPoker" className="h-12 w-12 object-contain" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-400">
-              姉妹アプリ ・ RRPOKER
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-500">
+              姉妹アプリ <span className="text-gold-600">・</span> <span className="text-ink-900">RRPOKER</span>
             </p>
-            <h3 className="mt-1 text-[17px] font-black leading-tight tracking-tight text-white">
+            <h3 className="mt-1 text-[17px] font-black leading-tight tracking-tight text-ink-950">
               使用店舗、大募集。
             </h3>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-400">
-              実店舗ポーカーをまるごとデジタル化。バイイン・トーナメント運営・ハンド履歴・
-              全国レーティングまで、スマホひとつで。
+            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
+              トーナメント管理(タイマー)もチップ集計・純増記録も自動化。ランキングや
+              トナメ偏差値でお客様の体験も向上。しかも安価に。
             </p>
           </div>
         </div>
@@ -74,7 +73,7 @@ export function RRPokerPromoBanner() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="RRPoker 公式Instagramを開いてDMで相談する"
-            className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold text-white ring-1 ring-white/25 transition-colors hover:bg-white/10 active:bg-white/15"
+            className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold text-ink-800 ring-1 ring-ink-950/15 transition-colors hover:bg-ink-100 active:bg-ink-200"
           >
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.8" />
@@ -84,7 +83,7 @@ export function RRPokerPromoBanner() {
             DMで相談
           </a>
 
-          <span className="pointer-events-none ml-auto pr-0.5 text-[10.5px] text-ink-500">
+          <span className="pointer-events-none ml-auto pr-0.5 text-[10.5px] text-ink-400">
             お気軽にどうぞ
           </span>
         </div>
