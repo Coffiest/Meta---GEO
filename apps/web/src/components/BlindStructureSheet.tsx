@@ -44,9 +44,12 @@ export function BlindStructureSheet({
   gameLabel?: string;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<"clock" | "prize" | "structure">("clock");
+  const [view, setView] = useState<"clock" | "prize" | "structure" | "ranking">("clock");
   const clock = useClock(levelEndsAt ?? null);
   const lv = level?.level ?? currentLevel ?? 0;
+  const regClose = tournamentInfo?.registrationClosesAt ?? null;
+  const regCloseClock = useClock(!tournamentInfo?.registrationClosed ? regClose : null);
+  const standings = tournamentInfo?.standings ?? [];
 
   return (
     <motion.div
@@ -99,15 +102,25 @@ export function BlindStructureSheet({
           </div>
         </div>
 
-        {/* NEXT BREAK(このストラクチャーにブレイクは無い) */}
-        <div className="mt-4 flex items-center gap-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400 leading-tight">
-            Next
-            <br />
-            Break
-          </p>
-          <p className="text-[15px] font-bold text-ink-400">なし</p>
-        </div>
+        {/* レジクローズまでのカウントダウン(MTT・RC前のみ)。RC後/FTのステータスも出す。 */}
+        {regClose && !tournamentInfo?.registrationClosed ? (
+          <div className="mt-4 flex items-center gap-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400 leading-tight">
+              Reg
+              <br />
+              締切
+            </p>
+            <p className="text-[18px] font-black tabular-nums text-crimson-500">{regCloseClock}</p>
+          </div>
+        ) : tournamentInfo?.isFinalTable ? (
+          <div className="mt-4">
+            <span className="rounded-full bg-gold-500 px-3 py-1 text-[11px] font-black tracking-widest text-ink-950">FINAL TABLE</span>
+          </div>
+        ) : tournamentInfo?.registrationClosed ? (
+          <div className="mt-4">
+            <span className="text-[12px] font-bold text-ink-400">レジストレーション終了</span>
+          </div>
+        ) : null}
 
         {/* PLAYERS / AVERAGE */}
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -125,8 +138,16 @@ export function BlindStructureSheet({
           </div>
         </div>
 
-        {/* プライズ / ブラインド表 の切替ボタン */}
+        {/* 順位 / プライズ / ブラインド表 の切替ボタン */}
         <div className="mt-4 flex gap-2">
+          <button
+            onClick={() => setView((v) => (v === "ranking" ? "clock" : "ranking"))}
+            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+              view === "ranking" ? "border-ink-950 bg-ink-950 text-white" : "border-ink-950 bg-white text-ink-950"
+            }`}
+          >
+            順位
+          </button>
           <button
             onClick={() => setView((v) => (v === "prize" ? "clock" : "prize"))}
             className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
@@ -146,6 +167,41 @@ export function BlindStructureSheet({
         </div>
 
         <AnimatePresence mode="wait">
+          {view === "ranking" && (
+            <motion.div
+              key="ranking"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">Live Ranking(BB順)</p>
+                {standings.length > 0 ? (
+                  <ul className="space-y-1">
+                    {standings.map((s) => (
+                      <li
+                        key={s.userId}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 ${
+                          s.isBot ? "border-ink-100" : "border-ink-950"
+                        }`}
+                      >
+                        <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-gold-700">{s.rank}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink-950">{s.displayName}</span>
+                        <span className="shrink-0 text-[13px] font-black tabular-nums text-ink-950">
+                          {s.bbStack.toLocaleString()}
+                          <span className="text-[9px] text-ink-400">BB</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-4 text-center text-sm text-ink-400">順位情報がありません。</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {view === "prize" && (
             <motion.div
               key="prize"
@@ -156,7 +212,8 @@ export function BlindStructureSheet({
             >
               <div className="mt-4">
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">Prize Pool</p>
-                {tournamentInfo && tournamentInfo.prizePool.length > 0 ? (
+                {/* RC後は「何位いくら」、RC前はプライズプール総額のみ(何位いくらは非公開)。 */}
+                {tournamentInfo?.registrationClosed && tournamentInfo.prizePool.length > 0 ? (
                   <ul className="space-y-1.5">
                     {tournamentInfo.prizePool.map((p) => (
                       <li key={p.place} className="flex items-center justify-between rounded-xl border border-ink-200 px-3 py-2">
@@ -165,6 +222,14 @@ export function BlindStructureSheet({
                       </li>
                     ))}
                   </ul>
+                ) : tournamentInfo?.prizePoolTotal ? (
+                  <div className="rounded-2xl border border-ink-950 px-4 py-5 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">総額</p>
+                    <p className="mt-1 text-[34px] font-black tabular-nums leading-none text-gold-600">
+                      {tournamentInfo.prizePoolTotal.toLocaleString()}
+                    </p>
+                    <p className="mt-2 text-[11px] text-ink-400">レジクローズ時に順位別ペイアウトが確定します。</p>
+                  </div>
                 ) : (
                   <p className="py-4 text-center text-sm text-ink-400">プライズ情報がありません。</p>
                 )}

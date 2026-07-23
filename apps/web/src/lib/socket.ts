@@ -70,6 +70,16 @@ export interface PrizePlace {
   amount: number;
 }
 
+/** ライブ順位の1行(BB持ち降順)。 */
+export interface StandingRow {
+  userId: string;
+  displayName: string;
+  stack: number;
+  bbStack: number;
+  rank: number;
+  isBot: boolean;
+}
+
 /** トーナメントクロック画面用の集計情報(サーバーのbroadcastTournamentInfoから)。 */
 export interface TournamentInfo {
   /** 生き残っている人数。 */
@@ -78,8 +88,18 @@ export interface TournamentInfo {
   total: number;
   /** アベレージスタック(生存者の平均持ち点)。 */
   averageStack: number;
-  /** プライズ(ペイアウト)構造。 */
+  /** ペイアウト構造(RC後のみ。RC前は空)。 */
   prizePool: PrizePlace[];
+  /** プライズプール総額(RC前の表示用)。 */
+  prizePoolTotal?: number;
+  /** レジストレーションがクローズ済みか。 */
+  registrationClosed?: boolean;
+  /** レジクローズ時刻(epoch ms)。RC前のカウントダウン用。null=RC済み/未スタート。 */
+  registrationClosesAt?: number | null;
+  /** ファイナルテーブル(残り1卓)か。 */
+  isFinalTable?: boolean;
+  /** 全生存者のBB持ち降順ランキング。 */
+  standings?: StandingRow[];
   /** このトーナメントのDB ID(棋譜解析への遷移に使う)。未確定時はnull。 */
   tournamentId?: string | null;
 }
@@ -97,6 +117,10 @@ export interface TournamentOverInfo {
   winnerPlayerId: string | null;
   yourFinishPosition: number | null;
   yourPayout: number;
+  /** リエントリ可能か(MTT・レジクローズ前・満員でない)。 */
+  canReEntry?: boolean;
+  /** リエントリの参加費(チップ)。 */
+  reEntryCost?: number;
 }
 
 export interface TimeBankInfo {
@@ -458,6 +482,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       activityTimerRef.current = null;
       setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null, stalled: false }));
     });
+    // リエントリ成功: リザルト画面を閉じて卓へ戻す(直後のstate/players/levelUpで盤面が再描画される)。
+    socket.on("reEntered", () => {
+      setData((d) => ({ ...d, tournamentOver: null, gameGone: false }));
+    });
     socket.on("tableNotice", (payload: { kind: string; message: string }) =>
       setData((d) => ({ ...d, tableNotice: payload })),
     );
@@ -507,5 +535,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socketRef.current?.emit("showCards", { show });
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards };
+  /** MTTリエントリ: バスト済みからレジクローズ前に-2,000で復帰する。 */
+  const reEntry = useCallback(() => {
+    socketRef.current?.emit("reEntry");
+  }, []);
+
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry };
 }
