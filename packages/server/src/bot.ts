@@ -328,7 +328,7 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
         if (toCall <= 0) return { kind: "check" };
         return toCall >= input.stack ? { kind: "allIn" } : { kind: "call" };
       }
-      const openTo = Math.min(maxPossible, Math.max(input.minRaiseToAmount, Math.round(2.2 * bigBlind)));
+      const openTo = Math.min(maxPossible, Math.max(input.minRaiseToAmount, 2 * bigBlind));
       if (maxPossible - openTo <= bigBlind * 1.5) return { kind: "allIn" };
       return { kind: "raise", toAmount: openTo };
     }
@@ -341,17 +341,22 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
 
   if (toCall <= 0) {
     // チェックできる場面。
-    // ドンクベット禁止: このハンドのアグレッサーでない席は、チェックされてもリードベットしない。
-    // アグレッサー(=プリフロップ/直前ストリートで主導権を持つ席)のみ継続ベット(cベット)する。
+    // ドンクベット禁止: 主導権(アグレッサー)を持たない席は、中途半端なバリュー/セミブラフ/ブラフでの
+    // リードベット(=ドンク)をしない。ただし明確な強バリュー(ツーペア以上/オーバーペア/TPTK)だけは、
+    // 主導権に関わらずバリューとしてベットする(ナッツ級を大人しくチェックする方がGTOから外れるため)。
     const canBet = input.canRaise && input.minRaiseToAmount <= maxPossible;
-    if (canBet && input.isAggressor && made) {
-      // バリュー: TPTK以上/オーバーペア/ツーペア以上。セミブラフ: 強いドロー。
-      let betProb: number;
-      if (made.strong || made.overpair || made.tptk) betProb = 0.9; // バリュー厚め
-      else if (made.topPair) betProb = 0.5; // 中程度のトップペアは中頻度
-      else if (hasStrongDraw) betProb = 0.6; // セミブラフ
-      else betProb = equity > 0.5 ? 0.25 : 0.06; // 薄い/エアは低頻度
-      if (rand() < betProb) return { kind: "bet", toAmount: sizeBetTo(input.streetContribution) };
+    if (canBet && made) {
+      const strongValue = made.strong || made.overpair || made.tptk;
+      let betProb = 0;
+      if (strongValue) {
+        betProb = 0.9; // 強バリューは主導権に関わらずベット
+      } else if (input.isAggressor) {
+        // 主導権を持つ席のみ、cベット(中程度のトップペア)/セミブラフ/薄いベットを混ぜる。
+        if (made.topPair) betProb = 0.5;
+        else if (hasStrongDraw) betProb = 0.6;
+        else betProb = equity > 0.5 ? 0.25 : 0.06;
+      }
+      if (betProb > 0 && rand() < betProb) return { kind: "bet", toAmount: sizeBetTo(input.streetContribution) };
     }
     return { kind: "check" };
   }
