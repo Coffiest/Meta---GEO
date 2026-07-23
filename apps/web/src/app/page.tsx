@@ -471,20 +471,17 @@ function GameScreen({
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
               <div className="text-xs font-semibold text-ink-950">
-                {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "開始まで待機中…"}
+                {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
             </div>
-            <div className="text-[11px] text-ink-600 mt-1.5">
-              {matching ? `${matching.registered} / ${matching.needed} 人集まりました` : `${waiting!.registered} / ${waiting!.needed} 人登録済み`}
-            </div>
+            {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。 */}
+            {matching && (
+              <div className="text-[11px] text-ink-600 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
+            )}
             {matchingSecondsLeft !== null && !matching?.starting && (
               <div className="text-[11px] text-ink-500 mt-0.5">プレイヤーが集まり次第スタートします</div>
             )}
-            {waiting && (
-              <div className="text-[11px] text-ink-500 mt-0.5">
-                4人集まり次第開始（最大15秒でボットが加わって開始します）
-              </div>
-            )}
+            {waiting && <div className="text-[11px] text-ink-500 mt-1.5">まもなく着席します…</div>}
           </motion.div>
         )}
       </AnimatePresence>
