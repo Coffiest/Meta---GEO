@@ -26,8 +26,11 @@ export const MTT_TABLE_SEAT_COUNT = 6;
 export const MTT_BUY_IN = 2000;
 /** 最初の登録から、ボット補充して4人で開始するまでのマッチング時間(15秒)。 */
 export const MTT_MATCH_WINDOW_MS = 15_000;
-/** フィールド上限(3卓ぶん=18人)。ボット補充・リエントリはこの生存人数を超えない。 */
-export const MTT_FIELD_CAP = 18;
+/** フィールド上限(ボット補充・リエントリはこの生存人数を超えない)。初期10〜15人+レイトレジ用に余裕を持たせる。 */
+export const MTT_FIELD_CAP = 24;
+/** 開始時に必ず賑わうよう、初期フィールドは10〜15人。人間の不足分をボットで補充する(人間が多ければボットは減る/ゼロ)。 */
+export const MTT_INITIAL_FIELD_MIN = 10;
+export const MTT_INITIAL_FIELD_MAX = 15;
 /** レジストレーションクローズまでの時間(スタートから15分)。 */
 export const MTT_REG_DURATION_MS = 15 * 60_000;
 /** ボット補充の判定間隔(3分)。直近3分に人間の新規参加が0ならボットを1〜2名足す。 */
@@ -219,8 +222,9 @@ export class MttSession implements GameSession {
   }
 
   /**
-   * ボットを補充して開始する。実人間が4人未満なら、不足分を新規ボットで埋めて4人にしてから開始。
-   * 15秒マッチング満了時、または実人間が4人集まった瞬間に呼ばれる。
+   * ボットを補充して開始する。開始時のフィールドが最低10〜15人(ランダム)になるよう、実人間の不足分を
+   * 新規ボットで埋めてから開始する。人間がどれだけ少なくても常に10人以上で賑わい、人間が多ければ
+   * ボットは少なく(またはゼロ)なる。15秒マッチング満了時、または実人間が規定数集まった瞬間に呼ばれる。
    */
   private async beginWithBotFill(): Promise<void> {
     if (this.started) return;
@@ -228,7 +232,10 @@ export class MttSession implements GameSession {
       clearTimeout(this.matchTimer);
       this.matchTimer = null;
     }
-    const need = MTT_MIN_PLAYERS_TO_START - this.pendingRegistrants.length;
+    // 初期フィールド目標: 10〜15人のランダム。人間の不足分だけボットで補充する。
+    const target =
+      MTT_INITIAL_FIELD_MIN + Math.floor(Math.random() * (MTT_INITIAL_FIELD_MAX - MTT_INITIAL_FIELD_MIN + 1));
+    const need = Math.max(0, target - this.pendingRegistrants.length);
     if (need > 0) {
       const bots = await this.freshBots(need);
       for (const b of bots) {
