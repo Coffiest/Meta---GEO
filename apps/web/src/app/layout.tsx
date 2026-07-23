@@ -64,6 +64,11 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
+  // Google Search Console の所有権確認トークン(環境変数 GOOGLE_SITE_VERIFICATION に設定すると
+  // <meta name="google-site-verification"> が出力される)。設定後に再デプロイ→GSCで確認できる。
+  ...(process.env["GOOGLE_SITE_VERIFICATION"]
+    ? { verification: { google: process.env["GOOGLE_SITE_VERIFICATION"] } }
+    : {}),
   openGraph: {
     type: "website",
     locale: "ja_JP",
@@ -91,18 +96,55 @@ export const viewport: Viewport = {
 };
 
 // 検索エンジンにブランド(Poker ART=ポーカーアート=POKERART)を「同一の実体」として
-// 認識させるための構造化データ。alternateNameでカナ・大文字表記も紐付ける。
+// 認識させるための構造化データ。@graphで WebSite・Organization・WebApplication を相互参照させ、
+// alternateName でカナ/大文字表記、sameAs で公式SNS・姉妹サイトを紐付けてブランド実体を強化する。
+// これによりブランド名検索での一致(ナレッジ/サイトリンク)を狙う。
+const ORG_ID = `${SITE_URL}/#organization`;
+const SITE_ID = `${SITE_URL}/#website`;
 const JSON_LD = {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: "Poker ART",
-  alternateName: ["ポーカーアート", "POKERART", "Poker ART（ポーカーアート）"],
-  url: SITE_URL,
-  applicationCategory: "GameApplication",
-  operatingSystem: "Web",
-  inLanguage: "ja",
-  description: SITE_DESCRIPTION,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "JPY" },
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": ORG_ID,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART", "Poker ART（ポーカーアート）"],
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.png`,
+      // 公式SNS・姉妹サービスとの関連付け(ブランド実体の裏付け)。
+      sameAs: ["https://www.instagram.com/coffest_o0", "https://rrpoker.com"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": SITE_ID,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART"],
+      url: SITE_URL,
+      inLanguage: "ja",
+      description: SITE_DESCRIPTION,
+      publisher: { "@id": ORG_ID },
+      // サイト内検索(サイトリンク検索ボックス)の候補提示。
+      potentialAction: {
+        "@type": "SearchAction",
+        target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/glossary?q={search_term_string}` },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "WebApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART", "Poker ART（ポーカーアート）"],
+      url: SITE_URL,
+      applicationCategory: "GameApplication",
+      operatingSystem: "Web",
+      inLanguage: "ja",
+      description: SITE_DESCRIPTION,
+      isPartOf: { "@id": SITE_ID },
+      publisher: { "@id": ORG_ID },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "JPY" },
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
