@@ -139,13 +139,13 @@ export class MultiTableTournament {
    * ハンドが進行中でないタイミング(ハンド精算の直後など)でのみ呼ぶこと — 進行中のハンドの
    * 座席をここで削除すると、そのハンドの実行中状態と食い違ってしまう。
    */
-  forceEliminate(playerId: string): void {
+  forceEliminate(playerId: string, busyTableIds?: ReadonlySet<number>): void {
     for (const table of this.tables) {
       for (const [seatIndex, seat] of table.seats) {
         if (seat.playerId !== playerId) continue;
         table.seats.delete(seatIndex);
         this.events.push({ type: "handFinished", tableId: table.id, handNumber: this.handNumber, bustedPlayerIds: [playerId] });
-        this.rebalanceTables();
+        this.rebalanceTables(busyTableIds);
         return;
       }
     }
@@ -156,19 +156,37 @@ export class MultiTableTournament {
    * ハンドとハンドの間(どの卓もハンド進行中でないタイミング)で呼び出すこと。
    * 空席のある卓のうち最も人数が少ない卓に着席し、満席なら新しい卓を増設する。
    */
-  registerLatePlayer(player: MultiTableSeatInput): { tableId: number; seatIndex: number } {
+  registerLatePlayer(
+    player: MultiTableSeatInput,
+    busyTableIds?: ReadonlySet<number>,
+    preferredSeat?: { tableId: number; seatIndex: number },
+  ): { tableId: number; seatIndex: number } {
     this.displayNames.set(player.playerId, player.displayName);
 
-    let table = this.findTableWithMostRoom();
-    if (!table) {
-      table = { id: this.nextTableId++, seats: new Map(), previousBigBlindFixedPos: null };
-      this.tables.push(table);
+    // リエントリ時の「同じ卓・同じ席」希望。その卓が存在し・進行中でなく・その席が空いていれば優先する。
+    let table: TableState | null = null;
+    let seatIndex: number | null = null;
+    if (preferredSeat) {
+      const pref = this.tables.find((t) => t.id === preferredSeat.tableId);
+      const prefBusy = busyTableIds?.has(preferredSeat.tableId) ?? false;
+      if (pref && !prefBusy && pref.seats.size < this.seatCount && !pref.seats.has(preferredSeat.seatIndex)) {
+        table = pref;
+        seatIndex = preferredSeat.seatIndex;
+      }
     }
-    const seatIndex = findEmptySeat([...table.seats.keys()], this.seatCount)!;
-    table.seats.set(seatIndex, { playerId: player.playerId, stack: this.startingStack });
 
-    // 参加によって卓間の人数差が2以上になった場合に均す
-    this.rebalanceTables();
+    if (!table) {
+      table = this.findTableWithMostRoom();
+      if (!table) {
+        table = { id: this.nextTableId++, seats: new Map(), previousBigBlindFixedPos: null };
+        this.tables.push(table);
+      }
+      seatIndex = findEmptySeat([...table.seats.keys()], this.seatCount)!;
+    }
+    table.seats.set(seatIndex!, { playerId: player.playerId, stack: this.startingStack });
+
+    // 参加によって卓間の人数差が2以上になった場合に均す(進行中の卓は動かさない)
+    this.rebalanceTables(busyTableIds);
 
     const finalTable = this.tables.find((t) => [...t.seats.values()].some((s) => s.playerId === player.playerId))!;
     const finalSeat = [...finalTable.seats.entries()].find(([, s]) => s.playerId === player.playerId)![0];
@@ -226,8 +244,13 @@ export class MultiTableTournament {
     return hand;
   }
 
-  /** ハンド完了後に呼び出す。スタック反映・バスト処理・テーブル解体/バランシングまで行う。 */
-  settleFinishedHandOnTable(tableId: number, hand: HandEngine): void {
+  /**
+   * ハンド完了後に呼び出す。スタック反映・バスト処理・テーブル解体/バランシングまで行う。
+   * 全卓並行進行時は、精算した卓以外にもハンド進行中の卓がありうるため、`busyTableIds`
+   * (現在ハンドが動いている卓の集合)を渡してそれらを解体・移動元にしないようにする。
+   * 精算対象の `tableId` 自身は既にハンドが終わっているので busy から外して呼ぶこと。
+   */
+  settleFinishedHandOnTable(tableId: number, hand: HandEngine, busyTableIds?: ReadonlySet<number>): void {
     if (!hand.isHandComplete()) throw new Error("The hand has not finished yet");
     const table = this.requireTable(tableId);
 
@@ -244,15 +267,15 @@ export class MultiTableTournament {
     }
 
     this.events.push({ type: "handFinished", tableId, handNumber: this.handNumber, bustedPlayerIds });
-    this.rebalanceTables();
+    this.rebalanceTables(busyTableIds);
   }
 
-  private rebalanceTables(): void {
+  private rebalanceTables(busyTableIds?: ReadonlySet<number>): void {
     let guard = 0;
     while (guard++ < 1000) {
       const occupancy = this.tables.map((t) => ({ tableId: t.id, occupiedSeats: [...t.seats.keys()] }));
       const totalPlayers = this.totalRemainingPlayers();
-      const breakTableId = findTableToBreak(occupancy, this.seatCount, totalPlayers);
+      const breakTableId = findTableToBreak(occupancy, this.seatCount, totalPlayers, busyTableIds);
       if (breakTableId === null) break;
       this.breakTable(breakTableId);
     }
@@ -260,7 +283,7 @@ export class MultiTableTournament {
     guard = 0;
     while (guard++ < 1000) {
       const occupancy = this.tables.map((t) => ({ tableId: t.id, occupiedSeats: [...t.seats.keys()] }));
-      const move = findRebalanceMove(occupancy);
+      const move = findRebalanceMove(occupancy, busyTableIds);
       if (!move) break;
       this.movePlayerBetweenTables(move.fromTableId, move.toTableId);
     }
