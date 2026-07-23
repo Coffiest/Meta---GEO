@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
@@ -152,6 +153,44 @@ function signedClass(n: number): string {
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
+}
+
+/**
+ * デスクトップ(lg以上)専用の左ナビレール。モバイルの下部フッターナビと同じ導線を、
+ * PC幅では縦のサイドバーとして提供する(2カラムレイアウト)。モバイルでは非表示。
+ */
+function SideNav({
+  items,
+  activeKey,
+}: {
+  items: { key: string; label: string; icon: string; href?: string; onClick?: () => void }[];
+  activeKey: string | null;
+}) {
+  return (
+    <nav className="hidden lg:sticky lg:top-[76px] lg:flex lg:w-56 lg:shrink-0 lg:flex-col lg:gap-1 lg:self-start lg:pt-6">
+      {items.map((item) => {
+        const active = activeKey === item.key;
+        const cls = `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold transition-colors ${
+          active ? "bg-ink-950 text-white" : "text-ink-600 hover:bg-ink-100"
+        }`;
+        const inner = (
+          <>
+            <Icon name={item.icon} className="h-5 w-5 shrink-0" />
+            <span>{item.label}</span>
+          </>
+        );
+        return item.href ? (
+          <Link key={item.key} href={item.href} className={cls}>
+            {inner}
+          </Link>
+        ) : (
+          <button key={item.key} onClick={item.onClick} className={cls}>
+            {inner}
+          </button>
+        );
+      })}
+    </nav>
+  );
 }
 
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
@@ -971,7 +1010,20 @@ export function Lobby({
         }
       />
 
-      <main className="flex-1 overflow-y-auto px-4 pt-4 pb-28 space-y-5">
+      {/* lg以上は「左ナビレール + コンテンツ」の2カラム、モバイルは従来の1カラム+下部ナビ。 */}
+      <div className="mx-auto flex w-full max-w-4xl min-h-0 flex-1 flex-col lg:flex-row lg:gap-6 lg:px-6">
+        <SideNav
+          activeKey={tab === "tournaments" ? "history" : tab}
+          items={[
+            { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
+            { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
+            { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+            { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+            { key: "database", label: "Database", icon: "db", href: "/geo" },
+          ]}
+        />
+
+        <main className="min-h-0 min-w-0 flex-1 w-full overflow-y-auto px-4 pt-4 pb-28 space-y-5 lg:pb-10">
         <AnimatePresence mode="wait">
         {tab === "home" && (
           <motion.div
@@ -1461,7 +1513,8 @@ export function Lobby({
         )}
         </AnimatePresence>
 
-      </main>
+        </main>
+      </div>
 
       {tab === "home" && (
         <div
@@ -1472,17 +1525,20 @@ export function Lobby({
         </div>
       )}
 
-      <Footer
-        tone="light"
-        activeKey={tab}
-        centerHref="/geo"
-        items={[
-          { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
-          { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
-          { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
-          { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
-        ]}
-      />
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      <div className="lg:hidden">
+        <Footer
+          tone="light"
+          activeKey={tab}
+          centerHref="/geo"
+          items={[
+            { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
+            { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
+            { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+            { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+          ]}
+        />
+      </div>
 
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats, t)} onClose={() => setInfoKey(null)} />}
       <AnimatePresence>
