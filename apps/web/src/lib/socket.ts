@@ -227,6 +227,13 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   // stalled=true にして診断オーバーレイを出し、以降5秒おきに resumeGame で再同期を試みる。
   const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ハンド"中"フリーズの監視。サーバーからの進行イベント(state/turnTimer/seatAction)が一定時間
+  // 途絶えたら停止とみなし、自動再同期する。自分の手番の長考は誤検知しないよう除外する。
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ウォッチドッグ判定用に最新の手番/自席/完了状態を保持する(タイマー発火時に参照)。
+  const liveStateRef = useRef<{ actingSeatIndex: number | null; yourSeatIndex: number | null; isComplete: boolean; over: boolean }>(
+    { actingSeatIndex: null, yourSeatIndex: null, isComplete: false, over: false },
+  );
 
   useEffect(() => {
     const clearBadgeTimers = () => {
@@ -247,8 +254,35 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     });
     socketRef.current = socket;
 
+    // ハンド中フリーズのウォッチドッグ。進行イベントが35秒途絶し、かつ自分の手番でも次ハンド待ちでも
+    // なければ「停止」とみなし、診断オーバーレイ+自動再同期(resumeGame)を開始する。進行イベント受信の
+    // たびに再武装するので、正常時は発火しない。自分の手番の長考(actingSeat===自席)は停止ではないため除外。
+    const WATCHDOG_MS = 35_000;
+    const armWatchdog = () => {
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+      activityTimerRef.current = setTimeout(() => {
+        const ls = liveStateRef.current;
+        if (!hasStartedRef.current || ls.over) return;
+        // 自分の手番の長考、または次ハンド待ち(handEnded側の監視に委譲)は停止扱いしない。監視は継続。
+        if ((ls.actingSeatIndex !== null && ls.actingSeatIndex === ls.yourSeatIndex) || ls.isComplete) {
+          armWatchdog();
+          return;
+        }
+        // 他者/ボットの手番で進行が途絶 = 停止。オーバーレイを出し、5秒おきに再同期する。
+        setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
+        if (!resyncTimerRef.current) {
+          resyncTimerRef.current = setInterval(() => {
+            if (socket.connected) socket.emit("resumeGame");
+            else socket.connect();
+          }, 5000);
+        }
+        armWatchdog();
+      }, WATCHDOG_MS);
+    };
+
     socket.on("connect", () => {
       setData((d) => ({ ...d, connected: true }));
+      armWatchdog();
       // 初回は joinGame(新規参加)。以降の再接続は、対局開始後なら resumeGame(進行中の卓へ復帰。
       // 新しいSNG卓を勝手に立てない)、まだマッチング中ならもう一度 joinGame でキューへ再参加する。
       if (!hasJoinedRef.current) {
@@ -268,6 +302,12 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     );
     socket.on("state", (state: PublicHandState) => {
       hasStartedRef.current = true;
+      liveStateRef.current = {
+        ...liveStateRef.current,
+        actingSeatIndex: state.actingSeatIndex,
+        isComplete: state.isComplete,
+      };
+      armWatchdog();
       setData((d) => {
         const prev = d.state;
         // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
@@ -292,9 +332,10 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         };
       });
     });
-    socket.on("yourCards", (payload: { seatIndex: number; cards: string[] }) =>
-      setData((d) => ({ ...d, yourSeatIndex: payload.seatIndex, yourCards: payload.cards })),
-    );
+    socket.on("yourCards", (payload: { seatIndex: number; cards: string[] }) => {
+      liveStateRef.current = { ...liveStateRef.current, yourSeatIndex: payload.seatIndex };
+      setData((d) => ({ ...d, yourSeatIndex: payload.seatIndex, yourCards: payload.cards }));
+    });
     socket.on(
       "players",
       (payload: {
@@ -316,11 +357,15 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           ),
         })),
     );
-    socket.on("turnTimer", (payload: TurnTimerInfo) => setData((d) => ({ ...d, turnTimer: payload })));
+    socket.on("turnTimer", (payload: TurnTimerInfo) => {
+      armWatchdog();
+      setData((d) => ({ ...d, turnTimer: payload }));
+    });
     // 各席のアクション(bet/raise/call/check/fold/allIn)をアイコン脇のバッジに表示する。状態更新と
     // 独立して発火するため、ストリートを閉じるコール/チェックも消えずに一瞬表示される。一定時間後に消す。
     socket.on("seatAction", (payload: { seatIndex: number; kind: SeatActionKind; toAmount: number }) => {
       const { seatIndex, kind, toAmount } = payload;
+      armWatchdog();
       setData((d) => ({ ...d, lastActionBySeat: { ...d.lastActionBySeat, [seatIndex]: { kind, toAmount } } }));
       const timers = badgeTimersRef.current;
       if (timers[seatIndex]) clearTimeout(timers[seatIndex]);
@@ -408,6 +453,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     });
     socket.on("tournamentOver", (payload: TournamentOverInfo) => {
       clearStallWatch();
+      liveStateRef.current = { ...liveStateRef.current, over: true };
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+      activityTimerRef.current = null;
       setData((d) => ({ ...d, tournamentOver: payload, matching: null, waiting: null, stalled: false }));
     });
     socket.on("tableNotice", (payload: { kind: string; message: string }) =>
@@ -423,6 +471,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     return () => {
       clearBadgeTimers();
       clearStallWatch();
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+      activityTimerRef.current = null;
       socket.disconnect();
     };
   }, [displayName, avatarKey, gameKey, accessToken]);
