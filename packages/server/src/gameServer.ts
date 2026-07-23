@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, type PublicHandState } from "@meta-geo/engine";
 import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS } from "@meta-geo/db";
-import { decideBotAction } from "./bot.js";
+import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
 
@@ -754,6 +754,7 @@ export class TableSession implements GameSession {
       canRaise: !seat.hasActedThisStreet,
       activeOpponentCount,
       bigBlind: this.tournament?.getCurrentLevel().bigBlind,
+      isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
     });
   }
 
