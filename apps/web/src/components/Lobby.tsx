@@ -15,6 +15,7 @@ import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
+import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
@@ -983,6 +984,8 @@ export function Lobby({
               onViewLeaderboard={() => setTab("leaderboard")}
               onViewHistory={() => setTab("tournaments")}
             />
+
+            <RRPokerPromoBanner />
 
             <div className="pt-1">
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-ink-400">
