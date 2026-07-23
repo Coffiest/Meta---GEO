@@ -539,6 +539,7 @@ function GameScreen({
             tournamentId={tournamentInfo?.tournamentId ?? null}
             gameKey={gameKey}
             totalEntrants={tournamentInfo?.total ?? null}
+            displayName={displayName}
             onExit={onExit}
             canReEntry={gameKey === "mtt" && !leftResult && Boolean(tournamentOver?.canReEntry)}
             reEntryCost={tournamentOver?.reEntryCost ?? 2000}
@@ -848,6 +849,7 @@ export default function Page() {
             info={resultSuggestion}
             accessToken={accessToken}
             statsBefore={null}
+            displayName={profile.displayName}
             onExit={() => setResultSuggestion(null)}
           />
         )}

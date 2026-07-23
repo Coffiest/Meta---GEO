@@ -118,6 +118,7 @@ export function TournamentResultScreen({
   tournamentId,
   gameKey,
   totalEntrants,
+  displayName,
   onExit,
   canReEntry,
   reEntryCost,
@@ -132,6 +133,8 @@ export function TournamentResultScreen({
   gameKey?: "sng" | "mtt";
   /** 総エントリー数(MTTの「6 / 521」表記用)。 */
   totalEntrants?: number | null;
+  /** ログイン中ユーザーの表示名(X共有カードに載せる)。 */
+  displayName?: string;
   onExit: () => void;
   /** MTTリエントリ可能か(レジクローズ前・満員でない)。 */
   canReEntry?: boolean;
@@ -174,23 +177,37 @@ export function TournamentResultScreen({
   const useRatio = gameKey === "mtt" && pos != null && totalEntrants != null && totalEntrants > 0;
   const rankPlain = pos == null ? t("result.finished") : useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos);
 
-  async function handleShare() {
-    const parts = [t("common.appName")];
-    if (pos != null) parts.push(useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos));
-    if (info.yourPayout > 0) parts.push(`${t("result.prizePrefix")} +${info.yourPayout.toLocaleString()}`);
-    const text = parts.join(" · ");
+  // X共有カード用の共有URL(/share/result?...)を組み立てる。展開時にOGP画像として
+  // /api/og/result の動的カード(白+ゴールド)が表示される。表示名・着順・獲得・全国順位を載せる。
+  function buildShareUrl(): string {
+    const p = new URLSearchParams();
+    if (displayName) p.set("name", displayName);
+    if (pos != null) p.set("pos", String(pos));
+    if (useRatio && totalEntrants != null) p.set("entrants", String(totalEntrants));
+    if (info.yourPayout > 0) p.set("payout", String(info.yourPayout));
+    if (after?.nationalRank != null) p.set("rank", String(after.nationalRank));
+    p.set("mode", gameKey === "mtt" ? "mtt" : "sng");
+    return `${PROD_URL}/share/result?${p.toString()}`;
+  }
+
+  // Xのintentツイート。結果を一言添えてワンタップ投稿できるようにする。
+  function handleShare() {
+    const rank = pos != null ? (useRatio ? `${pos} / ${totalEntrants}位` : ordinal(pos)) : null;
+    const head = pos === 1 ? "優勝しました" : rank ? `${rank}でフィニッシュ` : "プレイしました";
+    const prize = info.yourPayout > 0 ? ` 獲得 +${info.yourPayout.toLocaleString()}` : "";
+    const text = `Poker ARTのトーナメントで${head}！${prize}`;
+    const intent =
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}` +
+      `&url=${encodeURIComponent(buildShareUrl())}` +
+      `&hashtags=${encodeURIComponent("ポーカーアート,ポーカー")}`;
     try {
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({ title: t("common.appName"), text, url: PROD_URL });
-        return;
-      }
-      if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(`${text}\n${PROD_URL}`);
+      if (typeof window !== "undefined") {
+        window.open(intent, "_blank", "noopener,noreferrer");
         setShared(true);
         window.setTimeout(() => setShared(false), 1600);
       }
     } catch {
-      /* ユーザーが共有シートをキャンセルした等。無視する。 */
+      /* ポップアップブロック等。無視する。 */
     }
   }
 
@@ -349,13 +366,11 @@ export function TournamentResultScreen({
             onClick={handleShare}
             className="flex items-center justify-center gap-2 rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className="h-[17px] w-[17px]">
-              <circle cx="18" cy="5" r="2.6" />
-              <circle cx="6" cy="12" r="2.6" />
-              <circle cx="18" cy="19" r="2.6" />
-              <path d="M8.3 10.8 15.7 6.4M8.3 13.2l7.4 4.4" />
+            {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-[16px] w-[16px]">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
             </svg>
-            {shared ? t("result.shareDone") : t("result.share")}
+            {shared ? t("result.shareOpened") : t("result.shareX")}
           </button>
         </div>
       </div>
