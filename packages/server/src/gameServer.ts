@@ -103,12 +103,16 @@ export function pickBotProfiles(count: number): BotProfile[] {
  * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。持ち時間そのものは
  * 人間と同じ20秒(ACTION_CLOCK_MS)固定で、その中の"どこで"動くかをストリートごとにばらけさせる。
  * 返り値が20秒を超えると、呼び出し側(scheduleBotTurn)がタイムバンクを使って延長する。
+ * - チェック: どのストリートでも長考しない(0.2〜0.9秒)。相手のベットが無く考える材料が少ないため、テンポ優先。
  * - プリフロップ: フォールドは半分がx/f(即降り)、半分は0.5〜2秒考えてからフォールド。参加は0.8〜5秒。
  * - フロップ: 全アクション0〜5秒でランダム。
  * - ターン以降: 2〜20秒で考える。たまに20秒を超えてタイムバンクを使う。
  */
 export function botDecisionMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
   const isFold = action.kind === "fold";
+
+  // チェックはストリートを問わず1秒以内に即チェック(0.2〜0.9秒)。
+  if (action.kind === "check") return 200 + rand() * 700;
 
   if (street === "preflop") {
     if (isFold) {
