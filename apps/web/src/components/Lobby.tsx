@@ -12,7 +12,6 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { Footer } from "./Footer";
 import { Icon } from "./Icon";
-import { PlayButton } from "./PlayButton";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
@@ -133,6 +132,46 @@ const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; det
     detailKey: "lobby.game.mttDetail",
   },
 ];
+
+/**
+ * ホーム上部の対局スタートカード。Sit&Go / MTT を最初から横並びで見せ、ワンタップで卓へ入る。
+ * 意匠はホームの他カードと同じSwiss(黒フチ+白背景・角丸)。装飾アイコンは載せず、
+ * 種別ラベル(eyebrow)+タイトル+一言説明+バイインpillのみで構成する。
+ */
+function GameStartCards({
+  games,
+  onJoin,
+}: {
+  games: typeof GAMES;
+  onJoin: (key: GameKey) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {games.map((game, i) => (
+        <motion.button
+          key={game.key}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onJoin(game.key)}
+          aria-label={game.title}
+          className="flex flex-col items-start gap-1 rounded-[20px] bg-white p-4 text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow active:shadow-none"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">
+            {i === 0 ? "Single table" : "Multi-table"}
+          </span>
+          <span className="text-lg font-black leading-none tracking-tight text-ink-950">{game.title}</span>
+          <span className="text-[11px] leading-snug text-ink-500">{t(game.detailKey)}</span>
+          <span className="mt-1 rounded-full bg-ink-950/[0.06] px-2 py-0.5 text-[10px] font-bold tabular-nums text-ink-700">
+            {t("play.buyIn")} {game.buyIn.toLocaleString()}
+          </span>
+        </motion.button>
+      ))}
+    </div>
+  );
+}
 
 export type Tab = "home" | "stats" | "leaderboard" | "history" | "tournaments";
 
@@ -1100,6 +1139,8 @@ export function Lobby({
           >
             <HomeGreeting displayName={displayName} />
 
+            <GameStartCards games={GAMES} onJoin={onJoin} />
+
             <RRRatingCard
               displayName={displayName}
               avatarKey={avatarKey}
@@ -1119,8 +1160,6 @@ export function Lobby({
                 v{APP_VERSION} ・ 作成者: Coffiest ・ © 2026 Poker ART
               </p>
             </div>
-            {/* プレイボタンは下の固定バーに常時表示されるため、ここでは末尾に余白だけ確保する */}
-            <div className="h-20" aria-hidden />
           </motion.div>
         )}
 
@@ -1579,15 +1618,6 @@ export function Lobby({
 
         </main>
       </div>
-
-      {tab === "home" && (
-        <div
-          className="fixed inset-x-0 z-10 flex justify-center px-4"
-          style={{ bottom: "calc(96px + env(safe-area-inset-bottom))" }}
-        >
-          <PlayButton games={GAMES} onJoin={onJoin} />
-        </div>
-      )}
 
       {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
       <div className="lg:hidden">
