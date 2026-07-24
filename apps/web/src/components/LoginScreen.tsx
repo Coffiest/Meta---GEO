@@ -221,6 +221,18 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                 登録確認のメールをお送りしました。
               </p>
 
+              {/* iCloud/迷惑メールの注意。確認メールが届かないケースが多いため、待つ前に明示する。 */}
+              <div className="mt-4 flex gap-2.5 rounded-xl border border-gold-500/30 bg-gold-500/[0.06] px-3.5 py-3">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 8h.01M11 12h1v4h1" />
+                </svg>
+                <div className="text-[11px] leading-relaxed text-ink-700">
+                  <span className="font-bold text-ink-950">{t("login.emailNotice.title")}</span>
+                  <span className="mt-0.5 block">{t("login.emailNotice.body")}</span>
+                </div>
+              </div>
+
               <div className="mt-5 space-y-3">
                 {[
                   { n: "1", text: "メールアプリを開いて、受信箱を確認してください。見当たらない場合は迷惑メールフォルダもご確認ください。" },
@@ -362,6 +374,22 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               </button>
             )}
           </div>
+
+          {/* メール到達性の注意書き。iCloudは確認メールが届かないことが多く、他社でも迷惑メール
+              フォルダに入りやすい。メールを実際に送るモード(新規登録/再設定)で表示し、Google/Apple
+              ログインを案内する。 */}
+          {mode !== "login" && (
+            <div className="mt-4 flex gap-2.5 rounded-xl border border-gold-500/30 bg-gold-500/[0.06] px-3.5 py-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8h.01M11 12h1v4h1" />
+              </svg>
+              <div className="text-[11px] leading-relaxed text-ink-700">
+                <span className="font-bold text-ink-950">{t("login.emailNotice.title")}</span>
+                <span className="mt-0.5 block">{t("login.emailNotice.body")}</span>
+              </div>
+            </div>
+          )}
 
           {auth.oauthError && (
             <div className="mt-4 space-y-0.5 rounded-xl border border-crimson-500/30 bg-crimson-500/5 px-3.5 py-2.5 text-[12px] text-crimson-500">
