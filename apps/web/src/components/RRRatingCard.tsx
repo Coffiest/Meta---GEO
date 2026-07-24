@@ -28,9 +28,9 @@ export interface TournamentHistoryPoint {
 
 export const GAME_TYPE_LABEL: Record<string, string> = { sng: "Sit & Go", mtt: "MTT" };
 
-/** RRPokerと同じく、下位帯(50未満で目安45未満)は細かい数値を伏せて「< 45」とだけ表示する。 */
+/** トナメ偏差値は帯に関わらず常に実数値を表示する(45以下も「< 45」で伏せない)。 */
 export function displayRating(rr: number): string {
-  return rr < 45 ? "< 45" : rr.toFixed(2);
+  return rr.toFixed(2);
 }
 
 function formatSigned(n: number): string {
