@@ -636,6 +636,95 @@ function LoadingScreen() {
 }
 
 /**
+ * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1)。
+ * このシートはPWA本体と同一オリジン・同一ストレージなので、ここでセッションが確立された時点で
+ * 本体ウィンドウ側も(フォーカス/storage監視により)自動的にログイン済みになる。
+ * ユーザーにはこの画面を閉じて本体へ戻ってもらうだけでよい。
+ */
+function AuthDoneSheet({ loggedIn }: { loggedIn: boolean }) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  // セッション確立後、可能なら自動でシートを閉じる(閉じられないUAでは下の案内に従ってもらう)。
+  useEffect(() => {
+    if (!loggedIn) return;
+    const t = setTimeout(() => {
+      try {
+        window.close();
+      } catch {
+        /* 閉じられないUAでは手動で閉じてもらう */
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [loggedIn]);
+
+  // 15秒待ってもセッションが確立しない場合は失敗案内へ切り替える。
+  useEffect(() => {
+    if (loggedIn) return;
+    const t = setTimeout(() => setTimedOut(true), 15_000);
+    return () => clearTimeout(t);
+  }, [loggedIn]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-ink-50 px-8 text-center">
+      {loggedIn ? (
+        <>
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-950">
+            <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden>
+              <path d="M5 12.5l4.5 4.5L19 7.5" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <div>
+            <p className="text-lg font-black tracking-tight text-ink-950">ログイン完了</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-600">
+              この画面を閉じて Poker ART にお戻りください。
+              <br />
+              アプリ側は自動でログインされています。
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              try {
+                window.close();
+              } catch {
+                /* noop */
+              }
+            }}
+            className="rounded-xl bg-ink-950 px-8 py-3 text-sm font-bold text-white"
+          >
+            閉じて戻る
+          </button>
+          <p className="text-[11px] text-ink-500">閉じない場合は、右上の「完了」をタップしてください。</p>
+        </>
+      ) : timedOut ? (
+        <>
+          <p className="text-lg font-black tracking-tight text-ink-950">ログインを確認できませんでした</p>
+          <p className="text-[13px] leading-relaxed text-ink-600">
+            この画面を閉じて、アプリからもう一度お試しください。
+          </p>
+          <button
+            onClick={() => {
+              try {
+                window.close();
+              } catch {
+                /* noop */
+              }
+            }}
+            className="rounded-xl bg-ink-950 px-8 py-3 text-sm font-bold text-white"
+          >
+            閉じる
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-300 border-t-ink-950" aria-hidden />
+          <p className="text-sm text-ink-700">ログインを確認しています…</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * 進行中ゲームの復帰チェックが繰り返し失敗したときの脱出画面。「読み込み中…」で永久に固まらないよう、
  * 手動の再試行とホームへの脱出を必ず提供する(再試行はバックグラウンドでも継続している)。
  */
@@ -683,6 +772,13 @@ export default function Page() {
   const [resumeFailed, setResumeFailed] = useState(false);
   // 「再試行」で復帰チェックのeffectを即座に再起動するためのnonce。
   const [resumeNonce, setResumeNonce] = useState(0);
+  // スタンドアロンPWAのシート型OAuthログイン(useAuthのoauthSignIn)から戻ってきたアプリ内シート。
+  // このウィンドウは認証の受け皿でしかないため、アプリ本体は描画せず
+  // 「ログイン完了・この画面を閉じて戻る」の案内だけを表示する(本体ウィンドウが自動でログインされる)。
+  const [isAuthDoneSheet] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("authdone"),
+  );
+
   // 初回ログイン時のみ一度だけ表示するチュートリアル。オンボーディング(名前+アバター設定)完了後、
   // 未読(localStorage未記録)なら出す。判定はマウント後(クライアントのみ)に行い、SSRとの不一致を避ける。
   const [tourChecked, setTourChecked] = useState(false);
@@ -761,6 +857,9 @@ export default function Page() {
       </div>
     );
   }
+
+  // OAuthシートの受け皿。セッション確立を確認したら「閉じて戻る」案内を出す(アプリ本体は描画しない)。
+  if (isAuthDoneSheet) return <AuthDoneSheet loggedIn={Boolean(auth.session)} />;
 
   if (auth.loading) return <LoadingScreen />;
   if (!auth.session) return <LoginScreen auth={auth} />;
