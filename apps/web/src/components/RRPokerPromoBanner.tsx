@@ -9,10 +9,10 @@ import { motion } from "framer-motion";
  * アクセントを合わせた、PokerARTのSwiss/エディトリアルなトーンに馴染む意匠。
  *
  * タップ動線:
- *  - カード全体 → RRPoker 本体(https://rrpoker.com)。ストレッチリンクで実装。
+ *  - カード全体 → RRPoker 本体(https://rrpoker.vercel.app/)。ストレッチリンクで実装。
  *  - 「DMで相談」ピル → RR公式Instagram(別リンク。カードのリンクより手前に重ねる)。
  */
-const RRPOKER_URL = "https://rrpoker.com";
+const RRPOKER_URL = "https://rrpoker.vercel.app/";
 const RRPOKER_INSTAGRAM = "https://www.instagram.com/coffest_o0";
 
 export function RRPokerPromoBanner() {
