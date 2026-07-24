@@ -17,7 +17,11 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#ffffff",
     theme_color: "#ffffff",
     lang: "ja",
-    // アイコンは既存のワードマークロゴ(/logos/Logo_s.png)を使用する。新規アイコンは作らない。
-    icons: [{ src: "/logos/Logo_s.png", sizes: "2000x2000", type: "image/png", purpose: "any" }],
+    // アイコンは既存ワードマークを白背景でパディングしたもの(/logos/Logo_app_icon.png)。
+    // フルブリードだとiOSホーム画面で黒く沈むため、白マージンを付けて白基調のタイルにする。新規ロゴは作らない。
+    icons: [
+      { src: "/logos/Logo_app_icon.png", sizes: "1024x1024", type: "image/png", purpose: "any" },
+      { src: "/logos/Logo_app_icon.png", sizes: "1024x1024", type: "image/png", purpose: "maskable" },
+    ],
   };
 }
