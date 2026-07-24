@@ -112,7 +112,7 @@ const JSON_LD = {
       url: SITE_URL,
       logo: `${SITE_URL}/icon.png`,
       // 公式SNS・姉妹サービスとの関連付け(ブランド実体の裏付け)。
-      sameAs: ["https://www.instagram.com/coffest_o0", "https://rrpoker.com"],
+      sameAs: ["https://www.instagram.com/coffest_o0", "https://rrpoker.vercel.app/"],
     },
     {
       "@type": "WebSite",
