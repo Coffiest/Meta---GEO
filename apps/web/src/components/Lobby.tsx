@@ -133,10 +133,24 @@ const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; det
   },
 ];
 
+/** 対局スタートカードのCTA矢印(右向き)。絵文字禁止のためSVGストロークで実装。 */
+function EnterArrow({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path d="M5 12h13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
  * ホーム上部の対局スタートカード。Sit&Go / MTT を最初から横並びで見せ、ワンタップで卓へ入る。
- * 意匠はホームの他カードと同じSwiss(黒フチ+白背景・角丸)。装飾アイコンは載せず、
- * 種別ラベル(eyebrow)+タイトル+一言説明+バイインpillのみで構成する。
+ * 意匠はモノクロSwiss/エディトリアル:白地+黒フチ+角丸を土台に、
+ *  - 上辺の極細アクセントバー(SnG=gold / MTT=crimson)で一瞬で識別、
+ *  - 左肩の連番(01/02)+種別ラベルで版面のリズムを作り、
+ *  - 特大タイトル+一言説明、
+ *  - 下辺に区切り線を挟んで「バイイン」と「入室 →」のCTA行、
+ * で構成する。装飾は上辺バーと矢印のみに限定(絵文字不使用)。
  */
 function GameStartCards({
   games,
@@ -148,27 +162,53 @@ function GameStartCards({
   const { t } = useI18n();
   return (
     <div className="grid grid-cols-2 gap-3">
-      {games.map((game, i) => (
-        <motion.button
-          key={game.key}
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onJoin(game.key)}
-          aria-label={game.title}
-          className="flex flex-col items-start gap-1 rounded-[20px] bg-white p-4 text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow active:shadow-none"
-        >
-          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">
-            {i === 0 ? "Single table" : "Multi-table"}
-          </span>
-          <span className="text-lg font-black leading-none tracking-tight text-ink-950">{game.title}</span>
-          <span className="text-[11px] leading-snug text-ink-500">{t(game.detailKey)}</span>
-          <span className="mt-1 rounded-full bg-ink-950/[0.06] px-2 py-0.5 text-[10px] font-bold tabular-nums text-ink-700">
-            {t("play.buyIn")} {game.buyIn.toLocaleString()}
-          </span>
-        </motion.button>
-      ))}
+      {games.map((game, i) => {
+        const accent = i === 0 ? "bg-gold-500" : "bg-crimson-500";
+        const accentText = i === 0 ? "text-gold-600" : "text-crimson-500";
+        return (
+          <motion.button
+            key={game.key}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.05 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onJoin(game.key)}
+            aria-label={`${game.title} — ${t("play.enter")}`}
+            className="group relative flex flex-col items-start overflow-hidden rounded-[20px] bg-white p-4 pt-[18px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
+          >
+            {/* 上辺アクセントバー(種別で色分け=一瞬で識別) */}
+            <span className={`absolute inset-x-0 top-0 h-[3px] ${accent}`} aria-hidden />
+            {/* 左肩: 連番 + 種別ラベル */}
+            <span className="flex w-full items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-500">
+                {i === 0 ? "Single table" : "Multi-table"}
+              </span>
+              <span className="font-mono text-[10px] font-bold tabular-nums text-ink-400">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+            </span>
+            {/* タイトル */}
+            <span className="mt-2 text-xl font-black leading-none tracking-tight text-ink-950">{game.title}</span>
+            {/* 一言説明 */}
+            <span className="mt-1.5 text-[11px] leading-snug text-ink-500">{t(game.detailKey)}</span>
+            {/* 区切り線 + CTA行(バイイン / 入室→) */}
+            <span className="mt-3 h-px w-full bg-ink-100" aria-hidden />
+            <span className="mt-2.5 flex w-full items-center justify-between">
+              <span className="flex flex-col leading-none">
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-ink-500">{t("play.buyIn")}</span>
+                <span className="mt-0.5 text-[13px] font-black tabular-nums text-ink-950">
+                  {game.buyIn.toLocaleString()}
+                </span>
+              </span>
+              <span className={`flex items-center gap-1 text-[11px] font-black ${accentText}`}>
+                {t("play.enter")}
+                <EnterArrow className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </span>
+            </span>
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
