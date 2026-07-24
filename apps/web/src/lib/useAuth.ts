@@ -32,6 +32,45 @@ export interface AuthState {
  */
 export const AUTH_SHEET_MARKER = "pokerart-auth-sheet";
 
+/**
+ * Sign in with Apple の Services ID(Supabase の Apple プロバイダに設定しているものと同じ公開値)。
+ * これが設定されている場合、スタンドアロンPWAでのAppleログインは「Apple公式JSのポップアップ +
+ * IDトークン直接連携(signInWithIdToken)」で行う。リダイレクトが一切発生しないため、
+ * ブラウザUIへの遷移・Safariへのハンドオフが構造的に起こり得ない最良の方式。
+ * 未設定の場合はアプリ内シート方式(oauthSignIn)へフォールバックする。
+ * 有効化には Apple Developer Console 側で、この Services ID にアプリのドメインと
+ * Return URL(オリジン)が登録されている必要がある。
+ */
+const APPLE_SERVICES_ID = process.env["NEXT_PUBLIC_APPLE_SERVICES_ID"];
+
+interface AppleIdAuthApi {
+  auth: {
+    init: (config: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+    signIn: () => Promise<{ authorization?: { id_token?: string } }>;
+  };
+}
+
+let appleJsLoader: Promise<AppleIdAuthApi | null> | null = null;
+
+/** Apple公式のSign in with Apple JSを一度だけ読み込む。失敗時はnull(呼び出し側でフォールバック)。 */
+function loadAppleJs(): Promise<AppleIdAuthApi | null> {
+  if (appleJsLoader) return appleJsLoader;
+  appleJsLoader = new Promise((resolve) => {
+    const existing = (window as unknown as { AppleID?: AppleIdAuthApi }).AppleID;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/ja_JP/appleid.auth.js";
+    script.async = true;
+    script.onload = () => resolve((window as unknown as { AppleID?: AppleIdAuthApi }).AppleID ?? null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+  return appleJsLoader;
+}
+
 /** SupabaseのAuthエラーメッセージ(英語)を、画面にそのまま出せる日本語メッセージへ変換する。 */
 function translateAuthError(message: string): string {
   const lower = message.toLowerCase();
@@ -224,6 +263,34 @@ export function useAuth(): AuthState {
       await oauthSignIn("google", { prompt: "select_account" });
     },
     signInWithApple: async () => {
+      // スタンドアロンPWAでは、可能ならリダイレクト皆無のApple公式JSポップアップ方式を最優先で使う。
+      // ポップアップはIDトークンをpostMessageで返して自動で閉じ、着地ページ自体が存在しないため、
+      // ブラウザUIに取り残される余地が構造的に無い。失敗時は従来のシート方式へフォールバック。
+      if (supabase && redirectTo && APPLE_SERVICES_ID && isStandalonePwa()) {
+        try {
+          const appleId = await loadAppleJs();
+          if (appleId) {
+            appleId.auth.init({
+              clientId: APPLE_SERVICES_ID,
+              scope: "name email",
+              redirectURI: redirectTo,
+              usePopup: true,
+            });
+            const result = await appleId.auth.signIn();
+            const idToken = result?.authorization?.id_token;
+            if (idToken) {
+              const { error } = await supabase.auth.signInWithIdToken({ provider: "apple", token: idToken });
+              if (!error) return; // セッション確立(onAuthStateChangeが反映する)
+              console.error("[auth] signInWithIdToken failed, falling back:", error.message);
+            }
+          }
+        } catch (err) {
+          // ユーザーによるキャンセルもここに来る。キャンセルはフォールバックせず静かに終了する。
+          const message = err instanceof Error ? err.message : String(err);
+          if (/popup_closed|user_cancelled|canceled|cancelled/i.test(message)) return;
+          console.error("[auth] Apple JS popup failed, falling back to sheet flow:", err);
+        }
+      }
       await oauthSignIn("apple");
     },
     signOut: async () => {
