@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabaseClient";
+import { isStandalonePwa } from "./pwa";
 
 export interface AuthState {
   /** Supabaseの環境変数が未設定の場合はfalse(ログイン機能そのものが使えない) */
@@ -90,7 +91,84 @@ export function useAuth(): AuthState {
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
+  // スタンドアロンPWAのシート型ログイン(下のoauthSignIn参照)では、認証はアプリ内シートで
+  // 完了し、セッションは同一オリジンのlocalStorageに書かれる。本体ウィンドウ側はここで
+  // フォーカス復帰・storageイベントを合図にセッションを拾い直し、ログイン状態へ遷移する。
+  useEffect(() => {
+    if (!supabase) return;
+    const refresh = () => {
+      supabase.auth.getSession().then(({ data }) => {
+        // nullで上書きしない(サインアウトはonAuthStateChangeが正しく反映する)。
+        if (data.session) setSession(data.session);
+      });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [supabase]);
+
   const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+
+  /**
+   * Google/AppleのOAuthログイン。
+   *
+   * 通常ブラウザ: 従来どおり同一ウィンドウのフルリダイレクト(実績ある挙動を変えない)。
+   *
+   * スタンドアロンPWA(ホーム画面起動): 本体ウィンドウを遷移させると、特にAppleの認証ページが
+   * コンテキストをSafari本体へハンドオフしてしまい、以後「ブラウザのUI付き」でアプリを使う羽目に
+   * なる致命的な問題があった(iOSはPWAとSafariのストレージが別なので、セッションもPWAに入らない)。
+   * そこで本体は一切遷移させず、認証はアプリ内シート(window.open)で行う。シートはPWAと同一
+   * オリジン・同一ストレージのため、認証完了時にセッションがlocalStorageへ保存され、本体は上の
+   * フォーカス/storage監視で自動的にログイン状態になる。シートには ?authdone=1 を付けて戻し、
+   * 「ログイン完了・この画面を閉じて戻る」案内を表示する(page.tsx)。
+   */
+  const oauthSignIn = async (provider: "google" | "apple", queryParams?: Record<string, string>) => {
+    if (!supabase || !redirectTo) return;
+    const baseOptions = queryParams ? { redirectTo, queryParams } : { redirectTo };
+    if (!isStandalonePwa()) {
+      await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
+      return;
+    }
+    // タップ直後の同期処理でシートを開く(非同期後のwindow.openはポップアップブロックされうる)。
+    let sheet: Window | null = null;
+    try {
+      sheet = window.open("", "_blank");
+    } catch {
+      sheet = null;
+    }
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { ...baseOptions, redirectTo: `${redirectTo}/?authdone=1`, skipBrowserRedirect: true },
+    });
+    if (error || !data?.url) {
+      try {
+        sheet?.close();
+      } catch {
+        /* noop */
+      }
+      // URLが作れなかった場合は従来のリダイレクトにフォールバック(ログイン不能よりはるかに良い)。
+      await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
+      return;
+    }
+    if (sheet) {
+      try {
+        sheet.location.href = data.url;
+        return;
+      } catch {
+        /* シートへの書き込みに失敗したら下のフォールバックへ */
+      }
+    }
+    // シートを開けない環境ではやむを得ず従来のフルリダイレクト。
+    window.location.assign(data.url);
+  };
 
   return {
     authAvailable: Boolean(supabase),
@@ -126,17 +204,12 @@ export function useAuth(): AuthState {
       return { error: error ? translateAuthError(error.message) : null };
     },
     signInWithGoogle: async () => {
-      if (!supabase) return;
       // prompt=select_account: ブラウザにログイン済みのGoogleセッションを黙って再利用させず、
       // 毎回アカウント選択画面を出す(別のGoogleアカウントでログインし直せるようにするため)。
-      await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo, queryParams: { prompt: "select_account" } },
-      });
+      await oauthSignIn("google", { prompt: "select_account" });
     },
     signInWithApple: async () => {
-      if (!supabase) return;
-      await supabase.auth.signInWithOAuth({ provider: "apple", options: { redirectTo } });
+      await oauthSignIn("apple");
     },
     signOut: async () => {
       if (!supabase) return;
