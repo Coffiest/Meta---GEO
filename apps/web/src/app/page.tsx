@@ -321,32 +321,49 @@ function GameScreen({
             )}
           </div>
           <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
+          {/* 生存者数 / 総エントリー数(MTT)。リエントリで総数が増えるので remaining/total を目立たせて即確認できるようにする。 */}
+          {gameKey === "mtt" && tournamentInfo && (
+            <div className="mt-1 flex items-center gap-1 leading-none">
+              {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-ink-700">
+                <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
+                <circle cx="10" cy="8" r="3.2" />
+                <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.1a3.2 3.2 0 0 1 0 6" />
+              </svg>
+              <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
+                {tournamentInfo.remaining}
+                <span className="text-ink-500">/</span>
+                {tournamentInfo.total}
+              </span>
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">残り</span>
+            </div>
+          )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
           {gameKey === "mtt" && regCloseCountdown && (
             <div className="mt-0.5 flex items-center gap-1 leading-none">
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Reg締切</span>
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Reg締切</span>
               <span className="text-[10px] font-black tabular-nums text-crimson-500">{regCloseCountdown}</span>
             </div>
           )}
           <div className="mt-1 flex items-end gap-2 leading-none">
             <div>
-              <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Blind</span>
+              <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Blind</span>
               <span className="text-[11px] font-black tabular-nums text-ink-950">
                 {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
               </span>
             </div>
             {level && level.bbAnte > 0 && (
               <div className="border-l border-ink-200 pl-2">
-                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">ANTE</span>
+                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">ANTE</span>
                 <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
               </div>
             )}
             {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
               <div className="border-l border-ink-200 pl-2">
-                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-400">Ave</span>
+                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Ave</span>
                 <span className="text-[11px] font-black tabular-nums text-gold-600">
                   {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
-                  <span className="text-[8px] text-ink-400">BB</span>
+                  <span className="text-[8px] text-ink-600">BB</span>
                 </span>
               </div>
             )}
