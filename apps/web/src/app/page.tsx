@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
-import { useAuth } from "@/lib/useAuth";
+import { AUTH_SHEET_MARKER, useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
@@ -693,7 +693,7 @@ function AuthDoneSheet({ loggedIn }: { loggedIn: boolean }) {
           >
             閉じて戻る
           </button>
-          <p className="text-[11px] text-ink-500">閉じない場合は、右上の「完了」をタップしてください。</p>
+          <p className="text-[11px] text-ink-500">閉じない場合は、画面左上の「✕」をタップしてください。</p>
         </>
       ) : timedOut ? (
         <>
@@ -775,9 +775,18 @@ export default function Page() {
   // スタンドアロンPWAのシート型OAuthログイン(useAuthのoauthSignIn)から戻ってきたアプリ内シート。
   // このウィンドウは認証の受け皿でしかないため、アプリ本体は描画せず
   // 「ログイン完了・この画面を閉じて戻る」の案内だけを表示する(本体ウィンドウが自動でログインされる)。
-  const [isAuthDoneSheet] = useState(
-    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("authdone"),
-  );
+  // 判定はシート自身のsessionStorageマーカー(主経路・Supabase設定に依存しない)と
+  // ?authdone=1(補助経路)の2重。マーカーが無いとシートにアプリ本体が丸ごと表示されてしまい、
+  // ユーザーがブラウザUI付きのシート内でアプリを使い続けてしまう。
+  const [isAuthDoneSheet] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (new URLSearchParams(window.location.search).has("authdone")) return true;
+    try {
+      return window.sessionStorage.getItem(AUTH_SHEET_MARKER) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // 初回ログイン時のみ一度だけ表示するチュートリアル。オンボーディング(名前+アバター設定)完了後、
   // 未読(localStorage未記録)なら出す。判定はマウント後(クライアントのみ)に行い、SSRとの不一致を避ける。

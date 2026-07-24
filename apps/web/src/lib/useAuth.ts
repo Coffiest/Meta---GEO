@@ -25,6 +25,13 @@ export interface AuthState {
   signOut: () => Promise<void>;
 }
 
+/**
+ * スタンドアロンPWAのシート型OAuthログインで、認証用シート(window.open)自身に付けるマーカーの
+ * sessionStorageキー。シートのタブにのみ存在し、認証プロバイダを経由して戻ってきても保持される。
+ * page.tsx はこれを見て、シートにはアプリ本体ではなく「ログイン完了・閉じて戻る」画面を表示する。
+ */
+export const AUTH_SHEET_MARKER = "pokerart-auth-sheet";
+
 /** SupabaseのAuthエラーメッセージ(英語)を、画面にそのまま出せる日本語メッセージへ変換する。 */
 function translateAuthError(message: string): string {
   const lower = message.toLowerCase();
@@ -127,8 +134,14 @@ export function useAuth(): AuthState {
    * なる致命的な問題があった(iOSはPWAとSafariのストレージが別なので、セッションもPWAに入らない)。
    * そこで本体は一切遷移させず、認証はアプリ内シート(window.open)で行う。シートはPWAと同一
    * オリジン・同一ストレージのため、認証完了時にセッションがlocalStorageへ保存され、本体は上の
-   * フォーカス/storage監視で自動的にログイン状態になる。シートには ?authdone=1 を付けて戻し、
-   * 「ログイン完了・この画面を閉じて戻る」案内を表示する(page.tsx)。
+   * フォーカス/storage監視で自動的にログイン状態になる。
+   *
+   * シートの識別は2重化している:
+   *  1. シートを開いた直後(about:blank=同一オリジンのうち)に、シート自身の sessionStorage へ
+   *     マーカーを書き込む。sessionStorage はタブ単位で保持されるため、Apple/Supabase を経由して
+   *     このオリジンへ戻ってきてもマーカーが残り、page.tsx が確実に「閉じて戻る」画面を出せる。
+   *     (SupabaseのリダイレクトURL許可リスト照合でクエリが剥がされても機能する、設定非依存の主経路)
+   *  2. redirectTo の ?authdone=1(許可リストが許す場合の補助経路)。
    */
   const oauthSignIn = async (provider: "google" | "apple", queryParams?: Record<string, string>) => {
     if (!supabase || !redirectTo) return;
@@ -141,8 +154,10 @@ export function useAuth(): AuthState {
     let sheet: Window | null = null;
     try {
       sheet = window.open("", "_blank");
+      // about:blankは本体と同一オリジン扱いのため、この時点ならシートのsessionStorageへ書き込める。
+      sheet?.sessionStorage.setItem(AUTH_SHEET_MARKER, "1");
     } catch {
-      sheet = null;
+      /* マーカーを書けなくても ?authdone=1 の補助経路が残る */
     }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
