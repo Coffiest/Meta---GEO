@@ -55,6 +55,8 @@ interface TableRuntime {
   hand: HandEngine | null;
   turnTimer: ReturnType<typeof setTimeout> | null;
   pumpScheduled: boolean;
+  /** 直近に配信した手番クロック。再接続(attachHuman)時にまだ有効なら再送し、復帰後の時計を正しく動かす。 */
+  lastTurn: { seatIndex: number; endsAt: number; durationMs: number } | null;
 }
 
 interface HumanEntry {
@@ -341,7 +343,7 @@ export class MttSession implements GameSession {
   private runtime(tableId: number): TableRuntime {
     let rt = this.runtimes.get(tableId);
     if (!rt) {
-      rt = { tableId, hand: null, turnTimer: null, pumpScheduled: false };
+      rt = { tableId, hand: null, turnTimer: null, pumpScheduled: false, lastTurn: null };
       this.runtimes.set(tableId, rt);
     }
     return rt;
@@ -387,6 +389,10 @@ export class MttSession implements GameSession {
       socket.emit("state", rt.hand.getPublicState());
       const seatIndex = this.seatIndexOf(userId);
       if (seatIndex !== null) socket.emit("yourCards", { seatIndex, cards: rt.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      // 復帰後の手番クロックを正しく動かすため、まだ有効な手番タイマーを新ソケットへ再送する。
+      if (rt.lastTurn && rt.lastTurn.endsAt > Date.now() && rt.hand.getActingSeatIndex() === rt.lastTurn.seatIndex) {
+        socket.emit("turnTimer", rt.lastTurn);
+      }
     }
   }
 
@@ -758,6 +764,12 @@ export class MttSession implements GameSession {
    * 自動プレイヤーの手番。人間と同じ20秒のショットクロックを表示し、その中の決めた時刻でアクション
    * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する。人間不在卓は即消化。
    */
+  /** 手番クロックを卓へ配信しつつ、再接続時の再送用に卓ごとの最新値を保持する。 */
+  private emitTurnTimer(rt: TableRuntime, seatIndex: number, endsAt: number, durationMs: number): void {
+    rt.lastTurn = { seatIndex, endsAt, durationMs };
+    this.io.to(this.tableRoom(rt.tableId)).emit("turnTimer", { seatIndex, endsAt, durationMs });
+  }
+
   private scheduleBotTurn(rt: TableRuntime, actingSeat: number, botAction: PlayerAction): void {
     const room = this.tableRoom(rt.tableId);
     const act = () => {
@@ -770,7 +782,7 @@ export class MttSession implements GameSession {
     }
     const street = rt.hand?.getPublicState().street ?? "preflop";
     const decision = botDecisionMs(street, botAction);
-    this.io.to(room).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + ACTION_CLOCK_MS, durationMs: ACTION_CLOCK_MS });
+    this.emitTurnTimer(rt, actingSeat, Date.now() + ACTION_CLOCK_MS, ACTION_CLOCK_MS);
     if (decision <= ACTION_CLOCK_MS) {
       rt.turnTimer = setTimeout(act, decision);
       return;
@@ -778,14 +790,14 @@ export class MttSession implements GameSession {
     // 20秒で決めきれず、タイムバンクを使って延長する。
     rt.turnTimer = setTimeout(() => {
       if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
-      this.io.to(room).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + TIME_BANK_EXTENSION_MS, durationMs: TIME_BANK_EXTENSION_MS });
+      this.emitTurnTimer(rt, actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS);
       rt.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
     }, ACTION_CLOCK_MS);
   }
 
   private armHumanClock(rt: TableRuntime, actingSeat: number, human: HumanEntry, durationMs: number): void {
     const endsAt = Date.now() + durationMs;
-    this.io.to(this.tableRoom(rt.tableId)).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs });
+    this.emitTurnTimer(rt, actingSeat, endsAt, durationMs);
     rt.turnTimer = setTimeout(() => {
       const current = rt.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;

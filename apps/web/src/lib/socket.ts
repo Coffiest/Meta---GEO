@@ -258,6 +258,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   const liveStateRef = useRef<{ actingSeatIndex: number | null; yourSeatIndex: number | null; isComplete: boolean; over: boolean }>(
     { actingSeatIndex: null, yourSeatIndex: null, isComplete: false, over: false },
   );
+  // 復帰(resync)フォールバック。forceResyncで resumeGame を再送した後、一定時間サーバーからの
+  // 受信が無ければ「ゾンビ接続(connected===trueだが実際は死んでいる)」とみなして強制再ハンドシェイク
+  // する。任意のサーバー受信(onAny)で解除する。lastForceResyncRefは多重発火のデバウンス用。
+  const resyncFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastForceResyncRef = useRef(0);
 
   useEffect(() => {
     const clearBadgeTimers = () => {
@@ -275,8 +280,49 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     const socket = io(SOCKET_URL, {
       auth: { displayName, avatarKey, accessToken },
       transports: ["websocket", "polling"],
+      // 切断を検知したら無限に自動再接続する(バックグラウンド/回線断からの復帰を確実にする)。
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 8000,
     });
     socketRef.current = socket;
+
+    // 任意のサーバー受信で「通信経路は生きている」と判断し、強制再接続フォールバックを解除する。
+    const clearResyncFallback = () => {
+      if (resyncFallbackRef.current) clearTimeout(resyncFallbackRef.current);
+      resyncFallbackRef.current = null;
+    };
+    socket.onAny(() => clearResyncFallback());
+
+    // バックグラウンド復帰/タブ復帰/回線復帰時に「必ず」進行中の卓へ再アタッチする中核。
+    // socket.connected を盲信せず、接続中に見えても3秒応答が無ければゾンビ接続とみなして
+    // disconnect→connect で強制再ハンドシェイクする(connectハンドラが resumeGame を再送する)。
+    const forceResync = (opts?: { immediate?: boolean }) => {
+      const s = socketRef.current;
+      if (!s) return;
+      const now = Date.now();
+      if (!opts?.immediate && now - lastForceResyncRef.current < 1500) return;
+      lastForceResyncRef.current = now;
+      if (!s.connected) {
+        s.connect();
+        return;
+      }
+      if (hasStartedRef.current) s.emit("resumeGame");
+      else s.emit("joinGame", { gameKey });
+      clearResyncFallback();
+      resyncFallbackRef.current = setTimeout(() => {
+        const s2 = socketRef.current;
+        if (!s2) return;
+        try {
+          s2.disconnect();
+        } catch {
+          /* noop */
+        }
+        s2.connect();
+      }, 3000);
+    };
 
     // ハンド中フリーズのウォッチドッグ。進行イベントが35秒途絶し、かつ自分の手番でも次ハンド待ちでも
     // なければ「停止」とみなし、診断オーバーレイ+自動再同期(resumeGame)を開始する。進行イベント受信の
@@ -295,10 +341,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         // 他者/ボットの手番で進行が途絶 = 停止。オーバーレイを出し、5秒おきに再同期する。
         setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
         if (!resyncTimerRef.current) {
-          resyncTimerRef.current = setInterval(() => {
-            if (socket.connected) socket.emit("resumeGame");
-            else socket.connect();
-          }, 5000);
+          resyncTimerRef.current = setInterval(() => forceResync(), 5000);
         }
         armWatchdog();
       }, WATCHDOG_MS);
@@ -445,10 +488,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       stallTimerRef.current = setTimeout(() => {
         setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
         if (resyncTimerRef.current) clearInterval(resyncTimerRef.current);
-        resyncTimerRef.current = setInterval(() => {
-          if (socket.connected) socket.emit("resumeGame");
-          else socket.connect();
-        }, 5000);
+        resyncTimerRef.current = setInterval(() => forceResync(), 5000);
       }, 15_000);
     });
     socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
@@ -496,11 +536,31 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socket.on("sngMatching", (payload: MatchingInfo) => setData((d) => ({ ...d, matching: payload })));
     socket.on("mttWaiting", (payload: WaitingInfo) => setData((d) => ({ ...d, waiting: payload })));
 
+    // アプリ復帰(バックグラウンド→前面、タブ切替、ページ復帰、回線復帰)で必ず再アタッチする。
+    // これが無いと、モバイルでタブが凍結された際にゾンビ接続のまま盤面が固まり復帰できない。
+    const onForeground = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") forceResync();
+    };
+    const onOnline = () => forceResync({ immediate: true });
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onForeground);
+    if (typeof window !== "undefined") {
+      window.addEventListener("pageshow", onForeground);
+      window.addEventListener("focus", onForeground);
+      window.addEventListener("online", onOnline);
+    }
+
     return () => {
       clearBadgeTimers();
       clearStallWatch();
+      clearResyncFallback();
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
       activityTimerRef.current = null;
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onForeground);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pageshow", onForeground);
+        window.removeEventListener("focus", onForeground);
+        window.removeEventListener("online", onOnline);
+      }
       socket.disconnect();
     };
   }, [displayName, avatarKey, gameKey, accessToken]);

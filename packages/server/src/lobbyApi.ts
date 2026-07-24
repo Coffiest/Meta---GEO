@@ -126,6 +126,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
 
     // アプリ復帰/ログイン時の進行中ゲーム確認。進行中なら gameKey を返して強制復帰させ、
     // 離席中に終了していれば result(結果サジェスト)を1回だけ返す。
+    // ?peek=1 のときは「参加中ゲームの有無」だけを非破壊で返す(ホームの復帰バナー用ポーリング。
+    // result を消費しないので、あとで通常の active-game 取得時に結果サジェストが1回だけ出る動作を壊さない)。
     if (url.pathname === "/api/lobby/active-game") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
@@ -137,9 +139,10 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 200, { gameKey: null, result: null });
         return true;
       }
+      const peek = url.searchParams.get("peek") === "1";
       sendJson(res, 200, {
         gameKey: activeGames.getActive(user.id),
-        result: activeGames.takeResult(user.id),
+        result: peek ? null : activeGames.takeResult(user.id),
       });
       return true;
     }

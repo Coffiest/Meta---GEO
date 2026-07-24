@@ -323,6 +323,8 @@ export class TableSession implements GameSession {
   private chatLog: ChatMessage[] = [];
   private finished = false;
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 直近に配信した手番クロック。再接続(attachHuman)時に、まだ有効なら新ソケットへ再送して復帰後の時計を正しく動かす。 */
+  private lastTurn: { seatIndex: number; endsAt: number; durationMs: number } | null = null;
   private levelEndsAt = 0;
   private acceleratedHands = 0;
 
@@ -476,6 +478,10 @@ export class TableSession implements GameSession {
     if (this.hand) {
       socket.emit("state", this.hand.getPublicState());
       socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      // 復帰後の手番クロックを正しく動かすため、まだ有効な手番タイマーを新ソケットへ再送する。
+      if (this.lastTurn && this.lastTurn.endsAt > Date.now() && this.hand.getActingSeatIndex() === this.lastTurn.seatIndex) {
+        socket.emit("turnTimer", this.lastTurn);
+      }
     }
   }
 
@@ -680,6 +686,12 @@ export class TableSession implements GameSession {
    * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する(他プレイヤーの画面では
    * リングが延びて見える)。人間不在の卓は演出を省いて即消化する。
    */
+  /** 手番クロックを卓へ配信しつつ、再接続時の再送用に最新値を保持する。 */
+  private emitTurnTimer(seatIndex: number, endsAt: number, durationMs: number): void {
+    this.lastTurn = { seatIndex, endsAt, durationMs };
+    this.io.to(this.roomId).emit("turnTimer", { seatIndex, endsAt, durationMs });
+  }
+
   private scheduleBotTurn(actingSeat: number, botAction: PlayerAction): void {
     const act = () => {
       if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
@@ -692,7 +704,7 @@ export class TableSession implements GameSession {
     const street = this.hand?.getPublicState().street ?? "preflop";
     const decision = botDecisionMs(street, botAction);
     // 人間と全く同じ20秒のショットクロックを表示する。
-    this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + ACTION_CLOCK_MS, durationMs: ACTION_CLOCK_MS });
+    this.emitTurnTimer(actingSeat, Date.now() + ACTION_CLOCK_MS, ACTION_CLOCK_MS);
     if (decision <= ACTION_CLOCK_MS) {
       this.turnTimer = setTimeout(act, decision);
       return;
@@ -700,14 +712,14 @@ export class TableSession implements GameSession {
     // 20秒で決めきれず、タイムバンクを使って延長する。
     this.turnTimer = setTimeout(() => {
       if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-      this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt: Date.now() + TIME_BANK_EXTENSION_MS, durationMs: TIME_BANK_EXTENSION_MS });
+      this.emitTurnTimer(actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS);
       this.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
     }, ACTION_CLOCK_MS);
   }
 
   private armHumanClock(actingSeat: number, human: HumanSeat, durationMs: number): void {
     const endsAt = Date.now() + durationMs;
-    this.io.to(this.roomId).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs });
+    this.emitTurnTimer(actingSeat, endsAt, durationMs);
     this.turnTimer = setTimeout(() => {
       const current = this.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;

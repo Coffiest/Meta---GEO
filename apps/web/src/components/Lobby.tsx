@@ -938,6 +938,39 @@ export function Lobby({
   const [lbMetric, setLbMetric] = useState<LbMetric>("profit");
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
   const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
+  // ホーム最上段の「復帰」バナー用: いま参加中のゲーム種別(サーバーが常時記録)。非破壊peekでポーリング。
+  const [activeGameKey, setActiveGameKey] = useState<GameKey | null>(null);
+
+  // 参加中ゲームを常時確認: マウント時 + 復帰(focus/visibilitychange)時 + 30秒間隔。
+  // peek=1 は結果サジェストを消費しないので、復帰後に結果が1回だけ出る通常動作を壊さない。
+  useEffect(() => {
+    if (!accessToken) {
+      setActiveGameKey(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = () => {
+      fetch(`${SERVER_URL}/api/lobby/active-game?peek=1`, { headers: { authorization: `Bearer ${accessToken}` } })
+        .then((res) => (res.ok ? (res.json() as Promise<{ gameKey: GameKey | null }>) : null))
+        .then((json) => {
+          if (!cancelled) setActiveGameKey(json?.gameKey ?? null);
+        })
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", poll);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", poll);
+    };
+  }, [accessToken]);
 
   function toggleFavorite(handId: string, isFavorite: boolean) {
     setHistory((prev) => (prev ? prev.map((h) => (h.handId === handId ? { ...h, isFavorite } : h)) : prev));
@@ -1024,6 +1057,37 @@ export function Lobby({
         />
 
         <main className="min-h-0 min-w-0 flex-1 w-full overflow-y-auto px-4 pt-4 pb-28 space-y-5 lg:pb-10">
+        {/* 参加中ゲームがあれば、どのタブでも最上段に常設して「必ず戻れる」導線にする。 */}
+        {activeGameKey && (
+          <button
+            type="button"
+            onClick={() => onJoin(activeGameKey)}
+            aria-label={`${t("lobby.resume.title")} ${t("lobby.resume.cta")}`}
+            className="group flex w-full items-center gap-3 rounded-2xl bg-ink-950 px-4 py-3 text-left text-white shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] ring-1 ring-gold-500/30 transition-transform active:scale-[0.99]"
+          >
+            <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold-500/15">
+              <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-gold-400/70" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold-400" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="text-[13px] font-bold">{t("lobby.resume.title")}</span>
+                <span className="rounded-full bg-white/15 px-2 py-[1px] text-[10px] font-bold tracking-wide text-gold-300">
+                  {t("lobby.resume.away")}
+                </span>
+              </span>
+              <span className="mt-0.5 block truncate text-[11px] text-ink-300">
+                {activeGameKey === "mtt" ? t("lobby.resume.mtt") : t("lobby.resume.sng")} ・ {t("lobby.resume.desc")}
+              </span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gold-500 px-3.5 py-2 text-[12px] font-bold text-ink-950">
+              {t("lobby.resume.cta")}
+              <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 transition-transform group-active:translate-x-0.5" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </button>
+        )}
         <AnimatePresence mode="wait">
         {tab === "home" && (
           <motion.div
