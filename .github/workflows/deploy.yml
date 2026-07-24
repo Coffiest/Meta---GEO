@@ -130,6 +130,11 @@ jobs:
           vercel env rm NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --yes || true
           printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN"
 
+          # Sign in with Apple の Services ID(未設定なら空=クライアントはシート方式へフォールバック)。
+          # 設定するとスタンドアロンPWAのAppleログインがリダイレクト皆無のポップアップ方式になる。
+          vercel env rm NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN" --yes || true
+          printf '%s' "${{ secrets.NEXT_PUBLIC_APPLE_SERVICES_ID }}" | vercel env add NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN"
+
           # Google AdSense未設定の場合は空文字を渡す(AdSlot側で広告枠自体が非表示になる)
           vercel env rm NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --yes || true
           printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN"
