@@ -587,6 +587,12 @@ export class TableSession implements GameSession {
     this.showRequests.clear();
     this.broadcastState();
     this.broadcastTournamentInfo();
+    // 開始と同時に完了したハンド(ブラインドで全員オールインの配剥け)。scheduleTurn は完了済み
+    // ハンドを扱わないため、ここで精算まで進めないと卓が永久に固まる。
+    if (this.hand?.isHandComplete()) {
+      void this.finishHand();
+      return;
+    }
     this.scheduleTurn();
   }
 
@@ -599,6 +605,16 @@ export class TableSession implements GameSession {
   }
 
   private handlePlayerAction(seatIndex: number, action: PlayerAction): void {
+    // タイマー/ソケット双方から呼ばれるため、例外を外へ漏らさない(漏れるとプロセス死=全ゲーム切断)。
+    try {
+      this.handlePlayerActionInner(seatIndex, action);
+    } catch (err) {
+      console.error("[sng] handlePlayerAction failed:", err);
+      if (this.hand?.isHandComplete()) void this.finishHand();
+    }
+  }
+
+  private handlePlayerActionInner(seatIndex: number, action: PlayerAction): void {
     const hand = this.hand;
     if (!hand || hand.isHandComplete()) return;
     if (hand.getActingSeatIndex() !== seatIndex) return;

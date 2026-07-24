@@ -57,10 +57,11 @@ export function findRebalanceMove(
   if (tables.length < 2) return null;
 
   const sorted = [...tables].sort((a, b) => b.occupiedSeats.length - a.occupiedSeats.length);
-  const emptiest = sorted[sorted.length - 1]!;
-  // 移動元は「最も多い卓」だが、進行中(busy)なら次に多い非busy卓を探す。
+  // 移動元・移動先とも進行中(busy)の卓は使えない:busy卓から抜くことも、
+  // ハンド途中のbusy卓へ座らせることもできないため、両方とも非busyから選ぶ。
   const source = sorted.find((t) => !busyTableIds || !busyTableIds.has(t.tableId));
-  if (!source) return null;
+  const emptiest = [...sorted].reverse().find((t) => !busyTableIds || !busyTableIds.has(t.tableId));
+  if (!source || !emptiest) return null;
 
   if (source.occupiedSeats.length - emptiest.occupiedSeats.length >= 2 && source.tableId !== emptiest.tableId) {
     return { fromTableId: source.tableId, toTableId: emptiest.tableId };
