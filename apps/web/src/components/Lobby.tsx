@@ -14,6 +14,7 @@ import { Footer } from "./Footer";
 import { SideNav } from "./SideNav";
 import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
+import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
@@ -119,7 +120,7 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 // サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
 // 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
 // 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
-const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detailKey: string }[] = [
+const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detailKey: string; comingSoon?: boolean }[] = [
   {
     key: "sng",
     title: "Sit & Go",
@@ -132,8 +133,13 @@ const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; det
     title: "MTT",
     buyIn: 2000,
     detailKey: "lobby.game.mttDetail",
+    // 一般公開は一旦停止(準備中)。開発者はモーダル下部の隠し導線+パスコードで入室できる。
+    comingSoon: true,
   },
 ];
+
+/** 準備中(MTT)の開発者向け入室パスコード。 */
+const DEV_UNLOCK_CODE = "2357";
 
 /** 対局スタートカードのCTA矢印(右向き)。絵文字禁止のためSVGストロークで実装。 */
 function EnterArrow({ className }: { className?: string }) {
@@ -162,56 +168,158 @@ function GameStartCards({
   onJoin: (key: GameKey) => void;
 }) {
   const { t } = useI18n();
+  // 準備中カードをタップしたときに出す案内モーダル(nullなら閉じている)。
+  const [comingSoonFor, setComingSoonFor] = useState<GameKey | null>(null);
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {games.map((game, i) => {
-        const accent = i === 0 ? "bg-gold-500" : "bg-crimson-500";
-        const accentText = i === 0 ? "text-gold-600" : "text-crimson-500";
-        return (
-          <motion.button
-            key={game.key}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.05 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onJoin(game.key)}
-            aria-label={`${game.title} — ${t("play.enter")}`}
-            className="group relative flex flex-col items-start overflow-hidden rounded-[20px] bg-white p-4 pt-[18px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
-          >
-            {/* 上辺アクセントバー(種別で色分け=一瞬で識別) */}
-            <span className={`absolute inset-x-0 top-0 h-[3px] ${accent}`} aria-hidden />
-            {/* 左肩: 連番 + 種別ラベル */}
-            <span className="flex w-full items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-500">
-                {i === 0 ? "Single table" : "Multi-table"}
-              </span>
-              <span className="font-mono text-[10px] font-bold tabular-nums text-ink-400">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-            </span>
-            {/* タイトル */}
-            <span className="mt-2 text-xl font-black leading-none tracking-tight text-ink-950">{game.title}</span>
-            {/* 一言説明 */}
-            <span className="mt-1.5 text-[11px] leading-snug text-ink-500">{t(game.detailKey)}</span>
-            {/* 区切り線 + CTA行(バイイン / 入室→) */}
-            <span className="mt-3 h-px w-full bg-ink-100" aria-hidden />
-            <span className="mt-2.5 flex w-full items-center justify-between">
-              <span className="flex flex-col leading-none">
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-ink-500">{t("play.buyIn")}</span>
-                <span className="mt-0.5 text-[13px] font-black tabular-nums text-ink-950">
-                  {game.buyIn.toLocaleString()}
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        {games.map((game, i) => {
+          const accent = i === 0 ? "bg-gold-500" : "bg-crimson-500";
+          const accentText = i === 0 ? "text-gold-600" : "text-crimson-500";
+          const soon = Boolean(game.comingSoon);
+          return (
+            <motion.button
+              key={game.key}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.05 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={soon ? undefined : { y: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => (soon ? setComingSoonFor(game.key) : onJoin(game.key))}
+              aria-label={`${game.title} — ${soon ? t("lobby.comingSoon.badge") : t("play.enter")}`}
+              className={`group relative flex flex-col items-start overflow-hidden rounded-[20px] bg-white p-4 pt-[18px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow ${
+                soon ? "" : "hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
+              }`}
+            >
+              {/* 上辺アクセントバー(種別で色分け=一瞬で識別)。準備中は灰色にして「今は入れない」と分かるようにする。 */}
+              <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-ink-300" : accent}`} aria-hidden />
+              {/* 左肩: 連番 + 種別ラベル */}
+              <span className="flex w-full items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-500">
+                  {i === 0 ? "Single table" : "Multi-table"}
+                </span>
+                <span className="font-mono text-[10px] font-bold tabular-nums text-ink-400">
+                  {String(i + 1).padStart(2, "0")}
                 </span>
               </span>
-              <span className={`flex items-center gap-1 text-[11px] font-black ${accentText}`}>
-                {t("play.enter")}
-                <EnterArrow className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              {/* タイトル(準備中は淡く) */}
+              <span className={`mt-2 text-xl font-black leading-none tracking-tight ${soon ? "text-ink-400" : "text-ink-950"}`}>
+                {game.title}
               </span>
-            </span>
-          </motion.button>
-        );
-      })}
-    </div>
+              {/* 一言説明 */}
+              <span className={`mt-1.5 text-[11px] leading-snug ${soon ? "text-ink-400" : "text-ink-500"}`}>
+                {t(game.detailKey)}
+              </span>
+              {/* 区切り線 + CTA行(バイイン / 入室→)。準備中はバイインを出さず「準備中」だけ見せる。 */}
+              <span className="mt-3 h-px w-full bg-ink-100" aria-hidden />
+              <span className="mt-2.5 flex w-full items-center justify-between">
+                {soon ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-2.5 py-1 text-[10px] font-black tracking-[0.08em] text-ink-500">
+                    {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M12 7v5l3 2" />
+                    </svg>
+                    {t("lobby.comingSoon.badge")}
+                  </span>
+                ) : (
+                  <>
+                    <span className="flex flex-col leading-none">
+                      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-ink-500">{t("play.buyIn")}</span>
+                      <span className="mt-0.5 text-[13px] font-black tabular-nums text-ink-950">
+                        {game.buyIn.toLocaleString()}
+                      </span>
+                    </span>
+                    <span className={`flex items-center gap-1 text-[11px] font-black ${accentText}`}>
+                      {t("play.enter")}
+                      <EnterArrow className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                    </span>
+                  </>
+                )}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <AnimatePresence>
+        {comingSoonFor && (
+          <ComingSoonModal
+            onClose={() => setComingSoonFor(null)}
+            onUnlock={() => {
+              const key = comingSoonFor;
+              setComingSoonFor(null);
+              onJoin(key);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+/**
+ * 準備中の案内モーダル。中央に「準備中 / もう少しお待ちください」を出すだけの素朴な作りにし、
+ * 最下部にごく控えめな「開発者の方はこちら」を置く。そこからパスコード(DEV_UNLOCK_CODE)を
+ * 通した場合のみ、準備中のゲームへ実際に入室できる。
+ */
+function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
+  const { t } = useI18n();
+  const [passcodeOpen, setPasscodeOpen] = useState(false);
+
+  if (passcodeOpen) {
+    return (
+      <PasscodeModal
+        expected={DEV_UNLOCK_CODE}
+        title={t("lobby.comingSoon.devTitle")}
+        onSuccess={onUnlock}
+        onClose={() => setPasscodeOpen(false)}
+      />
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8"
+      role="dialog"
+      aria-modal="true"
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.9, y: 20, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 360, damping: 26 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[320px] rounded-[26px] border border-ink-950 bg-white p-6 text-center"
+      >
+        {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-9 w-9 text-ink-950" aria-hidden>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+        <p className="mt-3 text-[18px] font-black tracking-tight text-ink-950">{t("lobby.comingSoon.title")}</p>
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-600">{t("lobby.comingSoon.body")}</p>
+
+        <button
+          onClick={onClose}
+          className="mt-5 w-full cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[13px] font-black text-ink-950 transition-transform active:scale-[0.98]"
+        >
+          {t("lobby.comingSoon.close")}
+        </button>
+
+        {/* 最下部のごく控えめな開発者導線。一般ユーザーの目に留まらないよう極小・低コントラストにする。 */}
+        <button
+          onClick={() => setPasscodeOpen(true)}
+          className="mx-auto mt-4 block cursor-pointer text-[8px] font-normal tracking-wide text-ink-300 underline decoration-ink-200 underline-offset-2 transition-colors hover:text-ink-500"
+        >
+          {t("lobby.comingSoon.devEntry")}
+        </button>
+      </motion.div>
+    </motion.div>
   );
 }
 

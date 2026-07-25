@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
-import { AUTH_SHEET_MARKER, useAuth } from "@/lib/useAuth";
+import type { Session } from "@supabase/supabase-js";
+import { AUTH_SHEET_MARKER, AUTH_TRANSFER_CODE_KEY, useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -322,21 +323,26 @@ function GameScreen({
             )}
           </div>
           <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
-          {/* 生存者数 / 総エントリー数(MTT)。リエントリで総数が増えるので remaining/total を目立たせて即確認できるようにする。 */}
+          {/* 生存者数(MTT)。
+              注意: tournamentInfo.total は「同時にいる人数の母数」ではなく **延べエントリー数** で、
+              リエントリやレジ中のボット補充が入るたびに増える(サーバー側 mttSession の entryCount)。
+              以前は「14/23 残り」と並べて出していたため「23人中9人が飛んだ」と誤読されていた。
+              生存者数を主役にし、延べエントリー数は別ラベルとして明示的に分けて表示する。 */}
           {gameKey === "mtt" && tournamentInfo && (
-            <div className="mt-1 flex items-center gap-1 leading-none">
+            <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-ink-700">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700">
                 <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
                 <circle cx="10" cy="8" r="3.2" />
                 <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.1a3.2 3.2 0 0 1 0 6" />
               </svg>
               <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
                 {tournamentInfo.remaining}
-                <span className="text-ink-500">/</span>
-                {tournamentInfo.total}
               </span>
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">残り</span>
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">人残り</span>
+              <span className="text-[8px] font-bold tabular-nums leading-none text-ink-500">
+                延べ{tournamentInfo.total}エントリー
+              </span>
             </div>
           )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
@@ -520,7 +526,10 @@ function GameScreen({
       {/* 進行停止の診断オーバーレイ: ハンド終了後に一定時間進行が止まった場合、原因の説明と
           自動再同期の実行中であることを表示する(サーバー通知tableNoticeがあればその文言を優先)。 */}
       <AnimatePresence>
-        {(stalled || tableNotice) && !tournamentOver && (
+        {/* 結果画面(通常終了=tournamentOver / 自主離脱=leftResult)が出ている間は絶対に出さない。
+            このバナーはz-40で結果画面(z-30)より前面にあるため、残すと「閉じる/シェア」ボタンを
+            覆ってタップを奪ってしまう(ホームへ戻れなくなる)。 */}
+        {(stalled || tableNotice) && !tournamentOver && !leftResult && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -579,7 +588,12 @@ function GameScreen({
 
       <AnimatePresence>
         {historyOpen && (
-          <GameHandHistorySheet records={gameHandHistory} bigBlind={bigBlind} onClose={() => setHistoryOpen(false)} />
+          <GameHandHistorySheet
+            records={gameHandHistory}
+            bigBlind={bigBlind}
+            displayName={displayName}
+            onClose={() => setHistoryOpen(false)}
+          />
         )}
       </AnimatePresence>
 
@@ -637,13 +651,55 @@ function LoadingScreen() {
 }
 
 /**
- * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1)。
- * このシートはPWA本体と同一オリジン・同一ストレージなので、ここでセッションが確立された時点で
- * 本体ウィンドウ側も(フォーカス/storage監視により)自動的にログイン済みになる。
- * ユーザーにはこの画面を閉じて本体へ戻ってもらうだけでよい。
+ * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1&t=コード)。
+ *
+ * セッションが確立されたら、受け渡しコード付きでトークンをサーバーへ預ける
+ * (/api/lobby/session-transfer)。本体ウィンドウはコードでポーリングして受け取り、
+ * 自分のセッションを確立する。iOSではシートのストレージが本体と共有されない
+ * パーティション分離が起こりうるため、localStorage共有に依存せずこの経路で確実に渡す
+ * (共有される環境ではstorage/フォーカス監視でも並行して伝わる。二重でも無害)。
  */
-function AuthDoneSheet({ loggedIn }: { loggedIn: boolean }) {
+function AuthDoneSheet({ session }: { session: Session | null }) {
+  const loggedIn = Boolean(session);
   const [timedOut, setTimedOut] = useState(false);
+
+  // トークンをサーバーへ預ける(数回リトライ)。コードはシートのsessionStorage(主経路)か
+  // URLの ?t=(Supabaseの許可リストがクエリを保持した場合の補助経路)から得る。
+  useEffect(() => {
+    if (!session) return;
+    let code: string | null = null;
+    try {
+      code = window.sessionStorage.getItem(AUTH_TRANSFER_CODE_KEY);
+    } catch {
+      /* noop */
+    }
+    if (!code) code = new URLSearchParams(window.location.search).get("t");
+    if (!code) return;
+    const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+    let cancelled = false;
+    const deposit = async (attempt: number): Promise<void> => {
+      if (cancelled) return;
+      try {
+        const r = await fetch(`${serverUrl}/api/lobby/session-transfer`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            code,
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        });
+        if (r.ok) return;
+      } catch {
+        /* 下のリトライへ */
+      }
+      if (attempt < 5) setTimeout(() => void deposit(attempt + 1), 1500);
+    };
+    void deposit(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   // セッション確立後、可能なら自動でシートを閉じる(閉じられないUAでは下の案内に従ってもらう)。
   useEffect(() => {
@@ -885,7 +941,7 @@ export default function Page() {
   }
 
   // OAuthシートの受け皿。セッション確立を確認したら「閉じて戻る」案内を出す(アプリ本体は描画しない)。
-  if (isAuthDoneSheet) return <AuthDoneSheet loggedIn={Boolean(auth.session)} />;
+  if (isAuthDoneSheet) return <AuthDoneSheet session={auth.session} />;
 
   if (auth.loading) return <LoadingScreen />;
   if (!auth.session) return <LoginScreen auth={auth} />;

@@ -21,6 +21,7 @@ import {
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
+import { putTransfer, takeTransfer } from "./authTransfer.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -93,6 +94,35 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
   }
 
   try {
+    // OAuthシート→PWA本体へのセッション受け渡し(iOSのストレージパーティション分離対策)。
+    // POST: シート側が認証済みトークンをワンタイムコード付きで預ける(トークン検証済みのみ受理)。
+    // GET : 本体側がコードで受け取る(一回限り・短TTL。コード自体が128bitの秘密)。
+    if (url.pathname === "/api/lobby/session-transfer") {
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const code = body["code"];
+        const accessToken = typeof body["access_token"] === "string" ? body["access_token"] : "";
+        const refreshToken = typeof body["refresh_token"] === "string" ? body["refresh_token"] : "";
+        // 本物のセッションだけ預かる(ゴミ・偽トークンの持ち込みを遮断)。
+        const verified = accessToken ? await verifyAccessToken(accessToken) : null;
+        if (!verified) {
+          sendJson(res, 401, { error: "unauthorized" });
+          return true;
+        }
+        const ok = putTransfer(code as string, { accessToken, refreshToken });
+        sendJson(res, ok ? 200 : 400, ok ? { ok: true } : { error: "invalid code" });
+        return true;
+      }
+      const code = url.searchParams.get("code") ?? "";
+      const tokens = takeTransfer(code);
+      if (!tokens) {
+        sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      sendJson(res, 200, { access_token: tokens.accessToken, refresh_token: tokens.refreshToken });
+      return true;
+    }
+
     // ログイン中ユーザーのプロフィール取得/オンボーディング保存
     if (url.pathname === "/api/lobby/profile") {
       const verified = await verifyAccessToken(extractBearerToken(req));
