@@ -22,12 +22,36 @@ model User {
   /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
   onboarded   Boolean  @default(false)
   isBot       Boolean  @default(false)
+  /// 友達招待用のコード(例 "K7QMX2AB")。ホームの招待カードを初めて開いたときに発行する。
+  /// 未発行はnull(BOTには発行しない)。
+  referralCode String? @unique
   createdAt   DateTime @default(now())
 
   tournamentEntries    TournamentEntry[]
   handSeats            HandSeat[]
   bankrollTransactions BankrollTransaction[]
   subscription         Subscription?
+  referralsSent        Referral[]            @relation("ReferralInviter")
+  referralReceived     Referral?             @relation("ReferralInvitee")
+}
+
+/// 招待コードの成立記録(招待した人 × 招待された人)。報酬はバーチャルチップではなく
+/// 称号(非金銭報酬)のみ。チップを配ると自己招待による増殖・射幸性の問題が出るため、
+/// 意図的にチップは一切動かさない設計にしている。
+/// 招待される側は生涯1回だけ(inviteeUserIdが一意)。
+model Referral {
+  id            String   @id @default(uuid())
+  /// 招待した側のUser.id
+  inviterUserId String
+  inviter       User     @relation("ReferralInviter", fields: [inviterUserId], references: [id])
+  /// 招待された側のUser.id。1人につき1回だけ適用できる。
+  inviteeUserId String   @unique
+  invitee       User     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
+  /// 適用時に入力された招待コード(発行後に変わることはないが、履歴として残す)。
+  code          String
+  createdAt     DateTime @default(now())
+
+  @@index([inviterUserId, createdAt])
 }
 
 /// GEO戦略DB(レンジ分析)の月額サブスクリプション状態。Stripeのsubscriptionオブジェクトと

@@ -8,6 +8,7 @@ import { ActionBar } from "@/components/ActionBar";
 import type { Session } from "@supabase/supabase-js";
 import { AUTH_SHEET_MARKER, AUTH_TRANSFER_CODE_KEY, useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
+import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
 import { Lobby } from "@/components/Lobby";
@@ -843,6 +844,22 @@ export default function Page() {
       return false;
     }
   });
+
+  // 招待リンク(/?ref=CODE)で来訪したときは、まずコードを退避してURLから消す(ログイン前でも実行する)。
+  useEffect(() => {
+    capturePendingReferralCode();
+  }, []);
+
+  // ログイン+オンボーディングが済んだ時点で、退避しておいた招待コードを一度だけ適用する。
+  // 失敗(無効/自分のコード/適用済み)しても何も表示しない — ホームの招待カードから手入力で再挑戦できる。
+  useEffect(() => {
+    if (!accessToken || !profile?.onboarded) return;
+    const pending = takePendingReferralCode();
+    if (!pending) return;
+    void redeemReferral(accessToken, pending).catch(() => {
+      /* 通信断。招待は成立しないが、ホームの招待カードから手入力で適用できる。 */
+    });
+  }, [accessToken, profile?.onboarded]);
 
   // 初回ログイン時のみ一度だけ表示するチュートリアル。オンボーディング(名前+アバター設定)完了後、
   // 未読(localStorage未記録)なら出す。判定はマウント後(クライアントのみ)に行い、SSRとの不一致を避ける。
