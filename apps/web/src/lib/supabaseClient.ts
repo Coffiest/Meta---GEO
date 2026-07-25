@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
@@ -62,4 +62,34 @@ export function getSupabaseClient(): SupabaseClient | null {
     },
   });
   return client;
+}
+
+/**
+ * localStorageに保存済みのセッションを「同期的に」読み出す(楽観復元用)。
+ *
+ * supabase-jsの getSession() はアクセストークンが失効していると、まずネットワーク越しの
+ * トークン更新を待つ。ここでモバイル回線の復帰直後などに更新リクエストが失敗すると、
+ * 保存済みの有効なリフレッシュトークンがあるのにセッションnullが返り、起動のたびに
+ * ログイン画面へ落とされる。「一度ログインしたらログアウトまでログイン済み」を保証するため、
+ * 起動時はまずこの保存値でログイン状態を即復元し、トークン更新は裏で行う。
+ *
+ * キー名はsupabase-jsの既定(`sb-<プロジェクトref>-auth-token`)に従う。
+ * 破損・未保存・形式不一致の場合はnull(=本当に未ログイン)。
+ */
+export function readStoredSession(): Session | null {
+  if (typeof window === "undefined") return null;
+  const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
+  if (!url) return null;
+  try {
+    const ref = new URL(url).hostname.split(".")[0];
+    if (!ref) return null;
+    const raw = window.localStorage.getItem(`sb-${ref}-auth-token`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Session> | null;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed.access_token || !parsed.refresh_token || !parsed.user) return null;
+    return parsed as Session;
+  } catch {
+    return null;
+  }
 }
