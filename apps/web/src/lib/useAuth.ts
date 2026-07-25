@@ -33,6 +33,48 @@ export interface AuthState {
 export const AUTH_SHEET_MARKER = "pokerart-auth-sheet";
 
 /**
+ * シート→本体のセッション受け渡し用ワンタイムコード。
+ * - シート側: sessionStorageのこのキーにコードが入る(シートを開いた瞬間に本体が書き込む)
+ * - 本体側: localStorageのこのキーに {code, ts} が入る(ポーリングの再開にも使う)
+ *
+ * iOSのスタンドアロンPWAでは、シート(window.open)のストレージが本体と共有されない
+ * パーティション分離が起こりうる。その場合localStorage経由のセッション共有は機能しないため、
+ * シートが認証完了後にサーバー(/api/lobby/session-transfer)へトークンを預け、
+ * 本体がこのコードでポーリング受領してセッションを確立する。
+ */
+export const AUTH_TRANSFER_CODE_KEY = "pokerart-auth-transfer";
+
+const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+const TRANSFER_MAX_AGE_MS = 3 * 60 * 1000;
+
+function generateTransferCode(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function readPendingTransfer(): { code: string; ts: number } | null {
+  try {
+    const raw = window.localStorage.getItem(AUTH_TRANSFER_CODE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { code?: string; ts?: number };
+    if (typeof parsed.code !== "string" || typeof parsed.ts !== "number") return null;
+    if (Date.now() - parsed.ts > TRANSFER_MAX_AGE_MS) return null;
+    return { code: parsed.code, ts: parsed.ts };
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingTransfer(): void {
+  try {
+    window.localStorage.removeItem(AUTH_TRANSFER_CODE_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
+/**
  * Sign in with Apple の Services ID(Supabase の Apple プロバイダに設定しているものと同じ公開値)。
  * これが設定されている場合、スタンドアロンPWAでのAppleログインは「Apple公式JSのポップアップ +
  * IDトークン直接連携(signInWithIdToken)」で行う。リダイレクトが一切発生しないため、
@@ -122,6 +164,8 @@ export function useAuth(): AuthState {
   const [loading, setLoading] = useState(true);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthErrorRaw, setOauthErrorRaw] = useState<string | null>(null);
+  // シート型ログイン開始時にインクリメントし、受け渡しポーリングのeffectを再起動させる。
+  const [transferNonce, setTransferNonce] = useState(0);
 
   useEffect(() => {
     const result = readOauthErrorFromLocation();
@@ -144,12 +188,15 @@ export function useAuth(): AuthState {
     const isOauthCallback =
       /[?#&](code|access_token|error)=/.test(window.location.search + window.location.hash);
     const stored = readStoredSession();
+    let loadingCap: ReturnType<typeof setTimeout> | null = null;
     if (stored && !isOauthCallback) {
       setSession(stored);
       // アクセストークンがまだ有効なら待ち時間ゼロでホームへ。失効していれば裏の更新完了まで
-      // ローディングを維持する(失効トークンでAPIを叩いて一瞬エラー画面が出るのを防ぐ)。
+      // 少しだけローディングを維持する(失効トークンでAPIを叩いて一瞬エラー画面が出るのを防ぐ)。
+      // ただし更新が遅い(リトライ中など)場合に待たせ続けないよう、最大4秒で必ず画面を開く。
       const expiresAtMs = (stored.expires_at ?? 0) * 1000;
       if (expiresAtMs > Date.now() + 10_000) setLoading(false);
+      else loadingCap = setTimeout(() => setLoading(false), 4000);
     }
 
     supabase.auth.getSession().then(({ data }) => {
@@ -173,7 +220,10 @@ export function useAuth(): AuthState {
         setSession(null);
       }
     });
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener.subscription.unsubscribe();
+      if (loadingCap) clearTimeout(loadingCap);
+    };
   }, [supabase]);
 
   // スタンドアロンPWAのシート型ログイン(下のoauthSignIn参照)では、認証はアプリ内シートで
@@ -199,6 +249,46 @@ export function useAuth(): AuthState {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [supabase]);
+
+  // シートで完了したログインをサーバー経由で受け取るポーリング。
+  // 未ログインかつ受け渡しコードが有効な間だけ回る(ログイン確立・期限切れで自動停止)。
+  // アプリをタスキルして開き直した場合も、localStorageのコードが生きていれば再開する。
+  useEffect(() => {
+    if (!supabase || session) {
+      if (session) clearPendingTransfer();
+      return;
+    }
+    const pending = readPendingTransfer();
+    if (!pending) return;
+    let stopped = false;
+    const claim = async () => {
+      if (stopped) return;
+      try {
+        const r = await fetch(`${SERVER_URL}/api/lobby/session-transfer?code=${pending.code}`);
+        if (!r.ok) return;
+        const t = (await r.json()) as { access_token?: string; refresh_token?: string };
+        if (!t.access_token || !t.refresh_token) return;
+        stopped = true;
+        clearInterval(interval);
+        clearPendingTransfer();
+        // 受け取ったトークンで本体のセッションを確立(以後は本体のlocalStorageに永続化され、
+        // 「ログアウトするまでログイン済み」の楽観復元の対象になる)。
+        const { error } = await supabase.auth.setSession({
+          access_token: t.access_token,
+          refresh_token: t.refresh_token,
+        });
+        if (error) console.error("[auth] session-transfer setSession failed:", error.message);
+      } catch {
+        /* サーバー未応答等は次のポーリングで再試行 */
+      }
+    };
+    const interval = setInterval(() => void claim(), 2000);
+    void claim();
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [supabase, session, transferNonce]);
 
   const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
 
@@ -228,18 +318,33 @@ export function useAuth(): AuthState {
       await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
       return;
     }
+    // シート→本体のセッション受け渡し用ワンタイムコードを発行し、本体側で記録(ポーリング用)。
+    const transferCode = generateTransferCode();
+    try {
+      window.localStorage.setItem(AUTH_TRANSFER_CODE_KEY, JSON.stringify({ code: transferCode, ts: Date.now() }));
+    } catch {
+      /* 書けない環境でも同一パーティションならstorage共有経路でログインできる */
+    }
+    setTransferNonce((n) => n + 1);
+
     // タップ直後の同期処理でシートを開く(非同期後のwindow.openはポップアップブロックされうる)。
     let sheet: Window | null = null;
     try {
       sheet = window.open("", "_blank");
       // about:blankは本体と同一オリジン扱いのため、この時点ならシートのsessionStorageへ書き込める。
+      // sessionStorageはタブ固有なので、ストレージパーティションが分離していても保持される。
       sheet?.sessionStorage.setItem(AUTH_SHEET_MARKER, "1");
+      sheet?.sessionStorage.setItem(AUTH_TRANSFER_CODE_KEY, transferCode);
     } catch {
-      /* マーカーを書けなくても ?authdone=1 の補助経路が残る */
+      /* マーカーを書けなくても ?authdone=1&t= の補助経路が残る */
     }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { ...baseOptions, redirectTo: `${redirectTo}/?authdone=1`, skipBrowserRedirect: true },
+      options: {
+        ...baseOptions,
+        redirectTo: `${redirectTo}/?authdone=1&t=${transferCode}`,
+        skipBrowserRedirect: true,
+      },
     });
     if (!error && data?.url && sheet) {
       try {

@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
-import { AUTH_SHEET_MARKER, useAuth } from "@/lib/useAuth";
+import type { Session } from "@supabase/supabase-js";
+import { AUTH_SHEET_MARKER, AUTH_TRANSFER_CODE_KEY, useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
@@ -644,13 +645,55 @@ function LoadingScreen() {
 }
 
 /**
- * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1)。
- * このシートはPWA本体と同一オリジン・同一ストレージなので、ここでセッションが確立された時点で
- * 本体ウィンドウ側も(フォーカス/storage監視により)自動的にログイン済みになる。
- * ユーザーにはこの画面を閉じて本体へ戻ってもらうだけでよい。
+ * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1&t=コード)。
+ *
+ * セッションが確立されたら、受け渡しコード付きでトークンをサーバーへ預ける
+ * (/api/lobby/session-transfer)。本体ウィンドウはコードでポーリングして受け取り、
+ * 自分のセッションを確立する。iOSではシートのストレージが本体と共有されない
+ * パーティション分離が起こりうるため、localStorage共有に依存せずこの経路で確実に渡す
+ * (共有される環境ではstorage/フォーカス監視でも並行して伝わる。二重でも無害)。
  */
-function AuthDoneSheet({ loggedIn }: { loggedIn: boolean }) {
+function AuthDoneSheet({ session }: { session: Session | null }) {
+  const loggedIn = Boolean(session);
   const [timedOut, setTimedOut] = useState(false);
+
+  // トークンをサーバーへ預ける(数回リトライ)。コードはシートのsessionStorage(主経路)か
+  // URLの ?t=(Supabaseの許可リストがクエリを保持した場合の補助経路)から得る。
+  useEffect(() => {
+    if (!session) return;
+    let code: string | null = null;
+    try {
+      code = window.sessionStorage.getItem(AUTH_TRANSFER_CODE_KEY);
+    } catch {
+      /* noop */
+    }
+    if (!code) code = new URLSearchParams(window.location.search).get("t");
+    if (!code) return;
+    const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+    let cancelled = false;
+    const deposit = async (attempt: number): Promise<void> => {
+      if (cancelled) return;
+      try {
+        const r = await fetch(`${serverUrl}/api/lobby/session-transfer`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            code,
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        });
+        if (r.ok) return;
+      } catch {
+        /* 下のリトライへ */
+      }
+      if (attempt < 5) setTimeout(() => void deposit(attempt + 1), 1500);
+    };
+    void deposit(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   // セッション確立後、可能なら自動でシートを閉じる(閉じられないUAでは下の案内に従ってもらう)。
   useEffect(() => {
@@ -876,7 +919,7 @@ export default function Page() {
   }
 
   // OAuthシートの受け皿。セッション確立を確認したら「閉じて戻る」案内を出す(アプリ本体は描画しない)。
-  if (isAuthDoneSheet) return <AuthDoneSheet loggedIn={Boolean(auth.session)} />;
+  if (isAuthDoneSheet) return <AuthDoneSheet session={auth.session} />;
 
   if (auth.loading) return <LoadingScreen />;
   if (!auth.session) return <LoginScreen auth={auth} />;
