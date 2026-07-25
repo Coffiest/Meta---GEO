@@ -6,7 +6,8 @@ import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
-import { PROD_URL, openTweetIntent } from "@/lib/share";
+import { PROD_URL, buildMilestoneShareUrl, openTweetIntent } from "@/lib/share";
+import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -18,6 +19,8 @@ export interface ResultStatsSnapshot {
   itmRate: number;
   nationalRank: number | null;
   totalRankedPlayers: number;
+  /** 通算参加トーナメント数(マイルストーン検出に使う)。 */
+  tournamentsPlayed: number;
 }
 
 /** ログイン中ユーザーのスタッツ+全国順位を取得してスナップショットにまとめる。 */
@@ -32,6 +35,7 @@ export async function fetchResultSnapshot(accessToken: string): Promise<ResultSt
       itmRate: s.itmRate ?? 0,
       nationalRank: s.nationalRank ?? null,
       totalRankedPlayers: s.totalRankedPlayers ?? 0,
+      tournamentsPlayed: s.tournamentsPlayed ?? 0,
     };
   } catch {
     return null;
@@ -202,6 +206,24 @@ export function TournamentResultScreen({
     }
   }
 
+  // 今回のトーナメントで超えた節目(全国TOP◯◯入り / 通算◯◯戦)。あれば専用バナーを出す。
+  const milestone = detectMilestone(before, after);
+
+  /** マイルストーン専用のシェア。結果カードではなく到達カードを展開させる。 */
+  function handleMilestoneShare() {
+    if (!milestone) return;
+    openTweetIntent({
+      text: buildMilestoneShareText(milestone),
+      url: buildMilestoneShareUrl({
+        displayName,
+        kind: milestone.kind,
+        n: milestone.n,
+        totalRankedPlayers: milestone.totalRankedPlayers,
+      }),
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
+  }
+
   // 各指標の増減。beforeが取れないゲスト等では増減バッジは出さず現在値のみ表示。
   function delta(cur: number, prev: number | undefined, fmt: (v: number) => string, higherBetter = true): { text: string; tone: DeltaTone; show: boolean } {
     if (prev === undefined || before === null) return { text: "", tone: "flat", show: false };
@@ -309,6 +331,47 @@ export function TournamentResultScreen({
               <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-ink-100" />
             ))}
           </div>
+        )}
+
+        {/* マイルストーン到達バナー。今回の結果で節目を超えたときだけ出し、そのままXへ自慢させる。 */}
+        {milestone && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="mt-6 rounded-2xl border border-gold-600/40 bg-gold-500/10 p-4"
+          >
+            <div className="flex items-center gap-3">
+              {/* 勲章マーク。絵文字禁止のためSVGで実装。 */}
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.7}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-9 w-9 shrink-0 text-gold-600"
+              >
+                <circle cx="12" cy="9" r="5.5" />
+                <path d="M9 14.2 7.5 21l4.5-2.4 4.5 2.4-1.5-6.8" />
+              </svg>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gold-700">Milestone</p>
+                <p className="truncate text-[19px] font-black leading-tight text-ink-950">{milestone.headline}</p>
+                <p className="truncate text-[11px] font-semibold text-ink-500">{milestone.caption}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleMilestoneShare}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gold-500 py-3 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
+            >
+              {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-[15px] w-[15px]">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+              </svg>
+              到達をシェアする
+            </button>
+          </motion.div>
         )}
 
         {/* 棋譜解析(局後検討)への導線 = 一番目立たせる主役CTA。tournamentIdがあるときだけ。モーダルで開く。 */}

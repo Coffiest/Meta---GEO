@@ -57,6 +57,24 @@ export function buildHandShareUrl(params: {
   return `${PROD_URL}/share/hand?${p.toString()}`;
 }
 
+/**
+ * マイルストーン(節目到達)のシェアURL(/share/milestone?...)を組み立てる。
+ * 展開時にOGP画像として /api/og/milestone の動的カードが表示される。
+ */
+export function buildMilestoneShareUrl(params: {
+  displayName?: string;
+  kind: "tournaments" | "rank";
+  n: number;
+  totalRankedPlayers: number;
+}): string {
+  const p = new URLSearchParams();
+  if (params.displayName) p.set("name", params.displayName);
+  p.set("kind", params.kind);
+  p.set("n", String(params.n));
+  if (params.kind === "rank") p.set("total", String(params.totalRankedPlayers));
+  return `${PROD_URL}/share/milestone?${p.toString()}`;
+}
+
 /** 1ハンドのシェア本文。勝ち/負けで一言を変え、リプライを誘う。 */
 export function buildHandShareText(bb: number): string {
   const amount = formatBbValue(bb);
