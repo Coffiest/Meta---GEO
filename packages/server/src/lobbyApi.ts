@@ -8,6 +8,8 @@ import {
   getPlayerStats,
   getPlayerNote,
   getPlayerNotesForTargets,
+  getReferralSummary,
+  redeemReferralCode,
   getHandProfitGraph,
   getRRRating,
   getTournamentHistory,
@@ -337,6 +339,35 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const idsParam = url.searchParams.get("userIds") ?? "";
       const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
       sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
+      return true;
+    }
+
+    // 友達招待(リファラル)。自分の招待コード・招待成立数・称号を返す。
+    // コードは未発行ならこの取得時に発行する。
+    if (url.pathname === "/api/lobby/referral") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, await getReferralSummary(user.id));
+      return true;
+    }
+
+    // 招待コードの適用。1ユーザーにつき生涯1回だけ(自分のコード・存在しないコードは弾く)。
+    if (url.pathname === "/api/lobby/referral/redeem" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const code = typeof body["code"] === "string" ? body["code"] : "";
+      const result = await redeemReferralCode(user.id, code);
+      // 適用できなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
+      sendJson(res, 200, result);
       return true;
     }
 

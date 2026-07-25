@@ -17,6 +17,7 @@ import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
+import { InviteCard } from "./InviteCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
@@ -1155,6 +1156,8 @@ export function Lobby({
               onViewLeaderboard={() => setTab("leaderboard")}
               onViewHistory={() => setTab("tournaments")}
             />
+
+            <InviteCard accessToken={accessToken} />
 
             <RRPokerPromoBanner />
 
