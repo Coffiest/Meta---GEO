@@ -52,6 +52,13 @@ interface AppleIdAuthApi {
 
 let appleJsLoader: Promise<AppleIdAuthApi | null> | null = null;
 
+/**
+ * Apple公式JSポップアップが一度でも(キャンセル以外で)失敗したら、このセッション中は
+ * 以後シート方式に切り替えるフラグ。失敗直後の自動フォールバックはタップ由来のジェスチャが
+ * 切れていて window.open が失敗しがちなので、次のタップから最初からシート方式で開かせる。
+ */
+let appleJsPopupDisabled = false;
+
 /** Apple公式のSign in with Apple JSを一度だけ読み込む。失敗時はnull(呼び出し側でフォールバック)。 */
 function loadAppleJs(): Promise<AppleIdAuthApi | null> {
   if (appleJsLoader) return appleJsLoader;
@@ -234,26 +241,26 @@ export function useAuth(): AuthState {
       provider,
       options: { ...baseOptions, redirectTo: `${redirectTo}/?authdone=1`, skipBrowserRedirect: true },
     });
-    if (error || !data?.url) {
-      try {
-        sheet?.close();
-      } catch {
-        /* noop */
-      }
-      // URLが作れなかった場合は従来のリダイレクトにフォールバック(ログイン不能よりはるかに良い)。
-      await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
-      return;
-    }
-    if (sheet) {
+    if (!error && data?.url && sheet) {
       try {
         sheet.location.href = data.url;
         return;
       } catch {
-        /* シートへの書き込みに失敗したら下のフォールバックへ */
+        /* シートへの書き込みに失敗 → 下のエラー表示へ */
       }
     }
-    // シートを開けない環境ではやむを得ず従来のフルリダイレクト。
-    window.location.assign(data.url);
+    try {
+      sheet?.close();
+    } catch {
+      /* noop */
+    }
+    // 【重要】スタンドアロンPWAでは、いかなる場合も本体ウィンドウをリダイレクトしない。
+    // 以前はここで window.location.assign にフォールバックしていたが、それが本体ごと
+    // Safariへハンドオフされる致命バグ(ブラウザUI付きでアプリを使う羽目になる)の再発経路だった。
+    // シートを開けなかった場合(ポップアップ失敗直後の自動再試行でタップ由来のジェスチャが
+    // 切れているケース等)は、もう一度タップしてもらえば新しいジェスチャでシートが開ける。
+    setOauthError("ログイン画面を開けませんでした。もう一度「Appleでログイン」または「Google」をタップしてください。");
+    setOauthErrorRaw(error?.message ?? "sheet_open_failed");
   };
 
   return {
@@ -298,7 +305,7 @@ export function useAuth(): AuthState {
       // スタンドアロンPWAでは、可能ならリダイレクト皆無のApple公式JSポップアップ方式を最優先で使う。
       // ポップアップはIDトークンをpostMessageで返して自動で閉じ、着地ページ自体が存在しないため、
       // ブラウザUIに取り残される余地が構造的に無い。失敗時は従来のシート方式へフォールバック。
-      if (supabase && redirectTo && APPLE_SERVICES_ID && isStandalonePwa()) {
+      if (supabase && redirectTo && APPLE_SERVICES_ID && !appleJsPopupDisabled && isStandalonePwa()) {
         try {
           const appleId = await loadAppleJs();
           if (appleId) {
@@ -314,13 +321,18 @@ export function useAuth(): AuthState {
               const { error } = await supabase.auth.signInWithIdToken({ provider: "apple", token: idToken });
               if (!error) return; // セッション確立(onAuthStateChangeが反映する)
               console.error("[auth] signInWithIdToken failed, falling back:", error.message);
+              appleJsPopupDisabled = true;
+              setOauthErrorRaw(`signInWithIdToken: ${error.message}`);
             }
           }
         } catch (err) {
           // ユーザーによるキャンセルもここに来る。キャンセルはフォールバックせず静かに終了する。
-          const message = err instanceof Error ? err.message : String(err);
-          if (/popup_closed|user_cancelled|canceled|cancelled/i.test(message)) return;
+          const message = err instanceof Error ? err.message : JSON.stringify(err);
+          if (/popup_closed|user_cancelled|user_trigger_new_signin|canceled|cancelled/i.test(message)) return;
           console.error("[auth] Apple JS popup failed, falling back to sheet flow:", err);
+          // 以後このセッションではシート方式を使う。原因特定できるよう生エラーは「詳細」から見られるようにする。
+          appleJsPopupDisabled = true;
+          setOauthErrorRaw(`AppleJS: ${message}`);
         }
       }
       await oauthSignIn("apple");
