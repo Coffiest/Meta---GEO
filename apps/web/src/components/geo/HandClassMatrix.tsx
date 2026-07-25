@@ -95,13 +95,13 @@ export function HandClassMatrix({
                 onClick={(e) => (isHovered ? hideCell() : showCell(cell, e.currentTarget))}
                 onMouseLeave={hideCell}
                 onBlur={hideCell}
-                className={`aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white ${
+                className={`aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] lg:text-[11px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white ${
                   isHovered ? "z-10 scale-110 ring-1 ring-white" : ""
                 }`}
                 title={`${cell.label}: ${cell.count} サンプル`}
               >
                 <span className="drop-shadow">{cell.label}</span>
-                {top && <span className="text-[7px] sm:text-[8px] font-semibold opacity-90">{top.pct}%</span>}
+                {top && <span className="text-[7px] sm:text-[8px] lg:text-[10px] font-semibold opacity-90">{top.pct}%</span>}
               </button>
             );
           }),

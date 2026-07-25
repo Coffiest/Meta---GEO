@@ -198,7 +198,8 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-md px-4 pb-24">
+      {/* PC(lg)では幅を広げ、プレイヤーカードを2カラムに並べる(モバイルは従来の1カラム)。 */}
+      <div className="mx-auto max-w-md px-4 pb-24 lg:max-w-5xl lg:px-8">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gold-600">Admin</p>
@@ -243,7 +244,7 @@ export default function AdminPage() {
             )}
 
             {/* 結果リスト */}
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {loading && users.length === 0 ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-sm text-ink-500">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-950 border-t-transparent" />

@@ -27,6 +27,7 @@ import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { GeoComingSoon } from "@/components/geo/GeoComingSoon";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { APP_VERSION } from "@/lib/version";
@@ -447,9 +448,10 @@ function GeoDatabase() {
 
   return (
     <div className="min-h-screen bg-navy-950">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl lg:max-w-6xl mx-auto">
         <Header
           tone="dark"
+          widthClass="max-w-3xl lg:max-w-6xl"
           left={
             <div className="w-full">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -509,7 +511,11 @@ function GeoDatabase() {
         />
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 pb-28">
+      {/* lg以上は「左ナビレール + 本文」の2カラム。モバイルは従来の1カラム + 下部フッターナビ。 */}
+      <div className="mx-auto flex w-full max-w-3xl lg:max-w-6xl lg:gap-6 lg:px-6">
+        <SideNav tone="dark" activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-4" />
+
+        <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-400 text-sm px-4 py-3 mb-4">{error}</div>
         )}
@@ -528,9 +534,11 @@ function GeoDatabase() {
           </div>
         )}
 
+        {/* PC(lg)ではレンジ表とアクション選択を左右に並べ、スクロールせずに両方を見渡せるようにする。 */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
 
-        <div className="mt-3">
+        <div className="mt-3 lg:mt-1">
           {loading || solving ? (
             <div className="flex items-center justify-center gap-2 rounded-2xl border border-navy-800 bg-navy-900 p-8 text-center text-sm text-navy-400">
               <span className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
@@ -577,6 +585,7 @@ function GeoDatabase() {
             <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
           ) : null}
         </div>
+        </div>
 
         {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等) */}
         <div className="mt-10 flex justify-center">
@@ -587,6 +596,7 @@ function GeoDatabase() {
             Poker ART v{APP_VERSION} ・ © 2026 Poker ART
           </button>
         </div>
+        </main>
       </div>
 
       <AnimatePresence>
@@ -639,16 +649,19 @@ function GeoDatabase() {
         )}
       </AnimatePresence>
 
-      <Footer
-        activeKey={null}
-        centerActive
-        items={[
-          { key: "home", label: "Home", icon: "home", href: "/" },
-          { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-          { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-          { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-        ]}
-      />
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      <div className="lg:hidden">
+        <Footer
+          activeKey={null}
+          centerActive
+          items={[
+            { key: "home", label: "Home", icon: "home", href: "/" },
+            { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+            { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+            { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+          ]}
+        />
+      </div>
     </div>
   );
 }
