@@ -21,15 +21,18 @@ export function Header({
   left,
   right,
   tone = "light",
+  widthClass = "max-w-3xl",
 }: {
   left: React.ReactNode;
   right?: React.ReactNode;
   /** テーブルプレイ画面等、既存のnavyダークテーマを維持する画面向け。 */
   tone?: "light" | "dark";
+  /** バー内側の最大幅。PC(lg)で本文を広く使う画面(GEO DATABASE)はここを広げて本文と幅を揃える。 */
+  widthClass?: string;
 }) {
   return (
     <header className={`sticky top-0 z-20 border-b ${BAR_TONE_CLASS[tone]}`}>
-      <div className="mx-auto flex min-h-[64px] max-w-3xl items-center justify-between gap-3 px-5 py-3">
+      <div className={`mx-auto flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 ${widthClass}`}>
         <div className="flex items-center min-w-0 flex-1">{left}</div>
         {right && <div className="flex items-center gap-2 shrink-0">{right}</div>}
       </div>

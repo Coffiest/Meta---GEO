@@ -11,6 +11,7 @@ import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
 import { Footer } from "./Footer";
+import { SideNav } from "./SideNav";
 import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
@@ -232,44 +233,6 @@ function signedClass(n: number): string {
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
-}
-
-/**
- * デスクトップ(lg以上)専用の左ナビレール。モバイルの下部フッターナビと同じ導線を、
- * PC幅では縦のサイドバーとして提供する(2カラムレイアウト)。モバイルでは非表示。
- */
-function SideNav({
-  items,
-  activeKey,
-}: {
-  items: { key: string; label: string; icon: string; href?: string; onClick?: () => void }[];
-  activeKey: string | null;
-}) {
-  return (
-    <nav className="hidden lg:sticky lg:top-[76px] lg:flex lg:w-56 lg:shrink-0 lg:flex-col lg:gap-1 lg:self-start lg:pt-6">
-      {items.map((item) => {
-        const active = activeKey === item.key;
-        const cls = `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold transition-colors ${
-          active ? "bg-ink-950 text-white" : "text-ink-600 hover:bg-ink-100"
-        }`;
-        const inner = (
-          <>
-            <Icon name={item.icon} className="h-5 w-5 shrink-0" />
-            <span>{item.label}</span>
-          </>
-        );
-        return item.href ? (
-          <Link key={item.key} href={item.href} className={cls}>
-            {inner}
-          </Link>
-        ) : (
-          <button key={item.key} onClick={item.onClick} className={cls}>
-            {inner}
-          </button>
-        );
-      })}
-    </nav>
-  );
 }
 
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */

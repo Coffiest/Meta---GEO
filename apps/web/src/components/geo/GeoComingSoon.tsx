@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Footer } from "@/components/Footer";
+import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { APP_VERSION } from "@/lib/version";
 
 /** スクロールで下からふわっと現れるブロック。GEOプロモ全体で共通利用する。 */
@@ -306,7 +307,11 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
     <div className="relative min-h-[100dvh] overflow-x-hidden bg-white text-ink-950">
       <FloatingOrbs animate={animate} />
 
-      <div className="relative z-10 mx-auto max-w-md px-6 pb-40 pt-[calc(env(safe-area-inset-top)+36px)]">
+      {/* lg以上は「左ナビレール + 本文」の2カラム。モバイルは従来の1カラム + 下部フッターナビ。 */}
+      <div className="relative z-10 mx-auto flex w-full max-w-md lg:max-w-6xl lg:gap-10 lg:px-8">
+        <SideNav tone="light" activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-14" />
+
+        <div className="min-w-0 flex-1 px-6 pb-40 pt-[calc(env(safe-area-inset-top)+36px)] lg:px-0 lg:pb-24 lg:pt-14">
         {/* ワードマーク + Coming Soon */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -326,7 +331,7 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-8 text-[34px] font-black leading-[1.12] tracking-tight text-ink-950"
+          className="mt-8 text-[34px] font-black leading-[1.12] tracking-tight text-ink-950 lg:mt-10 lg:text-[52px]"
         >
           みんなの一手を、
           <br />
@@ -368,6 +373,8 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
           <span className="text-[11px] font-bold text-ink-700">いまも全テーブルで記録中</span>
         </motion.div>
 
+        {/* PC(lg)では「GTOとの違い」と「仕組み」を左右に並べ、縦に間延びしないようにする。 */}
+        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
         {/* GTO vs GEO: 何が違うか(初心者) / なぜ効くか(上級者) */}
         <div className="mt-14">
           <Reveal>
@@ -406,24 +413,27 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
             body="理論値(GTO)とのズレ=大衆の共通のミスが一目でわかる。どこを突けば勝てるのかが、色で見える。"
           />
         </div>
+        </div>
 
-        {/* 実画面モック: 何ができるかを体験させる */}
-        <div className="mt-14">
+        {/* 実画面モック: 何ができるかを体験させる(PCでは見出しとモックを左右に) */}
+        <div className="mt-14 lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
           <Reveal>
             <p className="mb-3 text-[11px] font-black uppercase tracking-[0.28em] text-ink-400">これが実際の画面</p>
-            <h2 className="mb-4 text-[22px] font-black leading-snug tracking-tight text-ink-950">
+            <h2 className="mb-4 text-[22px] font-black leading-snug tracking-tight text-ink-950 lg:text-[28px]">
               大衆の実測レンジを、この一枚で。
             </h2>
           </Reveal>
-          <Reveal delay={0.05}>
-            <RangeMatrixMock animate={animate} />
-          </Reveal>
-          <Reveal delay={0.1}>
-            <p className="mt-3 text-center text-[12px] leading-relaxed text-ink-500">
-              169通りのハンドを、実測のアクション頻度で色分け。ポジション・板面・スタックを切り替えて、
-              フロップからリバーまで“大衆の手の内”を丸ごと覗ける。
-            </p>
-          </Reveal>
+          <div>
+            <Reveal delay={0.05}>
+              <RangeMatrixMock animate={animate} />
+            </Reveal>
+            <Reveal delay={0.1}>
+              <p className="mt-3 text-center text-[12px] leading-relaxed text-ink-500">
+                169通りのハンドを、実測のアクション頻度で色分け。ポジション・板面・スタックを切り替えて、
+                フロップからリバーまで“大衆の手の内”を丸ごと覗ける。
+              </p>
+            </Reveal>
+          </div>
         </div>
 
         {/* なぜ価値があるか */}
@@ -464,6 +474,7 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
           >
             v{APP_VERSION} ・ 作成者: Coffiest ・ © 2026 Poker ART
           </button>
+        </div>
         </div>
       </div>
 
@@ -547,16 +558,19 @@ export function GeoComingSoon({ onUnlock }: { onUnlock: () => void }) {
         )}
       </AnimatePresence>
 
-      <Footer
-        activeKey={null}
-        centerActive
-        items={[
-          { key: "home", label: "Home", icon: "home", href: "/" },
-          { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-          { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-          { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-        ]}
-      />
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      <div className="lg:hidden">
+        <Footer
+          activeKey={null}
+          centerActive
+          items={[
+            { key: "home", label: "Home", icon: "home", href: "/" },
+            { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+            { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+            { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+          ]}
+        />
+      </div>
     </div>
   );
 }
