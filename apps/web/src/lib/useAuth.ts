@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { getSupabaseClient } from "./supabaseClient";
+import { getSupabaseClient, readStoredSession } from "./supabaseClient";
 import { isStandalonePwa } from "./pwa";
 
 export interface AuthState {
@@ -127,12 +127,44 @@ export function useAuth(): AuthState {
       setLoading(false);
       return;
     }
+
+    // --- 楽観復元(「一度ログインしたらログアウトまでログイン済み」挙動の要) ---
+    // getSession() はアクセストークン失効時にネットワーク越しの更新を待ち、その更新が
+    // 一時的に失敗しただけでもセッションnullを返すため、従来は「保存済みセッションがあるのに
+    // 起動のたびにログイン画面」が起きえた。ここでは保存値を同期的に読み、あれば即ログイン
+    // 状態で起動する。トークン更新は裏で走り、失敗が確定的(ストレージからも消された)な場合
+    // だけログアウト扱いにする。
+    const isOauthCallback =
+      /[?#&](code|access_token|error)=/.test(window.location.search + window.location.hash);
+    const stored = readStoredSession();
+    if (stored && !isOauthCallback) {
+      setSession(stored);
+      // アクセストークンがまだ有効なら待ち時間ゼロでホームへ。失効していれば裏の更新完了まで
+      // ローディングを維持する(失効トークンでAPIを叩いて一瞬エラー画面が出るのを防ぐ)。
+      const expiresAtMs = (stored.expires_at ?? 0) * 1000;
+      if (expiresAtMs > Date.now() + 10_000) setLoading(false);
+    }
+
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      if (data.session) {
+        setSession(data.session);
+      } else if (!readStoredSession()) {
+        // ストレージにも無い=本当に未ログイン(またはトークン無効化で削除済み)。
+        // 一時的なネットワーク失敗ではストレージが残るため、その場合は楽観セッションを維持し、
+        // autoRefreshTokenの再試行・フォーカス時の再取得で自然に回復させる。
+        setSession(null);
+      }
       setLoading(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (newSession) {
+        setSession(newSession);
+      } else if (event === "SIGNED_OUT") {
+        // 明示的なログアウト/トークン無効化のみログイン画面へ。それ以外のnull(初期化中の
+        // INITIAL_SESSION等)で楽観復元済みセッションを消さない。
+        setSession(null);
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
