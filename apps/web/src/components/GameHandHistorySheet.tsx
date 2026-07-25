@@ -3,22 +3,51 @@
 import { motion } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { formatSignedBb } from "@/lib/format";
+import { buildHandShareText, buildHandShareUrl, openTweetIntent, toBbValue } from "@/lib/share";
 import type { GameHandRecord } from "@/lib/socket";
+
+/** Xのロゴ(絵文字は使わずSVGで描画する)。 */
+function XLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+    </svg>
+  );
+}
 
 /**
  * 設定ボタンから開く「このゲームのハンド履歴」ボトムシート。
  * このトーナメント中に自分がプレイした全ハンドを、新しい順に一覧表示する。
- * 各行: 自分のホールカード(常に表向き)+ 最終ボード + 収支。
+ * 各行: 自分のホールカード(常に表向き)+ 最終ボード + 収支 + Xへの単体シェア。
  */
 export function GameHandHistorySheet({
   records,
   bigBlind,
+  displayName,
   onClose,
 }: {
   records: GameHandRecord[];
   bigBlind: number;
+  /** 共有カードに載せる表示名(未指定なら名前なしのカードになる)。 */
+  displayName?: string;
   onClose: () => void;
 }) {
+  /** その1ハンドをOGPカード付きでXへ投稿する。 */
+  function shareHand(rec: GameHandRecord) {
+    const bb = toBbValue(rec.delta, bigBlind);
+    openTweetIntent({
+      text: buildHandShareText(bb),
+      url: buildHandShareUrl({
+        displayName,
+        heroCards: rec.heroCards,
+        board: rec.board,
+        bb,
+        wonByFold: rec.wonByFold,
+      }),
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
+  }
+
   const reversed = [...records].reverse();
   return (
     <motion.div
@@ -49,6 +78,13 @@ export function GameHandHistorySheet({
         {reversed.length === 0 ? (
           <p className="py-12 text-center text-sm text-ink-500">まだ記録されたハンドがありません。</p>
         ) : (
+          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold text-ink-500">
+            <XLogo className="h-3 w-3 shrink-0" />
+            右端のボタンで、その1ハンドをカード画像付きでシェアできます。
+          </p>
+        )}
+
+        {reversed.length > 0 && (
           <ul className="space-y-2">
             {reversed.map((rec, i) => {
               const handNo = records.length - i;
@@ -90,6 +126,15 @@ export function GameHandHistorySheet({
                   >
                     {formatSignedBb(rec.delta, bigBlind)}
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={() => shareHand(rec)}
+                    aria-label={`ハンド#${handNo}をXでシェア`}
+                    className="shrink-0 rounded-lg border border-ink-200 p-1.5 text-ink-500 transition-colors active:bg-ink-100"
+                  >
+                    <XLogo className="h-3.5 w-3.5" />
+                  </button>
                 </motion.li>
               );
             })}

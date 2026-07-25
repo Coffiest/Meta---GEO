@@ -6,6 +6,7 @@ import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
+import { PROD_URL, openTweetIntent } from "@/lib/share";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -86,8 +87,6 @@ function MetricCard({
     </motion.div>
   );
 }
-
-const PROD_URL = "https://meta-geo-poker.vercel.app";
 
 /** 英語の序数表記(1st / 2nd / 3rd / 4th ...)。着順を「1th.」風に大きく見せるために使う。 */
 function ordinal(n: number): string {
@@ -196,18 +195,10 @@ export function TournamentResultScreen({
     const head = pos === 1 ? "優勝しました" : rank ? `${rank}でフィニッシュ` : "プレイしました";
     const prize = info.yourPayout > 0 ? ` 獲得 +${info.yourPayout.toLocaleString()}` : "";
     const text = `Poker ARTのトーナメントで${head}！${prize}`;
-    const intent =
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}` +
-      `&url=${encodeURIComponent(buildShareUrl())}` +
-      `&hashtags=${encodeURIComponent("ポーカーアート,ポーカー")}`;
-    try {
-      if (typeof window !== "undefined") {
-        window.open(intent, "_blank", "noopener,noreferrer");
-        setShared(true);
-        window.setTimeout(() => setShared(false), 1600);
-      }
-    } catch {
-      /* ポップアップブロック等。無視する。 */
+    const opened = openTweetIntent({ text, url: buildShareUrl(), hashtags: ["ポーカーアート", "ポーカー"] });
+    if (opened) {
+      setShared(true);
+      window.setTimeout(() => setShared(false), 1600);
     }
   }
 

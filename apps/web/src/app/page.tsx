@@ -587,7 +587,12 @@ function GameScreen({
 
       <AnimatePresence>
         {historyOpen && (
-          <GameHandHistorySheet records={gameHandHistory} bigBlind={bigBlind} onClose={() => setHistoryOpen(false)} />
+          <GameHandHistorySheet
+            records={gameHandHistory}
+            bigBlind={bigBlind}
+            displayName={displayName}
+            onClose={() => setHistoryOpen(false)}
+          />
         )}
       </AnimatePresence>
 
