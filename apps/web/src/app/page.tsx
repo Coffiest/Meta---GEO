@@ -321,21 +321,26 @@ function GameScreen({
             )}
           </div>
           <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
-          {/* 生存者数 / 総エントリー数(MTT)。リエントリで総数が増えるので remaining/total を目立たせて即確認できるようにする。 */}
+          {/* 生存者数(MTT)。
+              注意: tournamentInfo.total は「同時にいる人数の母数」ではなく **延べエントリー数** で、
+              リエントリやレジ中のボット補充が入るたびに増える(サーバー側 mttSession の entryCount)。
+              以前は「14/23 残り」と並べて出していたため「23人中9人が飛んだ」と誤読されていた。
+              生存者数を主役にし、延べエントリー数は別ラベルとして明示的に分けて表示する。 */}
           {gameKey === "mtt" && tournamentInfo && (
-            <div className="mt-1 flex items-center gap-1 leading-none">
+            <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-ink-700">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700">
                 <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
                 <circle cx="10" cy="8" r="3.2" />
                 <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.1a3.2 3.2 0 0 1 0 6" />
               </svg>
               <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
                 {tournamentInfo.remaining}
-                <span className="text-ink-500">/</span>
-                {tournamentInfo.total}
               </span>
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">残り</span>
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">人残り</span>
+              <span className="text-[8px] font-bold tabular-nums leading-none text-ink-500">
+                延べ{tournamentInfo.total}エントリー
+              </span>
             </div>
           )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
@@ -519,7 +524,10 @@ function GameScreen({
       {/* 進行停止の診断オーバーレイ: ハンド終了後に一定時間進行が止まった場合、原因の説明と
           自動再同期の実行中であることを表示する(サーバー通知tableNoticeがあればその文言を優先)。 */}
       <AnimatePresence>
-        {(stalled || tableNotice) && !tournamentOver && (
+        {/* 結果画面(通常終了=tournamentOver / 自主離脱=leftResult)が出ている間は絶対に出さない。
+            このバナーはz-40で結果画面(z-30)より前面にあるため、残すと「閉じる/シェア」ボタンを
+            覆ってタップを奪ってしまう(ホームへ戻れなくなる)。 */}
+        {(stalled || tableNotice) && !tournamentOver && !leftResult && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
