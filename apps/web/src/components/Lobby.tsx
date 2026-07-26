@@ -20,6 +20,7 @@ import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
 import { PrimeTimeCard } from "./PrimeTimeCard";
+import { BadgeCollectionCard } from "./BadgeCollectionCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
@@ -1290,6 +1291,8 @@ export function Lobby({
             className="space-y-3"
           >
             <TabHeader eyebrow="Your numbers" title="Stats" />
+
+            <BadgeCollectionCard accessToken={accessToken} />
             {accessToken ? (
               stats ? (
                 <>
