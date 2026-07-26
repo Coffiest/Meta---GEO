@@ -22,6 +22,7 @@ import {
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
+import { liveStatus } from "./liveStatus.js";
 import { putTransfer, takeTransfer } from "./authTransfer.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -370,6 +371,14 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const idsParam = url.searchParams.get("userIds") ?? "";
       const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
       sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
+      return true;
+    }
+
+    // 観戦(配信)用のライブ状況。進行中MTTの公開スナップショットだけを返す。
+    // ログイン不要 — 配信の視聴者やまだ登録していない人がそのまま見られることが目的。
+    // ホールカードや進行中のアクションは一切含めないため、覗き見による不正の余地は無い。
+    if (url.pathname === "/api/lobby/live") {
+      sendJson(res, 200, { live: liveStatus.get() });
       return true;
     }
 

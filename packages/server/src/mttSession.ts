@@ -18,6 +18,7 @@ import {
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
+import { liveStatus } from "./liveStatus.js";
 
 const NEXT_HAND_DELAY_MS = 3000;
 /** 人間が離脱した席の自動フォールドなど、進行中のハンドを手早く畳むためだけの短いディレイ。 */
@@ -1300,6 +1301,18 @@ export class MttSession implements GameSession {
       isFinalTable,
       standings,
       tournamentId: this.dbTournamentId ?? null,
+    });
+
+    // 観戦ページ(/watch)用の公開スナップショット。ホールカードやBOTの内訳は含めない。
+    const leader = standings[0];
+    liveStatus.update({
+      remaining,
+      total: this.entryCount,
+      averageStack,
+      bigBlind: bb,
+      isFinalTable,
+      prizePoolTotal: structure.prizePool,
+      chipLeader: leader ? { displayName: leader.displayName, bbStack: leader.bbStack } : null,
     });
   }
 
