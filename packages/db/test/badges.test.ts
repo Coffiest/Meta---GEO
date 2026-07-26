@@ -6,8 +6,10 @@ import { getOrCreateReferralCode, redeemReferralCode } from "../src/referral.js"
 describe("badge collection (integration, real Postgres)", () => {
   const createdUserIds: string[] = [];
 
+  // 招待バッジの検証に実際の招待成立を使うため、BOTではなく人間として作る
+  // (redeemReferralCode はBOTのコードを弾く仕様)。
   async function createUser(name: string) {
-    const user = await prisma.user.create({ data: { displayName: `BadgeTest-${name}`, isBot: true } });
+    const user = await prisma.user.create({ data: { displayName: `BadgeTest-${name}` } });
     createdUserIds.push(user.id);
     return user;
   }
