@@ -387,6 +387,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         return {
           ...d,
           state,
+          // 盤面が届いた=卓に戻れている。「進行中の卓が見つからない」通知は解除する。
+          gameGone: false,
           lastHandEnded: isNewHand ? null : d.lastHandEnded,
           lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
           runoutHoleCards: isNewHand ? null : d.runoutHoleCards,

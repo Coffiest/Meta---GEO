@@ -7,9 +7,11 @@ import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
 
 const NEXT_HAND_DELAY_MS = 3500;
-/** 全人間の結果確定後にBOT同士の消化を高速化するときのディレイ */
+/**
+ * 全人間の結果確定後、進行中のハンドだけをBOT同士で手早く畳むときのディレイ。
+ * ハンドをまたぐ「BOT卓の高速回転」は行わない(全人間が抜けた時点でセッションごと終了する)。
+ */
 const FAST_BOT_DELAY_MS = 25;
-const FAST_NEXT_HAND_DELAY_MS = 50;
 /** 1アクションの基本持ち時間(ショットクロック) */
 export const ACTION_CLOCK_MS = 20_000;
 /** タイムバンクカード1枚で追加される考慮時間 */
@@ -326,7 +328,12 @@ export class TableSession implements GameSession {
   /** 直近に配信した手番クロック。再接続(attachHuman)時に、まだ有効なら新ソケットへ再送して復帰後の時計を正しく動かす。 */
   private lastTurn: { seatIndex: number; endsAt: number; durationMs: number } | null = null;
   private levelEndsAt = 0;
-  private acceleratedHands = 0;
+  /**
+   * ハンド履歴のDB書き込みを卓の進行から切り離すための直列キュー。
+   * 進行(finishHand)はこの完了を待たないが、キューで直列化することで
+   * 1セッションあたりの同時接続数を1に抑え、プール枯渇を防ぐ。
+   */
+  private recordQueue: Promise<void> = Promise.resolve();
 
   readonly gameType = "sng";
   readonly buyIn = SNG_BUY_IN;
@@ -810,13 +817,23 @@ export class TableSession implements GameSession {
       return;
     }
 
-    if (this.isAccelerated()) {
-      this.acceleratedHands += 1;
-      if (this.acceleratedHands % 10 === 0) tournament.advanceToNextLevel();
+    // 人間が誰も残っていない卓をBOTだけで回し続けない。以前はここから50ms間隔でハンドを
+    // 延々と生成し続け、CPUとDB接続を空回りで食い潰していた(卓が増えるほど悪化する)。
+    // 人間の着順は離脱・バスト時点で確定済みなので、残りはその場で着順を決めて即終了する。
+    if (this.allHumansDone()) {
+      void this.finishTournament();
+      return;
     }
 
-    const delay = this.isAccelerated() ? FAST_NEXT_HAND_DELAY_MS : NEXT_HAND_DELAY_MS;
-    setTimeout(() => this.beginNextHand(), delay);
+    setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+  }
+
+  /** ハンド履歴の保存を直列キューへ積む(進行はこの完了を待たない)。 */
+  private enqueueRecordHand(input: Parameters<typeof recordHand>[0]): void {
+    this.recordQueue = this.recordQueue
+      .then(() => recordHand(input))
+      .then(() => undefined)
+      .catch((err) => console.error("[sng] recordHand failed:", err));
   }
 
   private async finishHandInner(hand: HandEngine, tournament: Tournament): Promise<void> {
@@ -828,11 +845,16 @@ export class TableSession implements GameSession {
       | { handNumber: number; level: { smallBlind: number; bigBlind: number; bbAnte: number }; buttonFixedPos: number }
       | undefined;
 
-    if (started) {
+    // BOTだけのハンドは誰も参照しない(ハンド履歴もレビューも人間の席が対象)。保存を丸ごと省いて
+    // DB書き込みと接続プールの消費を止める。「このハンドに人間が着席していたか」で判定するため、
+    // 直前のハンドでバストした人間の最終ハンドはきちんと保存される。
+    const handHadHuman = hand.getPublicState().seats.some((s) => this.humansBySeat.has(s.seatIndex));
+
+    if (started && handHadHuman) {
       const startingStacks = new Map<number, number>();
       for (const seat of tournament.getSeats()) startingStacks.set(seat.seatIndex, seat.stack);
 
-      await recordHand({
+      this.enqueueRecordHand({
         tournamentId: dbTournamentId,
         handNumber: started.handNumber,
         buttonFixedPos: started.buttonFixedPos,
@@ -850,7 +872,7 @@ export class TableSession implements GameSession {
             wasAway: this.humansBySeat.get(p.seatIndex)?.away ?? false,
           })),
         hand,
-      }).catch((err) => console.error("[sng] recordHand failed:", err));
+      });
     }
 
     // 公開義務のある席 + 自主公開(ショウ)を選んだ席をクライアントへ公開する(それ以外はマック)
@@ -929,10 +951,12 @@ export class TableSession implements GameSession {
     }
 
     // bustedAtHandが遅い(=nullなら優勝)ほど着順が良い、として並べる。
+    // 人間が全員抜けて途中終了した場合は生存者が複数残るため、その中はスタックの多い順に並べる。
     const seats = [...tournament.getSeats()].sort((a, b) => {
       const aRank = a.bustedAtHand ?? Number.POSITIVE_INFINITY;
       const bRank = b.bustedAtHand ?? Number.POSITIVE_INFINITY;
-      return bRank - aRank;
+      if (aRank !== bRank) return bRank - aRank;
+      return b.stack - a.stack;
     });
 
     await Promise.all(
