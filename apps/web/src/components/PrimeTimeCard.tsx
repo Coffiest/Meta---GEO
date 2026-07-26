@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n";
 import type { GameKey } from "@/lib/socket";
@@ -156,6 +157,11 @@ export function PrimeTimeCard({ onJoin }: { onJoin: (gameKey: GameKey) => void }
           {t("primetime.share")}
         </button>
       </div>
+
+      {/* 観戦ページ(配信者がそのまま画面に出せるライブ状況)への導線。 */}
+      <Link href="/watch" className="mt-3 block text-center text-[11.5px] font-semibold text-ink-500 underline decoration-dashed underline-offset-2">
+        {t("primetime.watchLink")}
+      </Link>
     </motion.div>
   );
 }
