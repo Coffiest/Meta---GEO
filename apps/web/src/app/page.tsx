@@ -173,6 +173,7 @@ function GameScreen({
     runoutHoleCards,
     tableNotice,
     stalled,
+    gameGone,
     sendAction,
     leaveGame,
     armTimeBank,
@@ -208,6 +209,10 @@ function GameScreen({
   );
   // 注意: 再接続で進行中の卓が見つからなくても、絶対にホームへ強制退出させない(プレイ中に突然
   // ロビーへ戻される致命バグの再発防止)。再接続時は resumeGame で自動的に卓へ復帰する。
+  // そのうえで、卓が本当に消えている(サーバー再起動やセッション終了)場合に画面が固まったまま
+  // 何も操作できなくなるのを防ぐため、案内と「ホームへ戻る」導線だけを出す(強制退出はしない)。
+  // 盤面(state)が届けば socket 側で自動的に解除されるため、一時的な再接続では出ない。
+  const showGameGone = gameGone && !tournamentOver && !leftResult && !matching && !waiting;
 
   const yourSeat = useMemo(
     () => (yourSeatIndex !== null ? state?.seats.find((s) => s.seatIndex === yourSeatIndex) : undefined),
@@ -529,7 +534,7 @@ function GameScreen({
         {/* 結果画面(通常終了=tournamentOver / 自主離脱=leftResult)が出ている間は絶対に出さない。
             このバナーはz-40で結果画面(z-30)より前面にあるため、残すと「閉じる/シェア」ボタンを
             覆ってタップを奪ってしまう(ホームへ戻れなくなる)。 */}
-        {(stalled || tableNotice) && !tournamentOver && !leftResult && (
+        {(stalled || tableNotice) && !tournamentOver && !leftResult && !showGameGone && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -551,6 +556,49 @@ function GameScreen({
                         ? "インターネット接続がオフラインです。通信環境をご確認ください。"
                         : "サーバーの応答待ちです。自動で再同期を試みています…(数秒お待ちください)"}
                 </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 卓が本当に消えている場合の案内。強制退出はせず、本人の操作でホームへ戻れるようにする。 */}
+      <AnimatePresence>
+        {showGameGone && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-ink-950 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+          >
+            <div className="flex items-start gap-3">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-4 w-4 shrink-0 text-ink-950"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v4.5" />
+                <path d="M12 16h.01" />
+              </svg>
+              <div className="min-w-0">
+                <p className="text-[13px] font-black text-ink-950">進行中の卓が見つかりません</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
+                  このゲームはすでに終了しているか、サーバーの再起動でセッションが失われました。
+                  自動での復帰は続けていますが、戻らない場合はホームから新しいゲームに参加してください。
+                </p>
+                <button
+                  type="button"
+                  onClick={onExit}
+                  className="mt-3 w-full rounded-xl border border-ink-950 bg-ink-950 px-4 py-2 text-[13px] font-black text-white active:translate-y-px"
+                >
+                  ホームへ戻る
+                </button>
               </div>
             </div>
           </motion.div>

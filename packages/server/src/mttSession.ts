@@ -20,7 +20,15 @@ import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
 
 const NEXT_HAND_DELAY_MS = 3000;
+/** 人間が離脱した席の自動フォールドなど、進行中のハンドを手早く畳むためだけの短いディレイ。 */
 const FAST_DELAY_MS = 20;
+/**
+ * 人間が誰も座っていない卓の、次ハンドまでの間隔。
+ * この卓のハンドは driveInstantHand で同期的に一気に消化されるため、以前の FAST_DELAY_MS(20ms)では
+ * 「1卓あたり毎秒50ハンド」を延々と生成し続け、卓数に比例してCPUとDB接続を食い潰していた。
+ * 人間卓より速く回してフィールドを進める必要はあるが、最低でも1.5秒は空ける。
+ */
+const BOT_TABLE_NEXT_HAND_MS = 1500;
 export const MTT_MIN_PLAYERS_TO_START = 4;
 export const MTT_TABLE_SEAT_COUNT = 6;
 export const MTT_BUY_IN = 2000;
@@ -124,7 +132,12 @@ export class MttSession implements GameSession {
   /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
   private readonly pendingForcedEliminations = new Set<string>();
   private levelEndsAt = 0;
-  private acceleratedHands = 0;
+  /**
+   * ハンド履歴のDB書き込みを卓の進行から切り離すための直列キュー。
+   * 進行(finishHand)はこの完了を待たないが、キューで直列化することで
+   * 1セッションあたりの同時接続数を1に抑え、プール枯渇を防ぐ。
+   */
+  private recordQueue: Promise<void> = Promise.resolve();
   /** 15秒マッチング→ボット補充で開始するためのタイマー。 */
   private matchTimer: ReturnType<typeof setTimeout> | null = null;
   /** 3分ごとのボット補充タイマー。 */
@@ -952,19 +965,31 @@ export class MttSession implements GameSession {
       return;
     }
 
+    // 人間が誰も残っていないMTTをBOTだけで回し続けない。以前はここから20ms間隔で全卓のハンドを
+    // 延々と生成し続け(1卓あたり毎秒50ハンド)、CPUとDB接続を空回りで食い潰していた。
+    // 人間の着順は離脱・バスト時点で確定済みなので、残りはその場で着順を決めて即終了する。
     const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
     if (!anyoneActive) {
-      this.acceleratedHands += 1;
-      if (this.acceleratedHands % 10 === 0) mtt.advanceToNextLevel();
+      void this.finishTournament();
+      return;
     }
 
     // この卓の次ハンドを予約しつつ、リバランスで人が入った他の待機卓も起動する。
-    const delay = tableHadHuman && anyoneActive ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
+    // 人間不在の卓(=同期的に一気消化される卓)も、最低 BOT_TABLE_NEXT_HAND_MS は間隔を空ける。
+    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : BOT_TABLE_NEXT_HAND_MS;
     if (this.mtt?.getTableIds().includes(tableId)) {
       rt.pumpScheduled = true;
       setTimeout(() => this.pumpTable(tableId), delay);
     }
     this.reconcileTables();
+  }
+
+  /** ハンド履歴の保存を直列キューへ積む(進行はこの完了を待たない)。 */
+  private enqueueRecordHand(input: Parameters<typeof recordHand>[0]): void {
+    this.recordQueue = this.recordQueue
+      .then(() => recordHand(input))
+      .then(() => undefined)
+      .catch((err) => console.error("[mtt] recordHand failed:", err));
   }
 
   private async finishHandInner(
@@ -978,9 +1003,14 @@ export class MttSession implements GameSession {
     // この卓の直近の handStarted を拾う(並行進行では他卓のイベントが後に積まれているため tableId で絞る)。
     const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted" && e.tableId === tableId);
 
-    if (started && started.type === "handStarted") {
+    // BOTだけのハンドは誰も参照しない(ハンド履歴もレビューも人間の席が対象)。保存を丸ごと省いて
+    // DB書き込みと接続プールの消費を止める。「このハンドに人間が着席していたか」で判定するため、
+    // このハンドでバストした人間の最終ハンドはきちんと保存される。
+    const handHadHuman = hand.getPublicState().seats.some((s) => this.humans.has(s.playerId));
+
+    if (started && started.type === "handStarted" && handHadHuman) {
       const occupancy = mtt.getTableOccupancy(tableId);
-      await recordHand({
+      this.enqueueRecordHand({
         tournamentId: dbTournamentId,
         handNumber: started.handNumber,
         buttonFixedPos: started.buttonFixedPos,
@@ -996,7 +1026,7 @@ export class MttSession implements GameSession {
           wasAway: this.humans.get(s.playerId)?.away ?? false,
         })),
         hand,
-      }).catch((err) => console.error("[mtt] recordHand failed:", err));
+      });
     }
 
     if (tableHadHuman) {
@@ -1149,6 +1179,22 @@ export class MttSession implements GameSession {
     this.regCloseTimer = null;
     this.topupTimer = null;
     if (!this.registrationClosed) this.closeRegistration();
+
+    // 人間が全員抜けて途中終了した場合、生存者(BOT)が複数残ったままになる。placeOf は
+    // bustedOrder に載っていない全員を「優勝(1位)」と見なすため、ここでスタックの少ない順に
+    // bustedOrder へ積んで着順を確定させる(チップリーダーが最後=1位になる)。
+    if (!mtt.isTournamentOver()) {
+      const survivors = mtt
+        .getTableIds()
+        .flatMap((tid) => mtt.getTableOccupancy(tid))
+        .filter((o) => !this.bustedOrder.includes(o.playerId))
+        .sort((a, b) => a.stack - b.stack);
+      if (survivors.length > 0) {
+        // 最大スタック(=優勝扱い)以外を bustedOrder へ積む。placeOf は
+        // 「bustedOrder に載っていない=1位」「後に積まれたものほど上位」と解釈する。
+        for (const s of survivors.slice(0, -1)) this.bustedOrder.push(s.playerId);
+      }
+    }
 
     for (const human of this.humans.values()) {
       if (!human.done) await this.recordHumanFinish(human);
