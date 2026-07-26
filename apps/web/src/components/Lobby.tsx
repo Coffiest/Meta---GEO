@@ -19,6 +19,7 @@ import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingD
 import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
+import { PrimeTimeCard } from "./PrimeTimeCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
@@ -1252,6 +1253,8 @@ export function Lobby({
             <HomeGreeting displayName={displayName} />
 
             <GameStartCards games={GAMES} onJoin={onJoin} />
+
+            <PrimeTimeCard onJoin={onJoin} />
 
             <RRRatingCard
               displayName={displayName}
