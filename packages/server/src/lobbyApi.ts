@@ -23,6 +23,15 @@ import {
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
+import {
+  deletePushSubscription,
+  hasPushSubscription,
+  pushAvailable,
+  pushPublicKey,
+  savePushSubscription,
+  sendPushToUser,
+  type PushSubscriptionInput,
+} from "./push.js";
 import { putTransfer, takeTransfer } from "./authTransfer.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -374,6 +383,60 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
+    // PWAプッシュ通知の設定情報。購読に必要なVAPID公開鍵と、この端末以外も含めた購読有無。
+    // VAPID鍵が未設定の環境では available:false を返し、クライアントは通知UI自体を出さない。
+    if (url.pathname === "/api/lobby/push/config") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, {
+        available: pushAvailable(),
+        publicKey: pushPublicKey(),
+        subscribed: pushAvailable() ? await hasPushSubscription(user.id) : false,
+      });
+      return true;
+    }
+
+    // プッシュ通知の購読登録。
+    if (url.pathname === "/api/lobby/push/subscribe" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      if (!pushAvailable()) {
+        sendJson(res, 503, { error: "push not configured" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const sub = body["subscription"] as PushSubscriptionInput | undefined;
+      if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+        sendJson(res, 400, { error: "invalid subscription" });
+        return true;
+      }
+      await savePushSubscription(user.id, sub);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // プッシュ通知の購読解除(通知オフ)。
+    if (url.pathname === "/api/lobby/push/unsubscribe" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const endpoint = typeof body["endpoint"] === "string" ? body["endpoint"] : "";
+      if (endpoint) await deletePushSubscription(endpoint);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
     // 観戦(配信)用のライブ状況。進行中MTTの公開スナップショットだけを返す。
     // ログイン不要 — 配信の視聴者やまだ登録していない人がそのまま見られることが目的。
     // ホールカードや進行中のアクションは一切含めないため、覗き見による不正の余地は無い。
@@ -418,6 +481,22 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const body = await readJsonBody(req);
       const code = typeof body["code"] === "string" ? body["code"] : "";
       const result = await redeemReferralCode(user.id, code);
+      // 招待が成立したら、招待した人へプッシュで知らせる(称号が上がる瞬間を逃さないため)。
+      // 通知の失敗で招待そのものを失敗させない。
+      if (result.ok) {
+        const inviter = await prisma.referral.findUnique({
+          where: { inviteeUserId: user.id },
+          select: { inviterUserId: true },
+        });
+        if (inviter) {
+          void sendPushToUser(inviter.inviterUserId, {
+            title: "招待が成立しました",
+            body: `${user.displayName} さんがあなたの招待で参加しました。`,
+            path: "/",
+            tag: "referral",
+          }).catch(() => undefined);
+        }
+      }
       // 適用できなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
       sendJson(res, 200, result);
       return true;

@@ -255,6 +255,15 @@ const ja: Dict = {
   "statinfo.graphPayout.title": "得た金額グラフ",
   "statinfo.graphPayout.desc": "入賞して受け取った賞金の累計推移です。入賞していないトーナメントでは増えません(実額ベース)。",
 
+  "push.eyebrow": "Notifications",
+  "push.title": "開始を逃さない",
+  "push.lead": "プライムタイム(毎晩21:00)の開始10分前と、招待が成立したときに通知します。それ以外では通知しません。",
+  "push.enable": "通知を受け取る",
+  "push.enabling": "設定中…",
+  "push.denied": "通知が許可されませんでした。端末の設定から許可できます。",
+  "push.failed": "通知を設定できませんでした。時間をおいて試してください。",
+  "push.installFirst": "iPhone・iPadでは、この画面を「ホーム画面に追加」してから開くと通知を受け取れます(Safariのタブでは通知を使えません)。",
+
   "watch.eyebrow": "Live",
   "watch.liveBadge": "開催中",
   "watch.titleLive": "いま、卓が動いている",
@@ -574,6 +583,15 @@ const en: Dict = {
   "statinfo.graphProfit.desc": "Cumulative profit (amount won − amount staked) per finished tournament. Above the dashed 0 is a profit, below is a loss (raw amounts, not bb).",
   "statinfo.graphPayout.title": "Amount won chart",
   "statinfo.graphPayout.desc": "Cumulative prize money received. It doesn't rise for tournaments without a cash (raw amounts).",
+
+  "push.eyebrow": "Notifications",
+  "push.title": "Never miss the start",
+  "push.lead": "We'll ping you 10 minutes before prime time (daily 21:00 JST) and when one of your invites lands. Nothing else.",
+  "push.enable": "Turn on notifications",
+  "push.enabling": "Setting up…",
+  "push.denied": "Notifications weren't allowed. You can enable them in your device settings.",
+  "push.failed": "Couldn't set up notifications. Please try again later.",
+  "push.installFirst": "On iPhone and iPad, add this page to your Home Screen and open it from there to receive notifications (Safari tabs can't).",
 
   "watch.eyebrow": "Live",
   "watch.liveBadge": "LIVE",
@@ -895,6 +913,15 @@ const ko: Dict = {
   "statinfo.graphPayout.title": "얻은 금액 그래프",
   "statinfo.graphPayout.desc": "입상하여 받은 상금의 누적 추이입니다. 입상하지 못한 토너먼트에서는 늘지 않습니다(실액 기준).",
 
+  "push.eyebrow": "Notifications",
+  "push.title": "시작을 놓치지 않기",
+  "push.lead": "프라임타임(매일 21:00 JST) 시작 10분 전과 초대가 성립했을 때 알려드립니다. 그 외에는 알리지 않습니다.",
+  "push.enable": "알림 받기",
+  "push.enabling": "설정 중…",
+  "push.denied": "알림이 허용되지 않았습니다. 기기 설정에서 허용할 수 있습니다.",
+  "push.failed": "알림을 설정하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+  "push.installFirst": "iPhone·iPad에서는 이 화면을 홈 화면에 추가한 뒤 실행해야 알림을 받을 수 있습니다(Safari 탭에서는 불가).",
+
   "watch.eyebrow": "Live",
   "watch.liveBadge": "진행 중",
   "watch.titleLive": "지금 테이블이 돌아가고 있습니다",
@@ -1214,6 +1241,15 @@ const zh: Dict = {
   "statinfo.graphProfit.desc": "每场已结束锦标赛盈亏(获得金额 − 投入金额)的累计走势。虚线0之上为盈利，之下为亏损(实额，不换算bb)。",
   "statinfo.graphPayout.title": "获得金额图表",
   "statinfo.graphPayout.desc": "入奖所得奖金的累计走势。未入奖的锦标赛不会增加(实额)。",
+
+  "push.eyebrow": "Notifications",
+  "push.title": "不错过开赛",
+  "push.lead": "我们会在黄金时段(每晚21:00 JST)开始前10分钟，以及你的邀请成立时通知你。除此之外不会打扰。",
+  "push.enable": "开启通知",
+  "push.enabling": "设置中…",
+  "push.denied": "通知未被允许。可在设备设置中开启。",
+  "push.failed": "通知设置失败，请稍后再试。",
+  "push.installFirst": "在 iPhone / iPad 上，请先把本页「添加到主屏幕」再打开，才能接收通知(Safari 标签页无法接收)。",
 
   "watch.eyebrow": "Live",
   "watch.liveBadge": "进行中",

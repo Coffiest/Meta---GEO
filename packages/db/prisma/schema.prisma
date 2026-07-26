@@ -33,6 +33,23 @@ model User {
   subscription         Subscription?
   referralsSent        Referral[]            @relation("ReferralInviter")
   referralReceived     Referral?             @relation("ReferralInvitee")
+  pushSubscriptions    PushSubscription[]
+}
+
+/// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
+/// 送信時に失効(410/404)が返った購読はその場で削除する(死んだ購読を溜めない)。
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  /// プッシュサービスのエンドポイントURL。端末+ブラウザごとに一意。
+  endpoint  String   @unique
+  /// 暗号化キー(購読オブジェクトの keys.p256dh / keys.auth)。
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /// 招待コードの成立記録(招待した人 × 招待された人)。報酬はバーチャルチップではなく
