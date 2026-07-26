@@ -6,6 +6,7 @@ import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleAdminApiRequest } from "./adminApi.js";
+import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -63,6 +64,9 @@ io.on("connection", (socket) => {
   console.log(`[server] socket connected: ${socket.id}`);
   lobby.handleConnection(socket);
 });
+
+// プライムタイム(毎晩21:00 JST)開始10分前のプッシュ通知。VAPID鍵が未設定なら送信は黙ってスキップされる。
+startPrimeTimeNotifier();
 
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);

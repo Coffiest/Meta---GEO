@@ -15,10 +15,14 @@ name: Deploy
 #   - STRIPE_PRICE_ID           GEOサブスクの月額プランのPrice ID
 #   - NEXT_PUBLIC_ADSENSE_CLIENT_ID      Google AdSenseの発行者ID (ca-pub-...、ブラウザ用、公開値)
 #   - NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID 棋譜解析の無料要約画面に出す広告ユニットのスロットID
+#   - VAPID_PUBLIC_KEY          PWAプッシュ通知の公開鍵 (web-push generate-vapid-keys で生成)
+#   - VAPID_PRIVATE_KEY         同 秘密鍵
 # Supabase系の4つが未設定でもデプロイ自体は失敗しない(ログイン機能が自動的に無効化され、
 # 従来のゲスト名入力フローにフォールバックする)。Stripe系の3つが未設定でもデプロイは失敗せず、
 # サブスク機能(checkout/webhook/portal)のみ503を返して無効化される(GEO閲覧の日次無料枠は動作する)。
 # AdSense系の2つが未設定でもデプロイは失敗せず、広告枠(AdSlot)自体が非表示になるだけ。
+# VAPID系の2つが未設定でもデプロイは失敗せず、プッシュ通知機能のみ無効化される
+# (購読APIは503を返し、ホームの通知カード自体が表示されなくなる)。
 # 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
 
 on:
@@ -69,6 +73,8 @@ jobs:
             STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
             STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
             STRIPE_PRICE_ID="${{ secrets.STRIPE_PRICE_ID }}" \
+            VAPID_PUBLIC_KEY="${{ secrets.VAPID_PUBLIC_KEY }}" \
+            VAPID_PRIVATE_KEY="${{ secrets.VAPID_PRIVATE_KEY }}" \
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

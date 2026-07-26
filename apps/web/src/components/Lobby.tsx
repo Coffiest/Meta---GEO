@@ -21,6 +21,7 @@ import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
 import { PrimeTimeCard } from "./PrimeTimeCard";
 import { BadgeCollectionCard } from "./BadgeCollectionCard";
+import { PushOptInCard } from "./PushOptInCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
@@ -1256,6 +1257,8 @@ export function Lobby({
             <GameStartCards games={GAMES} onJoin={onJoin} />
 
             <PrimeTimeCard onJoin={onJoin} />
+
+            <PushOptInCard accessToken={accessToken} />
 
             <RRRatingCard
               displayName={displayName}
