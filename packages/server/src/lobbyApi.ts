@@ -10,6 +10,7 @@ import {
   getPlayerNotesForTargets,
   getReferralSummary,
   redeemReferralCode,
+  getBadgeCollection,
   getHandProfitGraph,
   getRRRating,
   getTournamentHistory,
@@ -369,6 +370,18 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const idsParam = url.searchParams.get("userIds") ?? "";
       const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
       sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
+      return true;
+    }
+
+    // バッジ図鑑。全バッジの達成状況と、未達成バッジの現在値(進捗)を返す。
+    if (url.pathname === "/api/lobby/badges") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, await getBadgeCollection(user.id));
       return true;
     }
 
