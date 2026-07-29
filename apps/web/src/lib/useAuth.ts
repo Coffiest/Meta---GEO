@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient, readStoredSession } from "./supabaseClient";
-import { isStandalonePwa } from "./pwa";
 
 export interface AuthState {
   /** Supabaseの環境変数が未設定の場合はfalse(ログイン機能そのものが使えない) */
@@ -46,12 +45,6 @@ export const AUTH_TRANSFER_CODE_KEY = "pokerart-auth-transfer";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 const TRANSFER_MAX_AGE_MS = 3 * 60 * 1000;
-
-function generateTransferCode(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 function readPendingTransfer(): { code: string; ts: number } | null {
   try {
@@ -118,8 +111,6 @@ export function useAuth(): AuthState {
   const [loading, setLoading] = useState(true);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthErrorRaw, setOauthErrorRaw] = useState<string | null>(null);
-  // シート型ログイン開始時にインクリメントし、受け渡しポーリングのeffectを再起動させる。
-  const [transferNonce, setTransferNonce] = useState(0);
 
   useEffect(() => {
     const result = readOauthErrorFromLocation();
@@ -242,84 +233,28 @@ export function useAuth(): AuthState {
       stopped = true;
       clearInterval(interval);
     };
-  }, [supabase, session, transferNonce]);
+  }, [supabase, session]);
 
   const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
 
   /**
    * Google/AppleのOAuthログイン。
    *
-   * 通常ブラウザ: 従来どおり同一ウィンドウのフルリダイレクト(実績ある挙動を変えない)。
-   *
-   * スタンドアロンPWA(ホーム画面起動): 本体ウィンドウを遷移させると、特にAppleの認証ページが
-   * コンテキストをSafari本体へハンドオフしてしまい、以後「ブラウザのUI付き」でアプリを使う羽目に
-   * なる致命的な問題があった(iOSはPWAとSafariのストレージが別なので、セッションもPWAに入らない)。
-   * そこで本体は一切遷移させず、認証はアプリ内シート(window.open)で行う。シートはPWAと同一
-   * オリジン・同一ストレージのため、認証完了時にセッションがlocalStorageへ保存され、本体は上の
-   * フォーカス/storage監視で自動的にログイン状態になる。
-   *
-   * シートの識別は2重化している:
-   *  1. シートを開いた直後(about:blank=同一オリジンのうち)に、シート自身の sessionStorage へ
-   *     マーカーを書き込む。sessionStorage はタブ単位で保持されるため、Apple/Supabase を経由して
-   *     このオリジンへ戻ってきてもマーカーが残り、page.tsx が確実に「閉じて戻る」画面を出せる。
-   *     (SupabaseのリダイレクトURL許可リスト照合でクエリが剥がされても機能する、設定非依存の主経路)
-   *  2. redirectTo の ?authdone=1(許可リストが許す場合の補助経路)。
+   * 【方式について】全コンテキスト共通の「同一ウィンドウ・フルリダイレクト」(v2.83まで長期間
+   * 実績のあった方式)に統一している。スタンドアロンPWA向けに試した代替方式は、いずれもiOSの
+   * 実機で致命的に失敗したため使わない:
+   *  - Apple公式JSポップアップ: 完了通知(web_message)が本体へ届かず、Appleネイティブシートが
+   *    「登録を完了できませんでした」で毎回失敗しログイン不能になる。
+   *  - アプリ内シート(window.open)+セッション受け渡し: iOSのストレージパーティション分離で
+   *    シートへの目印が届かず、SupabaseのリダイレクトURL照合でクエリも剥がされるため、
+   *    シートにアプリ本体が表示されてしまい受け渡しが成立しない。
+   * フルリダイレクトは認証後にブラウザUI付きのコンテキストへ着地することがあるが、
+   * 「確実にログインできる」ことを最優先する。
    */
   const oauthSignIn = async (provider: "google" | "apple", queryParams?: Record<string, string>) => {
     if (!supabase || !redirectTo) return;
     const baseOptions = queryParams ? { redirectTo, queryParams } : { redirectTo };
-    if (!isStandalonePwa()) {
-      await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
-      return;
-    }
-    // シート→本体のセッション受け渡し用ワンタイムコードを発行し、本体側で記録(ポーリング用)。
-    const transferCode = generateTransferCode();
-    try {
-      window.localStorage.setItem(AUTH_TRANSFER_CODE_KEY, JSON.stringify({ code: transferCode, ts: Date.now() }));
-    } catch {
-      /* 書けない環境でも同一パーティションならstorage共有経路でログインできる */
-    }
-    setTransferNonce((n) => n + 1);
-
-    // タップ直後の同期処理でシートを開く(非同期後のwindow.openはポップアップブロックされうる)。
-    let sheet: Window | null = null;
-    try {
-      sheet = window.open("", "_blank");
-      // about:blankは本体と同一オリジン扱いのため、この時点ならシートのsessionStorageへ書き込める。
-      // sessionStorageはタブ固有なので、ストレージパーティションが分離していても保持される。
-      sheet?.sessionStorage.setItem(AUTH_SHEET_MARKER, "1");
-      sheet?.sessionStorage.setItem(AUTH_TRANSFER_CODE_KEY, transferCode);
-    } catch {
-      /* マーカーを書けなくても ?authdone=1&t= の補助経路が残る */
-    }
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        ...baseOptions,
-        redirectTo: `${redirectTo}/?authdone=1&t=${transferCode}`,
-        skipBrowserRedirect: true,
-      },
-    });
-    if (!error && data?.url && sheet) {
-      try {
-        sheet.location.href = data.url;
-        return;
-      } catch {
-        /* シートへの書き込みに失敗 → 下のエラー表示へ */
-      }
-    }
-    try {
-      sheet?.close();
-    } catch {
-      /* noop */
-    }
-    // 【重要】スタンドアロンPWAでは、いかなる場合も本体ウィンドウをリダイレクトしない。
-    // 以前はここで window.location.assign にフォールバックしていたが、それが本体ごと
-    // Safariへハンドオフされる致命バグ(ブラウザUI付きでアプリを使う羽目になる)の再発経路だった。
-    // シートを開けなかった場合(ポップアップ失敗直後の自動再試行でタップ由来のジェスチャが
-    // 切れているケース等)は、もう一度タップしてもらえば新しいジェスチャでシートが開ける。
-    setOauthError("ログイン画面を開けませんでした。もう一度「Appleでログイン」または「Google」をタップしてください。");
-    setOauthErrorRaw(error?.message ?? "sheet_open_failed");
+    await supabase.auth.signInWithOAuth({ provider, options: baseOptions });
   };
 
   return {
