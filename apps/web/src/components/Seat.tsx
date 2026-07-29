@@ -6,7 +6,8 @@ import { Avatar } from "./Avatar";
 import { formatBb } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 
-export type SeatBadgeTone = "raise" | "call" | "fold" | "win" | "lose";
+/** 卓上バッジの種別。敗北を宣言するトーンは持たない(負けはスタックが語る)。 */
+export type SeatBadgeTone = "raise" | "call" | "fold" | "win";
 
 export interface SeatBadge {
   text: string;
@@ -155,14 +156,31 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
   );
 }
 
+/**
+ * 卓上バッジの配色。アプリ全体と同じ「白・黒・ゴールド」の3色だけで構成する。
+ * 赤緑の信号色は使わない —— 既製ポーカーアプリの見た目に寄るうえ、
+ * 卓の上で本当に目を引くべきものが埋もれるため。
+ *  - ポット獲得だけがゴールド(卓上で唯一の彩色)
+ *  - ベット/レイズ/オールインは黒の塗り(強い意思表示)
+ *  - コール/チェックは白地に黒フチ(応答)
+ *  - フォールドは輪郭も文字も落として静かに引く
+ */
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
-  call: "bg-mint-500 text-white",
-  win: "bg-mint-500 text-white",
-  raise: "bg-crimson-500 text-white",
-  lose: "bg-crimson-500 text-white",
-  // フォールドは他のアクションに比べて目立たせる意味が無いため、控えめな地味トーンにする
-  fold: "bg-white border border-ink-300 text-ink-500",
+  win: "bg-gold-500 text-ink-950 ring-ink-950",
+  raise: "bg-ink-950 text-white ring-ink-950",
+  call: "bg-white text-ink-950 ring-ink-950",
+  fold: "bg-white text-ink-400 ring-ink-300",
 };
+
+/** ポット獲得バッジに添えるチップのグリフ(重なった2枚)。絵文字は使わずSVGで描く。 */
+function ChipsGlyph({ className = "h-3 w-3" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className} aria-hidden="true">
+      <ellipse cx="12" cy="8.5" rx="7" ry="3.2" />
+      <path d="M5 8.5v4c0 1.77 3.13 3.2 7 3.2s7-1.43 7-3.2v-4" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export interface SeatViewProps {
   name: string;
@@ -390,7 +408,7 @@ export function Seat({
                   {formatBb(stack, bigBlind)}
                 </span>
               </div>
-              {status === "allIn" && <div className="text-[9px] text-crimson-500 font-medium">ALL IN</div>}
+              {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-950">All in</div>}
               {away && status !== "allIn" && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-ink-500">
                   <span className="h-1.5 w-1.5 rounded-full bg-ink-400" />
@@ -410,8 +428,10 @@ export function Seat({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            className={`rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ring-ink-950 ${BADGE_TONE_CLASS[badge.tone]}`}
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
+            style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
           >
+            {badge.tone === "win" && <ChipsGlyph className="h-3 w-3 shrink-0" />}
             {badge.text}
           </motion.div>
         ) : (
