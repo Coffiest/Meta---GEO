@@ -84,12 +84,14 @@ function badgeForSeat(params: {
 }): SeatBadge | null {
   const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind } = params;
 
+  // ポットを取ったことは「獲得額」だけで伝える。Won/Lostのような勝敗ラベルは置かない
+  // (卓上に英単語の宣言を並べるのは他社アプリの語彙で、Poker ARTの静かな面構えに合わない)。
+  // 負けた側にバッジを出さないのも意図的 —— 減った分は自分のスタックが語るので、
+  // 卓上に敗北を貼り出す必要はない。
   if (lastHandDeltaBySeat && seatStatus !== "folded" && seatStatus !== "empty") {
     const delta = lastHandDeltaBySeat[seatIndex];
-    if (delta) {
-      return delta > 0
-        ? { text: `Won ${formatSignedBb(delta, bigBlind)}`, tone: "win" }
-        : { text: `Lost ${formatSignedBb(delta, bigBlind)}`, tone: "lose" };
+    if (delta && delta > 0) {
+      return { text: formatSignedBb(delta, bigBlind), tone: "win" };
     }
   }
 

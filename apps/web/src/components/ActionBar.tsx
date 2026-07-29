@@ -133,7 +133,7 @@ function P5GhostButton({
   );
 }
 
-// ポストフロップ(および3ベット以降)のポット比率プリセット。TenFourPokerに合わせてある。
+// ポストフロップ(および3ベット以降)のポット比率プリセット。実戦で使うサイズを一通り並べてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
 
 const STREETS_REMAINING: Record<string, number> = { flop: 3, turn: 2, river: 1 };
@@ -205,7 +205,7 @@ function computePresets(params: {
   }
 
   // それ以外(ポストフロップで自分から先にベットする場面)はポット比率プリセット。
-  // ラベルは金額(bb)ではなく比率(%)で表示する(TenFourPokerに合わせてある)。
+  // ラベルは金額(bb)ではなく比率(%)で表示する(ポットに対する大きさで考える方が判断が速いため)。
   // 複数の比率が最小ベット額に丸め込まれて同額になった場合は、最初の比率だけを残す。
   const byAmount = new Map<number, number>();
   for (const pct of POT_PCT_PRESETS) {
