@@ -39,7 +39,9 @@ async function main() {
   }
 
   // 直列だとデータ増加につれてseed時間が線形に伸びるため、チャンク単位で並列upsertする。
-  const CONCURRENCY = 16;
+  // 並列数はSupabaseのセッションモード接続上限(pool_size=15。稼働中のFlyサーバーとも共有)に
+  // 収まるよう控えめにする。16で「max clients reached」となりデプロイが失敗した実績あり。
+  const CONCURRENCY = 4;
   let count = 0;
   for (let i = 0; i < entries.length; i += CONCURRENCY) {
     const chunk = entries.slice(i, i + CONCURRENCY);
