@@ -279,6 +279,27 @@ function GameScreen({
     ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
 
+  // 敗退した瞬間に結果画面で卓を覆ってしまうと、自分が飛んだそのハンドの相手の手札を
+  // 見られないまま終わる(特にオールイン勝負のショーダウン)。結果画面は少し待ってから出し、
+  // その間は卓とショーダウンを見せる。待てない人のために「結果を見る」ボタンも同時に出す。
+  const SHOWDOWN_GRACE_MS = 6000;
+  const BUST_GRACE_MS = 1500;
+  const [resultReady, setResultReady] = useState(false);
+  useEffect(() => {
+    if (!tournamentOver) {
+      setResultReady(false);
+      return;
+    }
+    // 公開された手札があるハンドで飛んだときだけ長めに見せる(フォールド決着なら見るものが無い)。
+    const hadShowdown = Boolean(shownHoleCards && Object.keys(shownHoleCards).length > 0);
+    const timer = setTimeout(() => setResultReady(true), hadShowdown ? SHOWDOWN_GRACE_MS : BUST_GRACE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentOver]);
+
+  /** 敗退したが、まだショーダウンを見せている最中か。 */
+  const resultPending = Boolean(tournamentOver) && !resultReady;
+
   // ハンドが終わったら次のハンドのためにショウ意思をリセットする(サーバー側も毎ハンド初期化)。
   useEffect(() => {
     if (lastHandEnded) setHeroShowIntent(false);
@@ -561,6 +582,26 @@ function GameScreen({
         )}
       </AnimatePresence>
 
+      {/* 敗退直後のショーダウン猶予。相手の手札を見終えた人がすぐ進めるようにボタンを出す。 */}
+      <AnimatePresence>
+        {resultPending && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+24px)] z-40 mx-auto flex w-[92%] max-w-md justify-center"
+          >
+            <button
+              type="button"
+              onClick={() => setResultReady(true)}
+              className="rounded-full bg-ink-950 px-6 py-3 text-[13px] font-black text-white shadow-[0_12px_32px_-12px_rgba(10,10,10,0.6)] transition-transform active:scale-[0.97]"
+            >
+              結果を見る
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 卓が本当に消えている場合の案内。強制退出はせず、本人の操作でホームへ戻れるようにする。 */}
       <AnimatePresence>
         {showGameGone && (
@@ -605,7 +646,7 @@ function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {(tournamentOver || leftResult) && (
+        {((tournamentOver && resultReady) || leftResult) && (
           <TournamentResultScreen
             info={(tournamentOver ?? leftResult)!}
             accessToken={accessToken}

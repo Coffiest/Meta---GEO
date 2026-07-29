@@ -4,6 +4,19 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatBb } from "@/lib/format";
+
+/**
+ * 席ピル用のスタック表記。100bb以上は小数を落として桁を詰める。
+ * 席ピルは席の幅(w-24)に収める必要があり、"148.8bb" の1桁が隣席との重なりを生むため。
+ */
+function compactStack(stack: number, bigBlind: number): string {
+  if (!bigBlind) return "0bb";
+  const bb = stack / bigBlind;
+  // 10bb以上は小数を落とす。深いスタックで0.1bbの差を読む場面は無く、
+  // 桁が1つ増えるだけで席ピルが隣席へはみ出す。10bb未満はプッシュ判断に効くので残す。
+  if (bb >= 10) return `${Math.round(bb)}bb`;
+  return formatBb(stack, bigBlind);
+}
 import { useI18n } from "@/lib/i18n";
 
 /** 卓上バッジの種別。敗北を宣言するトーンは持たない(負けはスタックが語る)。 */
@@ -343,8 +356,11 @@ export function Seat({
         </motion.div>
       )}
 
+      {/* 名前+スタックの識別ピル。中身の自然幅に任せると、表示名やスタック桁数によっては
+          席の枠(w-24/w-32)を左右にはみ出し、テーブルが小さい端末で隣席のピルと重なって
+          読めなくなる。max-w-full で必ず席の幅に収め、あふれる分は表示名を削る。 */}
       <div
-        className={`relative flex items-center gap-1.5 rounded-full pr-3 pl-1 py-1 transition-all duration-300 ${
+        className={`relative flex max-w-full items-center gap-1 rounded-full pr-2 pl-0.5 py-1 transition-all duration-300 ${
           isEmpty
             ? "bg-transparent"
             : folded
@@ -382,9 +398,9 @@ export function Seat({
         {!isEmpty && (
           <>
             <div className="relative">
-              {status === "allIn" && <AllInElectric size={size === "lg" ? 44 : 34} />}
+              {status === "allIn" && <AllInElectric size={size === "lg" ? 44 : 30} />}
               <div className="relative z-10">
-                <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 34} timer={isActingSeat ? timer : null} />
+                <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 30} timer={isActingSeat ? timer : null} />
               </div>
               {markingColor && (
                 <span
@@ -395,17 +411,17 @@ export function Seat({
               )}
             </div>
             <div className="text-left min-w-0">
-              <div className={`${size === "lg" ? "text-[13px] max-w-[96px]" : "text-[11px] max-w-[64px]"} font-medium truncate text-ink-950`}>
+              <div className={`${size === "lg" ? "text-[13px] max-w-[84px]" : "text-[11px] max-w-[40px]"} font-medium truncate text-ink-950`}>
                 {name}
               </div>
-              <div className="flex items-center gap-1 mt-[1px]">
+              <div className="flex min-w-0 items-center gap-1 mt-[1px]">
                 {position && (
-                  <span className="rounded bg-ink-950 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
+                  <span className="shrink-0 rounded bg-ink-950 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
                     {position}
                   </span>
                 )}
-                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} font-semibold text-ink-800 tabular-nums`}>
-                  {formatBb(stack, bigBlind)}
+                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-ink-800 tabular-nums`}>
+                  {compactStack(stack, bigBlind)}
                 </span>
               </div>
               {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-950">All in</div>}
