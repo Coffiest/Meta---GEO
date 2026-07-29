@@ -5,8 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
-import type { Session } from "@supabase/supabase-js";
-import { AUTH_SHEET_MARKER, AUTH_TRANSFER_CODE_KEY, useAuth } from "@/lib/useAuth";
+import { useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -699,137 +698,6 @@ function LoadingScreen() {
 }
 
 /**
- * スタンドアロンPWAのシート型OAuthログインの着地画面(?authdone=1&t=コード)。
- *
- * セッションが確立されたら、受け渡しコード付きでトークンをサーバーへ預ける
- * (/api/lobby/session-transfer)。本体ウィンドウはコードでポーリングして受け取り、
- * 自分のセッションを確立する。iOSではシートのストレージが本体と共有されない
- * パーティション分離が起こりうるため、localStorage共有に依存せずこの経路で確実に渡す
- * (共有される環境ではstorage/フォーカス監視でも並行して伝わる。二重でも無害)。
- */
-function AuthDoneSheet({ session }: { session: Session | null }) {
-  const loggedIn = Boolean(session);
-  const [timedOut, setTimedOut] = useState(false);
-
-  // トークンをサーバーへ預ける(数回リトライ)。コードはシートのsessionStorage(主経路)か
-  // URLの ?t=(Supabaseの許可リストがクエリを保持した場合の補助経路)から得る。
-  useEffect(() => {
-    if (!session) return;
-    let code: string | null = null;
-    try {
-      code = window.sessionStorage.getItem(AUTH_TRANSFER_CODE_KEY);
-    } catch {
-      /* noop */
-    }
-    if (!code) code = new URLSearchParams(window.location.search).get("t");
-    if (!code) return;
-    const serverUrl = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
-    let cancelled = false;
-    const deposit = async (attempt: number): Promise<void> => {
-      if (cancelled) return;
-      try {
-        const r = await fetch(`${serverUrl}/api/lobby/session-transfer`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            code,
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          }),
-        });
-        if (r.ok) return;
-      } catch {
-        /* 下のリトライへ */
-      }
-      if (attempt < 5) setTimeout(() => void deposit(attempt + 1), 1500);
-    };
-    void deposit(0);
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
-
-  // セッション確立後、可能なら自動でシートを閉じる(閉じられないUAでは下の案内に従ってもらう)。
-  useEffect(() => {
-    if (!loggedIn) return;
-    const t = setTimeout(() => {
-      try {
-        window.close();
-      } catch {
-        /* 閉じられないUAでは手動で閉じてもらう */
-      }
-    }, 900);
-    return () => clearTimeout(t);
-  }, [loggedIn]);
-
-  // 15秒待ってもセッションが確立しない場合は失敗案内へ切り替える。
-  useEffect(() => {
-    if (loggedIn) return;
-    const t = setTimeout(() => setTimedOut(true), 15_000);
-    return () => clearTimeout(t);
-  }, [loggedIn]);
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-ink-50 px-8 text-center">
-      {loggedIn ? (
-        <>
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-950">
-            <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden>
-              <path d="M5 12.5l4.5 4.5L19 7.5" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <div>
-            <p className="text-lg font-black tracking-tight text-ink-950">ログイン完了</p>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink-600">
-              この画面を閉じて Poker ART にお戻りください。
-              <br />
-              アプリ側は自動でログインされています。
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              try {
-                window.close();
-              } catch {
-                /* noop */
-              }
-            }}
-            className="rounded-xl bg-ink-950 px-8 py-3 text-sm font-bold text-white"
-          >
-            閉じて戻る
-          </button>
-          <p className="text-[11px] text-ink-500">閉じない場合は、画面左上の「✕」をタップしてください。</p>
-        </>
-      ) : timedOut ? (
-        <>
-          <p className="text-lg font-black tracking-tight text-ink-950">ログインを確認できませんでした</p>
-          <p className="text-[13px] leading-relaxed text-ink-600">
-            この画面を閉じて、アプリからもう一度お試しください。
-          </p>
-          <button
-            onClick={() => {
-              try {
-                window.close();
-              } catch {
-                /* noop */
-              }
-            }}
-            className="rounded-xl bg-ink-950 px-8 py-3 text-sm font-bold text-white"
-          >
-            閉じる
-          </button>
-        </>
-      ) : (
-        <>
-          <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink-300 border-t-ink-950" aria-hidden />
-          <p className="text-sm text-ink-700">ログインを確認しています…</p>
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
  * 進行中ゲームの復帰チェックが繰り返し失敗したときの脱出画面。「読み込み中…」で永久に固まらないよう、
  * 手動の再試行とホームへの脱出を必ず提供する(再試行はバックグラウンドでも継続している)。
  */
@@ -877,22 +745,6 @@ export default function Page() {
   const [resumeFailed, setResumeFailed] = useState(false);
   // 「再試行」で復帰チェックのeffectを即座に再起動するためのnonce。
   const [resumeNonce, setResumeNonce] = useState(0);
-  // スタンドアロンPWAのシート型OAuthログイン(useAuthのoauthSignIn)から戻ってきたアプリ内シート。
-  // このウィンドウは認証の受け皿でしかないため、アプリ本体は描画せず
-  // 「ログイン完了・この画面を閉じて戻る」の案内だけを表示する(本体ウィンドウが自動でログインされる)。
-  // 判定はシート自身のsessionStorageマーカー(主経路・Supabase設定に依存しない)と
-  // ?authdone=1(補助経路)の2重。マーカーが無いとシートにアプリ本体が丸ごと表示されてしまい、
-  // ユーザーがブラウザUI付きのシート内でアプリを使い続けてしまう。
-  const [isAuthDoneSheet] = useState(() => {
-    if (typeof window === "undefined") return false;
-    if (new URLSearchParams(window.location.search).has("authdone")) return true;
-    try {
-      return window.sessionStorage.getItem(AUTH_SHEET_MARKER) === "1";
-    } catch {
-      return false;
-    }
-  });
-
   // 招待リンク(/?ref=CODE)で来訪したときは、まずコードを退避してURLから消す(ログイン前でも実行する)。
   useEffect(() => {
     capturePendingReferralCode();
@@ -987,9 +839,6 @@ export default function Page() {
       </div>
     );
   }
-
-  // OAuthシートの受け皿。セッション確立を確認したら「閉じて戻る」案内を出す(アプリ本体は描画しない)。
-  if (isAuthDoneSheet) return <AuthDoneSheet session={auth.session} />;
 
   if (auth.loading) return <LoadingScreen />;
   if (!auth.session) return <LoginScreen auth={auth} />;
