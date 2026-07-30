@@ -22,4 +22,5 @@ export * from "./preflopEvModel.js";
 export * from "./reviewGto.js";
 export * from "./review.js";
 export * from "./subscriptions.js";
+export * from "./premiumCoupons.js";
 export * from "./adminGeo.js";

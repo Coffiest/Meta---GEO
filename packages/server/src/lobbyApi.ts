@@ -10,6 +10,8 @@ import {
   getPlayerNotesForTargets,
   getReferralSummary,
   redeemReferralCode,
+  getCouponWallet,
+  redeemCouponCode,
   getBadgeCollection,
   getHandProfitGraph,
   getRRRating,
@@ -497,8 +499,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         });
         if (inviter) {
           void sendPushToUser(inviter.inviterUserId, {
-            title: "棋譜解析1ヶ月無料を獲得",
-            body: `${user.displayName} さんがあなたの招待で参加しました。棋譜解析プランが1ヶ月無料になります。`,
+            title: "棋譜解析1ヶ月無料クーポンを獲得",
+            body: `${user.displayName} さんがあなたの招待で参加しました。ホームからクーポンを確認できます。`,
             path: "/",
             tag: "referral",
           }).catch(() => undefined);
@@ -506,6 +508,33 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       // 適用できなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
       sendJson(res, 200, result);
+      return true;
+    }
+
+    // 獲得済みの「棋譜解析1ヶ月無料」クーポン一覧と、いま有効な無料期間。
+    if (url.pathname === "/api/lobby/coupons") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, await getCouponWallet(user.id));
+      return true;
+    }
+
+    // クーポンコードの適用。1枚1回だけ使える(棋譜解析の無料期間が延びる)。
+    if (url.pathname === "/api/lobby/coupons/redeem" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const code = typeof body["code"] === "string" ? body["code"] : "";
+      // 使えなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
+      sendJson(res, 200, await redeemCouponCode(user.id, code));
       return true;
     }
 

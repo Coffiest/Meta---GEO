@@ -18,14 +18,12 @@ export interface ReferralInvitee {
 }
 
 export interface ReferralReward {
-  /** 1招待あたりの付与月数。 */
+  /** 1招待あたりに発行されるクーポンの無料月数。 */
   monthsPerInvite: number;
-  /** 累計で獲得した無料月数。 */
-  monthsGranted: number;
-  /** いま特典で棋譜解析が使えるか。 */
-  active: boolean;
-  /** 無料アクセスの期限(ISO文字列。未獲得ならnull)。 */
-  expiresAt: string | null;
+  /** 発行された累計枚数。 */
+  couponsEarned: number;
+  /** まだ使っていない枚数。 */
+  couponsAvailable: number;
 }
 
 export interface ReferralSummary {

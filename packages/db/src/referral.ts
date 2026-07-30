@@ -1,10 +1,11 @@
 import { randomInt } from "node:crypto";
 import { prisma } from "./client.js";
-import { extendPremiumCoupon, getPremiumCouponStatus } from "./subscriptions.js";
+import { issueCouponForReferral } from "./premiumCoupons.js";
 
 /**
  * 友達招待(リファラル)。招待コードを配って友達が始めると招待が成立し、
- * 招待した人に「棋譜解析プランの1ヶ月無料」が付与される(1招待=1ヶ月、期限は積み上げ)。
+ * 招待した人に「棋譜解析プラン1ヶ月無料クーポン」が1枚発行される。
+ * クーポンはいつでも一覧で確認・コピーでき、棋譜解析の画面で適用したときに無料期間が始まる。
  *
  * バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が
  * 出るため、特典は有料機能の無料アクセス期間に限定している。
@@ -15,11 +16,11 @@ import { extendPremiumCoupon, getPremiumCouponStatus } from "./subscriptions.js"
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 8;
 
-/** 招待1件につき付与する棋譜解析プランの無料月数。 */
+/** 招待1件につき発行するクーポン1枚あたりの棋譜解析プラン無料月数。 */
 export const REFERRAL_REWARD_MONTHS = 1;
 
 /** 招待人数に応じた称号(しきい値の昇順)。ラベルはWeb側のi18n(`invite.tier.*`)で解決する。
- *  特典は下の無料月数付与が本体で、称号はバッジ図鑑の実績表示として残している。 */
+ *  特典は上のクーポン発行が本体で、称号はバッジ図鑑の実績表示として残している。 */
 export const REFERRAL_TIERS = [
   { key: "scout", minInvites: 1 },
   { key: "recruiter", minInvites: 3 },
@@ -98,22 +99,20 @@ export interface ReferralSummary {
   nextTier: { key: ReferralTierKey; minInvites: number } | null;
   /** 自分を招待してくれた人の表示名。誰の招待でもなければnull。 */
   invitedByDisplayName: string | null;
-  /** 招待特典(棋譜解析プランの無料アクセス)の状態。 */
+  /** 招待特典(棋譜解析プラン無料クーポン)の状況。 */
   reward: {
-    /** 1招待あたりの付与月数。 */
+    /** 1招待あたりに発行されるクーポンの無料月数。 */
     monthsPerInvite: number;
-    /** 累計で獲得した無料月数。 */
-    monthsGranted: number;
-    /** いま特典で棋譜解析が使えるか。 */
-    active: boolean;
-    /** 無料アクセスの期限(未獲得ならnull)。 */
-    expiresAt: Date | null;
+    /** 発行された累計枚数。 */
+    couponsEarned: number;
+    /** まだ使っていない枚数。 */
+    couponsAvailable: number;
   };
 }
 
 /** ホームの招待カード用のサマリ。 */
 export async function getReferralSummary(userId: string): Promise<ReferralSummary> {
-  const [code, invitedCount, inviteeRows, received, coupon] = await Promise.all([
+  const [code, invitedCount, inviteeRows, received, couponsEarned, couponsAvailable] = await Promise.all([
     getOrCreateReferralCode(userId),
     prisma.referral.count({ where: { inviterUserId: userId } }),
     prisma.referral.findMany({
@@ -126,7 +125,8 @@ export async function getReferralSummary(userId: string): Promise<ReferralSummar
       where: { inviteeUserId: userId },
       select: { inviter: { select: { displayName: true } } },
     }),
-    getPremiumCouponStatus(userId),
+    prisma.premiumCouponCode.count({ where: { ownerUserId: userId } }),
+    prisma.premiumCouponCode.count({ where: { ownerUserId: userId, redeemedAt: null } }),
   ]);
 
   return {
@@ -140,12 +140,7 @@ export async function getReferralSummary(userId: string): Promise<ReferralSummar
     tier: referralTierFor(invitedCount),
     nextTier: nextReferralTier(invitedCount),
     invitedByDisplayName: received?.inviter.displayName ?? null,
-    reward: {
-      monthsPerInvite: REFERRAL_REWARD_MONTHS,
-      monthsGranted: coupon.monthsGranted,
-      active: coupon.active,
-      expiresAt: coupon.expiresAt,
-    },
+    reward: { monthsPerInvite: REFERRAL_REWARD_MONTHS, couponsEarned, couponsAvailable },
   };
 }
 
@@ -153,7 +148,7 @@ export type RedeemReferralResult =
   | {
       ok: true;
       inviterDisplayName: string;
-      /** 招待した人に付与した無料月数(通知文の出し分け用)。 */
+      /** 招待した人へ発行したクーポン1枚の無料月数(通知文の出し分け用)。 */
       rewardMonths: number;
     }
   /** invalid=そんなコードは無い / self=自分のコード / already=適用済み */
@@ -189,29 +184,23 @@ export async function redeemReferralCode(userId: string, rawCode: string): Promi
     return { ok: false, reason: "already" };
   }
 
-  // 招待した人へ特典(棋譜解析プランの無料期間)を付与する。
-  // rewardGrantedAt を同時に立てて、1招待につき1回だけの付与を保証する。
+  // 招待した人へ特典クーポン(棋譜解析1ヶ月無料)を1枚発行する。
   await grantReferralReward(referralId, inviter.id);
 
   return { ok: true, inviterDisplayName: inviter.displayName, rewardMonths: REFERRAL_REWARD_MONTHS };
 }
 
 /**
- * 招待1件に対する特典を付与する(冪等)。すでに付与済みの招待なら何もしない。
- * 付与に失敗しても招待の成立自体は取り消さない(特典は後から手当てできるが、
- * 成立を巻き戻すと招待された側が二度と誰の招待も受けられなくなるため)。
+ * 招待1件に対する特典クーポンを発行する(冪等 —— PremiumCouponCode.referralId の一意制約が
+ * 二重発行を防ぐ)。発行したコードを返す。
+ * 発行に失敗しても招待の成立自体は取り消さない(クーポンは後から手当てできるが、成立を
+ * 巻き戻すと招待された側が二度と誰の招待も受けられなくなるため)。
  */
-export async function grantReferralReward(referralId: string, inviterUserId: string): Promise<Date | null> {
+export async function grantReferralReward(referralId: string, inviterUserId: string): Promise<string | null> {
   try {
-    // 未付与の行だけを更新できたときにのみ付与する(同時実行でも二重付与にならない)。
-    const claimed = await prisma.referral.updateMany({
-      where: { id: referralId, rewardGrantedAt: null },
-      data: { rewardGrantedAt: new Date() },
-    });
-    if (claimed.count === 0) return null;
-    return await extendPremiumCoupon(inviterUserId, REFERRAL_REWARD_MONTHS);
+    return await issueCouponForReferral(referralId, inviterUserId, REFERRAL_REWARD_MONTHS);
   } catch (err) {
-    console.error("[referral] failed to grant reward:", err);
+    console.error("[referral] failed to issue reward coupon:", err);
     return null;
   }
 }

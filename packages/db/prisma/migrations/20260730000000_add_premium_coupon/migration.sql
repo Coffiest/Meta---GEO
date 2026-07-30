@@ -1,6 +1,3 @@
--- AlterTable
-ALTER TABLE "Referral" ADD COLUMN     "rewardGrantedAt" TIMESTAMP(3);
-
 -- CreateTable
 CREATE TABLE "PremiumCoupon" (
     "id" TEXT NOT NULL,

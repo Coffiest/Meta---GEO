@@ -19,6 +19,7 @@ import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingD
 import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
+import { CouponWallet } from "./CouponWallet";
 import { PrimeTimeCard } from "./PrimeTimeCard";
 import { BadgeCollectionCard } from "./BadgeCollectionCard";
 import { PushOptInCard } from "./PushOptInCard";
@@ -1273,6 +1274,9 @@ export function Lobby({
             />
 
             <InviteCard accessToken={accessToken} />
+
+            {/* 招待で貰ったクーポンはいつでもここで確認・コピー・適用できる。 */}
+            <CouponWallet accessToken={accessToken} />
 
             <RRPokerPromoBanner />
 

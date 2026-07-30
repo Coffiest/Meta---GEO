@@ -10,6 +10,7 @@ import {
   referralTierFor,
 } from "../src/referral.js";
 import { getSubscriptionStatusForUser } from "../src/subscriptions.js";
+import { formatCouponCode, getCouponWallet } from "../src/premiumCoupons.js";
 
 describe("referral tiers (pure)", () => {
   it("has no title until the first invite lands, then climbs by threshold", () => {
@@ -46,6 +47,9 @@ describe("referral codes and redemption (integration, real Postgres)", () => {
 
   afterAll(async () => {
     for (const userId of createdUserIds) {
+      await prisma.premiumCouponCode.deleteMany({
+        where: { OR: [{ ownerUserId: userId }, { redeemedByUserId: userId }] },
+      });
       await prisma.referral.deleteMany({ where: { OR: [{ inviterUserId: userId }, { inviteeUserId: userId }] } });
       await prisma.premiumCoupon.deleteMany({ where: { userId } });
     }
@@ -112,54 +116,43 @@ describe("referral codes and redemption (integration, real Postgres)", () => {
     expect(await redeemReferralCode(human.id, botCode)).toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("gives the inviter one free month of 棋譜解析 per invite, stacking the expiry", async () => {
+  it("issues one 1-month coupon per invite, and starts no free period until it is used", async () => {
     const inviter = await createUser("RewardInviter");
     const code = await getOrCreateReferralCode(inviter.id);
-
-    // 招待が成立する前は特典なし = 棋譜解析は無料枠のみ。
-    expect(await getSubscriptionStatusForUser(inviter.id)).toEqual({
-      active: false,
-      status: null,
-      currentPeriodEnd: null,
-    });
 
     const first = await createUser("RewardInvitee1");
     await redeemReferralCode(first.id, code);
 
-    const afterFirst = await getSubscriptionStatusForUser(inviter.id);
-    expect(afterFirst.active).toBe(true);
-    expect(afterFirst.status).toBe("referral");
-    const firstExpiry = afterFirst.currentPeriodEnd!;
-    // 期限は概ね1ヶ月後(28〜31日先)。
-    const daysFromNow = (firstExpiry.getTime() - Date.now()) / 86_400_000;
-    expect(daysFromNow).toBeGreaterThan(27);
-    expect(daysFromNow).toBeLessThan(32);
+    const wallet = await getCouponWallet(inviter.id);
+    expect(wallet.availableCount).toBe(1);
+    expect(wallet.coupons[0]).toMatchObject({ months: 1, redeemedAt: null, redeemedByMe: null });
+    expect(wallet.coupons[0]!.code).toMatch(/^GEO-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    // 発行しただけでは無料期間は始まらない(使うタイミングは本人が選ぶ)。
+    expect(wallet.premium.active).toBe(false);
+    expect((await getSubscriptionStatusForUser(inviter.id)).active).toBe(false);
 
     const second = await createUser("RewardInvitee2");
     await redeemReferralCode(second.id, code);
 
     const summary = await getReferralSummary(inviter.id);
     expect(summary.invitedCount).toBe(2);
-    expect(summary.reward).toMatchObject({ monthsPerInvite: 1, monthsGranted: 2, active: true });
-    // 2件目は1件目の期限からさらに1ヶ月伸びる(今日から起算し直さない)。
-    expect(summary.reward.expiresAt!.getTime()).toBeGreaterThan(firstExpiry.getTime());
+    expect(summary.reward).toEqual({ monthsPerInvite: 1, couponsEarned: 2, couponsAvailable: 2 });
 
-    // 招待された側には特典は付かない(付与は招待した人のみ)。
-    expect((await getSubscriptionStatusForUser(first.id)).active).toBe(false);
+    // 招待された側にはクーポンは出ない(発行は招待した人のみ)。
+    expect((await getCouponWallet(first.id)).availableCount).toBe(0);
   });
 
-  it("never grants the same invite's reward twice", async () => {
+  it("never issues two coupons for the same invite", async () => {
     const inviter = await createUser("DoubleGrantInviter");
     const invitee = await createUser("DoubleGrantInvitee");
     const code = await getOrCreateReferralCode(inviter.id);
     await redeemReferralCode(invitee.id, code);
 
     const referral = await prisma.referral.findUniqueOrThrow({ where: { inviteeUserId: invitee.id } });
-    expect(referral.rewardGrantedAt).toBeInstanceOf(Date);
+    const issued = await prisma.premiumCouponCode.findUniqueOrThrow({ where: { referralId: referral.id } });
 
-    // 再付与を試みても弾かれる(冪等キーは Referral.rewardGrantedAt)。
-    expect(await grantReferralReward(referral.id, inviter.id)).toBeNull();
-    const coupon = await prisma.premiumCoupon.findUniqueOrThrow({ where: { userId: inviter.id } });
-    expect(coupon.monthsGranted).toBe(1);
+    // 再発行を試みても既存のコードが返るだけ(冪等キーは PremiumCouponCode.referralId)。
+    expect(await grantReferralReward(referral.id, inviter.id)).toBe(formatCouponCode(issued.code));
+    expect(await prisma.premiumCouponCode.count({ where: { ownerUserId: inviter.id } })).toBe(1);
   });
 });

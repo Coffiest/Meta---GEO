@@ -35,6 +35,8 @@ model User {
   referralReceived     Referral?             @relation("ReferralInvitee")
   pushSubscriptions    PushSubscription[]
   premiumCoupon        PremiumCoupon?
+  couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
+  couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
 }
 
 /// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
@@ -54,7 +56,7 @@ model PushSubscription {
 }
 
 /// 招待コードの成立記録(招待した人 × 招待された人)。
-/// 特典は「棋譜解析プランの1ヶ月無料」(1招待につき1ヶ月、PremiumCouponへ積み上げ)。
+/// 特典は「棋譜解析プラン1ヶ月無料クーポン」を1招待につき1枚発行(PremiumCouponCode)。
 /// バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が出るため。
 /// 招待される側は生涯1回だけ(inviteeUserIdが一意)。
 model Referral {
@@ -67,15 +69,42 @@ model Referral {
   invitee       User     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
   /// 適用時に入力された招待コード(発行後に変わることはないが、履歴として残す)。
   code          String
-  /// 招待した側へ特典(棋譜解析1ヶ月無料)を付与した時刻。1招待につき1回だけ付与するための冪等キー。
-  rewardGrantedAt DateTime?
   createdAt     DateTime @default(now())
 
   @@index([inviterUserId, createdAt])
 }
 
-/// 招待特典による「棋譜解析プランの無料アクセス権」。1ユーザー1行で、招待が成立するたびに
-/// expiresAt を1ヶ月ずつ積み上げる。
+/// 招待特典として発行される「棋譜解析プラン1ヶ月無料」クーポン。招待が1件成立するごとに1枚
+/// 発行され、獲得した人はいつでも一覧で確認・コピーできる。
+///
+/// 発行しただけでは無料期間は始まらない —— 棋譜解析の画面でコードを適用したときに初めて
+/// PremiumCoupon(下)の期限が伸びる。使うタイミングを本人が選べるようにするための設計。
+/// コードは1枚1回だけ使える(redeemedAt が立ったら再利用不可)。
+model PremiumCouponCode {
+  id               String    @id @default(uuid())
+  /// 人が読める一意なコード(表示は "GEO-XXXX-XXXX"、保存は区切りなしの英数字)。
+  code             String    @unique
+  /// このクーポンを獲得した人。
+  ownerUserId      String
+  owner            User      @relation("CouponOwner", fields: [ownerUserId], references: [id])
+  /// 適用すると付与される無料月数。
+  months           Int       @default(1)
+  /// 発行理由(referral=友達招待)。将来キャンペーン等で増やせるようにしている。
+  source           String    @default("referral")
+  /// 発行元の招待。1招待につき1枚だけ発行するための冪等キー(招待以外の発行はnull)。
+  referralId       String?   @unique
+  /// 適用された時刻。未適用ならnull。
+  redeemedAt       DateTime?
+  /// 適用した人。コードは共有できるため、獲得者(owner)とは別に記録する。
+  redeemedByUserId String?
+  redeemedBy       User?     @relation("CouponRedeemer", fields: [redeemedByUserId], references: [id])
+  createdAt        DateTime  @default(now())
+
+  @@index([ownerUserId, createdAt])
+}
+
+/// クーポンを適用して得られる「棋譜解析プランの無料アクセス権」。1ユーザー1行で、クーポンを
+/// 使うたびに expiresAt を1ヶ月ずつ積み上げる(有効期限が残っていればその後ろへ伸ばす)。
 ///
 /// Subscription(Stripe契約・管理者付与comp)とは別テーブルにしている。1ユーザー1行のSubscriptionへ
 /// 書き込むと、課金中ユーザーのstatus/期間をこちらが上書きして契約情報を壊しかねないため。

@@ -275,7 +275,9 @@ export function TournamentReviewModal({
   const freePollTries = useRef(0);
 
   // サブスク状態(残り無料枠・加入バッジ表示用)。
-  const { status: subStatus } = useSubscriptionStatus(accessToken);
+  const { status: subStatus, reload: reloadSubStatus } = useSubscriptionStatus(accessToken);
+  // クーポン適用などで解析が開放されたときに、詳細解析の取得をやり直すためのトリガー。
+  const [retryToken, setRetryToken] = useState(0);
 
   // 無料要約の取得(常時・課金ゲート無し)。
   useEffect(() => {
@@ -339,7 +341,7 @@ export function TournamentReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [detailRequested, tournamentId, accessToken]);
+  }, [detailRequested, tournamentId, accessToken, retryToken]);
 
   // ソルバー解析が未完了の間は約5秒間隔でポーリングし、「解析中…」をあとから埋める(最大5分)。
   useEffect(() => {
@@ -816,7 +818,16 @@ export function TournamentReviewModal({
         ) : error ? (
           <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-500">{error}</div>
         ) : quota ? (
-          <ReviewPaywall tournamentId={tournamentId} accessToken={accessToken} nextFreeAt={quota.nextFreeAt} />
+          <ReviewPaywall
+            tournamentId={tournamentId}
+            accessToken={accessToken}
+            nextFreeAt={quota.nextFreeAt}
+            onUnlocked={() => {
+              setQuota(null);
+              setRetryToken((n) => n + 1);
+              void reloadSubStatus();
+            }}
+          />
         ) : data ? (
           <motion.div variants={stagger} initial="hidden" animate="show">
             {/* ヒーローカード: リングゲージ + メトリクス */}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { startCheckout, SubscriptionUnavailableError, useSubscriptionStatus, openBillingPortal } from "@/lib/subscription";
+import { CouponWallet } from "@/components/CouponWallet";
 
 const FEATURES = [
   "棋譜解析を24時間の待ち時間なしで無制限に実行",
@@ -15,7 +16,7 @@ const FEATURES = [
 export default function PricingPage() {
   const { session } = useAuth();
   const accessToken = session?.access_token;
-  const { status } = useSubscriptionStatus(accessToken);
+  const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,11 +49,11 @@ export default function PricingPage() {
   }
 
   const active = status?.active ?? false;
-  // 招待特典のクーポンだけで使い放題になっている状態。Stripe契約が無いため契約管理は出さず、
-  // 期限と「招待でさらに延長できる」ことを伝える。
-  const byReferral = active && status?.status === "referral";
-  const referralUntil =
-    byReferral && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
+  // クーポンだけで使い放題になっている状態。Stripe契約が無いため契約管理は出さず、
+  // 期限と「クーポンを足せばさらに延長できる」ことを伝える。
+  const byCoupon = active && status?.status === "referral";
+  const couponUntil =
+    byCoupon && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
 
   return (
     <div className="min-h-screen bg-white">
@@ -98,17 +99,17 @@ export default function PricingPage() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4">
                   <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                {byReferral ? "招待特典で無料期間中" : "使い放題プランに加入中"}
+                {byCoupon ? "クーポンで無料期間中" : "使い放題プランに加入中"}
               </div>
-              {byReferral ? (
+              {byCoupon ? (
                 <>
-                  {referralUntil && (
+                  {couponUntil && (
                     <p className="mt-2 text-center text-[12px] font-bold text-ink-600 tabular-nums">
-                      {referralUntil} まで無料でご利用いただけます
+                      {couponUntil} まで無料でご利用いただけます
                     </p>
                   )}
                   <p className="mt-1 text-center text-[11px] leading-relaxed text-ink-500">
-                    友達を1人招待するごとに、この無料期間が1ヶ月ずつ延びます。
+                    クーポンを追加で適用すると、この無料期間がさらに1ヶ月ずつ延びます。
                   </p>
                   <button
                     onClick={handleSubscribe}
@@ -145,6 +146,11 @@ export default function PricingPage() {
             </button>
           )}
           {error && <p className="mt-2 text-center text-[11px] font-bold text-crimson-500">{error}</p>}
+        </div>
+
+        {/* 課金せずに使う手段。招待で貰ったクーポンをここでも確認・コピー・適用できる。 */}
+        <div className="mt-4">
+          <CouponWallet accessToken={accessToken} onRedeemed={() => void reload()} />
         </div>
 
         <p className="mt-4 text-[11px] leading-relaxed text-ink-500">
