@@ -29,7 +29,7 @@ function InviteGlyph({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 /** 特典(無料期間)を示すグリフ(リボン付きメダル)。 */
-function TierGlyph({ className = "h-4 w-4" }: { className?: string }) {
+function RewardGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
       <circle cx="12" cy="9" r="5" />
@@ -152,7 +152,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
         <div className={`flex-1 rounded-xl px-3.5 py-2.5 ${summary.reward.active ? "bg-gold-500/15" : "bg-ink-50"}`}>
           <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.rewardLabel")}</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-[20px] font-black leading-none tabular-nums text-ink-950">
-            <TierGlyph className={`h-4 w-4 shrink-0 ${summary.reward.active ? "text-gold-600" : "text-ink-300"}`} />
+            <RewardGlyph className={`h-4 w-4 shrink-0 ${summary.reward.active ? "text-gold-600" : "text-ink-300"}`} />
             {summary.reward.monthsGranted}
             <span className="text-[12px] font-bold text-ink-500">{t("invite.months")}</span>
           </p>
