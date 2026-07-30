@@ -4,11 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { startCheckout, SubscriptionUnavailableError } from "@/lib/subscription";
+import { CouponWallet } from "@/components/CouponWallet";
 
 /**
  * 棋譜解析の無料枠(24時間ローリング1回)を使い切ったときに、モーダル総括の代わりに表示する
  * ペイウォール。ロックされた解析のチラ見せ → 使い放題プラン(¥980/月)の価値訴求 → 単一の
  * 強いCTA(Stripe Checkout)で加入導線を提示する。デザインは ink+gold・SVGアイコンのみ。
+ *
+ * 課金せずに開放する手段として、招待で貰った「1ヶ月無料クーポン」をこの場で適用できる。
  */
 
 const BENEFITS: { title: string; desc: string; icon: React.ReactNode }[] = [
@@ -49,10 +52,13 @@ export function ReviewPaywall({
   tournamentId,
   accessToken,
   nextFreeAt,
+  onUnlocked,
 }: {
   tournamentId: string;
   accessToken: string | undefined;
   nextFreeAt: string | null;
+  /** クーポン適用などで解析が開放されたときに呼ばれる(呼び出し側で解析を取り直す)。 */
+  onUnlocked?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -175,6 +181,22 @@ export function ReviewPaywall({
             特定商取引法に基づく表記
           </Link>
         </p>
+      </motion.div>
+
+      {/* 課金以外の開放手段。招待で貰ったクーポンをここで適用すると1ヶ月無料で解析できる。 */}
+      <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }} className="mt-3">
+        <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
+        <Link
+          href="/"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-ink-950 bg-white text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-4 w-4">
+            <circle cx="9" cy="8" r="3.4" />
+            <path d="M3 20v-1a5.5 5.5 0 0 1 5.5-5.5h1A5.5 5.5 0 0 1 15 19v1" strokeLinecap="round" />
+            <path d="M18.5 7.5v5M16 10h5" strokeLinecap="round" />
+          </svg>
+          友達を招待してクーポンを増やす
+        </Link>
       </motion.div>
     </motion.div>
   );

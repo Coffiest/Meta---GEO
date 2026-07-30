@@ -17,6 +17,15 @@ export interface ReferralInvitee {
   createdAt: string;
 }
 
+export interface ReferralReward {
+  /** 1招待あたりに発行されるクーポンの無料月数。 */
+  monthsPerInvite: number;
+  /** 発行された累計枚数。 */
+  couponsEarned: number;
+  /** まだ使っていない枚数。 */
+  couponsAvailable: number;
+}
+
 export interface ReferralSummary {
   code: string;
   invitedCount: number;
@@ -24,10 +33,11 @@ export interface ReferralSummary {
   tier: ReferralTierKey | null;
   nextTier: { key: ReferralTierKey; minInvites: number } | null;
   invitedByDisplayName: string | null;
+  reward: ReferralReward;
 }
 
 export type RedeemReferralResult =
-  | { ok: true; inviterDisplayName: string }
+  | { ok: true; inviterDisplayName: string; rewardMonths: number }
   | { ok: false; reason: "invalid" | "self" | "already" };
 
 /** 入力/URL由来の招待コードを正規化する(サーバー側 normalizeReferralCode と同じ規則)。 */

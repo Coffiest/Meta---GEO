@@ -275,7 +275,9 @@ export function TournamentReviewModal({
   const freePollTries = useRef(0);
 
   // サブスク状態(残り無料枠・加入バッジ表示用)。
-  const { status: subStatus } = useSubscriptionStatus(accessToken);
+  const { status: subStatus, reload: reloadSubStatus } = useSubscriptionStatus(accessToken);
+  // クーポン適用などで解析が開放されたときに、詳細解析の取得をやり直すためのトリガー。
+  const [retryToken, setRetryToken] = useState(0);
 
   // 無料要約の取得(常時・課金ゲート無し)。
   useEffect(() => {
@@ -339,7 +341,7 @@ export function TournamentReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [detailRequested, tournamentId, accessToken]);
+  }, [detailRequested, tournamentId, accessToken, retryToken]);
 
   // ソルバー解析が未完了の間は約5秒間隔でポーリングし、「解析中…」をあとから埋める(最大5分)。
   useEffect(() => {
@@ -724,7 +726,9 @@ export function TournamentReviewModal({
                   </svg>
                   局後検討
                   {subStatus?.active ? (
-                    <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">使い放題</span>
+                    <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">
+                      {subStatus.status === "referral" ? "招待特典" : "使い放題"}
+                    </span>
                   ) : subStatus ? (
                     <span className="ml-1 rounded-full bg-white/15 px-2 py-[2px] text-[10px] font-bold tabular-nums">
                       残り無料{subStatus.reviewsRemaining}回
@@ -784,7 +788,9 @@ export function TournamentReviewModal({
             <div className="mt-1 flex items-center gap-1.5">
               <p className="text-[13px] font-medium text-ink-500">総括レポート</p>
               {subStatus?.active ? (
-                <span className="rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-white">使い放題</span>
+                <span className="rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-white">
+                  {subStatus.status === "referral" ? "招待特典で使い放題" : "使い放題"}
+                </span>
               ) : subStatus && !quota ? (
                 <span className="rounded-full bg-black/[0.05] px-2 py-[2px] text-[10px] font-semibold text-ink-500 tabular-nums">
                   残り無料 {subStatus.reviewsRemaining}回
@@ -812,7 +818,16 @@ export function TournamentReviewModal({
         ) : error ? (
           <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-500">{error}</div>
         ) : quota ? (
-          <ReviewPaywall tournamentId={tournamentId} accessToken={accessToken} nextFreeAt={quota.nextFreeAt} />
+          <ReviewPaywall
+            tournamentId={tournamentId}
+            accessToken={accessToken}
+            nextFreeAt={quota.nextFreeAt}
+            onUnlocked={() => {
+              setQuota(null);
+              setRetryToken((n) => n + 1);
+              void reloadSubStatus();
+            }}
+          />
         ) : data ? (
           <motion.div variants={stagger} initial="hidden" animate="show">
             {/* ヒーローカード: リングゲージ + メトリクス */}

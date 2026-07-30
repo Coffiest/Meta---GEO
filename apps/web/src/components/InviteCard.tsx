@@ -21,12 +21,12 @@ function InviteGlyph({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-/** 称号バッジのグリフ(リボン付きメダル)。 */
-function TierGlyph({ className = "h-4 w-4" }: { className?: string }) {
+/** 獲得したクーポンを示すグリフ(切り欠きのあるチケット)。 */
+function RewardGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
-      <circle cx="12" cy="9" r="5" />
-      <path d="M8.5 13.4 7 21l5-2.4L17 21l-1.5-7.6" strokeLinejoin="round" />
+      <path d="M3 9V6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V9a3 3 0 0 0 0 6v2.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5V15a3 3 0 0 0 0-6Z" />
+      <path d="M12 9.5v5" strokeLinecap="round" strokeDasharray="1.6 2.2" />
     </svg>
   );
 }
@@ -41,8 +41,10 @@ function XLogo({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 /**
- * ホームの「友達を招待」カード。招待コード/リンクの共有と、招待成立数に応じた称号を表示する。
- * 報酬はバーチャルチップではなく称号のみ(射幸性と自己招待による増殖を避けるための意図的な設計)。
+ * ホームの「友達を招待」カード。招待コード/リンクの共有と、獲得したクーポンの枚数を表示する。
+ * 特典は「棋譜解析プラン1ヶ月無料クーポン」(1招待=1枚)。コードの確認・コピー・適用は
+ * すぐ下の CouponWallet で行う。バーチャルチップは一切配らない(射幸性と自己招待による
+ * 増殖を避けるための意図的な設計)。
  * まだ誰の招待も受けていないユーザーには、招待コードの手入力欄も出す。
  */
 export function InviteCard({ accessToken }: { accessToken?: string }) {
@@ -72,7 +74,6 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
   if (!accessToken || !summary) return null;
 
   const inviteUrl = buildInviteUrl(summary.code);
-  const tierLabel = summary.tier ? t(`invite.tier.${summary.tier}`) : null;
 
   async function handleCopy() {
     try {
@@ -133,7 +134,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-ink-950">{t("invite.title")}</h3>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">{t("invite.lead")}</p>
 
-      {/* 招待成立数と現在の称号 */}
+      {/* 招待成立数と、獲得したクーポンの枚数 */}
       <div className="mt-3.5 flex items-stretch gap-2">
         <div className="flex-1 rounded-xl bg-ink-50 px-3.5 py-2.5">
           <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.count")}</p>
@@ -142,30 +143,25 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
             <span className="ml-0.5 text-[12px] font-bold text-ink-500">{t("invite.people")}</span>
           </p>
         </div>
-        <div className="flex-1 rounded-xl bg-ink-50 px-3.5 py-2.5">
-          <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.tierLabel")}</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[14px] font-black leading-none text-ink-950">
-            {tierLabel ? (
-              <>
-                <TierGlyph className="h-4 w-4 shrink-0 text-gold-500" />
-                {tierLabel}
-              </>
-            ) : (
-              <span className="text-ink-400">{t("invite.tier.none")}</span>
-            )}
+        <div
+          className={`flex-1 rounded-xl px-3.5 py-2.5 ${
+            summary.reward.couponsAvailable > 0 ? "bg-gold-500/15" : "bg-ink-50"
+          }`}
+        >
+          <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.rewardLabel")}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[20px] font-black leading-none tabular-nums text-ink-950">
+            <RewardGlyph
+              className={`h-4 w-4 shrink-0 ${summary.reward.couponsAvailable > 0 ? "text-gold-600" : "text-ink-300"}`}
+            />
+            {summary.reward.couponsEarned}
+            <span className="text-[12px] font-bold text-ink-500">{t("invite.sheets")}</span>
           </p>
         </div>
       </div>
 
-      {summary.nextTier && (
-        <p className="mt-2 text-[11.5px] font-semibold text-gold-600">
-          {t("invite.nextTier", {
-            n: String(summary.nextTier.minInvites - summary.invitedCount),
-            tier: t(`invite.tier.${summary.nextTier.key}`),
-          })}
-        </p>
-      )}
-      {!summary.nextTier && <p className="mt-2 text-[11.5px] font-semibold text-gold-600">{t("invite.maxTier")}</p>}
+      <p className="mt-2 text-[11.5px] font-semibold text-gold-600">
+        {t("invite.rewardHint", { n: String(summary.reward.monthsPerInvite) })}
+      </p>
 
       {/* 招待コード */}
       <div className="mt-3.5 rounded-xl border border-ink-300 bg-white px-3.5 py-2.5">

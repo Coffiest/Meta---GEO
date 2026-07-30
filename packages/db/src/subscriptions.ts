@@ -10,6 +10,8 @@ import { prisma } from "./client.js";
 const FREE_REVIEW_LIMIT = 1;
 const ROLLING_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
+/** 招待特典のクーポンだけで有効になっている状態を表す擬似ステータス。 */
+const REFERRAL_STATUS = "referral";
 
 export interface SubscriptionStatus {
   active: boolean;
@@ -18,17 +20,77 @@ export interface SubscriptionStatus {
 }
 
 /** ユーザーのサブスク状態を返す。未加入(レコード無し)ならactive=falseを返す。
- * status="comp"(管理者による無料付与)は currentPeriodEnd までの期限付きactive扱い。
- * Stripe由来のstatus(active/trialing)はWebhookが失効を同期するため期限判定しない。 */
+ * 有効と見なすのは次の3つのOR:
+ *  - Stripe由来のstatus(active/trialing)。Webhookが失効を同期するため期限判定しない
+ *  - status="comp"(管理者による無料付与)。currentPeriodEndまでの期限付き
+ *  - 招待特典のクーポン(PremiumCoupon)。招待1件につき1ヶ月ぶん積み上がる期限付き
+ * 期限は「より遅い方」を返す(契約と特典が併存しうるため)。 */
 export async function getSubscriptionStatusForUser(userId: string): Promise<SubscriptionStatus> {
-  const sub = await prisma.subscription.findUnique({ where: { userId } });
-  if (!sub) return { active: false, status: null, currentPeriodEnd: null };
-  const compActive = sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > new Date();
+  const [sub, coupon] = await Promise.all([
+    prisma.subscription.findUnique({ where: { userId } }),
+    prisma.premiumCoupon.findUnique({ where: { userId } }),
+  ]);
+  const now = new Date();
+  const couponActive = coupon != null && coupon.expiresAt > now;
+
+  if (!sub) {
+    return couponActive
+      ? { active: true, status: REFERRAL_STATUS, currentPeriodEnd: coupon!.expiresAt }
+      : { active: false, status: null, currentPeriodEnd: null };
+  }
+
+  const compActive = sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > now;
+  const subActive = ACTIVE_STATUSES.has(sub.status) || compActive;
+  const ends: Date[] = [];
+  if (subActive && sub.currentPeriodEnd) ends.push(sub.currentPeriodEnd);
+  if (couponActive) ends.push(coupon!.expiresAt);
+
   return {
-    active: ACTIVE_STATUSES.has(sub.status) || compActive,
-    status: sub.status,
-    currentPeriodEnd: sub.currentPeriodEnd,
+    active: subActive || couponActive,
+    // 契約が生きていればその状態を優先し、特典だけで有効な場合は招待特典であることを示す。
+    status: subActive ? sub.status : couponActive ? REFERRAL_STATUS : sub.status,
+    currentPeriodEnd: ends.length > 0 ? new Date(Math.max(...ends.map((d) => d.getTime()))) : sub.currentPeriodEnd,
   };
+}
+
+/** 招待特典による無料アクセスの状態(ホームの招待カード表示用)。 */
+export interface PremiumCouponStatus {
+  /** いま特典で無料アクセスできるか。 */
+  active: boolean;
+  /** 特典の期限(未付与ならnull)。 */
+  expiresAt: Date | null;
+  /** 累計で付与された月数。 */
+  monthsGranted: number;
+}
+
+export async function getPremiumCouponStatus(userId: string): Promise<PremiumCouponStatus> {
+  const coupon = await prisma.premiumCoupon.findUnique({ where: { userId } });
+  if (!coupon) return { active: false, expiresAt: null, monthsGranted: 0 };
+  return {
+    active: coupon.expiresAt > new Date(),
+    expiresAt: coupon.expiresAt,
+    monthsGranted: coupon.monthsGranted,
+  };
+}
+
+/**
+ * 招待特典として棋譜解析プランの無料期間を積み上げる。
+ * すでに有効な期限があればその終了日から延長する(招待するほど後ろに伸びる)。
+ * 期限切れ/未付与なら今日から起算する。
+ */
+export async function extendPremiumCoupon(userId: string, months: number): Promise<Date> {
+  const existing = await prisma.premiumCoupon.findUnique({ where: { userId } });
+  const now = new Date();
+  const base = existing && existing.expiresAt > now ? existing.expiresAt : now;
+  const expiresAt = new Date(base);
+  expiresAt.setMonth(expiresAt.getMonth() + months);
+
+  await prisma.premiumCoupon.upsert({
+    where: { userId },
+    create: { userId, expiresAt, monthsGranted: months },
+    update: { expiresAt, monthsGranted: { increment: months } },
+  });
+  return expiresAt;
 }
 
 /** StripeのCustomerIdを取得(Subscription行のみ・Stripe側の作成は呼び出し元)。 */
