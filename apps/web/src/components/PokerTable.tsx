@@ -419,7 +419,11 @@ export function PokerTable({
         const revealed = revealedHoleCards?.[seatIndex];
         const timerForSeat =
           turnTimer && turnTimer.seatIndex === seatIndex && state?.actingSeatIndex === seatIndex
-            ? { endsAt: turnTimer.endsAt, durationMs: turnTimer.durationMs }
+            ? {
+                endsAt: turnTimer.endsAt,
+                durationMs: turnTimer.durationMs,
+                timeBank: turnTimer.timeBank === true,
+              }
             : null;
 
         // 相手(自分以外)の席はタップで詳細モーダルを開ける。BOT/未ログイン相手でも

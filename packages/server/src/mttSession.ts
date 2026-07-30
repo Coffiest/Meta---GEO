@@ -84,7 +84,7 @@ interface TableRuntime {
   turnTimer: ReturnType<typeof setTimeout> | null;
   pumpScheduled: boolean;
   /** 直近に配信した手番クロック。再接続(attachHuman)時にまだ有効なら再送し、復帰後の時計を正しく動かす。 */
-  lastTurn: { seatIndex: number; endsAt: number; durationMs: number } | null;
+  lastTurn: { seatIndex: number; endsAt: number; durationMs: number; timeBank: boolean } | null;
   /**
    * ハンド終了後、精算(settleFinishedHandOnTable)が完了するまで true。
    * finishHand は rt.hand を先に null にするため、このフラグが無いと精算待ちの卓が busy 扱いから
@@ -887,9 +887,22 @@ export class MttSession implements GameSession {
    * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する。人間不在卓は即消化。
    */
   /** 手番クロックを卓へ配信しつつ、再接続時の再送用に卓ごとの最新値を保持する。 */
-  private emitTurnTimer(rt: TableRuntime, seatIndex: number, endsAt: number, durationMs: number): void {
-    rt.lastTurn = { seatIndex, endsAt, durationMs };
-    this.io.to(this.tableRoom(rt.tableId)).emit("turnTimer", { seatIndex, endsAt, durationMs });
+  /**
+   * 手番クロックを卓へ配信する。`timeBank` は「この延長がタイムバンクによるもの」を表し、
+   * クライアントはそれを見て演出を出す。
+   *
+   * 重要: このフラグは相手が誰であっても同じ条件で立てる(人間の消費でも自動プレイヤーの長考でも
+   * 同じ)。ここに差を作ると、演出の出方そのものが相手の種別を推測する手掛かりになってしまう。
+   */
+  private emitTurnTimer(
+    rt: TableRuntime,
+    seatIndex: number,
+    endsAt: number,
+    durationMs: number,
+    timeBank = false,
+  ): void {
+    rt.lastTurn = { seatIndex, endsAt, durationMs, timeBank };
+    this.io.to(this.tableRoom(rt.tableId)).emit("turnTimer", { seatIndex, endsAt, durationMs, timeBank });
   }
 
   private scheduleBotTurn(rt: TableRuntime, actingSeat: number, botAction: PlayerAction): void {
@@ -912,14 +925,20 @@ export class MttSession implements GameSession {
     // 20秒で決めきれず、タイムバンクを使って延長する。
     rt.turnTimer = setTimeout(() => {
       if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
-      this.emitTurnTimer(rt, actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS);
+      this.emitTurnTimer(rt, actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS, true);
       rt.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
     }, ACTION_CLOCK_MS);
   }
 
-  private armHumanClock(rt: TableRuntime, actingSeat: number, human: HumanEntry, durationMs: number): void {
+  private armHumanClock(
+    rt: TableRuntime,
+    actingSeat: number,
+    human: HumanEntry,
+    durationMs: number,
+    timeBank = false,
+  ): void {
     const endsAt = Date.now() + durationMs;
-    this.emitTurnTimer(rt, actingSeat, endsAt, durationMs);
+    this.emitTurnTimer(rt, actingSeat, endsAt, durationMs, timeBank);
     rt.turnTimer = setTimeout(() => {
       const current = rt.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;
@@ -927,7 +946,7 @@ export class MttSession implements GameSession {
       if (human.timeBankArmed && human.timeBankCards > 0 && !human.left) {
         human.timeBankCards -= 1;
         human.socket?.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed, consumed: true });
-        this.armHumanClock(rt, actingSeat, human, TIME_BANK_EXTENSION_MS);
+        this.armHumanClock(rt, actingSeat, human, TIME_BANK_EXTENSION_MS, true);
         return;
       }
 

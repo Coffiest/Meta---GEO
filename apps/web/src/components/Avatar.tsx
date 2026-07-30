@@ -113,7 +113,7 @@ export function Avatar({
   /** 現状は未使用だが、呼び出し側の互換性のため受け取る(将来のツールチップ等に備える)。 */
   displayName?: string;
   size?: number;
-  timer?: { endsAt: number; durationMs: number } | null;
+  timer?: { endsAt: number; durationMs: number; timeBank?: boolean } | null;
 }) {
   const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
   // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
@@ -147,6 +147,15 @@ export function Avatar({
           画像/BOT/頭文字いずれのアバターでも一様に効くよう、内側ボックスに黒の半透明を重ねる。 */}
       {timer && (
         <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/40" style={innerBoxStyle} />
+      )}
+      {/* タイムバンクで延長された手番は、金色の脈打つリングを重ねて「延長中」だと分かるようにする。
+          相手が誰であっても同じ条件・同じ見た目で描画する(描画の差で相手の種別が推測できてはいけない)。 */}
+      {timer?.timeBank && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-[25] animate-time-bank-ring rounded-full"
+          style={{ boxShadow: "0 0 0 2px #f2a900, 0 0 10px 2px rgba(242,169,0,0.65)" }}
+        />
       )}
       {timer && <CountdownRing endsAt={timer.endsAt} durationMs={timer.durationMs} size={size} />}
     </div>

@@ -101,38 +101,43 @@ export function pickBotProfiles(count: number): BotProfile[] {
   return Array.from({ length: count }, (_, i) => ({ name: order[i % order.length]!, avatarKey: null }));
 }
 
+/** タイムバンクまで使って長考する確率(ターン/リバーのみ)。ごく稀に留める。 */
+const TIME_BANK_CHANCE = 0.02;
+
 /**
  * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。持ち時間そのものは
  * 人間と同じ20秒(ACTION_CLOCK_MS)固定で、その中の"どこで"動くかをストリートごとにばらけさせる。
  * 返り値が20秒を超えると、呼び出し側(scheduleBotTurn)がタイムバンクを使って延長する。
- * - チェック: どのストリートでも長考しない(0.2〜0.9秒)。相手のベットが無く考える材料が少ないため、テンポ優先。
- * - プリフロップ: フォールドは半分がx/f(即降り)、半分は0.5〜2秒考えてからフォールド。参加は0.8〜5秒。
- * - フロップ: 全アクション0〜5秒でランダム。
- * - ターン以降: 2〜20秒で考える。たまに20秒を超えてタイムバンクを使う。
+ *
+ * テンポ重視で、待たされる体感が長くならないよう全体を短くしている(以前の約半分)。
+ * - チェック: どのストリートでも長考しない(0.15〜0.6秒)。相手のベットが無く考える材料が少ない。
+ * - プリフロップ: フォールドは半分がx/f(即降り)、半分は0.3〜1.2秒。参加は0.4〜2.5秒。
+ * - フロップ: 全アクション0〜2.5秒でランダム。
+ * - ターン以降: 1〜10秒で考える。タイムバンクを使うのはごく稀(TIME_BANK_CHANCE)。
  */
 export function botDecisionMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
   const isFold = action.kind === "fold";
 
-  // チェックはストリートを問わず1秒以内に即チェック(0.2〜0.9秒)。
-  if (action.kind === "check") return 200 + rand() * 700;
+  // チェックはストリートを問わず即チェック(0.15〜0.6秒)。
+  if (action.kind === "check") return 150 + rand() * 450;
 
   if (street === "preflop") {
     if (isFold) {
-      // 半分はx/fで即降り、半分は0.5〜2秒考えてからフォールド。
-      return rand() < 0.5 ? 100 + rand() * 200 : 500 + rand() * 1500;
+      // 半分はx/fで即降り、半分は0.3〜1.2秒考えてからフォールド。
+      return rand() < 0.5 ? 100 + rand() * 150 : 300 + rand() * 900;
     }
-    return 800 + rand() * 4200; // 参加: 0.8〜5秒
+    return 400 + rand() * 2100; // 参加: 0.4〜2.5秒
   }
 
   if (street === "flop") {
-    return rand() * 5000; // 0〜5秒でランダム
+    return rand() * 2500; // 0〜2.5秒でランダム
   }
 
-  // ターン/リバー: 2〜20秒で考える。たまにタイムバンクで延長。
-  if (rand() < 0.15) {
+  // ターン/リバー: 1〜10秒で考える。ごく稀にタイムバンクで延長。
+  if (rand() < TIME_BANK_CHANCE) {
     return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
   }
-  return 2000 + rand() * 18000; // 2〜20秒
+  return 1000 + rand() * 9000; // 1〜10秒
 }
 
 /** クライアントの席バッジ表示用に、実行したアクションを表示種別+bb換算前の額に正規化する。 */
@@ -378,7 +383,7 @@ export class TableSession implements GameSession {
   private finished = false;
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   /** 直近に配信した手番クロック。再接続(attachHuman)時に、まだ有効なら新ソケットへ再送して復帰後の時計を正しく動かす。 */
-  private lastTurn: { seatIndex: number; endsAt: number; durationMs: number } | null = null;
+  private lastTurn: { seatIndex: number; endsAt: number; durationMs: number; timeBank: boolean } | null = null;
   private levelEndsAt = 0;
   /**
    * ハンド履歴のDB書き込みを卓の進行から切り離すための直列キュー。
@@ -776,9 +781,16 @@ export class TableSession implements GameSession {
    * リングが延びて見える)。人間不在の卓は演出を省いて即消化する。
    */
   /** 手番クロックを卓へ配信しつつ、再接続時の再送用に最新値を保持する。 */
-  private emitTurnTimer(seatIndex: number, endsAt: number, durationMs: number): void {
-    this.lastTurn = { seatIndex, endsAt, durationMs };
-    this.io.to(this.roomId).emit("turnTimer", { seatIndex, endsAt, durationMs });
+  /**
+   * 手番クロックを卓へ配信する。`timeBank` は「この延長がタイムバンクによるもの」を表し、
+   * クライアントはそれを見て演出を出す。
+   *
+   * 重要: このフラグは相手が誰であっても同じ条件で立てる(人間の消費でも自動プレイヤーの長考でも
+   * 同じ)。ここに差を作ると、演出の出方そのものが相手の種別を推測する手掛かりになってしまう。
+   */
+  private emitTurnTimer(seatIndex: number, endsAt: number, durationMs: number, timeBank = false): void {
+    this.lastTurn = { seatIndex, endsAt, durationMs, timeBank };
+    this.io.to(this.roomId).emit("turnTimer", { seatIndex, endsAt, durationMs, timeBank });
   }
 
   private scheduleBotTurn(actingSeat: number, botAction: PlayerAction): void {
@@ -801,14 +813,14 @@ export class TableSession implements GameSession {
     // 20秒で決めきれず、タイムバンクを使って延長する。
     this.turnTimer = setTimeout(() => {
       if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-      this.emitTurnTimer(actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS);
+      this.emitTurnTimer(actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS, true);
       this.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
     }, ACTION_CLOCK_MS);
   }
 
-  private armHumanClock(actingSeat: number, human: HumanSeat, durationMs: number): void {
+  private armHumanClock(actingSeat: number, human: HumanSeat, durationMs: number, timeBank = false): void {
     const endsAt = Date.now() + durationMs;
-    this.emitTurnTimer(actingSeat, endsAt, durationMs);
+    this.emitTurnTimer(actingSeat, endsAt, durationMs, timeBank);
     this.turnTimer = setTimeout(() => {
       const current = this.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;
@@ -817,7 +829,7 @@ export class TableSession implements GameSession {
       if (human.timeBankArmed && human.timeBankCards > 0 && !human.left) {
         human.timeBankCards -= 1;
         human.socket?.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed, consumed: true });
-        this.armHumanClock(actingSeat, human, TIME_BANK_EXTENSION_MS);
+        this.armHumanClock(actingSeat, human, TIME_BANK_EXTENSION_MS, true);
         return;
       }
 

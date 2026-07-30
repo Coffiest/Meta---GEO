@@ -127,12 +127,25 @@ const config: Config = {
           "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
           "50%": { opacity: "0", transform: "scale(1.14)" },
         },
+        // タイムバンクで延長中の席を示す金色のリング。opacityだけを動かして軽く保つ。
+        "time-bank-ring": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.35" },
+        },
+        // タイムバンク使用の告知バッジ。出てから少し留まり、すっと消える。
+        "time-bank-badge": {
+          "0%": { opacity: "0", transform: "translateY(4px) scale(0.9)" },
+          "12%, 70%": { opacity: "1", transform: "translateY(0) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(-3px) scale(1)" },
+        },
       },
       animation: {
         "deal-in": "deal-in 260ms cubic-bezier(0.16,1,0.3,1) both",
         "pulse-ring": "pulse-ring 1.4s cubic-bezier(0.4,0,0.6,1) infinite",
         "pulse-ring-mint": "pulse-ring-mint 1.3s cubic-bezier(0.4,0,0.6,1) infinite",
         "acting-ring": "acting-ring 1.6s ease-in-out infinite",
+        "time-bank-ring": "time-bank-ring 1.1s ease-in-out infinite",
+        "time-bank-badge": "time-bank-badge 2.6s cubic-bezier(0.16,1,0.3,1) both",
       },
     },
   },

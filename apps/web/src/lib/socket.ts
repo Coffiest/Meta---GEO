@@ -62,6 +62,8 @@ export interface TurnTimerInfo {
   seatIndex: number;
   endsAt: number;
   durationMs: number;
+  /** この持ち時間がタイムバンクによる延長かどうか(演出の出し分けに使う)。 */
+  timeBank?: boolean;
 }
 
 export interface PrizePlace {
