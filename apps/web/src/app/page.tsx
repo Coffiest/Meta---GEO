@@ -774,7 +774,7 @@ export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
   const accessToken = auth.session?.access_token;
-  const { profile, loading: profileLoading, reload } = useProfile(accessToken);
+  const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -885,12 +885,53 @@ export default function Page() {
   if (!auth.session) return <LoginScreen auth={auth} />;
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
+    // 失敗理由ごとに具体的な説明を出し、原因が分かるようにする。末尾に開発者向けの技術詳細
+    // (reason/HTTPステータス/サーバー本文の先頭)も小さく表示する。
+    const reason = profileError?.reason;
+    const reasonMsg =
+      reason === "timeout"
+        ? t("app.profileErr.timeout")
+        : reason === "network"
+          ? t("app.profileErr.network")
+          : reason === "unauthorized"
+            ? t("app.profileErr.unauthorized")
+            : reason === "notfound"
+              ? t("app.profileErr.notfound")
+              : reason === "server"
+                ? t("app.profileErr.server")
+                : reason === "parse"
+                  ? t("app.profileErr.parse")
+                  : reason === "no-token"
+                    ? t("app.profileErr.noToken")
+                    : reason === "http"
+                      ? t("app.profileErr.http")
+                      : t("app.profileFetchFailed");
+    // 技術詳細(原因特定用): 例) "timeout" / "server (503)" / "http (429): Too Many..."
+    const techParts: string[] = [];
+    if (reason) techParts.push(reason);
+    if (profileError?.status) techParts.push(`HTTP ${profileError.status}`);
+    if (profileError?.detail) techParts.push(profileError.detail.slice(0, 120));
+    const techDetail = techParts.join(" · ");
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6">
-        <p className="text-sm text-ink-800">{t("app.profileFetchFailed")}</p>
-        <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
-          {t("app.retry")}
-        </button>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6 text-center">
+        <p className="text-base font-bold text-ink-900">{t("app.profileFetchFailed")}</p>
+        <p className="max-w-xs text-sm text-ink-700">{reasonMsg}</p>
+        <div className="flex flex-col items-center gap-2.5">
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 active:scale-[0.98] transition-transform">
+            {t("app.retry")}
+          </button>
+          {reason === "unauthorized" && (
+            <button
+              onClick={() => void auth.signOut()}
+              className="text-[13px] font-semibold text-ink-600 underline underline-offset-2"
+            >
+              {t("app.profileErr.relogin")}
+            </button>
+          )}
+        </div>
+        {techDetail && (
+          <p className="mt-2 max-w-xs break-words font-mono text-[10px] leading-relaxed text-ink-400">{techDetail}</p>
+        )}
       </div>
     );
   }
