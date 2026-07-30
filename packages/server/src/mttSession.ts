@@ -15,6 +15,7 @@ import {
   type HumanPlayer,
   type GameSession,
   type ChatMessage,
+  type ActionResultCode,
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
@@ -431,7 +432,18 @@ export class MttSession implements GameSession {
   private wireHumanSocket(socket: Socket, userId: string): void {
     socket.removeAllListeners("action");
     socket.removeAllListeners("timeBankArm");
-    socket.on("action", (action: PlayerAction) => {
+    socket.on("action", (action: PlayerAction, ack?: unknown) => {
+      // クライアントのフリーズ診断用ACK。どの分岐で処理が終わったか(=なぜ何も起きなかったか)を
+      // 必ず返すことで、「タップしたのに無反応」の原因をクライアント側で特定できるようにする。
+      const reply = (ok: boolean, code: ActionResultCode) => {
+        if (typeof ack === "function") {
+          try {
+            (ack as (res: { ok: boolean; code: ActionResultCode }) => void)({ ok, code });
+          } catch {
+            /* ACK送信失敗でゲーム進行を止めない */
+          }
+        }
+      };
       const human = this.humans.get(userId);
       if (human) {
         // 自分でアクションしたら連続タイムアウトをリセットし、離席状態なら復帰。
@@ -441,14 +453,18 @@ export class MttSession implements GameSession {
           if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
         }
       }
-      const rt = human?.currentTableId != null ? this.runtimes.get(human.currentTableId) : undefined;
-      if (!rt) return;
+      if (!human) return reply(false, "NOT_IN_TOURNAMENT");
+      const rt = human.currentTableId != null ? this.runtimes.get(human.currentTableId) : undefined;
+      if (!rt) return reply(false, "NO_TABLE");
       const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex === null) return reply(false, "NO_SEAT");
       // ここで例外が漏れると uncaughtException でプロセスごと落ち、全卓・全ゲームが切断される。
       try {
-        if (seatIndex !== null) this.handleAction(rt, seatIndex, action);
+        const code = this.handleAction(rt, seatIndex, action);
+        reply(code === "OK", code);
       } catch (err) {
         console.error("[mtt] action handler failed:", err);
+        reply(false, "HANDLER_ERROR");
       }
     });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
@@ -738,21 +754,23 @@ export class MttSession implements GameSession {
     void this.finishHand(rt);
   }
 
-  private handleAction(rt: TableRuntime, seatIndex: number, action: PlayerAction): void {
+  private handleAction(rt: TableRuntime, seatIndex: number, action: PlayerAction): ActionResultCode {
     // タイマー/ソケット双方から呼ばれるため、例外を外へ漏らさない(漏れるとプロセス死=全ゲーム切断)。
     try {
-      this.handleActionInner(rt, seatIndex, action);
+      return this.handleActionInner(rt, seatIndex, action);
     } catch (err) {
       console.error(`[mtt] handleAction failed on table ${rt.tableId}:`, err);
       // ハンドが完了していれば精算へ進めて卓の凍結を防ぐ。
       if (rt.hand?.isHandComplete()) void this.finishHand(rt);
+      return "HANDLER_ERROR";
     }
   }
 
-  private handleActionInner(rt: TableRuntime, seatIndex: number, action: PlayerAction): void {
+  private handleActionInner(rt: TableRuntime, seatIndex: number, action: PlayerAction): ActionResultCode {
     const hand = rt.hand;
-    if (!hand || hand.isHandComplete()) return;
-    if (hand.getActingSeatIndex() !== seatIndex) return;
+    if (!hand) return "NO_HAND";
+    if (hand.isHandComplete()) return "HAND_COMPLETE";
+    if (hand.getActingSeatIndex() !== seatIndex) return "NOT_YOUR_TURN";
     const tableId = rt.tableId;
     const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === seatIndex)?.playerId;
     const human = playerId ? this.humans.get(playerId) : undefined;
@@ -767,7 +785,7 @@ export class MttSession implements GameSession {
         effectiveAction = { kind: "fold" };
       } else {
         human.socket?.emit("actionError", { message: (err as Error).message });
-        return;
+        return "REJECTED";
       }
     }
     const tableHasHuman = this.tableHasHuman(tableId);
@@ -797,6 +815,7 @@ export class MttSession implements GameSession {
       if (tableHasHuman) this.broadcastStateForTable(tableId);
       this.scheduleTurn(rt);
     }
+    return "OK";
   }
 
   private scheduleTurn(rt: TableRuntime): void {
