@@ -216,10 +216,6 @@ export interface SeatViewProps {
   /** 手番の残り時間(アバター周囲のリングで表示)。この席がアクティブなときだけ渡す。 */
   timer?: { endsAt: number; durationMs: number } | null;
   size?: "sm" | "lg";
-  /** ディーラーボタン。座席の識別ピルに直接アタッチすることで、名前の長さに関わらず
-   * 手札やピルと絶対に重ならないようにする(絶対座標のフリー配置は席ごとに表示名の長さが
-   * 変わるため、どこかのポジションで必ず干渉してしまっていた)。 */
-  isButton?: boolean;
   /** 離席中(自分・他プレイヤー双方に表示)。 */
   away?: boolean;
   /** プレイヤーメモのマーキング色(HEX)。設定時はアバター右上に小さなドットを出す。 */
@@ -257,7 +253,6 @@ export function Seat({
   badge,
   timer,
   size = "sm",
-  isButton = false,
   away = false,
   markingColor = null,
   chatBubble = null,
@@ -400,11 +395,6 @@ export function Seat({
               <path d="M4 5h16v11H8l-4 3z" strokeLinejoin="round" />
             </svg>
           </button>
-        )}
-        {isButton && !isEmpty && (
-          <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950">
-            D
-          </div>
         )}
         {!isEmpty && (
           <>
