@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
@@ -21,6 +21,89 @@ import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@
 import { useI18n } from "@/lib/i18n";
 
 const SEAT_COUNT = 6;
+
+/**
+ * 進行停止(フリーズ)の原因分類コード→ユーザー向けのタイトル/説明。
+ * コードは socket.ts の classifyStall が判定する。スクリーンショットから原因を特定できるよう、
+ * オーバーレイにはこの文言と合わせてコードそのもの・通信診断の詳細も表示する。
+ */
+const STALL_INFO: Record<string, { title: string; body: string }> = {
+  "F-OFFLINE": {
+    title: "インターネット接続がオフラインです",
+    body: "端末の通信環境(Wi-Fi/モバイル回線)をご確認ください。回線が戻り次第、自動で卓へ復帰します。",
+  },
+  "F-DISCONNECTED": {
+    title: "サーバーとの接続が切れています",
+    body: "自動で再接続しています…。長く続く場合は通信環境をご確認ください。",
+  },
+  "F-ZOMBIE": {
+    title: "サーバーからの応答が途絶えています",
+    body: "接続は維持されていますがデータが届いていません。接続を作り直して再同期しています…",
+  },
+  "F-NO-PROGRESS": {
+    title: "サーバー側で卓の進行が止まっています",
+    body: "通信は生きていますが、盤面の更新が届いていません。サーバーへ再同期を要求しています…",
+  },
+  "F-NEXT-HAND": {
+    title: "次のハンドの開始が遅れています",
+    body: "サーバーの応答待ちです。自動で再同期を試みています…(数秒お待ちください)",
+  },
+  "F-TURN-EXPIRED": {
+    title: "手番の時間切れ処理が行われていません",
+    body: "手番タイマーの期限を過ぎてもサーバーが進行を処理していません。再同期しています…",
+  },
+};
+
+/** 診断表示用: タイムスタンプを「N秒前」表記にする(未記録は「なし」)。 */
+function diagAgo(ts: number | null, now: number): string {
+  if (ts === null) return "なし";
+  return `${Math.max(0, Math.round((now - ts) / 1000))}秒前`;
+}
+
+/**
+ * 停止オーバーレイの通信診断詳細。原因コード・接続状態・各種イベントの最終受信時刻・
+ * 直近アクションのACK状況を等幅で列挙し、スクリーンショット1枚で原因を切り分けられるようにする。
+ */
+function StallDiagDetails({ diag, connected }: { diag: SocketDiag; connected: boolean }) {
+  const now = Date.now();
+  const act = diag.lastAction;
+  const actLine = act
+    ? `${act.kind} ${diagAgo(act.sentAt, now)}送信 → ${
+        act.status === "pending"
+          ? "応答待ち"
+          : act.status === "timeout"
+            ? "応答なし(タイムアウト)"
+            : act.status === "unsent"
+              ? "未接続で送信不可"
+              : `受領 ${act.ackCode ?? "OK"}(${act.ackElapsedMs ?? 0}ms)`
+      }`
+    : "なし";
+  const lines: [string, string][] = [
+    ["コード", diag.stallReason ?? "-"],
+    [
+      "接続",
+      connected
+        ? "接続中"
+        : `切断(${diag.disconnectReason ?? "理由不明"}${diag.connectErrorMessage ? ` / ${diag.connectErrorMessage}` : ""})`,
+    ],
+    ["最終受信", `${diagAgo(diag.lastEventAt, now)}${diag.lastEventName ? `(${diag.lastEventName})` : ""}`],
+    ["盤面更新", diagAgo(diag.lastStateAt, now)],
+    ["手番通知", diagAgo(diag.lastTurnTimerAt, now)],
+    ["ハンド終了", diagAgo(diag.lastHandEndedAt, now)],
+    ["再同期", `${diag.resyncCount}回 / 再接続試行 ${diag.reconnectAttempts}回`],
+    ["アクション", actLine],
+  ];
+  return (
+    <div className="mt-2 rounded-lg bg-ink-950/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-500">
+      {lines.map(([k, v]) => (
+        <div key={k} className="flex gap-2">
+          <span className="w-16 shrink-0 text-ink-400">{k}</span>
+          <span className="min-w-0 break-all">{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** 次のレベルまでの残り時間(mm:ss)。毎秒更新。 */
 function useLevelCountdown(endsAt: number | null): string {
@@ -172,8 +255,10 @@ function GameScreen({
     runoutHoleCards,
     tableNotice,
     stalled,
+    diag,
     gameGone,
     sendAction,
+    resync,
     leaveGame,
     armTimeBank,
     setAway,
@@ -563,19 +648,29 @@ function GameScreen({
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-black text-ink-950">
-                  {tableNotice ? "サーバーからのお知らせ" : "次のハンドの開始が遅れています"}
+                  {tableNotice
+                    ? "サーバーからのお知らせ"
+                    : STALL_INFO[diag?.stallReason ?? ""]?.title ?? "卓の進行が止まっています"}
                 </p>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
                   {tableNotice
                     ? tableNotice.message
-                    : !connected
-                      ? "サーバーとの接続が切れています。自動で再接続を試みています…"
-                      : typeof navigator !== "undefined" && !navigator.onLine
-                        ? "インターネット接続がオフラインです。通信環境をご確認ください。"
-                        : "サーバーの応答待ちです。自動で再同期を試みています…(数秒お待ちください)"}
+                    : STALL_INFO[diag?.stallReason ?? ""]?.body ??
+                      "原因を調査中です。自動で再同期を試みています…"}
                 </p>
+                {/* 原因特定用の通信診断。tableNotice(サーバー起因の告知)のみの場合は出さない。 */}
+                {stalled && diag && <StallDiagDetails diag={diag} connected={connected} />}
+                {stalled && (
+                  <button
+                    type="button"
+                    onClick={resync}
+                    className="mt-2.5 w-full rounded-xl border border-ink-950 bg-white px-4 py-2 text-[12px] font-black text-ink-950 active:translate-y-px"
+                  >
+                    今すぐ再同期する
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

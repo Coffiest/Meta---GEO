@@ -170,6 +170,22 @@ export function buildSeatAction(seatIndex: number, action: PlayerAction, pre: Pu
   }
 }
 
+/**
+ * "action" イベントのACKでクライアントへ返す処理結果コード。
+ * 「タップしたのに何も起きない」フリーズの原因を、どの分岐で無視/失敗したかまで
+ * クライアント側の診断UIで特定できるようにするためのもの。
+ */
+export type ActionResultCode =
+  | "OK"
+  | "NOT_IN_TOURNAMENT"
+  | "NO_TABLE"
+  | "NO_SEAT"
+  | "NO_HAND"
+  | "HAND_COMPLETE"
+  | "NOT_YOUR_TURN"
+  | "REJECTED"
+  | "HANDLER_ERROR";
+
 export interface StagedRunoutParams {
   hand: HandEngine;
   /** オールインコールが成立した時点(=残りボード展開前)のボード枚数 */
@@ -430,7 +446,7 @@ export class TableSession implements GameSession {
       this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
     }
     void socket.join(this.roomId);
-    socket.on("action", (action: PlayerAction) => {
+    socket.on("action", (action: PlayerAction, ack?: unknown) => {
       // 自分でアクションしたら連続タイムアウトをリセット。タイムアウトで離席状態になっていた
       // 場合は自動的に復帰させる(全員の画面の「離席中」も解除)。
       human.consecutiveTimeouts = 0;
@@ -438,7 +454,15 @@ export class TableSession implements GameSession {
         human.away = false;
         this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
       }
-      this.handlePlayerAction(seatIndex, action);
+      // クライアントのフリーズ診断用ACK。どの分岐で処理が終わったかを必ず返す。
+      const code = this.handlePlayerAction(seatIndex, action);
+      if (typeof ack === "function") {
+        try {
+          (ack as (res: { ok: boolean; code: ActionResultCode }) => void)({ ok: code === "OK", code });
+        } catch {
+          /* ACK送信失敗でゲーム進行を止めない */
+        }
+      }
     });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
       human.timeBankArmed = Boolean(payload?.armed);
@@ -611,20 +635,22 @@ export class TableSession implements GameSession {
     return started ?? { smallBlindSeat: null, bigBlindSeat: 0 };
   }
 
-  private handlePlayerAction(seatIndex: number, action: PlayerAction): void {
+  private handlePlayerAction(seatIndex: number, action: PlayerAction): ActionResultCode {
     // タイマー/ソケット双方から呼ばれるため、例外を外へ漏らさない(漏れるとプロセス死=全ゲーム切断)。
     try {
-      this.handlePlayerActionInner(seatIndex, action);
+      return this.handlePlayerActionInner(seatIndex, action);
     } catch (err) {
       console.error("[sng] handlePlayerAction failed:", err);
       if (this.hand?.isHandComplete()) void this.finishHand();
+      return "HANDLER_ERROR";
     }
   }
 
-  private handlePlayerActionInner(seatIndex: number, action: PlayerAction): void {
+  private handlePlayerActionInner(seatIndex: number, action: PlayerAction): ActionResultCode {
     const hand = this.hand;
-    if (!hand || hand.isHandComplete()) return;
-    if (hand.getActingSeatIndex() !== seatIndex) return;
+    if (!hand) return "NO_HAND";
+    if (hand.isHandComplete()) return "HAND_COMPLETE";
+    if (hand.getActingSeatIndex() !== seatIndex) return "NOT_YOUR_TURN";
     const human = this.humansBySeat.get(seatIndex);
     const preState = hand.getPublicState();
     const boardLenBefore = preState.board.length;
@@ -638,7 +664,7 @@ export class TableSession implements GameSession {
         effectiveAction = { kind: "fold" };
       } else {
         human.socket?.emit("actionError", { message: (err as Error).message });
-        return;
+        return "REJECTED";
       }
     }
     // ストリートを閉じるアクション(コール/チェック等)もアイコンに一瞬表示されるよう、状態更新とは
@@ -668,6 +694,7 @@ export class TableSession implements GameSession {
       this.broadcastState();
       this.scheduleTurn();
     }
+    return "OK";
   }
 
   /**

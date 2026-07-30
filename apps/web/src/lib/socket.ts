@@ -141,6 +141,51 @@ export interface WaitingInfo {
   needed: number;
 }
 
+/** 直近に送信したアクションの診断記録(送信→サーバーACKまでの追跡)。 */
+export interface ActionDiag {
+  /** 送ったアクション種別(fold/call/bet等) */
+  kind: string;
+  /** 送信時刻(ms epoch) */
+  sentAt: number;
+  /** pending=応答待ち / acked=サーバーが受領 / timeout=一定時間応答なし / unsent=未接続で送信不可 */
+  status: "pending" | "acked" | "timeout" | "unsent";
+  /** サーバーが返した処理結果コード(OK/NOT_YOUR_TURN/NO_TABLE等) */
+  ackCode?: string;
+  /** 送信からACKまでの所要時間(ms) */
+  ackElapsedMs?: number;
+}
+
+/**
+ * フリーズ原因特定用の通信診断スナップショット。停止検知時にオーバーレイへ表示し、
+ * スクリーンショットから原因(切断/ゾンビ接続/サーバー停止/アクション不達)を判別できるようにする。
+ */
+export interface SocketDiag {
+  /** 停止原因の分類コード(F-OFFLINE/F-DISCONNECTED/F-ZOMBIE/F-NO-PROGRESS/F-NEXT-HAND/F-TURN-EXPIRED) */
+  stallReason: string | null;
+  /** 最後にサーバーから何かを受信した時刻(イベント名も保持) */
+  lastEventAt: number | null;
+  lastEventName: string | null;
+  /** 最後に盤面(state)を受信した時刻 */
+  lastStateAt: number | null;
+  /** 最後に手番タイマーを受信した時刻 */
+  lastTurnTimerAt: number | null;
+  /** 最後にhandEnded(ハンド終了)を受信した時刻 */
+  lastHandEndedAt: number | null;
+  /** 最後に接続が確立した時刻 */
+  connectedAt: number | null;
+  /** 最後に切断された時刻と理由(socket.ioのdisconnect reason) */
+  disconnectedAt: number | null;
+  disconnectReason: string | null;
+  /** 最後の接続エラーメッセージ(connect_error) */
+  connectErrorMessage: string | null;
+  /** 再接続の試行回数 */
+  reconnectAttempts: number;
+  /** 自動再同期(resumeGame再送)を実行した回数 */
+  resyncCount: number;
+  /** 直近に送信したアクションの追跡記録 */
+  lastAction: ActionDiag | null;
+}
+
 export interface PokerSocketState {
   connected: boolean;
   spectating: boolean;
@@ -191,9 +236,25 @@ export interface PokerSocketState {
    * trueの間、画面に停止診断オーバーレイを表示し、裏で自動的に再同期(resumeGame)を試みる。
    */
   stalled: boolean;
+  /** フリーズ原因特定用の通信診断スナップショット(停止検知時・再同期のたびに更新)。 */
+  diag: SocketDiag | null;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+
+/**
+ * "action" のACKでサーバーが返す処理結果コード→ユーザー向け説明。
+ * 「押したのに何も起きない」原因をその場で特定・表示するためのもの。
+ */
+const ACTION_ACK_MESSAGES: Record<string, string> = {
+  NOT_IN_TOURNAMENT: "サーバーにあなたの参加記録が見つかりません",
+  NO_TABLE: "サーバー上であなたの卓が見つかりません(卓移動の処理中の可能性)",
+  NO_SEAT: "サーバー上の座席情報が見つかりません",
+  NO_HAND: "サーバー側ではハンドが始まっていません",
+  HAND_COMPLETE: "サーバー側ではこのハンドは既に終了しています",
+  NOT_YOUR_TURN: "サーバー側ではあなたの手番ではありません(表示が古い可能性)",
+  HANDLER_ERROR: "サーバー内部エラーでアクションを処理できませんでした",
+};
 
 /** 各席のアクションバッジ(Call/Check等)の表示時間(ms)。ストリートが進んでも一瞬は残す。 */
 const SEAT_ACTION_BADGE_MS = 1700;
@@ -245,6 +306,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     runoutHoleCards: null,
     tableNotice: null,
     stalled: false,
+    diag: null,
   });
 
   // ショウダウン後フリーズの監視タイマー。handEndedから一定時間ハンドが進まなければ
@@ -254,15 +316,40 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   // ハンド"中"フリーズの監視。サーバーからの進行イベント(state/turnTimer/seatAction)が一定時間
   // 途絶えたら停止とみなし、自動再同期する。自分の手番の長考は誤検知しないよう除外する。
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // ウォッチドッグ判定用に最新の手番/自席/完了状態を保持する(タイマー発火時に参照)。
-  const liveStateRef = useRef<{ actingSeatIndex: number | null; yourSeatIndex: number | null; isComplete: boolean; over: boolean }>(
-    { actingSeatIndex: null, yourSeatIndex: null, isComplete: false, over: false },
-  );
+  // ウォッチドッグ判定用に最新の手番/自席/完了状態/手番タイマーを保持する(タイマー発火時に参照)。
+  const liveStateRef = useRef<{
+    actingSeatIndex: number | null;
+    yourSeatIndex: number | null;
+    isComplete: boolean;
+    over: boolean;
+    lastTurn: TurnTimerInfo | null;
+  }>({ actingSeatIndex: null, yourSeatIndex: null, isComplete: false, over: false, lastTurn: null });
   // 復帰(resync)フォールバック。forceResyncで resumeGame を再送した後、一定時間サーバーからの
   // 受信が無ければ「ゾンビ接続(connected===trueだが実際は死んでいる)」とみなして強制再ハンドシェイク
   // する。任意のサーバー受信(onAny)で解除する。lastForceResyncRefは多重発火のデバウンス用。
   const resyncFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastForceResyncRef = useRef(0);
+  // フリーズ原因特定用の診断記録。再レンダーを避けるためrefに随時記録し、停止検知・再同期・
+  // アクションACKなどの節目でだけ state(diag)へスナップショットを反映する。
+  const diagRef = useRef<SocketDiag>({
+    stallReason: null,
+    lastEventAt: null,
+    lastEventName: null,
+    lastStateAt: null,
+    lastTurnTimerAt: null,
+    lastHandEndedAt: null,
+    connectedAt: null,
+    disconnectedAt: null,
+    disconnectReason: null,
+    connectErrorMessage: null,
+    reconnectAttempts: 0,
+    resyncCount: 0,
+    lastAction: null,
+  });
+  // sendAction(useEffect外)からforceResync(useEffect内)を呼ぶための橋渡し。
+  const forceResyncRef = useRef<((opts?: { immediate?: boolean }) => void) | null>(null);
+  // 停止を検知した文脈(inHand=ハンド中の進行途絶 / afterHand=ハンド終了後 / turnExpired=手番の期限切れ放置)。
+  const stallCtxRef = useRef<"inHand" | "afterHand" | "turnExpired">("inHand");
 
   useEffect(() => {
     const clearBadgeTimers = () => {
@@ -294,7 +381,19 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       if (resyncFallbackRef.current) clearTimeout(resyncFallbackRef.current);
       resyncFallbackRef.current = null;
     };
-    socket.onAny(() => clearResyncFallback());
+    socket.onAny((eventName: string) => {
+      clearResyncFallback();
+      // 診断用: 最後にサーバーから受信したイベントと時刻を常に記録する。
+      diagRef.current.lastEventAt = Date.now();
+      diagRef.current.lastEventName = eventName;
+    });
+    // 診断用: 接続エラー/再接続試行/切断理由を記録する(停止オーバーレイに表示)。
+    socket.on("connect_error", (err: Error) => {
+      diagRef.current.connectErrorMessage = err?.message ?? String(err);
+    });
+    socket.io.on("reconnect_attempt", (attempt: number) => {
+      diagRef.current.reconnectAttempts = attempt;
+    });
 
     // バックグラウンド復帰/タブ復帰/回線復帰時に「必ず」進行中の卓へ再アタッチする中核。
     // socket.connected を盲信せず、接続中に見えても3秒応答が無ければゾンビ接続とみなして
@@ -305,6 +404,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       const now = Date.now();
       if (!opts?.immediate && now - lastForceResyncRef.current < 1500) return;
       lastForceResyncRef.current = now;
+      diagRef.current.resyncCount += 1;
       if (!s.connected) {
         s.connect();
         return;
@@ -323,31 +423,75 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         s2.connect();
       }, 3000);
     };
+    forceResyncRef.current = forceResync;
 
-    // ハンド中フリーズのウォッチドッグ。進行イベントが35秒途絶し、かつ自分の手番でも次ハンド待ちでも
-    // なければ「停止」とみなし、診断オーバーレイ+自動再同期(resumeGame)を開始する。進行イベント受信の
-    // たびに再武装するので、正常時は発火しない。自分の手番の長考(actingSeat===自席)は停止ではないため除外。
+    // 停止原因の分類。停止を検知した瞬間と、その後の再同期のたびに再評価して診断表示を更新する。
+    const classifyStall = (ctx: "inHand" | "afterHand" | "turnExpired"): string => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return "F-OFFLINE";
+      const s = socketRef.current;
+      if (!s?.connected) return "F-DISCONNECTED";
+      const now = Date.now();
+      const dg = diagRef.current;
+      // 接続中に見えるのにサーバーから何も届いていない=ゾンビ接続の疑い。
+      if (dg.lastEventAt !== null && now - dg.lastEventAt > 20_000) return "F-ZOMBIE";
+      if (ctx === "turnExpired") return "F-TURN-EXPIRED";
+      // 何かは届いている(chatやtournamentInfo等)のに、盤面進行(state/turnTimer)だけが止まっている
+      // =サーバー側の卓進行が停止している疑い。
+      const lastProgress = Math.max(dg.lastStateAt ?? 0, dg.lastTurnTimerAt ?? 0);
+      if (lastProgress > 0 && now - lastProgress > 20_000) return "F-NO-PROGRESS";
+      return ctx === "afterHand" ? "F-NEXT-HAND" : "F-NO-PROGRESS";
+    };
+
+    // 停止状態に入れる(オーバーレイ表示+5秒おきの自動再同期+診断スナップショットの定期更新)。
+    const markStalled = (ctx: "inHand" | "afterHand" | "turnExpired") => {
+      stallCtxRef.current = ctx;
+      diagRef.current.stallReason = classifyStall(ctx);
+      setData((d) => (d.tournamentOver ? d : { ...d, stalled: true, diag: { ...diagRef.current } }));
+      if (!resyncTimerRef.current) {
+        resyncTimerRef.current = setInterval(() => {
+          forceResync();
+          diagRef.current.stallReason = classifyStall(stallCtxRef.current);
+          setData((d) => (d.stalled ? { ...d, diag: { ...diagRef.current } } : d));
+        }, 5000);
+      }
+    };
+
+    // ハンド中フリーズのウォッチドッグ。進行イベントが35秒途絶し、かつ次ハンド待ちでもなければ
+    // 「停止」とみなし、診断オーバーレイ+自動再同期(resumeGame)を開始する。進行イベント受信の
+    // たびに再武装するので、正常時は発火しない。
+    // 自分の手番の長考(actingSeat===自席)は停止ではないため除外するが、手番タイマーの期限を
+    // 15秒以上過ぎてもサーバーが時間切れ処理(自動チェック/フォールド)をしてこない場合は、
+    // サーバー停止かゾンビ接続なので F-TURN-EXPIRED として停止扱いにする。
     const WATCHDOG_MS = 35_000;
-    const armWatchdog = () => {
+    const TURN_EXPIRY_GRACE_MS = 15_000;
+    const armWatchdog = (delayMs: number = WATCHDOG_MS) => {
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
       activityTimerRef.current = setTimeout(() => {
         const ls = liveStateRef.current;
         if (!hasStartedRef.current || ls.over) return;
-        // 自分の手番の長考、または次ハンド待ち(handEnded側の監視に委譲)は停止扱いしない。監視は継続。
-        if ((ls.actingSeatIndex !== null && ls.actingSeatIndex === ls.yourSeatIndex) || ls.isComplete) {
+        // 自分の手番中: 長考は正常。ただし手番タイマー期限+猶予を過ぎても何も起きないのは異常。
+        if (ls.actingSeatIndex !== null && ls.actingSeatIndex === ls.yourSeatIndex) {
+          const turn = ls.lastTurn;
+          if (turn && turn.seatIndex === ls.actingSeatIndex && Date.now() > turn.endsAt + TURN_EXPIRY_GRACE_MS) {
+            markStalled("turnExpired");
+          }
+          // 自分の手番中は短い間隔で期限切れをチェックし続ける(タイムバンク延長はturnTimer再送で反映される)。
+          armWatchdog(10_000);
+          return;
+        }
+        // 次ハンド待ち(handEnded側の監視に委譲)は停止扱いしない。監視は継続。
+        if (ls.isComplete) {
           armWatchdog();
           return;
         }
         // 他者/ボットの手番で進行が途絶 = 停止。オーバーレイを出し、5秒おきに再同期する。
-        setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
-        if (!resyncTimerRef.current) {
-          resyncTimerRef.current = setInterval(() => forceResync(), 5000);
-        }
+        markStalled("inHand");
         armWatchdog();
-      }, WATCHDOG_MS);
+      }, delayMs);
     };
 
     socket.on("connect", () => {
+      diagRef.current.connectedAt = Date.now();
       setData((d) => ({ ...d, connected: true }));
       armWatchdog();
       // 初回は joinGame(新規参加)。以降の再接続は、対局開始後なら resumeGame(進行中の卓へ復帰。
@@ -361,7 +505,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         socket.emit("joinGame", { gameKey });
       }
     });
-    socket.on("disconnect", () => setData((d) => ({ ...d, connected: false })));
+    socket.on("disconnect", (reason: string) => {
+      diagRef.current.disconnectedAt = Date.now();
+      diagRef.current.disconnectReason = reason;
+      setData((d) => ({ ...d, connected: false }));
+    });
     // 進行中の卓が見つからない場合でも、絶対にホームへ強制退出させない(再接続で自動復帰を待つ)。
     socket.on("noActiveGame", () => setData((d) => ({ ...d, gameGone: true })));
     socket.on("joinGameError", (payload: { message: string }) =>
@@ -369,6 +517,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     );
     socket.on("state", (state: PublicHandState) => {
       hasStartedRef.current = true;
+      diagRef.current.lastStateAt = Date.now();
       liveStateRef.current = {
         ...liveStateRef.current,
         actingSeatIndex: state.actingSeatIndex,
@@ -382,8 +531,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         // アクションバッジは seatAction イベント側で管理する(ストリートを閉じる直前のアクションも
         // 一瞬表示できるように)。ここでは新しいハンドの開始時にだけクリアする。
         if (isNewHand) clearBadgeTimers();
-        // 新しいハンドが始まった=進行は生きている。停止監視を解除する。
-        if (isNewHand) clearStallWatch();
+        // 盤面が届いた=進行は生きている。停止監視(ハンド中/ハンド後とも)を解除する。
+        // 注: ハンド終了後〜次ハンド開始までの間にstateが届くことはない(staged runoutのstateは
+        // handEndedより前に届く)ため、ここで常に解除しても handEnded 側の15秒監視は妨げない。
+        clearStallWatch();
+        diagRef.current.stallReason = null;
         return {
           ...d,
           state,
@@ -397,7 +549,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
           matching: null,
           waiting: null,
           tableNotice: isNewHand ? null : d.tableNotice,
-          stalled: isNewHand ? false : d.stalled,
+          stalled: false,
         };
       });
     });
@@ -427,6 +579,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         })),
     );
     socket.on("turnTimer", (payload: TurnTimerInfo) => {
+      diagRef.current.lastTurnTimerAt = Date.now();
+      liveStateRef.current = { ...liveStateRef.current, lastTurn: payload };
       armWatchdog();
       setData((d) => ({ ...d, turnTimer: payload }));
     });
@@ -486,12 +640,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     // 停止と判定し、診断オーバーレイの表示と自動再同期(resumeGame)を開始する。
     // 正常時は次のstate(新ハンド)受信でclearStallWatchされるため何も起きない。
     socket.on("handEnded", () => {
+      diagRef.current.lastHandEndedAt = Date.now();
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
-      stallTimerRef.current = setTimeout(() => {
-        setData((d) => (d.tournamentOver ? d : { ...d, stalled: true }));
-        if (resyncTimerRef.current) clearInterval(resyncTimerRef.current);
-        resyncTimerRef.current = setInterval(() => forceResync(), 5000);
-      }, 15_000);
+      stallTimerRef.current = setTimeout(() => markStalled("afterHand"), 15_000);
     });
     socket.on("levelUp", (payload: { level: LevelInfo; endsAt?: number }) =>
       setData((d) => ({ ...d, level: payload.level, levelEndsAt: payload.endsAt ?? null })),
@@ -568,7 +719,56 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   }, [displayName, avatarKey, gameKey, accessToken]);
 
   const sendAction = useCallback((action: PlayerAction) => {
-    socketRef.current?.emit("action", action);
+    const s = socketRef.current;
+    const sentAt = Date.now();
+    const record = (patch: Partial<ActionDiag>) => {
+      diagRef.current.lastAction = { kind: action.kind, sentAt, status: "pending", ...patch };
+    };
+    if (!s || !s.connected) {
+      // 未接続のまま送信しても永久に何も起きない。即座に原因を表示し、再接続を試みる。
+      diagRef.current.lastAction = { kind: action.kind, sentAt, status: "unsent" };
+      setData((d) => ({
+        ...d,
+        actionError: "サーバー未接続のためアクションを送信できません [A-DISCONNECTED] 再接続しています…",
+        diag: { ...diagRef.current },
+      }));
+      forceResyncRef.current?.({ immediate: true });
+      return;
+    }
+    diagRef.current.lastAction = { kind: action.kind, sentAt, status: "pending" };
+    // ACK(サーバーの受領応答)を要求して送る。6秒応答が無ければ「サーバーに届いていない/処理されていない」
+    // と確定できるため、原因コードを表示して自動再同期する。
+    s.timeout(6000).emit("action", action, (err: Error | null, res?: { ok: boolean; code: string }) => {
+      const elapsed = Date.now() - sentAt;
+      if (err) {
+        record({ status: "timeout", ackElapsedMs: elapsed });
+        setData((d) => ({
+          ...d,
+          actionError: "サーバーがアクションに応答しません [A-TIMEOUT] 再同期しています…",
+          diag: { ...diagRef.current },
+        }));
+        forceResyncRef.current?.();
+        return;
+      }
+      const code = res?.code ?? "UNKNOWN";
+      record({ status: "acked", ackCode: code, ackElapsedMs: elapsed });
+      if (res?.ok) return;
+      // REJECTED(不正アクション)はサーバーが actionError で具体的な理由(エンジンのメッセージ)を
+      // 別途送ってくるため、ここでは上書きしない。それ以外の「黙って無視」系は原因を明示する。
+      if (code === "REJECTED") return;
+      const detail = ACTION_ACK_MESSAGES[code] ?? "不明なエラーです";
+      setData((d) => ({
+        ...d,
+        actionError: `${detail} [${code}] 再同期しています…`,
+        diag: { ...diagRef.current },
+      }));
+      forceResyncRef.current?.();
+    });
+  }, []);
+
+  /** 停止オーバーレイの「今すぐ再同期」ボタン用: 手動で即時再同期する。 */
+  const resync = useCallback(() => {
+    forceResyncRef.current?.({ immediate: true });
   }, []);
 
   /** チップを破棄してゲームから離脱する。 */
@@ -602,5 +802,5 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socketRef.current?.emit("reEntry");
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry };
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry, resync };
 }
