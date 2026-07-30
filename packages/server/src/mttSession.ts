@@ -6,6 +6,7 @@ import {
   recordHand,
   recordBuyIn,
   recordPayout,
+  refundBuyIn,
   computeMttPrizeStructure,
   invalidateRankedEntries,
   type PayoutPlace,
@@ -20,6 +21,8 @@ import {
   ensureBotUsers,
   scheduleStagedRunout,
   sanitizeChatText,
+  safeStringify,
+  snapshotHandForDiag,
   type HumanPlayer,
   type GameSession,
   type ChatMessage,
@@ -995,7 +998,14 @@ export class MttSession implements GameSession {
     try {
       await this.finishHandInner(mtt, hand, tableId, tableHadHuman);
     } catch (err) {
-      console.error("[mtt] finishHand failed (proceeding):", err);
+      // 再発時の原因切り分け用に、失敗したハンドの盤面・各席の状態/拠出・ポット内訳を構造化出力する。
+      console.error(
+        "[mtt] finishHand failed (proceeding):",
+        err,
+        `table=${tableId}`,
+        "\n[mtt] hand diagnostics:",
+        safeStringify(snapshotHandForDiag(hand)),
+      );
       // 清算前に失敗した可能性に備えて一度だけ清算を試みる(排他区間で)。
       await this.runExclusive(() => {
         try {
@@ -1004,6 +1014,17 @@ export class MttSession implements GameSession {
           /* 清算済みなら無視 */
         }
       });
+      // 最低限の保証: この卓を正常に完了できなかった=サーバー側の異常。該当卓の人間へ参加費を返金する
+      // (refundBuyInは同一トーナメント×ユーザーで1回だけの冪等処理。二重返金にはならない)。
+      const tid = this.dbTournamentId;
+      if (tid) {
+        for (const human of this.humans.values()) {
+          if (human.currentTableId !== tableId) continue;
+          void refundBuyIn({ userId: human.userId, tournamentId: tid, amount: this.buyIn }).catch((e) =>
+            console.error("[mtt] refundBuyIn failed:", e),
+          );
+        }
+      }
     } finally {
       rt.settling = false;
     }

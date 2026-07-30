@@ -106,9 +106,8 @@ export function PlayerDetailModal({
           </div>
           <div className="shrink-0 rounded-xl border border-ink-950 px-3 py-1.5 text-center">
             <p className="text-[9px] font-black uppercase tracking-[0.15em] text-ink-400">偏差値</p>
-            <p className="text-lg font-black leading-none tabular-nums text-ink-950">
-              {loading || !rr ? "–" : rr.rrRating.toFixed(1)}
-            </p>
+            {/* 偏差値の値は全プレイヤー一律で非表示(「--」)。枠・ラベルは残す。相手の種別で出し分けはしない。 */}
+            <p className="text-lg font-black leading-none tabular-nums text-ink-950">--</p>
           </div>
           <button onClick={onClose} className="shrink-0 self-start text-[12px] font-semibold text-ink-500">
             閉じる
@@ -138,7 +137,7 @@ export function PlayerDetailModal({
               <Metric label="インマネ率" value={pct(s.itmRate)} />
               <Metric
                 label="全国順位"
-                value={rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
+                value="--"
               />
             </div>
 
