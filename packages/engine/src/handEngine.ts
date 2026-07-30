@@ -527,7 +527,15 @@ export class HandEngine {
     const payouts = settlePots({ pots, handRanks, seatOrderFromButton });
 
     for (const [playerId, amount] of payouts) {
-      const seat = [...this.seats.values()].find((s) => s.playerId === playerId)!;
+      const seat = [...this.seats.values()].find((s) => s.playerId === playerId);
+      if (!seat) {
+        // 受取先が席に存在しない=清算ロジックの不整合。黙って undefined を触ってクラッシュさせず、
+        // 原因を特定できる情報を添えて投げる(呼び出し側=gameServerが握って診断ログを出す)。
+        throw new Error(
+          `settlePots produced payout for unknown playerId="${String(playerId)}" (amount=${amount}); ` +
+            `pot layers=${JSON.stringify(pots.map((p) => ({ amount: p.amount, eligible: p.eligiblePlayerIds })))}`,
+        );
+      }
       seat.stack += amount;
     }
 

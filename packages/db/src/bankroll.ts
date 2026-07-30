@@ -85,6 +85,28 @@ export async function recordPayout(params: { userId: string; tournamentId: strin
   });
 }
 
+/**
+ * 参加費(バイイン)を返金する。サーバー側の異常(ショウダウンのクラッシュ・卓の異常終了など)で
+ * トーナメントが正常に進行できなかった場合の「最低限の保証」として、参加費を台帳へ+側で戻す。
+ * 同一トーナメント×ユーザーにつき1回だけ(冪等)。二重返金や正常終了時の誤返金を防ぐ。
+ */
+export async function refundBuyIn(params: { userId: string; tournamentId: string; amount: number }): Promise<void> {
+  if (params.amount <= 0) return;
+  const already = await prisma.bankrollTransaction.findFirst({
+    where: { userId: params.userId, tournamentId: params.tournamentId, kind: "refund" },
+    select: { id: true },
+  });
+  if (already) return;
+  await prisma.bankrollTransaction.create({
+    data: {
+      userId: params.userId,
+      tournamentId: params.tournamentId,
+      amount: params.amount,
+      kind: "refund",
+    },
+  });
+}
+
 export interface PlayerStats {
   tournamentsPlayed: number;
   itmCount: number;

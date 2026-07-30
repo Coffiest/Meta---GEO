@@ -154,6 +154,13 @@ export class Lobby {
       return;
     }
     // 進行中の卓が無い(=サーバー再起動などでセッションが失われた/既に終了)。新規は作らずロビーへ。
+    // 「卓が消えた」原因を後から追えるよう、セッションの有無/終了/本人完了の別を記録する。
+    console.warn(
+      `[lobby] noActiveGame for user=${resolved.userId}:`,
+      existing
+        ? `session exists (finished=${existing.isFinished()}, userDone=${existing.isUserDone(resolved.userId)})`
+        : "no session in memory (server restart or never joined)",
+    );
     socket.emit("noActiveGame");
   }
 }
