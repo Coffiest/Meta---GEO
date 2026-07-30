@@ -7,7 +7,7 @@ import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverI
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
-import { useProfile, saveProfile, getLastProfileFailure } from "@/lib/profile";
+import { useProfile, saveProfile } from "@/lib/profile";
 import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
@@ -808,9 +808,7 @@ export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
   const accessToken = auth.session?.access_token;
-  const { profile, loading: profileLoading, reload } = useProfile(accessToken);
-  // プロフィール取得が失敗した具体的な理由(HTTPステータス/タイムアウト/接続不能)。
-  const profileFailure = !profileLoading && !profile ? getLastProfileFailure() : null;
+  const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -921,24 +919,57 @@ export default function Page() {
   if (!auth.session) return <LoginScreen auth={auth} />;
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
+    // 失敗理由ごとに具体的な説明を出し、原因が分かるようにする。末尾に開発者向けの技術詳細
+    // (reason/HTTPステータス/サーバー本文の先頭)も小さく表示する。
+    const reason = profileError?.reason;
+    const reasonMsg =
+      reason === "timeout"
+        ? t("app.profileErr.timeout")
+        : reason === "network"
+          ? t("app.profileErr.network")
+          : reason === "unauthorized"
+            ? t("app.profileErr.unauthorized")
+            : reason === "notfound"
+              ? t("app.profileErr.notfound")
+              : reason === "server"
+                ? t("app.profileErr.server")
+                : reason === "parse"
+                  ? t("app.profileErr.parse")
+                  : reason === "no-token"
+                    ? t("app.profileErr.noToken")
+                    : reason === "http"
+                      ? t("app.profileErr.http")
+                      : t("app.profileFetchFailed");
+    // 技術詳細(原因特定用): 例) "timeout" / "server (503)" / "http (429): Too Many..."
+    const techParts: string[] = [];
+    if (reason) techParts.push(reason);
+    if (profileError?.status) techParts.push(`HTTP ${profileError.status}`);
+    if (profileError?.detail) techParts.push(profileError.detail.slice(0, 120));
+    const techDetail = techParts.join(" · ");
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6 text-center">
-        <p className="text-sm text-ink-800">{t("app.profileFetchFailed")}</p>
-        {/* 失敗の具体的な理由をそのまま出す。原因が分からないままの再試行を避けるため。 */}
-        {profileFailure && (
-          <div className="w-full max-w-sm rounded-2xl border border-crimson-500 bg-crimson-500/10 p-3.5 text-left">
-            <p className="break-words text-[12px] leading-relaxed text-ink-800">{profileFailure.message}</p>
-            <p className="mt-1 text-[11px] tabular-nums text-ink-500">応答待ち {profileFailure.durationMs} ms</p>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <button onClick={() => void reload()} className="rounded-xl bg-ink-950 text-white text-sm font-black px-6 py-2.5">
+        <p className="text-base font-bold text-ink-900">{t("app.profileFetchFailed")}</p>
+        <p className="max-w-xs text-sm text-ink-700">{reasonMsg}</p>
+        <div className="flex flex-col items-center gap-2.5">
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 active:scale-[0.98] transition-transform">
             {t("app.retry")}
           </button>
-          <Link href="/diagnostics" className="rounded-xl border border-ink-950 bg-white px-4 py-2.5 text-sm font-black text-ink-950">
-            原因を診断する
-          </Link>
+          {reason === "unauthorized" && (
+            <button
+              onClick={() => void auth.signOut()}
+              className="text-[13px] font-semibold text-ink-600 underline underline-offset-2"
+            >
+              {t("app.profileErr.relogin")}
+            </button>
+          )}
         </div>
+        {techDetail && (
+          <p className="mt-2 max-w-xs break-words font-mono text-[10px] leading-relaxed text-ink-400">{techDetail}</p>
+        )}
+        {/* サーバー側の詰まり(CPU飽和・DB遅延)まで踏み込んで原因を見るための導線。 */}
+        <Link href="/diagnostics" className="text-[12px] font-bold text-ink-500 underline underline-offset-2">
+          サーバーの状態を診断する
+        </Link>
       </div>
     );
   }
