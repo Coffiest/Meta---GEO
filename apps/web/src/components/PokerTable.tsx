@@ -11,7 +11,7 @@ import { useI18n } from "@/lib/i18n";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
 import { positionLabelsForState } from "@/lib/position";
-import { formatBb, formatSignedBb } from "@/lib/format";
+import { formatAmount, formatSignedAmount, type AmountDisplayMode } from "@/lib/format";
 import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
 
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
@@ -81,8 +81,9 @@ function badgeForSeat(params: {
   lastActionBySeat: Record<number, SeatAction>;
   lastHandDeltaBySeat: Record<number, number> | null;
   bigBlind: number;
+  displayMode: AmountDisplayMode;
 }): SeatBadge | null {
-  const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind } = params;
+  const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind, displayMode } = params;
 
   // ポットを取ったことは「獲得額」だけで伝える。Won/Lostのような勝敗ラベルは置かない
   // (卓上に英単語の宣言を並べるのは他社アプリの語彙で、Poker ARTの静かな面構えに合わない)。
@@ -91,13 +92,13 @@ function badgeForSeat(params: {
   if (lastHandDeltaBySeat && seatStatus !== "folded" && seatStatus !== "empty") {
     const delta = lastHandDeltaBySeat[seatIndex];
     if (delta && delta > 0) {
-      return { text: formatSignedBb(delta, bigBlind), tone: "win" };
+      return { text: formatSignedAmount(delta, bigBlind, displayMode), tone: "win" };
     }
   }
 
   const action = lastActionBySeat[seatIndex];
   if (action) {
-    const bb = formatBb(action.toAmount, bigBlind);
+    const bb = formatAmount(action.toAmount, bigBlind, displayMode);
     switch (action.kind) {
       case "raise":
         return { text: `Raise ${bb}`, tone: "raise" };
@@ -209,6 +210,8 @@ export function PokerTable({
   onHeroChatClick,
   heroShowIntent = false,
   onToggleHeroShow,
+  displayMode = "bb",
+  onToggleDisplayMode,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -232,6 +235,10 @@ export function PokerTable({
   heroShowIntent?: boolean;
   /** ハンドショウ: 自席のカードをタップしたとき(意思のトグル)。 */
   onToggleHeroShow?: () => void;
+  /** 卓上の金額表示モード(bb換算/点数)。ポット/ベット/スタック全てに適用。 */
+  displayMode?: AmountDisplayMode;
+  /** 自席スタックのタップで表示モードを切り替えるハンドラ。 */
+  onToggleDisplayMode?: () => void;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -303,7 +310,7 @@ export function PokerTable({
               <span className="text-[8px] font-black tracking-[0.22em] text-ink-400 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
-              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatBb(state.collectedPot, bigBlind)}</span>
+              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
               {spr !== null && (
                 <span className="text-[10px] font-bold text-ink-400 tabular-nums leading-none border-l border-ink-200 pl-2">
                   SPR {spr.toFixed(1)}
@@ -331,7 +338,7 @@ export function PokerTable({
                   {i === 0 ? "メイン" : `サイド ${i}`}
                 </span>
                 <span className="text-[11px] font-black text-ink-950 tabular-nums leading-none">
-                  {formatBb(pot.amount, bigBlind)}
+                  {formatAmount(pot.amount, bigBlind, displayMode)}
                 </span>
               </span>
             ))}
@@ -410,12 +417,15 @@ export function PokerTable({
             size={isHero ? "lg" : "sm"}
             isButton={state?.buttonFixedPos === seatIndex}
             away={player?.away ?? false}
+            displayMode={displayMode}
+            onStackTap={isHero ? onToggleDisplayMode : undefined}
             badge={badgeForSeat({
               seatIndex,
               seatStatus: status,
               lastActionBySeat,
               lastHandDeltaBySeat,
               bigBlind,
+              displayMode,
             })}
           />
         );
