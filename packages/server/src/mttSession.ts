@@ -29,6 +29,7 @@ import {
   type ActionResultCode,
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
 
@@ -187,17 +188,28 @@ export class MttSession implements GameSession {
   private readonly io: Server;
   readonly buyIn = MTT_BUY_IN;
   private readonly roomPrefix: string;
+  /** 進行フェーズ記録上のこのセッションの識別子(卓ごとに `#t{tableId}` を付ける)。 */
+  private readonly diagScope: string;
   /** レジクローズした瞬間に呼ばれる(スケジューラが次の募集MTTを開くため)。 */
   private readonly onRegistrationClosed: (() => void) | undefined;
 
   constructor(io: Server, onRegistrationClosed?: () => void) {
     this.io = io;
     this.roomPrefix = `mtt:${randomUUID()}`;
+    this.diagScope = `mtt:${this.roomPrefix.slice(4, 12)}`;
     this.onRegistrationClosed = onRegistrationClosed;
   }
 
   private tableRoom(tableId: number): string {
     return `${this.roomPrefix}:t${tableId}`;
+  }
+
+  /**
+   * 卓ごとの進行フェーズを1件記録する(停止時に「どの卓のどの段で詰まったか」を特定するための実測値)。
+   * MTTは複数卓が並行して進むため、scope に卓IDまで含める。
+   */
+  private phase(tableId: number, phase: ProgressPhase, detail?: Record<string, unknown>): void {
+    recordPhase(`${this.diagScope}#t${tableId}`, phase, detail);
   }
 
   isFinished(): boolean {
@@ -703,24 +715,42 @@ export class MttSession implements GameSession {
     if (!mtt || this.finished) return;
     const rt = this.runtime(tableId);
     rt.pumpScheduled = false;
+    this.phase(tableId, "nextHandStarting", { attempt });
     if (mtt.isTournamentOver()) {
+      this.phase(tableId, "tournamentFinishing", { from: "pumpTable" });
       void this.finishTournament();
       return;
     }
+    // 以下3つの早期returnは、いずれも「次ハンドが予約されないまま卓が止まる」経路。
+    // 黙って抜けると理由が残らないため、どの条件で抜けたかを必ず記録する。
     if (!mtt.getTableIds().includes(tableId)) {
       // すでに解体された卓。進行状態を破棄して終了。
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "tableBroken" });
       if (rt.turnTimer) clearTimeout(rt.turnTimer);
       this.runtimes.delete(tableId);
       return;
     }
-    if (rt.hand && !rt.hand.isHandComplete()) return; // 既に進行中
-    if (mtt.getTableOccupancy(tableId).length < 2) return; // 2人未満はリバランス/ブレイク待ち
+    if (rt.hand && !rt.hand.isHandComplete()) {
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "handAlreadyRunning" });
+      return; // 既に進行中
+    }
+    const occupancy = mtt.getTableOccupancy(tableId).length;
+    if (occupancy < 2) {
+      // リバランス/ブレイク待ち。これ自体は正常な待機だが、ここで待ち続けたまま復帰しない
+      // ケースの切り分けに必要なので記録は残す。
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "occupancyBelow2", occupancy });
+      return;
+    }
 
     // 万一startNextHandOnTableが失敗しても、その卓だけを再試行(最大5回・2秒間隔)する。
     try {
       rt.hand = mtt.startNextHandOnTable(tableId);
     } catch (err) {
       console.error(`[mtt] pumpTable failed on table ${tableId} (attempt ${attempt}):`, err);
+      this.phase(tableId, "nextHandFailed", {
+        attempt,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
       rt.hand = null;
       if (attempt < 5) {
         this.io.to(this.tableRoom(tableId)).emit("tableNotice", {
@@ -737,6 +767,7 @@ export class MttSession implements GameSession {
       }
       return;
     }
+    this.phase(tableId, "nextHandStarted", { attempt, occupancy });
 
     // ここから先で例外が出ても卓ごと固まらない・プロセスを落とさないよう防御する。
     // (例外はこの卓の再試行として扱い、他卓・他ゲームへの影響を遮断する)
@@ -999,9 +1030,50 @@ export class MttSession implements GameSession {
     const mtt = this.mtt;
     const hand = rt.hand;
     const tableId = rt.tableId;
-    if (!mtt || !hand || !this.dbTournamentId) return;
+    // ここで黙って return すると次ハンドが永久に予約されず、その卓がそのまま固まる。
+    // とくに dbTournamentId が null(=DB書き込み失敗)のケースは、ハンドが終わるたびに必ず
+    // この経路へ落ちるため「毎ハンド固まる」挙動になっていた。記録を残したうえで、
+    // DB記録だけ諦めて進行は続ける。
+    if (!mtt || !hand || !this.dbTournamentId) {
+      this.phase(tableId, "abortedEarlyReturn", {
+        at: "finishHand",
+        hasMtt: Boolean(mtt),
+        hasHand: Boolean(hand),
+        hasDbTournamentId: Boolean(this.dbTournamentId),
+      });
+      if (mtt && hand && !this.dbTournamentId) {
+        this.io.to(this.tableRoom(tableId)).emit("tableNotice", {
+          kind: "retrying",
+          message: "対局記録の保存先が初期化できていないため、記録なしで進行します。",
+        });
+        rt.hand = null;
+        if (rt.turnTimer) {
+          clearTimeout(rt.turnTimer);
+          rt.turnTimer = null;
+        }
+        await this.runExclusive(() => {
+          try {
+            mtt.settleFinishedHandOnTable(tableId, hand, this.busyTableIds(tableId));
+          } catch {
+            /* 清算済みなら無視 */
+          }
+        });
+        if (mtt.isTournamentOver()) {
+          void this.finishTournament();
+          return;
+        }
+        if (mtt.getTableIds().includes(tableId)) {
+          rt.pumpScheduled = true;
+          this.phase(tableId, "nextHandScheduled", { delayMs: NEXT_HAND_DELAY_MS, withoutDb: true });
+          setTimeout(() => this.pumpTable(tableId), NEXT_HAND_DELAY_MS);
+        }
+        this.reconcileTables();
+      }
+      return;
+    }
 
     const tableHadHuman = this.tableHasHuman(tableId);
+    this.phase(tableId, "finishHandEntered", { tableHadHuman });
     // 精算が完了するまでこの卓はbusy扱いを維持する(rt.handを先にnullへ落とすため、settlingフラグで守る)。
     // これが無いと、並行する他卓の精算・ボット補充のリバランスがこの卓を解体し、
     // 精算が Unknown table で失敗してハンド結果(スタック・バスト)が破棄される。
@@ -1016,7 +1088,12 @@ export class MttSession implements GameSession {
     // (ここが飛ぶと、ショウダウン直後にその卓が永久に固まる)。
     try {
       await this.finishHandInner(mtt, hand, tableId, tableHadHuman);
+      this.phase(tableId, "finishHandInnerDone");
     } catch (err) {
+      this.phase(tableId, "finishHandInnerDone", {
+        failed: true,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
       // 再発時の原因切り分け用に、失敗したハンドの盤面・各席の状態/拠出・ポット内訳を構造化出力する。
       console.error(
         "[mtt] finishHand failed (proceeding):",
@@ -1052,6 +1129,7 @@ export class MttSession implements GameSession {
     this.pruneRuntimes();
 
     if (mtt.isTournamentOver()) {
+      this.phase(tableId, "tournamentFinishing", { reason: "tournamentOver" });
       void this.finishTournament();
       return;
     }
@@ -1061,6 +1139,7 @@ export class MttSession implements GameSession {
     // 人間の着順は離脱・バスト時点で確定済みなので、残りはその場で着順を決めて即終了する。
     const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
     if (!anyoneActive) {
+      this.phase(tableId, "tournamentFinishing", { reason: "noHumansActive" });
       void this.finishTournament();
       return;
     }
@@ -1083,7 +1162,11 @@ export class MttSession implements GameSession {
     const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : this.botTableHandIntervalMs();
     if (this.mtt?.getTableIds().includes(tableId)) {
       rt.pumpScheduled = true;
+      this.phase(tableId, "nextHandScheduled", { delayMs: delay, tableHadHuman });
       setTimeout(() => this.pumpTable(tableId), delay);
+    } else {
+      // 卓が解体された。人間はリバランスで別卓へ移るので、移動が起きなければここが最終フェーズになる。
+      this.phase(tableId, "abortedEarlyReturn", { at: "finishHand:schedule", reason: "tableBroken" });
     }
     this.reconcileTables();
   }
@@ -1118,7 +1201,14 @@ export class MttSession implements GameSession {
     this.recordQueue = this.recordQueue
       .then(() => recordHand(input))
       .then(() => undefined)
-      .catch((err) => console.error("[mtt] recordHand failed:", err));
+      .catch((err) => {
+        console.error("[mtt] recordHand failed:", err);
+        // 進行は止めないが、プール枯渇(P2024)や接続不可(P1001)の決定的な証拠になるので残す。
+        recordPhase(this.diagScope, "recordHandSkipped", {
+          reason: "saveFailed",
+          error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+        });
+      });
   }
 
   private async finishHandInner(
@@ -1156,6 +1246,9 @@ export class MttSession implements GameSession {
         })),
         hand,
       });
+      this.phase(tableId, "recordHandQueued", { handNumber: started.handNumber });
+    } else {
+      this.phase(tableId, "recordHandSkipped", { hasStartedEvent: Boolean(started), handHadHuman });
     }
 
     if (tableHadHuman) {
@@ -1168,6 +1261,7 @@ export class MttSession implements GameSession {
         holeCards: revealedHoleCards,
         remainingPlayers: mtt.totalRemainingPlayers(),
       });
+      this.phase(tableId, "handEndedEmitted");
     }
 
     // --- エンジンの座席変更(精算・テーブルバランス・強制敗退)は排他区間で直列化する。
@@ -1197,12 +1291,17 @@ export class MttSession implements GameSession {
       }
       return { bustedPlayerIds, forced, bustedBots };
     });
+    this.phase(tableId, "settled", { busted: critical.bustedPlayerIds.length, forced: critical.forced.length });
 
     // バストした人間(通常バスト＋強制敗退)の結果確定は排他区間の外で(DB書き込み・通知)。
     for (const playerId of [...critical.bustedPlayerIds, ...critical.forced]) {
       const human = this.humans.get(playerId);
       if (human && !human.done) {
+        // ここは進行の中でDBの完了を待つ箇所。プールが枯渇していると pool_timeout まで待たされ、
+        // そのまま「次のハンドが来ない」として観測される。所要時間を必ず残す。
+        const startedAt = Date.now();
         await this.recordHumanFinish(human).catch((err) => console.error("[mtt] recordHumanFinish failed:", err));
+        this.phase(tableId, "humanFinishRecorded", { tookMs: Date.now() - startedAt });
       }
     }
 
@@ -1301,6 +1400,9 @@ export class MttSession implements GameSession {
     const mtt = this.mtt;
     if (!mtt || !this.dbTournamentId || this.finished) return;
     this.finished = true;
+    recordPhase(this.diagScope, "sessionFinished", { tournamentOver: mtt.isTournamentOver() });
+    for (const tid of this.runtimes.keys()) forgetPhaseScope(`${this.diagScope}#t${tid}`);
+    forgetPhaseScope(this.diagScope);
     for (const rt of this.runtimes.values()) {
       if (rt.turnTimer) clearTimeout(rt.turnTimer);
       rt.turnTimer = null;

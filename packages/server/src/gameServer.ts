@@ -5,6 +5,7 @@ import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, SNG_PAYOUTS
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
+import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
 
 const NEXT_HAND_DELAY_MS = 3500;
 /**
@@ -398,6 +399,8 @@ export class TableSession implements GameSession {
   private readonly configHumans: HumanPlayer[];
   private readonly io: Server;
   private readonly roomId = `table:${randomUUID()}`;
+  /** 進行フェーズ記録上のこのセッションの識別子(/api/diagnostics で卓を追うためのキー)。 */
+  private readonly diagScope = `sng:${this.roomId.slice(6, 14)}`;
 
   constructor(config: TableSessionConfig) {
     this.io = config.io;
@@ -432,6 +435,11 @@ export class TableSession implements GameSession {
     if (this.finished) return true;
     const h = [...this.humansBySeat.values()].find((x) => x.userId === userId);
     return h ? h.done || h.left : true;
+  }
+
+  /** 進行フェーズを1件記録する(停止時に「どの段で詰まったか」を特定するための実測値)。 */
+  private phase(phase: ProgressPhase, detail?: Record<string, unknown>): void {
+    recordPhase(this.diagScope, phase, detail);
   }
 
   private allHumansDone(): boolean {
@@ -629,8 +637,17 @@ export class TableSession implements GameSession {
    * 初回失敗時は「直前ハンドの清算が未了のまま残っている」ケースに備えて清算を一度だけ再試行する。
    */
   private beginNextHand(attempt = 0): void {
-    if (!this.tournament || this.finished) return;
+    if (!this.tournament || this.finished) {
+      this.phase("abortedEarlyReturn", {
+        at: "beginNextHand",
+        hasTournament: Boolean(this.tournament),
+        finished: this.finished,
+      });
+      return;
+    }
+    this.phase("nextHandStarting", { attempt });
     if (this.tournament.isTournamentOver()) {
+      this.phase("tournamentFinishing", { from: "beginNextHand" });
       void this.finishTournament();
       return;
     }
@@ -638,6 +655,10 @@ export class TableSession implements GameSession {
       this.hand = this.tournament.startNextHand();
     } catch (err) {
       console.error(`[sng] beginNextHand failed (attempt ${attempt}):`, err);
+      this.phase("nextHandFailed", {
+        attempt,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
       if (attempt === 0) {
         try {
           this.tournament.settleFinishedHand();
@@ -659,6 +680,7 @@ export class TableSession implements GameSession {
       }
       return;
     }
+    this.phase("nextHandStarted", { attempt });
     this.showRequests.clear();
     this.broadcastState();
     this.broadcastTournamentInfo();
@@ -874,13 +896,53 @@ export class TableSession implements GameSession {
   private async finishHand(): Promise<void> {
     const hand = this.hand;
     const tournament = this.tournament;
-    if (!hand || !tournament || !this.dbTournamentId) return;
+    // ここで黙って return すると次ハンドが永久に予約されず、卓がそのまま固まる。
+    // とくに dbTournamentId が null(=start()中のDB書き込みが失敗)のケースは、
+    // ハンドが終わるたびに必ずこの経路へ落ちるため「毎ハンド固まる」挙動になっていた。
+    // 記録を残したうえで、DB記録だけ諦めて進行は続ける。
+    if (!hand || !tournament || !this.dbTournamentId) {
+      this.phase("abortedEarlyReturn", {
+        at: "finishHand",
+        hasHand: Boolean(hand),
+        hasTournament: Boolean(tournament),
+        hasDbTournamentId: Boolean(this.dbTournamentId),
+      });
+      if (hand && tournament && !this.dbTournamentId) {
+        this.io.to(this.roomId).emit("tableNotice", {
+          kind: "retrying",
+          message: "対局記録の保存先が初期化できていないため、記録なしで進行します。",
+        });
+        try {
+          tournament.settleFinishedHand();
+        } catch {
+          /* 清算済みなら無視 */
+        }
+        this.io.to(this.roomId).emit("handEnded", {
+          result: this.serializeResult(hand),
+          holeCards: {},
+        });
+        if (tournament.isTournamentOver()) {
+          void this.finishTournament();
+          return;
+        }
+        this.phase("nextHandScheduled", { delayMs: NEXT_HAND_DELAY_MS, withoutDb: true });
+        setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+      }
+      return;
+    }
+
+    this.phase("finishHandEntered");
 
     // このメソッドの途中で何が失敗しても、末尾の「次のハンドをスケジュールする」処理には
     // 必ず到達させる(ここが飛ぶと、ショウダウン直後に卓が永久に固まる)。
     try {
       await this.finishHandInner(hand, tournament);
+      this.phase("finishHandInnerDone");
     } catch (err) {
+      this.phase("finishHandInnerDone", {
+        failed: true,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
       // 再発時に原因を追えるよう、失敗したハンドの盤面・各席の拠出/状態/スタック・ポット内訳を出力する。
       console.error(
         "[sng] finishHand failed (proceeding to next hand):",
@@ -907,6 +969,7 @@ export class TableSession implements GameSession {
     }
 
     if (tournament.isTournamentOver()) {
+      this.phase("tournamentFinishing", { reason: "tournamentOver" });
       void this.finishTournament();
       return;
     }
@@ -915,10 +978,12 @@ export class TableSession implements GameSession {
     // 延々と生成し続け、CPUとDB接続を空回りで食い潰していた(卓が増えるほど悪化する)。
     // 人間の着順は離脱・バスト時点で確定済みなので、残りはその場で着順を決めて即終了する。
     if (this.allHumansDone()) {
+      this.phase("tournamentFinishing", { reason: "allHumansDone" });
       void this.finishTournament();
       return;
     }
 
+    this.phase("nextHandScheduled", { delayMs: NEXT_HAND_DELAY_MS });
     setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
   }
 
@@ -927,7 +992,14 @@ export class TableSession implements GameSession {
     this.recordQueue = this.recordQueue
       .then(() => recordHand(input))
       .then(() => undefined)
-      .catch((err) => console.error("[sng] recordHand failed:", err));
+      .catch((err) => {
+        console.error("[sng] recordHand failed:", err);
+        // 進行は止めないが、プール枯渇(P2024)や接続不可(P1001)の決定的な証拠になるので残す。
+        this.phase("recordHandSkipped", {
+          reason: "saveFailed",
+          error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+        });
+      });
   }
 
   private async finishHandInner(hand: HandEngine, tournament: Tournament): Promise<void> {
@@ -967,6 +1039,9 @@ export class TableSession implements GameSession {
           })),
         hand,
       });
+      this.phase("recordHandQueued", { handNumber: started.handNumber });
+    } else {
+      this.phase("recordHandSkipped", { hasStartedEvent: Boolean(started), handHadHuman });
     }
 
     // 公開義務のある席 + 自主公開(ショウ)を選んだ席をクライアントへ公開する(それ以外はマック)
@@ -977,10 +1052,12 @@ export class TableSession implements GameSession {
     this.showRequests.clear();
 
     tournament.settleFinishedHand();
+    this.phase("settled");
     this.io.to(this.roomId).emit("handEnded", {
       result: this.serializeResult(hand),
       holeCards: revealedHoleCards,
     });
+    this.phase("handEndedEmitted");
     this.maybeBotHandEndChat(hand);
 
     // このハンドでバストした人間の着順・賞金を確定して個別に通知する。
@@ -989,9 +1066,13 @@ export class TableSession implements GameSession {
     for (const [seatIndex, human] of this.humansBySeat) {
       const seat = tournament.getSeats().find((s) => s.seatIndex === seatIndex);
       if (!human.done && seat && seat.bustedAtHand !== null) {
+        // ここは進行の中でDBの完了を待つ唯一の箇所。プールが枯渇していると pool_timeout まで
+        // 待たされ、そのまま「次のハンドが来ない」として観測される。所要時間を必ず残す。
+        const startedAt = Date.now();
         await this.recordHumanFinish(seatIndex, human).catch((err) =>
           console.error("[sng] recordHumanFinish failed:", err),
         );
+        this.phase("humanFinishRecorded", { seatIndex, tookMs: Date.now() - startedAt });
       }
     }
   }
@@ -1041,6 +1122,8 @@ export class TableSession implements GameSession {
     const tournament = this.tournament;
     if (!tournament || !this.dbTournamentId || this.finished) return;
     this.finished = true;
+    this.phase("sessionFinished");
+    forgetPhaseScope(this.diagScope);
     if (this.turnTimer) clearTimeout(this.turnTimer);
 
     for (const [seatIndex, human] of this.humansBySeat) {
