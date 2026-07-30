@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, type PublicHandState } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS } from "@meta-geo/db";
+import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS, invalidateRankedEntries } from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
@@ -949,6 +949,9 @@ export class TableSession implements GameSession {
       if (payout > 0) {
         await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
       }
+      // 着順が確定したので、偏差値/リーダーボードの共有キャッシュを破棄する。
+      // 結果画面が偏差値と全国順位の増減を出すため、ここは必ず最新値にする必要がある。
+      invalidateRankedEntries();
     } catch (err) {
       console.error("[sng] recordHumanFinish db write failed:", err);
     }
