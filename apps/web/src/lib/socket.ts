@@ -182,6 +182,12 @@ export interface SocketDiag {
   resyncCount: number;
   /** 直近に送信したアクションの追跡記録 */
   lastAction: ActionDiag | null;
+  /**
+   * 直近のnoActiveGame(進行中の卓なし応答)の理由コードと連続回数。
+   * NO_SESSION/SESSION_FINISHED/USER_DONE=確定的に卓なし。
+   * AUTH_FAILED/RESUME_ERROR=一時的失敗(表示は抑制し自動リトライ)。
+   */
+  lastNoActiveGame: { reason: string; at: number; count: number } | null;
 }
 
 export interface PokerSocketState {
@@ -343,6 +349,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     reconnectAttempts: 0,
     resyncCount: 0,
     lastAction: null,
+    lastNoActiveGame: null,
   });
   // sendAction(useEffect外)からforceResync(useEffect内)を呼ぶための橋渡し。
   const forceResyncRef = useRef<((opts?: { immediate?: boolean }) => void) | null>(null);
@@ -509,7 +516,21 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       setData((d) => ({ ...d, connected: false }));
     });
     // 進行中の卓が見つからない場合でも、絶対にホームへ強制退出させない(再接続で自動復帰を待つ)。
-    socket.on("noActiveGame", () => setData((d) => ({ ...d, gameGone: true })));
+    // サーバーは理由コードを添えて返す。認証の一時失敗(AUTH_FAILED: バックグラウンド復帰直後の
+    // トークン期限切れ等)やサーバー内部エラー(RESUME_ERROR)は自動リトライで直ることが多く、
+    // 卓が生きているのに「卓が見つかりません」を誤表示していたため、確定的に卓が無い理由
+    // (NO_SESSION/SESSION_FINISHED/USER_DONE)のときだけ即表示する。一時的失敗も4回連続したら
+    // 打ち切って表示する(本当にログアウト済み等で永久に復帰できないケースの案内のため)。
+    socket.on("noActiveGame", (payload?: { reason?: string }) => {
+      const reason = payload?.reason ?? "UNKNOWN";
+      const dg = diagRef.current;
+      const prev = dg.lastNoActiveGame;
+      const count = prev && prev.reason === reason ? prev.count + 1 : 1;
+      dg.lastNoActiveGame = { reason, at: Date.now(), count };
+      const transient = reason === "AUTH_FAILED" || reason === "RESUME_ERROR";
+      const showNow = !transient || count >= 4;
+      setData((d) => ({ ...d, gameGone: showNow ? true : d.gameGone, diag: { ...dg } }));
+    });
     socket.on("joinGameError", (payload: { message: string }) =>
       setData((d) => ({ ...d, joinError: payload.message })),
     );
@@ -534,6 +555,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         // handEndedより前に届く)ため、ここで常に解除しても handEnded 側の15秒監視は妨げない。
         clearStallWatch();
         diagRef.current.stallReason = null;
+        // 卓へ戻れた=「卓なし」応答の連続カウントもリセットする。
+        diagRef.current.lastNoActiveGame = null;
         return {
           ...d,
           state,

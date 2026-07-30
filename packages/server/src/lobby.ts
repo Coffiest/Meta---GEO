@@ -57,10 +57,12 @@ export class Lobby {
     // 再接続(回線断・アプリ復帰・サーバー再起動)からの復帰。既存の進行中セッションへ戻すだけで、
     // 絶対に新しいゲームを作らない。これがないと、再接続時のjoinGameが新しいSNG卓を立ててしまい、
     // 「プレイ中に突然メンバーが変わる/スタックが100BBに戻る」という不具合になる。
+    // noActiveGame には必ず理由コードを添える。クライアントは一時的な失敗(認証再検証・内部エラー)
+    // では「卓が見つかりません」を出さず、確定的に卓が無いときだけ表示する。
     socket.on("resumeGame", () => {
       this.handleResumeGame(socket).catch((err) => {
         console.error(`[lobby] resumeGame failed for ${socket.id}:`, err);
-        socket.emit("noActiveGame");
+        socket.emit("noActiveGame", { reason: "RESUME_ERROR" });
       });
     });
 
@@ -139,11 +141,27 @@ export class Lobby {
   /**
    * 再接続からの復帰。進行中の自分のセッションがあればそこへ戻すだけで、無ければ「進行中ゲーム無し」を
    * 返してロビーへ戻す。新しいゲームは絶対に作らない(joinGameとの決定的な違い)。
+   *
+   * 重要: このソケットで既にユーザー解決済み(socket.data.userIdあり)なら、トークンの再検証を
+   * せずに即復帰させる。バックグラウンド復帰直後はアクセストークンが期限切れのことがあり、
+   * 復帰のたびに再検証すると「卓は生きているのに認証失敗→卓なし誤表示」が毎回発生していた。
+   * 接続確立時に一度認証したソケットを、進行中ゲームへ戻すのに再認証は不要。
    */
   private async handleResumeGame(socket: Socket): Promise<void> {
+    const cachedUserId = socket.data["userId"] as string | undefined;
+    if (cachedUserId) {
+      const cachedSession = this.activeSessions.get(cachedUserId);
+      if (cachedSession && !cachedSession.isFinished() && !cachedSession.isUserDone(cachedUserId)) {
+        cachedSession.attachHuman(socket, cachedUserId);
+        return;
+      }
+    }
+
     const resolved = await this.resolveUser(socket);
     if (!resolved) {
-      socket.emit("noActiveGame");
+      // 認証の一時失敗(期限切れトークン等)。卓が無いとは限らないため、クライアントは
+      // このコードでは「卓が見つかりません」を出さず、トークン更新後の自動再接続を待つ。
+      socket.emit("noActiveGame", { reason: "AUTH_FAILED" });
       return;
     }
     socket.data["userId"] = resolved.userId;
@@ -154,13 +172,15 @@ export class Lobby {
       return;
     }
     // 進行中の卓が無い(=サーバー再起動などでセッションが失われた/既に終了)。新規は作らずロビーへ。
-    // 「卓が消えた」原因を後から追えるよう、セッションの有無/終了/本人完了の別を記録する。
+    // 「卓が消えた」原因を後から追えるよう、セッションの有無/終了/本人完了の別を記録し、
+    // クライアントにも理由コードとして返す(診断オーバーレイに表示される)。
+    const reason = !existing ? "NO_SESSION" : existing.isFinished() ? "SESSION_FINISHED" : "USER_DONE";
     console.warn(
-      `[lobby] noActiveGame for user=${resolved.userId}:`,
+      `[lobby] noActiveGame for user=${resolved.userId} (${reason}):`,
       existing
         ? `session exists (finished=${existing.isFinished()}, userDone=${existing.isUserDone(resolved.userId)})`
         : "no session in memory (server restart or never joined)",
     );
-    socket.emit("noActiveGame");
+    socket.emit("noActiveGame", { reason });
   }
 }

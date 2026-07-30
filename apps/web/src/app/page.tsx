@@ -63,6 +63,19 @@ function diagAgo(ts: number | null, now: number): string {
 }
 
 /**
+ * noActiveGame(進行中の卓なし応答)の理由コード→ユーザー向け説明。
+ * どの分岐で「卓なし」と判定されたかをスクリーンショットから特定できるようにする。
+ */
+const GAME_GONE_INFO: Record<string, string> = {
+  NO_SESSION: "サーバーにあなたの進行中セッションの記録がありません。サーバーの再起動でセッションが失われたか、ゲームが既に片付けられています。",
+  SESSION_FINISHED: "このゲームはサーバー上で終了済みです。結果はホームでご確認ください。",
+  USER_DONE: "このゲームでのあなたの成績は既に確定しています(バストまたは離脱済み)。",
+  AUTH_FAILED: "ログイン情報の再検証に失敗し続けています(トークン期限切れの可能性)。自動で更新を待っていますが、戻らない場合は一度ログインし直してください。",
+  RESUME_ERROR: "復帰処理でサーバー内部エラーが発生しています。自動で再試行しています。",
+  UNKNOWN: "このゲームはすでに終了しているか、サーバーの再起動でセッションが失われました。",
+};
+
+/**
  * 停止オーバーレイの通信診断詳細。原因コード・接続状態・各種イベントの最終受信時刻・
  * 直近アクションのACK状況を等幅で列挙し、スクリーンショット1枚で原因を切り分けられるようにする。
  */
@@ -759,12 +772,26 @@ function GameScreen({
                 <path d="M12 8v4.5" />
                 <path d="M12 16h.01" />
               </svg>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-black text-ink-950">進行中の卓が見つかりません</p>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
-                  このゲームはすでに終了しているか、サーバーの再起動でセッションが失われました。
+                  {GAME_GONE_INFO[diag?.lastNoActiveGame?.reason ?? "UNKNOWN"] ?? GAME_GONE_INFO["UNKNOWN"]}{" "}
                   自動での復帰は続けていますが、戻らない場合はホームから新しいゲームに参加してください。
                 </p>
+                {/* 原因特定用の診断行: 理由コード・連続回数・最終盤面受信からの経過。 */}
+                {diag && (
+                  <div className="mt-2 rounded-lg bg-ink-950/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-500">
+                    <div>
+                      コード {diag.lastNoActiveGame?.reason ?? "-"}
+                      {diag.lastNoActiveGame ? `(${diag.lastNoActiveGame.count}回)` : ""} / 接続{" "}
+                      {connected ? "中" : `断(${diag.disconnectReason ?? "?"})`}
+                    </div>
+                    <div>
+                      盤面 {diagAgo(diag.lastStateAt, Date.now())} / 受信 {diagAgo(diag.lastEventAt, Date.now())} / 再同期{" "}
+                      {diag.resyncCount}回
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={onExit}
