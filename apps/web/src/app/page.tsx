@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
-import { useProfile, saveProfile } from "@/lib/profile";
+import { useProfile, saveProfile, getLastProfileFailure } from "@/lib/profile";
 import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Onboarding } from "@/components/Onboarding";
@@ -734,8 +735,41 @@ function GameScreen({
   );
 }
 
-function LoadingScreen() {
-  return <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm">読み込み中…</div>;
+/**
+ * 読み込み中の表示。何秒待っているのかを必ず出す —— 「読み込み中…」だけでは
+ * 進んでいるのか固まっているのかが利用者にもこちらにも分からず、原因調査ができない。
+ * 長引いたときは診断ページへの導線も出す。
+ */
+function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const slow = seconds >= 5;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-ink-50 px-6 text-center">
+      <div className="flex items-center gap-2 text-ink-700">
+        <span className="h-4 w-4 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+        <span className="text-sm">
+          {what}… <span className="tabular-nums text-ink-500">{seconds}秒</span>
+        </span>
+      </div>
+      {slow && (
+        <>
+          <p className="max-w-xs text-[12px] leading-relaxed text-ink-500">
+            通常より時間がかかっています。サーバーが混み合っているか、応答が遅れています。
+          </p>
+          <Link
+            href="/diagnostics"
+            className="rounded-xl border border-ink-950 bg-white px-4 py-2 text-[12px] font-black text-ink-950"
+          >
+            原因を診断する
+          </Link>
+        </>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -775,6 +809,8 @@ export default function Page() {
   const auth = useAuth();
   const accessToken = auth.session?.access_token;
   const { profile, loading: profileLoading, reload } = useProfile(accessToken);
+  // プロフィール取得が失敗した具体的な理由(HTTPステータス/タイムアウト/接続不能)。
+  const profileFailure = !profileLoading && !profile ? getLastProfileFailure() : null;
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -886,11 +922,23 @@ export default function Page() {
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6 text-center">
         <p className="text-sm text-ink-800">{t("app.profileFetchFailed")}</p>
-        <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5">
-          {t("app.retry")}
-        </button>
+        {/* 失敗の具体的な理由をそのまま出す。原因が分からないままの再試行を避けるため。 */}
+        {profileFailure && (
+          <div className="w-full max-w-sm rounded-2xl border border-crimson-500 bg-crimson-500/10 p-3.5 text-left">
+            <p className="break-words text-[12px] leading-relaxed text-ink-800">{profileFailure.message}</p>
+            <p className="mt-1 text-[11px] tabular-nums text-ink-500">応答待ち {profileFailure.durationMs} ms</p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <button onClick={() => void reload()} className="rounded-xl bg-ink-950 text-white text-sm font-black px-6 py-2.5">
+            {t("app.retry")}
+          </button>
+          <Link href="/diagnostics" className="rounded-xl border border-ink-950 bg-white px-4 py-2.5 text-sm font-black text-ink-950">
+            原因を診断する
+          </Link>
+        </div>
       </div>
     );
   }
