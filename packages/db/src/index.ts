@@ -3,6 +3,7 @@ export * from "./recordHand.js";
 export * from "./bankroll.js";
 export * from "./geoTree.js";
 export * from "./rrRating.js";
+export * from "./rankedEntries.js";
 export * from "./playerNotes.js";
 export * from "./referral.js";
 export * from "./badges.js";

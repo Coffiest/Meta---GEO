@@ -1,5 +1,6 @@
 import { prisma } from "./client.js";
 import { RR_RATING_SHRINKAGE_K } from "./rrRating.js";
+import { getRankedEntries } from "./rankedEntries.js";
 
 /**
  * ロビーの「リーダーボード」。4指標(収支/ROI/トナメ偏差値/インマネ率)× 3期間
@@ -96,27 +97,17 @@ function buildRanking(perUser: { user: UserAgg; entries: Entry[] }[]): Leaderboa
 }
 
 export async function getLeaderboards(): Promise<Leaderboards> {
-  const rows = await prisma.tournamentEntry.findMany({
-    where: { finishPosition: { not: null }, user: { isBot: false } },
-    select: {
-      payout: true,
-      tournament: { select: { buyIn: true, finishedAt: true, createdAt: true } },
-      user: { select: { id: true, displayName: true, avatarKey: true } },
-    },
-  });
+  // 偏差値カードと同じ全体集計データを共有キャッシュから受け取る(全件フェッチの二重取りをやめる)。
+  const rows = await getRankedEntries();
 
   const byUser = new Map<string, UserAgg>();
   for (const r of rows) {
-    let agg = byUser.get(r.user.id);
+    let agg = byUser.get(r.userId);
     if (!agg) {
-      agg = { userId: r.user.id, displayName: r.user.displayName, avatarKey: r.user.avatarKey, entries: [] };
-      byUser.set(r.user.id, agg);
+      agg = { userId: r.userId, displayName: r.displayName, avatarKey: r.avatarKey, entries: [] };
+      byUser.set(r.userId, agg);
     }
-    agg.entries.push({
-      buyIn: r.tournament.buyIn,
-      payout: r.payout,
-      finishedAt: (r.tournament.finishedAt ?? r.tournament.createdAt).getTime(),
-    });
+    agg.entries.push({ buyIn: r.buyIn, payout: r.payout, finishedAt: r.finishedAtMs });
   }
 
   const users = [...byUser.values()];

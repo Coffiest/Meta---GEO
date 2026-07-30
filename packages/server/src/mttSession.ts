@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, MultiTableTournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, computeMttPrizeStructure, type PayoutPlace } from "@meta-geo/db";
+import {
+  prisma,
+  recordHand,
+  recordBuyIn,
+  recordPayout,
+  computeMttPrizeStructure,
+  invalidateRankedEntries,
+  type PayoutPlace,
+} from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import {
   ACTION_CLOCK_MS,
@@ -1163,6 +1171,9 @@ export class MttSession implements GameSession {
       if (payout > 0) {
         await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
       }
+      // 着順が確定したので偏差値/リーダーボードの共有キャッシュを破棄する
+      // (結果画面が偏差値と全国順位の増減を出すため、ここは必ず最新値にする)。
+      invalidateRankedEntries();
     } catch (err) {
       console.error("[mtt] recordHumanFinish db write failed:", err);
     }

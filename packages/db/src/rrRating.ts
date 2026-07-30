@@ -1,4 +1,5 @@
 import { prisma } from "./client.js";
+import { getRankedEntries } from "./rankedEntries.js";
 
 /**
  * 「トナメ偏差値」(RRRating)。RRPokerの `app/home/store/PrizeDistributeModal.tsx` にある
@@ -75,26 +76,21 @@ export interface RRRatingEntry {
 
 /** 全実プレイヤーのトナメ偏差値を、偏差値の高い順に並べて返す。 */
 export async function computeRRRatings(): Promise<RRRatingEntry[]> {
-  const entries = await prisma.tournamentEntry.findMany({
-    where: { finishPosition: { not: null }, user: { isBot: false } },
-    select: {
-      payout: true,
-      tournament: { select: { buyIn: true } },
-      user: { select: { id: true, displayName: true, avatarKey: true } },
-    },
-  });
+  // 偏差値・リーダーボード・バッジ図鑑が同じ全体集計を要求するため、取得は共有キャッシュに任せる
+  // (ホーム表示のたびにTournamentEntryを全件フェッチしていたのが、体感の重さの主因だった)。
+  const entries = await getRankedEntries();
 
   const byUser = new Map<
     string,
     { userId: string; displayName: string; avatarKey: string | null; totalBuyIns: number; totalPayouts: number; plays: number }
   >();
   for (const e of entries) {
-    let row = byUser.get(e.user.id);
+    let row = byUser.get(e.userId);
     if (!row) {
-      row = { userId: e.user.id, displayName: e.user.displayName, avatarKey: e.user.avatarKey, totalBuyIns: 0, totalPayouts: 0, plays: 0 };
-      byUser.set(e.user.id, row);
+      row = { userId: e.userId, displayName: e.displayName, avatarKey: e.avatarKey, totalBuyIns: 0, totalPayouts: 0, plays: 0 };
+      byUser.set(e.userId, row);
     }
-    row.totalBuyIns += e.tournament.buyIn;
+    row.totalBuyIns += e.buyIn;
     row.totalPayouts += e.payout;
     row.plays += 1;
   }
