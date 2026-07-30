@@ -242,7 +242,6 @@ export function playersFromTimeline(timeline: ReviewHandTimeline): Record<number
       userId: s.userId,
       displayName: s.displayName,
       avatarKey: s.avatarKey,
-      isBot: false,
       away: false,
     };
   }

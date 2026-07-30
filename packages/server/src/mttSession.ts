@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import { HandEngine, MultiTableTournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
+import { HandEngine, MultiTableTournament, STARTING_STACK, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
 import {
   prisma,
   recordHand,
@@ -33,12 +33,19 @@ const NEXT_HAND_DELAY_MS = 3000;
 /** 人間が離脱した席の自動フォールドなど、進行中のハンドを手早く畳むためだけの短いディレイ。 */
 const FAST_DELAY_MS = 20;
 /**
- * 人間が誰も座っていない卓の、次ハンドまでの間隔。
- * この卓のハンドは driveInstantHand で同期的に一気に消化されるため、以前の FAST_DELAY_MS(20ms)では
- * 「1卓あたり毎秒50ハンド」を延々と生成し続け、卓数に比例してCPUとDB接続を食い潰していた。
- * 人間卓より速く回してフィールドを進める必要はあるが、最低でも1.5秒は空ける。
+ * 人間が誰も座っていない卓(=driveInstantHandで一気に消化される卓)の、次ハンドまでの基準間隔。
+ *
+ * ここが短すぎると「人間が数ハンド打つ間に、他卓だけ100ハンド以上進んでフィールドが溶ける」
+ * という現象が起きる(レベル1でいきなり半分が飛ぶ・アベレージスタックだけ跳ね上がる、の原因)。
+ * 実測の人間卓テンポ(humanHandIntervalMs)に合わせるのが基本で、この値は人間卓のハンドが
+ * まだ1回も完了していない開始直後に使う初期値。
  */
-const BOT_TABLE_NEXT_HAND_MS = 1500;
+const BOT_TABLE_BASE_HAND_MS = 18_000;
+/** ボット卓の間隔の下限/上限(人間卓テンポの実測値をこの範囲に丸める)。 */
+const BOT_TABLE_MIN_HAND_MS = 8_000;
+const BOT_TABLE_MAX_HAND_MS = 60_000;
+/** tournamentInfo(生存者数・アベレージ・ライブ順位)の最小配信間隔。連打すると端末が発熱する。 */
+const TOURNAMENT_INFO_MIN_INTERVAL_MS = 2_000;
 export const MTT_MIN_PLAYERS_TO_START = 4;
 export const MTT_TABLE_SEAT_COUNT = 6;
 export const MTT_BUY_IN = 2000;
@@ -137,6 +144,21 @@ export class MttSession implements GameSession {
   private registrationClosed = false;
   private finished = false;
   private entryCount = 0;
+  /**
+   * 人間卓の実測ハンド間隔(EWMA)。ボットだけの卓もこのテンポに揃えることで、
+   * 「自分が1ハンド打つ間に他卓が何十ハンドも進んでフィールドが溶ける」のを防ぐ。
+   */
+  private humanHandIntervalMs = BOT_TABLE_BASE_HAND_MS;
+  /** 直近で人間卓のハンドが完了した時刻(EWMAの差分計算用)。 */
+  private lastHumanHandFinishedAt: number | null = null;
+  /** tournamentInfoの最終配信時刻と、間隔内に来た配信要求をまとめる予約。 */
+  private lastTournamentInfoAt = 0;
+  private tournamentInfoTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 「チップを破棄して離脱」で場から消えたチップの累計。チップ保存則の検算で、
+   * 正当な減少分として期待値から差し引くために持つ。
+   */
+  private forfeitedChips = 0;
   private prizeStructure: PayoutPlace[] = [];
   private bustedOrder: string[] = [];
   /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
@@ -533,6 +555,7 @@ export class MttSession implements GameSession {
       this.pendingForcedEliminations.add(userId);
     } else {
       void this.runExclusive(() => {
+        this.noteForfeitedChips(userId);
         this.mtt?.forceEliminate(userId, this.busyTableIds());
       }).then(() => {
         if (!this.bustedOrder.includes(userId)) this.bustedOrder.push(userId);
@@ -1002,14 +1025,52 @@ export class MttSession implements GameSession {
       return;
     }
 
+    // 人間卓のテンポを実測しておく(ボット卓の間隔をこれに合わせる)。
+    if (tableHadHuman) {
+      const now = Date.now();
+      if (this.lastHumanHandFinishedAt !== null) {
+        const observed = now - this.lastHumanHandFinishedAt;
+        if (observed > 0) {
+          const clamped = Math.min(BOT_TABLE_MAX_HAND_MS, Math.max(BOT_TABLE_MIN_HAND_MS, observed));
+          this.humanHandIntervalMs = Math.round(this.humanHandIntervalMs * 0.7 + clamped * 0.3);
+        }
+      }
+      this.lastHumanHandFinishedAt = now;
+    }
+
     // この卓の次ハンドを予約しつつ、リバランスで人が入った他の待機卓も起動する。
-    // 人間不在の卓(=同期的に一気消化される卓)も、最低 BOT_TABLE_NEXT_HAND_MS は間隔を空ける。
-    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : BOT_TABLE_NEXT_HAND_MS;
+    // 人間不在の卓(=同期的に一気消化される卓)は、人間卓と同じテンポまで意図的に落とす。
+    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : this.botTableHandIntervalMs();
     if (this.mtt?.getTableIds().includes(tableId)) {
       rt.pumpScheduled = true;
       setTimeout(() => this.pumpTable(tableId), delay);
     }
     this.reconcileTables();
+  }
+
+  /**
+   * チップを破棄して離脱する席のスタックを「場から消えたチップ」として記録する。
+   * forceEliminate を呼ぶ **前** に呼ぶこと(呼んだ後では座席が消えてスタックが読めない)。
+   */
+  private noteForfeitedChips(playerId: string): void {
+    const mtt = this.mtt;
+    if (!mtt) return;
+    for (const tid of mtt.getTableIds()) {
+      for (const o of mtt.getTableOccupancy(tid)) {
+        if (o.playerId === playerId) {
+          this.forfeitedChips += o.stack;
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * ボットだけの卓の次ハンドまでの間隔。人間卓の実測テンポに合わせ、下限/上限で丸める。
+   * これによりフィールドの減り方が「自分が体感しているハンド数」と釣り合う。
+   */
+  private botTableHandIntervalMs(): number {
+    return Math.min(BOT_TABLE_MAX_HAND_MS, Math.max(BOT_TABLE_MIN_HAND_MS, this.humanHandIntervalMs));
   }
 
   /** ハンド履歴の保存を直列キューへ積む(進行はこの完了を待たない)。 */
@@ -1084,6 +1145,7 @@ export class MttSession implements GameSession {
         if (!human || human.currentTableId !== tableId) continue;
         this.pendingForcedEliminations.delete(playerId);
         if (human.done) continue;
+        this.noteForfeitedChips(playerId);
         mtt.forceEliminate(playerId, this.busyTableIds(tableId));
         if (!this.bustedOrder.includes(playerId)) this.bustedOrder.push(playerId);
         forced.push(playerId);
@@ -1276,21 +1338,44 @@ export class MttSession implements GameSession {
       const info = this.playersById.get(o.playerId);
       return {
         seatIndex: o.seatIndex,
-        // MTTではplayerId=User.id。BOTの合成IDはクライアントでisBot判定して詳細を引かない。
+        // 自動プレイヤーかどうかのフラグは送らない(通信内容から相手の種別が分かってはいけない)。
         userId: o.playerId,
         displayName: info?.displayName ?? o.playerId,
         avatarKey: info?.avatarKey ?? null,
-        isBot: info?.isBot ?? true,
         away: this.humans.get(o.playerId)?.away ?? false,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });
   }
 
-  /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を全卓に配信。 */
+  /**
+   * トーナメント集計情報の配信。ハンド終了ごとに素直に呼ぶと、卓数×ハンド数ぶんの
+   * ライブ順位付きペイロードが毎秒何度もクライアントへ飛び、端末が発熱する。
+   * 最短 TOURNAMENT_INFO_MIN_INTERVAL_MS 間隔に間引き、間隔内の要求は末尾で1回にまとめる。
+   */
   private broadcastTournamentInfo(): void {
+    if (this.finished) return;
+    const elapsed = Date.now() - this.lastTournamentInfoAt;
+    if (elapsed >= TOURNAMENT_INFO_MIN_INTERVAL_MS) {
+      if (this.tournamentInfoTimer) {
+        clearTimeout(this.tournamentInfoTimer);
+        this.tournamentInfoTimer = null;
+      }
+      this.emitTournamentInfoNow();
+      return;
+    }
+    if (this.tournamentInfoTimer) return; // すでに末尾配信を予約済み
+    this.tournamentInfoTimer = setTimeout(() => {
+      this.tournamentInfoTimer = null;
+      this.emitTournamentInfoNow();
+    }, TOURNAMENT_INFO_MIN_INTERVAL_MS - elapsed);
+  }
+
+  /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を全卓に配信。 */
+  private emitTournamentInfoNow(): void {
     const mtt = this.mtt;
     if (!mtt) return;
+    this.lastTournamentInfoAt = Date.now();
     let remaining = 0;
     let totalChips = 0;
     // 生存者のスタックを集めてBB持ち降順のライブ順位を作る(右メニューのランキング用)。
@@ -1312,10 +1397,22 @@ export class MttSession implements GameSession {
         stack: a.stack,
         bbStack: Math.round((a.stack / bb) * 10) / 10,
         rank: i + 1,
-        isBot: info?.isBot ?? true,
       };
     });
+    // アベレージスタック = 場に残っている実チップ / 生存者数。
+    // 「延べエントリー×開始スタック」から逆算するのではなく、必ず実スタックの合計から出す
+    // (リエントリ・レイトレジ・チップ破棄離脱があっても実態とズレないようにするため)。
     const averageStack = remaining > 0 ? Math.round(totalChips / remaining) : 0;
+    // チップ保存則の検算。離脱によるチップ消滅を除けば、場のチップ総量は
+    // 「延べエントリー数 × 開始スタック」と一致しなければならない。ズレたら集計かポット精算の
+    // どちらかにバグがあるので、アベレージが嘘をつく前にログへ出す。
+    const expectedChips = this.entryCount * STARTING_STACK - this.forfeitedChips;
+    if (remaining > 0 && expectedChips > 0 && Math.abs(totalChips - expectedChips) > 0) {
+      console.warn(
+        `[mtt] chip conservation mismatch: inPlay=${totalChips} expected=${expectedChips} ` +
+          `(entries=${this.entryCount} remaining=${remaining} forfeited=${this.forfeitedChips})`,
+      );
+    }
     // RC前は「何位いくら」を出さず、プライズプール総額のみ見せる。RC後は確定ペイアウト(places)を出す。
     const structure = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn);
     const prizePool = this.registrationClosed ? this.prizeStructure : [];

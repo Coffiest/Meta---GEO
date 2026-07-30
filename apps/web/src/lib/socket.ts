@@ -50,11 +50,10 @@ export interface SeatAction {
 }
 
 export interface SeatPlayerInfo {
-  /** 対象プレイヤーのUser.id。相手タップ時の詳細モーダル/メモ取得に使う。BOTは合成ID。 */
+  /** 対象プレイヤーのUser.id。相手タップ時の詳細モーダル/メモ取得に使う。 */
   userId: string;
   displayName: string;
   avatarKey: string | null;
-  isBot: boolean;
   /** 離席中(自動チェック/フォールド)。全員の座席に「離席中」を表示するため。 */
   away: boolean;
 }
@@ -77,7 +76,6 @@ export interface StandingRow {
   stack: number;
   bbStack: number;
   rank: number;
-  isBot: boolean;
 }
 
 /** トーナメントクロック画面用の集計情報(サーバーのbroadcastTournamentInfoから)。 */
@@ -560,7 +558,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     socket.on(
       "players",
       (payload: {
-        players: { seatIndex: number; userId?: string; displayName: string; avatarKey?: string | null; isBot?: boolean; away?: boolean }[];
+        players: { seatIndex: number; userId?: string; displayName: string; avatarKey?: string | null; away?: boolean }[];
       }) =>
         setData((d) => ({
           ...d,
@@ -571,7 +569,6 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
                 userId: p.userId ?? "",
                 displayName: p.displayName,
                 avatarKey: p.avatarKey ?? null,
-                isBot: p.isBot ?? false,
                 away: p.away ?? false,
               },
             ]),

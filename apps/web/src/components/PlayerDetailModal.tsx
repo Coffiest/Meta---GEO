@@ -24,7 +24,7 @@ export function PlayerDetailModal({
   onClose,
   onSaved,
 }: {
-  target: { userId: string; displayName: string; avatarKey: string | null; isBot?: boolean };
+  target: { userId: string; displayName: string; avatarKey: string | null };
   accessToken: string | undefined;
   onClose: () => void;
   /** メモ保存後、テーブル側のマーキング表示を更新するためのコールバック。 */
@@ -37,38 +37,23 @@ export function PlayerDetailModal({
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
-  // 自動プレイヤーは通常プレイヤーと区別がつかないよう、userIdシードの決定論的な擬似スタッツを表示する。
-  const isBot = Boolean(target.isBot);
-  const hasProfile = isBot || Boolean(target.userId);
+  const hasProfile = Boolean(target.userId);
 
   useEffect(() => {
     let alive = true;
-    // 自動プレイヤー: サーバーへ取りに行かず擬似プロフィールを即表示。メモは best-effort で取得。
-    if (isBot) {
-      setProfile(syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
-      setLoading(false);
-      if (accessToken && target.userId) {
-        void fetchPlayerNote(accessToken, target.userId).then((noteData) => {
-          if (!alive) return;
-          setColor(noteData.color);
-          setNote(noteData.note);
-        });
-      }
-      return () => {
-        alive = false;
-      };
-    }
     if (!accessToken || !hasProfile) {
       setLoading(false);
       return;
     }
     setLoading(true);
+    // 相手が誰であっても同じ経路で取得する(取得方法の違いから相手の種別が分かってはいけない)。
+    // サーバーが返せなかった場合だけ、userIdシードの決定論的な擬似スタッツで埋める。
     void Promise.all([
       fetchPlayerProfile(accessToken, target.userId),
       fetchPlayerNote(accessToken, target.userId),
     ]).then(([prof, noteData]) => {
       if (!alive) return;
-      setProfile(prof);
+      setProfile(prof ?? syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
       setColor(noteData.color);
       setNote(noteData.note);
       setLoading(false);
@@ -76,7 +61,7 @@ export function PlayerDetailModal({
     return () => {
       alive = false;
     };
-  }, [accessToken, target.userId, target.displayName, target.avatarKey, isBot, hasProfile]);
+  }, [accessToken, target.userId, target.displayName, target.avatarKey, hasProfile]);
 
   async function handleSave() {
     if (!accessToken || saving) return;
@@ -141,18 +126,19 @@ export function PlayerDetailModal({
           <p className="py-10 text-center text-sm text-ink-500">スタッツを取得できませんでした。</p>
         ) : (
           <>
-            {/* 主要指標。自動プレイヤーは収支・全国順位を伏せる(枠は残し値のみ「ー」)。 */}
+            {/* 主要指標。どのプレイヤーでも同じ項目・同じ形式で出す(値の伏せ方で相手の種別が
+                推測できてはいけないため、一部だけ「ー」にするような出し分けはしない)。 */}
             <div className="grid grid-cols-2 gap-2">
               <Metric
                 label="収支"
-                value={isBot ? "ー" : `${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
-                accent={isBot ? "flat" : s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
+                value={`${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
+                accent={s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
               />
               <Metric label="ROI(還元率)" value={roiPct(s.roi)} />
               <Metric label="インマネ率" value={pct(s.itmRate)} />
               <Metric
                 label="全国順位"
-                value={isBot ? "ー" : rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
+                value={rr.nationalRank ? `${rr.nationalRank} / ${rr.totalRankedPlayers}` : "–"}
               />
             </div>
 

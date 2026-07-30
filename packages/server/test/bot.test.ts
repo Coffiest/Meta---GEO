@@ -159,4 +159,42 @@ describe("decideBotAction", () => {
     });
     expect(action.kind).toBe("bet");
   });
+  it("folds a marginal hand rather than committing a deep stack to a huge bet", () => {
+    // 有効100BB。セカンドペア相当でポットサイズの巨大ベットに直面 = スタックの4割超を投じる場面。
+    // ランダムハンド相手の勝率は高く見えても、ここでコールを続けるとレベル1でも次々バストする。
+    const action = decideBotAction({
+      street: "flop",
+      holeCards: [c("9s"), c("8d")],
+      board: [c("Kh"), c("9c"), c("2d")],
+      currentBetToMatch: 9_000,
+      streetContribution: 0,
+      minRaiseToAmount: 18_000,
+      potBefore: 2_000,
+      stack: 20_000,
+      canRaise: true,
+      bigBlind: 200,
+      activeOpponentCount: 1,
+      random: () => 0.99,
+    });
+    expect(action.kind).toBe("fold");
+  });
+
+  it("still commits a deep stack with a genuinely strong hand", () => {
+    // 同じ状況でもセットならコミットしてよい(過剰に臆病になっていないことの確認)。
+    const action = decideBotAction({
+      street: "flop",
+      holeCards: [c("9s"), c("9d")],
+      board: [c("Kh"), c("9c"), c("2d")],
+      currentBetToMatch: 9_000,
+      streetContribution: 0,
+      minRaiseToAmount: 18_000,
+      potBefore: 2_000,
+      stack: 20_000,
+      canRaise: true,
+      bigBlind: 200,
+      activeOpponentCount: 1,
+      random: () => 0.99,
+    });
+    expect(action.kind).not.toBe("fold");
+  });
 });

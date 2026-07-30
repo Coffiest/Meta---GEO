@@ -106,18 +106,30 @@ function StallDiagDetails({ diag, connected }: { diag: SocketDiag; connected: bo
   );
 }
 
-/** 次のレベルまでの残り時間(mm:ss)。毎秒更新。 */
-function useLevelCountdown(endsAt: number | null): string {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+/** 残り時間をmm:ssに整形する(endsAtが無ければ "--:--")。 */
+function formatCountdown(endsAt: number | null, now: number): string {
   if (!endsAt) return "--:--";
   const remaining = Math.max(0, endsAt - now);
   const m = Math.floor(remaining / 60000);
   const s = Math.floor((remaining % 60000) / 1000);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * 毎秒更新のカウントダウン表示。
+ *
+ * 重要: 毎秒のsetStateを親(GameScreen)に持たせると、テーブル・全席・framer-motionの
+ * ツリー全体が1秒ごとに再描画され、スマートフォンが発熱する原因になる。
+ * 秒針を持つのはこの葉コンポーネントだけに閉じ込め、再描画をテキスト1つに限定する。
+ */
+function CountdownText({ endsAt, className }: { endsAt: number | null; className?: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!endsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [endsAt]);
+  return <span className={className}>{formatCountdown(endsAt, now)}</span>;
 }
 
 /**
@@ -286,12 +298,10 @@ function GameScreen({
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   // ハンドショウ: 自分の手札をハンド終了時に公開する意思(自席のカードをタップでトグル)。
   const [heroShowIntent, setHeroShowIntent] = useState(false);
-  const countdown = useLevelCountdown(levelEndsAt);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
-  // レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。
-  const regCloseCountdown = useLevelCountdown(
-    gameKey === "mtt" && !tournamentInfo?.registrationClosed ? tournamentInfo?.registrationClosesAt ?? null : null,
-  );
+  // レジストレーションクローズの締切時刻(MTT・RC前のみ)。表示はCountdownTextに任せる。
+  const regClosesAt =
+    gameKey === "mtt" && !tournamentInfo?.registrationClosed ? tournamentInfo?.registrationClosesAt ?? null : null;
   // 注意: 再接続で進行中の卓が見つからなくても、絶対にホームへ強制退出させない(プレイ中に突然
   // ロビーへ戻される致命バグの再発防止)。再接続時は resumeGame で自動的に卓へ復帰する。
   // そのうえで、卓が本当に消えている(サーバー再起動やセッション終了)場合に画面が固まったまま
@@ -413,6 +423,10 @@ function GameScreen({
           backgroundRepeat: "repeat",
           filter: "grayscale(1) invert(1)",
           opacity: 0.14,
+          // 発熱対策: 独立した合成レイヤーへ昇格させ、grayscale+invertのフィルタを
+          // 1度だけラスタライズしてキャッシュさせる(毎フレーム再適用させない)。
+          transform: "translateZ(0)",
+          willChange: "transform",
         }}
       />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
@@ -433,12 +447,11 @@ function GameScreen({
               <span className="rounded bg-gold-500 px-1 py-[1px] text-[7px] font-black tracking-widest text-ink-950">FINAL TABLE</span>
             )}
           </div>
-          <div className="mt-0.5 text-[26px] font-black tabular-nums leading-none text-gold-600">{countdown}</div>
-          {/* 生存者数(MTT)。
-              注意: tournamentInfo.total は「同時にいる人数の母数」ではなく **延べエントリー数** で、
-              リエントリやレジ中のボット補充が入るたびに増える(サーバー側 mttSession の entryCount)。
-              以前は「14/23 残り」と並べて出していたため「23人中9人が飛んだ」と誤読されていた。
-              生存者数を主役にし、延べエントリー数は別ラベルとして明示的に分けて表示する。 */}
+          <CountdownText
+            endsAt={levelEndsAt}
+            className="mt-0.5 block text-[26px] font-black tabular-nums leading-none text-gold-600"
+          />
+          {/* 生存者数(MTT)。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。 */}
           {gameKey === "mtt" && tournamentInfo && (
             <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
@@ -449,18 +462,17 @@ function GameScreen({
               </svg>
               <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
                 {tournamentInfo.remaining}
+                <span className="text-ink-400">/</span>
+                {tournamentInfo.total}
               </span>
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">人残り</span>
-              <span className="text-[8px] font-bold tabular-nums leading-none text-ink-500">
-                延べ{tournamentInfo.total}エントリー
-              </span>
+              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">残り</span>
             </div>
           )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
-          {gameKey === "mtt" && regCloseCountdown && (
+          {regClosesAt && (
             <div className="mt-0.5 flex items-center gap-1 leading-none">
               <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Reg締切</span>
-              <span className="text-[10px] font-black tabular-nums text-crimson-500">{regCloseCountdown}</span>
+              <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-500" />
             </div>
           )}
           <div className="mt-1 flex items-end gap-2 leading-none">
@@ -799,7 +811,7 @@ function GameScreen({
       <AnimatePresence>
         {tappedPlayer && (
           <PlayerDetailModal
-            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey, isBot: tappedPlayer.isBot }}
+            target={{ userId: tappedPlayer.userId, displayName: tappedPlayer.displayName, avatarKey: tappedPlayer.avatarKey }}
             accessToken={accessToken}
             onClose={() => setTappedPlayer(null)}
             onSaved={handleMarkingSaved}
