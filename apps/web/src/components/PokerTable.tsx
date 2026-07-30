@@ -298,7 +298,11 @@ export function PokerTable({
               transition={{ type: "spring", stiffness: 520, damping: 24 }}
               className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
             >
-              <span className="text-[8px] font-black tracking-[0.22em] text-ink-400 uppercase">Pot</span>
+              {/* サイドポットがある間は、この枠が「合計」であることを明示する
+                  (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
+              <span className="text-[8px] font-black tracking-[0.22em] text-ink-400 uppercase">
+                {state.pots.length > 1 ? "合計" : "Pot"}
+              </span>
               <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatBb(state.collectedPot, bigBlind)}</span>
               {spr !== null && (
                 <span className="text-[10px] font-bold text-ink-400 tabular-nums leading-none border-l border-ink-200 pl-2">
@@ -308,7 +312,10 @@ export function PokerTable({
             </motion.div>
           )}
         </AnimatePresence>
-        {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示) */}
+        {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示)。
+            合計のPOT枠と同じ意匠(白地+黒枠+グレーのラベル/黒太字の金額)の枠を1ポットにつき
+            1つ並べる。ラベルと金額を書体・色で明確に分離し、「サイド1 2bb」が「サイド12bb」に
+            読めてしまう誤読を防ぐ。 */}
         {state && state.pots.length > 1 && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
@@ -318,9 +325,14 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="rounded-full bg-white/90 border border-ink-300 px-2 py-0.5 text-[9px] font-bold text-ink-700 tabular-nums leading-none"
+                className="flex items-center gap-1.5 rounded-full bg-white border border-ink-950 px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
               >
-                {i === 0 ? "メイン" : `サイド${i}`} {formatBb(pot.amount, bigBlind)}
+                <span className="text-[8px] font-black tracking-[0.18em] text-ink-400">
+                  {i === 0 ? "メイン" : `サイド ${i}`}
+                </span>
+                <span className="text-[11px] font-black text-ink-950 tabular-nums leading-none">
+                  {formatBb(pot.amount, bigBlind)}
+                </span>
               </span>
             ))}
           </motion.div>
