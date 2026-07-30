@@ -34,6 +34,7 @@ model User {
   referralsSent        Referral[]            @relation("ReferralInviter")
   referralReceived     Referral?             @relation("ReferralInvitee")
   pushSubscriptions    PushSubscription[]
+  premiumCoupon        PremiumCoupon?
 }
 
 /// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
@@ -52,9 +53,9 @@ model PushSubscription {
   @@index([userId])
 }
 
-/// 招待コードの成立記録(招待した人 × 招待された人)。報酬はバーチャルチップではなく
-/// 称号(非金銭報酬)のみ。チップを配ると自己招待による増殖・射幸性の問題が出るため、
-/// 意図的にチップは一切動かさない設計にしている。
+/// 招待コードの成立記録(招待した人 × 招待された人)。
+/// 特典は「棋譜解析プランの1ヶ月無料」(1招待につき1ヶ月、PremiumCouponへ積み上げ)。
+/// バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が出るため。
 /// 招待される側は生涯1回だけ(inviteeUserIdが一意)。
 model Referral {
   id            String   @id @default(uuid())
@@ -66,9 +67,31 @@ model Referral {
   invitee       User     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
   /// 適用時に入力された招待コード(発行後に変わることはないが、履歴として残す)。
   code          String
+  /// 招待した側へ特典(棋譜解析1ヶ月無料)を付与した時刻。1招待につき1回だけ付与するための冪等キー。
+  rewardGrantedAt DateTime?
   createdAt     DateTime @default(now())
 
   @@index([inviterUserId, createdAt])
+}
+
+/// 招待特典による「棋譜解析プランの無料アクセス権」。1ユーザー1行で、招待が成立するたびに
+/// expiresAt を1ヶ月ずつ積み上げる。
+///
+/// Subscription(Stripe契約・管理者付与comp)とは別テーブルにしている。1ユーザー1行のSubscriptionへ
+/// 書き込むと、課金中ユーザーのstatus/期間をこちらが上書きして契約情報を壊しかねないため。
+/// 有料判定(getSubscriptionStatusForUser)は Stripe契約 / comp / このクーポン のORで行う。
+model PremiumCoupon {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  /// この特典で無料アクセスできる期限。
+  expiresAt     DateTime
+  /// 累計で付与された月数(表示用)。
+  monthsGranted Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 /// GEO戦略DB(レンジ分析)の月額サブスクリプション状態。Stripeのsubscriptionオブジェクトと

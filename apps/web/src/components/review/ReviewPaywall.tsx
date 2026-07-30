@@ -168,6 +168,19 @@ export function ReviewPaywall({
 
         {msg && <p className="mt-2 text-center text-[11px] font-bold text-crimson-500">{msg}</p>}
 
+        {/* 課金以外の開放手段。招待1人につき棋譜解析が1ヶ月無料になる(招待カードはホームにある)。 */}
+        <Link
+          href="/"
+          className="mt-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-ink-950 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-4 w-4">
+            <circle cx="9" cy="8" r="3.4" />
+            <path d="M3 20v-1a5.5 5.5 0 0 1 5.5-5.5h1A5.5 5.5 0 0 1 15 19v1" strokeLinecap="round" />
+            <path d="M18.5 7.5v5M16 10h5" strokeLinecap="round" />
+          </svg>
+          友達を招待して1ヶ月無料にする
+        </Link>
+
         <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-400">
           いつでも解約可能・クレジットカード決済(Stripe)
           <br />

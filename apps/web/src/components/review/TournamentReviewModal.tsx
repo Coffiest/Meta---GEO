@@ -724,7 +724,9 @@ export function TournamentReviewModal({
                   </svg>
                   局後検討
                   {subStatus?.active ? (
-                    <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">使い放題</span>
+                    <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">
+                      {subStatus.status === "referral" ? "招待特典" : "使い放題"}
+                    </span>
                   ) : subStatus ? (
                     <span className="ml-1 rounded-full bg-white/15 px-2 py-[2px] text-[10px] font-bold tabular-nums">
                       残り無料{subStatus.reviewsRemaining}回
@@ -784,7 +786,9 @@ export function TournamentReviewModal({
             <div className="mt-1 flex items-center gap-1.5">
               <p className="text-[13px] font-medium text-ink-500">総括レポート</p>
               {subStatus?.active ? (
-                <span className="rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-white">使い放題</span>
+                <span className="rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-white">
+                  {subStatus.status === "referral" ? "招待特典で使い放題" : "使い放題"}
+                </span>
               ) : subStatus && !quota ? (
                 <span className="rounded-full bg-black/[0.05] px-2 py-[2px] text-[10px] font-semibold text-ink-500 tabular-nums">
                   残り無料 {subStatus.reviewsRemaining}回

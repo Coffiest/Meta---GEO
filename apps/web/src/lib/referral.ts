@@ -17,6 +17,17 @@ export interface ReferralInvitee {
   createdAt: string;
 }
 
+export interface ReferralReward {
+  /** 1招待あたりの付与月数。 */
+  monthsPerInvite: number;
+  /** 累計で獲得した無料月数。 */
+  monthsGranted: number;
+  /** いま特典で棋譜解析が使えるか。 */
+  active: boolean;
+  /** 無料アクセスの期限(ISO文字列。未獲得ならnull)。 */
+  expiresAt: string | null;
+}
+
 export interface ReferralSummary {
   code: string;
   invitedCount: number;
@@ -24,10 +35,11 @@ export interface ReferralSummary {
   tier: ReferralTierKey | null;
   nextTier: { key: ReferralTierKey; minInvites: number } | null;
   invitedByDisplayName: string | null;
+  reward: ReferralReward;
 }
 
 export type RedeemReferralResult =
-  | { ok: true; inviterDisplayName: string }
+  | { ok: true; inviterDisplayName: string; rewardMonths: number }
   | { ok: false; reason: "invalid" | "self" | "already" };
 
 /** 入力/URL由来の招待コードを正規化する(サーバー側 normalizeReferralCode と同じ規則)。 */

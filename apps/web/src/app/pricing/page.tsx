@@ -48,6 +48,11 @@ export default function PricingPage() {
   }
 
   const active = status?.active ?? false;
+  // 招待特典のクーポンだけで使い放題になっている状態。Stripe契約が無いため契約管理は出さず、
+  // 期限と「招待でさらに延長できる」ことを伝える。
+  const byReferral = active && status?.status === "referral";
+  const referralUntil =
+    byReferral && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
 
   return (
     <div className="min-h-screen bg-white">
@@ -93,14 +98,38 @@ export default function PricingPage() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4">
                   <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                使い放題プランに加入中
+                {byReferral ? "招待特典で無料期間中" : "使い放題プランに加入中"}
               </div>
-              <button
-                onClick={handleManage}
-                className="mt-2 w-full rounded-full border border-ink-950 py-3 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
-              >
-                契約を管理する
-              </button>
+              {byReferral ? (
+                <>
+                  {referralUntil && (
+                    <p className="mt-2 text-center text-[12px] font-bold text-ink-600 tabular-nums">
+                      {referralUntil} まで無料でご利用いただけます
+                    </p>
+                  )}
+                  <p className="mt-1 text-center text-[11px] leading-relaxed text-ink-500">
+                    友達を1人招待するごとに、この無料期間が1ヶ月ずつ延びます。
+                  </p>
+                  <button
+                    onClick={handleSubscribe}
+                    disabled={submitting}
+                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-ink-950 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform disabled:opacity-60"
+                  >
+                    {submitting ? (
+                      <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+                    ) : (
+                      "期間終了後も続けて使う(月額に登録)"
+                    )}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleManage}
+                  className="mt-2 w-full rounded-full border border-ink-950 py-3 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
+                >
+                  契約を管理する
+                </button>
+              )}
             </div>
           ) : (
             <button

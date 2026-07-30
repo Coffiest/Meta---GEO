@@ -17,6 +17,8 @@ describe("badge collection (integration, real Postgres)", () => {
   afterAll(async () => {
     for (const userId of createdUserIds) {
       await prisma.referral.deleteMany({ where: { OR: [{ inviterUserId: userId }, { inviteeUserId: userId }] } });
+      // 招待成立で特典クーポンが作られるため、User削除の前に外してFK制約に当たらないようにする。
+      await prisma.premiumCoupon.deleteMany({ where: { userId } });
     }
     for (const userId of createdUserIds) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => {});

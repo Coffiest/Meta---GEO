@@ -497,8 +497,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         });
         if (inviter) {
           void sendPushToUser(inviter.inviterUserId, {
-            title: "招待が成立しました",
-            body: `${user.displayName} さんがあなたの招待で参加しました。`,
+            title: "棋譜解析1ヶ月無料を獲得",
+            body: `${user.displayName} さんがあなたの招待で参加しました。棋譜解析プランが1ヶ月無料になります。`,
             path: "/",
             tag: "referral",
           }).catch(() => undefined);
