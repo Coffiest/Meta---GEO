@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, type PublicHandState } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, SNG_PAYOUTS, invalidateRankedEntries } from "@meta-geo/db";
+import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, SNG_PAYOUTS, invalidateRankedEntries } from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { activeGames } from "./activeGames.js";
@@ -281,6 +281,42 @@ export function sanitizeChatText(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const text = raw.replace(/\s+/g, " ").trim().slice(0, 120);
   return text.length > 0 ? text : null;
+}
+
+/** 診断ログ用: 循環参照等で JSON.stringify が失敗しても落ちないよう安全化する。 */
+export function safeStringify(v: unknown): string {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
+/**
+ * ハンド完了処理が失敗したときの診断スナップショット(SNG/MTT共通)。盤面・各席の状態/拠出/
+ * スタック・ポット内訳を getPublicState() から安全に取り出す(getResult()は副作用があるため呼ばない)。
+ * 多者オールイン+サイドポットの清算不整合を、サーバーログ1枚で切り分けるために使う。
+ */
+export function snapshotHandForDiag(hand: HandEngine): Record<string, unknown> {
+  try {
+    const st = hand.getPublicState();
+    return {
+      street: st.street,
+      board: st.board.map(cardToString),
+      complete: st.isComplete,
+      potTotal: st.potTotal,
+      pots: st.pots.map((p) => ({ amount: p.amount, eligibleSeats: p.eligibleSeatIndexes })),
+      seats: st.seats.map((s) => ({
+        seat: s.seatIndex,
+        id: s.playerId,
+        status: s.status,
+        stack: s.stack,
+        handContribution: s.handContribution,
+      })),
+    };
+  } catch (e) {
+    return { snapshotError: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 interface HumanSeat {
@@ -833,12 +869,28 @@ export class TableSession implements GameSession {
     try {
       await this.finishHandInner(hand, tournament);
     } catch (err) {
-      console.error("[sng] finishHand failed (proceeding to next hand):", err);
+      // 再発時に原因を追えるよう、失敗したハンドの盤面・各席の拠出/状態/スタック・ポット内訳を出力する。
+      console.error(
+        "[sng] finishHand failed (proceeding to next hand):",
+        err,
+        "\n[sng] hand diagnostics:",
+        safeStringify(snapshotHandForDiag(hand)),
+      );
       // 清算(settleFinishedHand)前に失敗した可能性に備えて一度だけ清算を試みる。
       try {
         tournament.settleFinishedHand();
       } catch {
         /* 清算済みなら無視 */
+      }
+      // 最低限の保証: ハンドを正常に完了できなかった=サーバー側の異常。この卓の人間へ参加費を返金する
+      // (refundBuyInは同一トーナメント×ユーザーで1回だけの冪等処理。二重返金にはならない)。
+      const tid = this.dbTournamentId;
+      if (tid) {
+        for (const human of this.humansBySeat.values()) {
+          void refundBuyIn({ userId: human.userId, tournamentId: tid, amount: this.buyIn }).catch((e) =>
+            console.error("[sng] refundBuyIn failed:", e),
+          );
+        }
       }
     }
 

@@ -1,5 +1,17 @@
 import type { Card } from "../types/card.js";
-import { evaluateBest, compareHandRank } from "../handEvaluator.js";
+import { evaluateBest, type HandRank } from "../handEvaluator.js";
+
+/**
+ * HandRank を compareHandRank と完全同順序の単調整数キーへ畳み込む。
+ * ショーダウン符号の内側ループ(nO×nI回)を整数比較にして、役評価の再計算を排除するために使う。
+ * ranks は5要素以下(降順キッカー)・各値2..14なので、15進6桁で衝突なく表現できる。
+ * (compareHandRank は category → ranks の辞書順で、欠損要素は0として扱う。同じ規則で畳み込む)
+ */
+export function handRankKey(r: HandRank): number {
+  let k = r.category;
+  for (let i = 0; i < 6; i++) k = k * 15 + (r.ranks[i] ?? 0);
+  return k;
+}
 
 /**
  * 多ストリートHUポストフロップCFR(チャンスノード=次カード配布を厳密列挙)。
@@ -66,6 +78,63 @@ function conflict(a: Cmb, b: Cmb): boolean {
 }
 function usesCard(c: Cmb, idx: number): boolean {
   return c.i0 === idx || c.i1 === idx;
+}
+
+/**
+ * a の各コンボについて、同一カードを使う(=同時に成立し得ない) b のインデックス列。
+ * 端点評価では「相手レンジ全体の集計から衝突分を差し引く」形にするため、この索引を使う。
+ * レンジは解の間ずっと固定なので1回だけ作れば足りる。
+ */
+function buildConflicts(a: Cmb[], b: Cmb[]): Int32Array[] {
+  return a.map((ca) => {
+    const idx: number[] = [];
+    for (let j = 0; j < b.length; j++) if (conflict(ca, b[j]!)) idx.push(j);
+    return Int32Array.from(idx);
+  });
+}
+
+/** 昇順 keys の中で v 未満の要素数。 */
+function countLess(keys: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid]! < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** 昇順 keys の中で v 以下の要素数(= v より大きい要素の開始位置)。 */
+function countLessEqual(keys: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid]! <= v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * ボードごとのショーダウン評価用の前計算。
+ * 役の強さを単調整数キーへ畳み、相手レンジをキー昇順に並べた累積和で
+ * 「勝ち質量・負け質量」を O(1) 参照できるようにする(境界位置は前計算)。
+ */
+interface BoardShowdown {
+  /** OOP/IP 各コンボの役キー。 */
+  oKey: Float64Array;
+  iKey: Float64Array;
+  /** キー昇順のインデックス列(累積和をこの順で作る)。 */
+  sortedO: Int32Array;
+  sortedI: Int32Array;
+  /** OOPコンボ i に対する、IP側キー昇順列での「未満件数」と「超の開始位置」。 */
+  ltI: Int32Array;
+  gtI: Int32Array;
+  /** IPコンボ j に対する、OOP側キー昇順列での「未満件数」と「超の開始位置」。 */
+  ltO: Int32Array;
+  gtO: Int32Array;
 }
 
 type Terminal =
@@ -154,7 +223,7 @@ function buildGameTree(
     const node: DecisionNode = { kind: "decision", id: nextId++, player: toAct, actions: [], children: [] };
     decisionNodes.push(node);
 
-    if (facing > 1e-9) {
+    if (facing > 1e-15) {
       node.actions.push("fold");
       node.children.push({ kind: "fold", folder: toAct });
 
@@ -222,25 +291,47 @@ function prepareSolver(input: PostflopSolveInput) {
 
   const { root, decisionNodes, showdowns } = buildGameTree(P, input.stackBb, boardStartIdx, betSizes, allowRaise, input.sampleChance);
 
-  // ショーダウン符号をボードごとに事前計算(反復間で不変)。sign[i*nI+j]: OOP視点 +1/0/-1、2=無効。
-  const signByBoard = new Map<string, Int8Array>();
+  // 同時に成立し得ない(同一カードを使う)相手コンボの索引。端点評価の補正に使う(レンジは固定なので1回)。
+  const conflIpOfOop = buildConflicts(oop, ip);
+  const conflOopOfIp = buildConflicts(ip, oop);
+
+  // ショーダウン評価をボードごとに前計算(反復間で不変)。
+  // 役評価(evaluateBest=C(7,5)=21通り総当たり)は各コンボ1回だけ行い、単調整数キーへ畳む。
+  // さらにキー昇順の並びと境界位置を持たせ、端点評価を「相手レンジの累積和 − 衝突分」で求められるように
+  // する。これで端点あたりの計算量が O(nTrav×nOpp) から O(nOpp + nTrav×衝突数) に落ちる
+  // (以前は nO×nI の符号表をボードごとに作り、端点ごとに二重ループしていた)。
+  const showdownByBoard = new Map<string, BoardShowdown>();
   for (const t of showdowns) {
-    if (t.kind !== "showdown" || signByBoard.has(t.boardKey)) continue;
-    const arr = new Int8Array(nO * nI);
+    if (t.kind !== "showdown" || showdownByBoard.has(t.boardKey)) continue;
+    const oKey = new Float64Array(nO);
+    for (let i = 0; i < nO; i++) oKey[i] = handRankKey(evaluateBest([...t.board, ...oop[i]!.cards]));
+    const iKey = new Float64Array(nI);
+    for (let j = 0; j < nI; j++) iKey[j] = handRankKey(evaluateBest([...t.board, ...ip[j]!.cards]));
+
+    const sortedO = Int32Array.from({ length: nO }, (_, i) => i).sort((a, b) => oKey[a]! - oKey[b]!);
+    const sortedI = Int32Array.from({ length: nI }, (_, j) => j).sort((a, b) => iKey[a]! - iKey[b]!);
+    const sortedOKeys = new Float64Array(nO);
+    for (let k = 0; k < nO; k++) sortedOKeys[k] = oKey[sortedO[k]!]!;
+    const sortedIKeys = new Float64Array(nI);
+    for (let k = 0; k < nI; k++) sortedIKeys[k] = iKey[sortedI[k]!]!;
+
+    const ltI = new Int32Array(nO);
+    const gtI = new Int32Array(nO);
     for (let i = 0; i < nO; i++) {
-      const ro = evaluateBest([...t.board, ...oop[i]!.cards]);
-      for (let j = 0; j < nI; j++) {
-        if (conflict(oop[i]!, ip[j]!)) {
-          arr[i * nI + j] = 2;
-          continue;
-        }
-        const ri = evaluateBest([...t.board, ...ip[j]!.cards]);
-        const cmp = compareHandRank(ro, ri);
-        arr[i * nI + j] = cmp > 0 ? 1 : cmp < 0 ? -1 : 0;
-      }
+      ltI[i] = countLess(sortedIKeys, oKey[i]!);
+      gtI[i] = countLessEqual(sortedIKeys, oKey[i]!);
     }
-    signByBoard.set(t.boardKey, arr);
+    const ltO = new Int32Array(nI);
+    const gtO = new Int32Array(nI);
+    for (let j = 0; j < nI; j++) {
+      ltO[j] = countLess(sortedOKeys, iKey[j]!);
+      gtO[j] = countLessEqual(sortedOKeys, iKey[j]!);
+    }
+    showdownByBoard.set(t.boardKey, { oKey, iKey, sortedO, sortedI, ltI, gtI, ltO, gtO });
   }
+
+  // 相手レンジの累積和バッファ(呼び出しごとに使い切るので再利用してよい)。
+  const prefBuf = new Float64Array(Math.max(nO, nI) + 1);
 
   const regret: Float64Array[] = [];
   const stratSum: Float64Array[] = [];
@@ -267,39 +358,58 @@ function prepareSolver(input: PostflopSolveInput) {
     return s;
   }
 
+  /**
+   * 端点(ショーダウン/フォールド)での手番側コンボごとの利得。
+   *
+   * どちらの端点も「相手レンジ全体の集計から、同一カードを使う(=あり得ない)コンボ分を差し引く」形で
+   * 求める。ショーダウンは役キー昇順の累積和で勝ち/負け質量を取り、衝突分だけキー比較で補正する。
+   * 素朴な二重ループと数学的に同一(勝ち +stake / 負け −stake / 引き分け 0、衝突は除外)。
+   */
   function terminalValue(t: Terminal, traverser: 0 | 1, reachOpp: Float64Array): Float64Array {
     const nTrav = traverser === 0 ? nO : nI;
     const nOpp = traverser === 0 ? nI : nO;
     const out = new Float64Array(nTrav);
+    const confl = traverser === 0 ? conflIpOfOop : conflOopOfIp;
+
     if (t.kind === "showdown") {
-      const sign = signByBoard.get(t.boardKey)!;
+      const sd = showdownByBoard.get(t.boardKey)!;
       const stake = P / 2 + t.matched;
+      const sortedOpp = traverser === 0 ? sd.sortedI : sd.sortedO;
+      const travKey = traverser === 0 ? sd.oKey : sd.iKey;
+      const oppKey = traverser === 0 ? sd.iKey : sd.oKey;
+      const ltOpp = traverser === 0 ? sd.ltI : sd.ltO;
+      const gtOpp = traverser === 0 ? sd.gtI : sd.gtO;
+      // pref[k] = 相手レンジをキー昇順に並べた先頭k件の到達確率和。
+      prefBuf[0] = 0;
+      for (let k = 0; k < nOpp; k++) prefBuf[k + 1] = prefBuf[k]! + reachOpp[sortedOpp[k]!]!;
+      const total = prefBuf[nOpp]!;
       for (let i = 0; i < nTrav; i++) {
-        let acc = 0;
-        for (let j = 0; j < nOpp; j++) {
-          const s = traverser === 0 ? sign[i * nI + j]! : sign[j * nI + i]!;
-          if (s === 2) continue;
+        // 自分のキーより弱い相手の質量=勝ち、強い相手の質量=負け(この時点では衝突分も含む)。
+        let win = prefBuf[ltOpp[i]!]!;
+        let loss = total - prefBuf[gtOpp[i]!]!;
+        const ki = travKey[i]!;
+        const cl = confl[i]!;
+        for (let m = 0; m < cl.length; m++) {
+          const j = cl[m]!;
           const rj = reachOpp[j]!;
           if (rj === 0) continue;
-          const so = traverser === 0 ? s : -s;
-          acc += rj * so * stake;
+          const kj = oppKey[j]!;
+          if (kj < ki) win -= rj;
+          else if (kj > ki) loss -= rj;
         }
-        out[i] = acc;
+        out[i] = (win - loss) * stake;
       }
       return out;
     }
+
     const travWins = t.folder !== traverser;
     const val = (travWins ? 1 : -1) * (P / 2);
+    let total = 0;
+    for (let j = 0; j < nOpp; j++) total += reachOpp[j]!;
     for (let i = 0; i < nTrav; i++) {
-      const ci = traverser === 0 ? oop[i]! : ip[i]!;
-      let reachValid = 0;
-      for (let j = 0; j < nOpp; j++) {
-        const rj = reachOpp[j]!;
-        if (rj === 0) continue;
-        const cj = traverser === 0 ? ip[j]! : oop[j]!;
-        if (conflict(ci, cj)) continue;
-        reachValid += rj;
-      }
+      let reachValid = total;
+      const cl = confl[i]!;
+      for (let m = 0; m < cl.length; m++) reachValid -= reachOpp[cl[m]!]!;
       out[i] = reachValid * val;
     }
     return out;

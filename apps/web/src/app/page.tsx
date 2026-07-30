@@ -772,6 +772,9 @@ function GameScreen({
                 >
                   ホームへ戻る
                 </button>
+                {/* 再発時に原因を切り分けられるよう、通信診断(切断理由・再接続回数・最終受信からの経過等)を
+                    表示する。スクリーンショット1枚で「サーバー再起動」か「通信断」か等が分かる。 */}
+                {diag && <StallDiagDetails diag={diag} connected={connected} />}
               </div>
             </div>
           </motion.div>
