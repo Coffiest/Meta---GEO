@@ -121,11 +121,18 @@ const config: Config = {
           "0%": { boxShadow: "0 0 0 0 rgba(31,174,112,0.55)" },
           "100%": { boxShadow: "0 0 0 8px rgba(31,174,112,0)" },
         },
+        // 手番の席を示す拡散リング。opacity/transformのみを動かすため、コンポジタだけで
+        // 完結しメインスレッドを消費しない(JSアニメーションから置き換えた発熱対策)。
+        "acting-ring": {
+          "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
+          "50%": { opacity: "0", transform: "scale(1.14)" },
+        },
       },
       animation: {
         "deal-in": "deal-in 260ms cubic-bezier(0.16,1,0.3,1) both",
         "pulse-ring": "pulse-ring 1.4s cubic-bezier(0.4,0,0.6,1) infinite",
         "pulse-ring-mint": "pulse-ring-mint 1.3s cubic-bezier(0.4,0,0.6,1) infinite",
+        "acting-ring": "acting-ring 1.6s ease-in-out infinite",
       },
     },
   },

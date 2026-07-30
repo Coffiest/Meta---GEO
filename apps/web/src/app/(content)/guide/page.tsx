@@ -101,7 +101,7 @@ export default function GuidePage() {
         <ul className="list-disc space-y-2 pl-5 text-ink-700">
           <li>
             <strong className="text-ink-950">SNG(シット&ゴー)</strong>: 決まった人数が揃った時点で即スタートする短時間トーナメント。
-            さっと1試合遊びたいときに向く。人数が揃わない場合は BOT が補充され、待たされません。
+            さっと1試合遊びたいときに向く。人数が揃わない場合も自動で卓が埋まるため、待たされません。
           </li>
           <li>
             <strong className="text-ink-950">MTT(マルチテーブルトーナメント)</strong>: 多数の参加者が複数テーブルに分かれて戦い、

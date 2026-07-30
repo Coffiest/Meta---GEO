@@ -368,12 +368,12 @@ export function Seat({
               : "bg-white border border-ink-950"
         } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
       >
+        {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
+            CSSキーフレームで動かす(コンポジタで完結し、端末の発熱を抑える)。 */}
         {isActingSeat && (
-          <motion.span
+          <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-ink-950"
-            animate={{ opacity: [0.55, 0, 0.55], scale: [1, 1.14, 1] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-ink-950"
           />
         )}
 

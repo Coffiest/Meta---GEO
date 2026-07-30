@@ -1,58 +1,87 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+
+/** リングの再描画間隔(ms)。10fpsあれば秒読みのリングとして十分滑らかに見える。 */
+const RING_PAINT_INTERVAL_MS = 100;
 
 /**
  * 残り持ち時間をアバターの周囲を一周する円弧で表現するリング(SunVy Poker方式)。
- * endsAt(ms epoch)までの残量をrequestAnimationFrameで描画する。
+ *
+ * 重要(端末の発熱対策): 以前はrequestAnimationFrameのたびにsetStateしていたため、
+ * 手番が回っている間ずっと毎秒60回のReact再描画が走り、スマートフォンが異常に発熱していた。
+ * 現在はReactのstateを一切使わず、ref経由でSVG属性とテキストを直接書き換える。
+ * 更新も10fpsに間引く(見た目は変わらない)。
  */
 function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationMs: number; size: number }) {
-  const [fraction, setFraction] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(() => Math.ceil(Math.max(0, endsAt - Date.now()) / 1000));
+  const arcRef = useRef<SVGCircleElement | null>(null);
+  const secondsRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    const tick = () => {
-      const remaining = Math.max(0, endsAt - Date.now());
-      setFraction(Math.min(1, remaining / durationMs));
-      setSecondsLeft(Math.ceil(remaining / 1000));
-      if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [endsAt, durationMs]);
 
   const stroke = 2.5;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
-  const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
+
+  useEffect(() => {
+    let lastPaintAt = -Infinity;
+    let lastSeconds = -1;
+    const tick = (ts: number) => {
+      const remaining = Math.max(0, endsAt - Date.now());
+      if (ts - lastPaintAt >= RING_PAINT_INTERVAL_MS) {
+        lastPaintAt = ts;
+        const fraction = durationMs > 0 ? Math.min(1, remaining / durationMs) : 0;
+        const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
+        const arc = arcRef.current;
+        if (arc) {
+          arc.setAttribute("stroke-dashoffset", String(circumference * (1 - fraction)));
+          arc.setAttribute("stroke", color);
+        }
+        const seconds = Math.ceil(remaining / 1000);
+        const node = secondsRef.current;
+        if (node) {
+          if (seconds !== lastSeconds) {
+            node.textContent = String(seconds);
+            lastSeconds = seconds;
+          }
+          node.style.color = color;
+        }
+      }
+      if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [endsAt, durationMs, circumference]);
+
+  const initialSeconds = Math.ceil(Math.max(0, endsAt - Date.now()) / 1000);
 
   return (
     <>
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(10,10,10,0.12)" strokeWidth={stroke} />
         <circle
+          ref={arcRef}
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={color}
+          stroke="#1fae70"
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - fraction)}
+          strokeDashoffset={0}
         />
       </svg>
       {/* 残り秒数をアイコン中央に数字表示(SunVy/ポーカーチェイス方式)。黒フチ白抜きで視認性確保。 */}
       <div
+        ref={secondsRef}
         className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center font-black tabular-nums"
         style={{
           fontSize: Math.round(size * 0.42),
-          color,
+          color: "#1fae70",
           textShadow: "0 1px 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.9)",
         }}
       >
-        {secondsLeft}
+        {initialSeconds}
       </div>
     </>
   );

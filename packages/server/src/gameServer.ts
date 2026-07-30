@@ -532,14 +532,17 @@ export class TableSession implements GameSession {
     }
   }
 
-  private playersPayload(): { seatIndex: number; userId: string; displayName: string; avatarKey: string | null; isBot: boolean; away: boolean }[] {
+  /**
+   * 席のプレイヤー情報。自動プレイヤーかどうかを示すフラグは **クライアントへ送らない**
+   * (通信内容を見れば分かってしまうため)。相手の詳細はプロフィールAPIが誰に対しても
+   * 同じ形で応答するので、クライアント側で種別を知る必要はない。
+   */
+  private playersPayload(): { seatIndex: number; userId: string; displayName: string; avatarKey: string | null; away: boolean }[] {
     return [...this.players.values()].map((p) => ({
       seatIndex: p.seatIndex,
-      // BOTのuserIdは合成IDなのでクライアント側では詳細スタッツを引かない(isBotで判定)。
       userId: p.userId,
       displayName: p.displayName,
       avatarKey: p.avatarKey,
-      isBot: p.isBot,
       away: this.humansBySeat.get(p.seatIndex)?.away ?? false,
     }));
   }

@@ -33,6 +33,7 @@ import {
   type PushSubscriptionInput,
 } from "./push.js";
 import { putTransfer, takeTransfer } from "./authTransfer.js";
+import { syntheticPlayerProfile } from "./syntheticProfile.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -321,8 +322,14 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         where: { id: targetUserId },
         select: { id: true, displayName: true, avatarKey: true, isBot: true },
       });
-      if (!target || target.isBot) {
+      if (!target) {
         sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      // 自動プレイヤーは擬似スタッツで通常プレイヤーと同じ形で応答する。
+      // ここで404を返すと、応答の違いそのものが「相手が自動プレイヤーである」ことの手掛かりになる。
+      if (target.isBot) {
+        sendJson(res, 200, syntheticPlayerProfile(target.id, target.displayName, target.avatarKey));
         return true;
       }
       const [stats, rr] = await Promise.all([getPlayerStats(target.id), getRRRating(target.id)]);

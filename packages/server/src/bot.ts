@@ -370,6 +370,19 @@ export function decideBotAction(input: BotDecisionInput): PlayerAction {
   }
 
   if (equity < requiredEquity) return { kind: "fold" };
+
+  // ディープスタックでの過剰なコミットを防ぐ。
+  // estimateEquityは「ランダムな手札の相手」に対する勝率なので、相手がベット/レイズしている
+  // 場面では実際のレンジより自分を強く見積もってしまう。その誤差のままスタックを投げると、
+  // レベル1のような100BB級の深さでも次々とバストし、フィールドが不自然に溶ける。
+  // 有効25BB超で、このコールがスタックの4割以上を投じるなら、明確に強い手だけ続行する。
+  const effBBNow = bigBlind > 0 ? input.stack / bigBlind : 99;
+  const commitsBigPortion = toCall >= input.stack * 0.4;
+  if (effBBNow > 25 && commitsBigPortion) {
+    const strongEnough = (made && (made.strong || made.overpair || made.tptk)) || equity >= 0.72;
+    if (!strongEnough) return { kind: "fold" };
+  }
+
   if (toCall >= input.stack) return { kind: "allIn" };
 
   // レイズ: バリュー(強いメイド手)を主体に、たまにドローでセミブラフレイズ。

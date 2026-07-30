@@ -177,14 +177,13 @@ export function BlindStructureSheet({
             >
               <div className="mt-4">
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">Live Ranking(BB順)</p>
+                {/* 全プレイヤーを同一の見た目で並べる。行の装飾で相手の種別が推測できてはいけない。 */}
                 {standings.length > 0 ? (
                   <ul className="space-y-1">
                     {standings.map((s) => (
                       <li
                         key={s.userId}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 ${
-                          s.isBot ? "border-ink-100" : "border-ink-950"
-                        }`}
+                        className="flex items-center gap-2 rounded-xl border border-ink-950 px-3 py-1.5"
                       >
                         <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-gold-700">{s.rank}</span>
                         <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink-950">{s.displayName}</span>

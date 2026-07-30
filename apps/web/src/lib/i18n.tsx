@@ -317,7 +317,7 @@ const ja: Dict = {
 
   "primetime.eyebrow": "Prime time",
   "primetime.title": "プライムタイム大会",
-  "primetime.lead": "毎晩21:00(日本時間)は、みんなで卓を埋める時間。人が集まるほどボットは減り、勝ち抜きの価値が上がる。",
+  "primetime.lead": "毎晩21:00(日本時間)は、みんなで卓を埋める時間。人が集まるほど卓は白熱し、勝ち抜きの価値が上がる。",
   "primetime.schedule": "開催",
   "primetime.everyday": "毎晩 21:00 JST",
   "primetime.startsIn": "開始まで",
@@ -655,7 +655,7 @@ const en: Dict = {
 
   "primetime.eyebrow": "Prime time",
   "primetime.title": "Prime time tournament",
-  "primetime.lead": "Every night at 21:00 JST we fill the tables together. The more humans show up, the fewer bots — and the more a deep run is worth.",
+  "primetime.lead": "Every night at 21:00 JST we fill the tables together. The more players show up, the tougher the field — and the more a deep run is worth.",
   "primetime.schedule": "Schedule",
   "primetime.everyday": "Daily 21:00 JST",
   "primetime.startsIn": "Starts in",
@@ -993,7 +993,7 @@ const ko: Dict = {
 
   "primetime.eyebrow": "Prime time",
   "primetime.title": "프라임타임 대회",
-  "primetime.lead": "매일 밤 21:00(일본 시간)은 다 함께 테이블을 채우는 시간. 사람이 모일수록 봇은 줄고, 우승의 가치는 올라갑니다.",
+  "primetime.lead": "매일 밤 21:00(일본 시간)은 다 함께 테이블을 채우는 시간. 사람이 모일수록 테이블은 뜨거워지고, 우승의 가치는 올라갑니다.",
   "primetime.schedule": "일정",
   "primetime.everyday": "매일 21:00 JST",
   "primetime.startsIn": "시작까지",
@@ -1331,7 +1331,7 @@ const zh: Dict = {
 
   "primetime.eyebrow": "Prime time",
   "primetime.title": "黄金时段赛",
-  "primetime.lead": "每晚21:00(日本时间)大家一起坐满牌桌。真人越多，机器人越少，冲刺的价值也越高。",
+  "primetime.lead": "每晚21:00(日本时间)大家一起坐满牌桌。人越多，牌桌越激烈，冲刺的价值也越高。",
   "primetime.schedule": "时间",
   "primetime.everyday": "每晚 21:00 JST",
   "primetime.startsIn": "距开始",
