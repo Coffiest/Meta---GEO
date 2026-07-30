@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
@@ -829,8 +830,41 @@ function GameScreen({
   );
 }
 
-function LoadingScreen() {
-  return <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm">読み込み中…</div>;
+/**
+ * 読み込み中の表示。何秒待っているのかを必ず出す —— 「読み込み中…」だけでは
+ * 進んでいるのか固まっているのかが利用者にもこちらにも分からず、原因調査ができない。
+ * 長引いたときは診断ページへの導線も出す。
+ */
+function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const slow = seconds >= 5;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-ink-50 px-6 text-center">
+      <div className="flex items-center gap-2 text-ink-700">
+        <span className="h-4 w-4 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+        <span className="text-sm">
+          {what}… <span className="tabular-nums text-ink-500">{seconds}秒</span>
+        </span>
+      </div>
+      {slow && (
+        <>
+          <p className="max-w-xs text-[12px] leading-relaxed text-ink-500">
+            通常より時間がかかっています。サーバーが混み合っているか、応答が遅れています。
+          </p>
+          <Link
+            href="/diagnostics"
+            className="rounded-xl border border-ink-950 bg-white px-4 py-2 text-[12px] font-black text-ink-950"
+          >
+            原因を診断する
+          </Link>
+        </>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -1027,6 +1061,10 @@ export default function Page() {
         {techDetail && (
           <p className="mt-2 max-w-xs break-words font-mono text-[10px] leading-relaxed text-ink-400">{techDetail}</p>
         )}
+        {/* サーバー側の詰まり(CPU飽和・DB遅延)まで踏み込んで原因を見るための導線。 */}
+        <Link href="/diagnostics" className="text-[12px] font-bold text-ink-500 underline underline-offset-2">
+          サーバーの状態を診断する
+        </Link>
       </div>
     );
   }
