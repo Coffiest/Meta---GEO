@@ -7,7 +7,13 @@ import { handleReviewApiRequest } from "./reviewApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
-import { getDiagnostics, recordError, recordRequest, startDiagnostics } from "./diagnostics.js";
+import {
+  getDiagnostics,
+  recordError,
+  recordRequest,
+  startDatabaseWarmup,
+  startDiagnostics,
+} from "./diagnostics.js";
 
 const PORT = Number(process.env["PORT"] ?? 4000);
 
@@ -26,6 +32,8 @@ process.on("unhandledRejection", (reason) => {
 
 // 計測を先に立ち上げる(起動直後の重さも取りこぼさないため)。
 startDiagnostics();
+// DB接続を先に温めておく(最初のユーザーリクエストに接続コストを負わせない)。
+startDatabaseWarmup();
 
 /** ソケット接続数と進行中の卓数。診断で「重さが同時接続に比例しているか」を見るために使う。 */
 let connectedSockets = 0;
@@ -40,8 +48,14 @@ const httpServer = createServer((req, res) => {
   });
 
   // Fly.ioのヘルスチェックが叩くので、ここは常に軽量に保つ(DBにも触らない)。
+  // 動作診断ページがブラウザから素の応答速度を測るため、CORSヘッダも返す
+  // (これが無いとブラウザ側で必ず失敗し、診断ページに常時エラーが出る)。
   if (path === "/health") {
-    res.writeHead(200, { "content-type": "application/json" });
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
+      "cache-control": "no-store",
+    });
     res.end(JSON.stringify({ ok: true }));
     return;
   }
