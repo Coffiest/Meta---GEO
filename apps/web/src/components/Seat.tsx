@@ -3,13 +3,18 @@
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
-import { formatBb } from "@/lib/format";
+import { formatAmount, formatBb, formatChips, type AmountDisplayMode } from "@/lib/format";
 
 /**
  * 席ピル用のスタック表記。100bb以上は小数を落として桁を詰める。
  * 席ピルは席の幅(w-24)に収める必要があり、"148.8bb" の1桁が隣席との重なりを生むため。
+ * 点数(chips)モードでは素の点数を表示する(100万点以上だけ "1.2M" に丸めて幅を守る)。
  */
-function compactStack(stack: number, bigBlind: number): string {
+function compactStack(stack: number, bigBlind: number, mode: AmountDisplayMode): string {
+  if (mode === "chips") {
+    if (stack >= 1_000_000) return `${(stack / 1_000_000).toFixed(1)}M`;
+    return formatChips(stack);
+  }
   if (!bigBlind) return "0bb";
   const bb = stack / bigBlind;
   // 10bb以上は小数を落とす。深いスタックで0.1bbの差を読む場面は無く、
@@ -211,10 +216,6 @@ export interface SeatViewProps {
   /** 手番の残り時間(アバター周囲のリングで表示)。この席がアクティブなときだけ渡す。 */
   timer?: { endsAt: number; durationMs: number } | null;
   size?: "sm" | "lg";
-  /** ディーラーボタン。座席の識別ピルに直接アタッチすることで、名前の長さに関わらず
-   * 手札やピルと絶対に重ならないようにする(絶対座標のフリー配置は席ごとに表示名の長さが
-   * 変わるため、どこかのポジションで必ず干渉してしまっていた)。 */
-  isButton?: boolean;
   /** 離席中(自分・他プレイヤー双方に表示)。 */
   away?: boolean;
   /** プレイヤーメモのマーキング色(HEX)。設定時はアバター右上に小さなドットを出す。 */
@@ -231,6 +232,10 @@ export interface SeatViewProps {
   showEyeIcon?: boolean;
   /** 自席のカードをタップしたとき(ハンドショウのトグル)。 */
   onCardsTap?: () => void;
+  /** 卓上の金額表示モード(bb換算/点数)。 */
+  displayMode?: AmountDisplayMode;
+  /** 自席のスタック表示をタップしたとき(bb/点数の切り替え)。自席にだけ渡す。 */
+  onStackTap?: () => void;
 }
 
 export function Seat({
@@ -248,7 +253,6 @@ export function Seat({
   badge,
   timer,
   size = "sm",
-  isButton = false,
   away = false,
   markingColor = null,
   chatBubble = null,
@@ -257,6 +261,8 @@ export function Seat({
   shown = false,
   showEyeIcon = false,
   onCardsTap,
+  displayMode = "bb",
+  onStackTap,
 }: SeatViewProps) {
   const { t } = useI18n();
   const isEmpty = status === "empty";
@@ -390,11 +396,6 @@ export function Seat({
             </svg>
           </button>
         )}
-        {isButton && !isEmpty && (
-          <div className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full bg-white border-[1.5px] border-ink-950 flex items-center justify-center text-[9px] font-black text-ink-950">
-            D
-          </div>
-        )}
         {!isEmpty && (
           <>
             <div className="relative">
@@ -420,9 +421,21 @@ export function Seat({
                     {position}
                   </span>
                 )}
-                <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-ink-800 tabular-nums`}>
-                  {compactStack(stack, bigBlind)}
-                </span>
+                {onStackTap ? (
+                  // 自席のスタックはタップでbb表示⇄点数表示を切り替えられる(卓上の全金額に反映)。
+                  <button
+                    type="button"
+                    onClick={onStackTap}
+                    aria-label={displayMode === "chips" ? "bb表示に切り替える" : "点数表示に切り替える"}
+                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-ink-800 tabular-nums underline decoration-ink-300 decoration-dotted underline-offset-2 transition-transform active:scale-95`}
+                  >
+                    {compactStack(stack, bigBlind, displayMode)}
+                  </button>
+                ) : (
+                  <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-ink-800 tabular-nums`}>
+                    {compactStack(stack, bigBlind, displayMode)}
+                  </span>
+                )}
               </div>
               {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-950">All in</div>}
               {away && status !== "allIn" && (
@@ -460,7 +473,7 @@ export function Seat({
               exit={{ opacity: 0, scale: 0.6 }}
               className="rounded-full bg-white border border-ink-950 px-2.5 py-0.5 text-[10px] font-semibold text-ink-800 tabular-nums"
             >
-              {formatBb(streetContribution, bigBlind)}
+              {formatAmount(streetContribution, bigBlind, displayMode)}
             </motion.div>
           )
         )}
