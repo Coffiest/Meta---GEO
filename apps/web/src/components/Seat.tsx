@@ -170,18 +170,18 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
 }
 
 /**
- * 卓上バッジの配色。アプリ全体と同じ「白・黒・ゴールド」の3色だけで構成する。
- * 赤緑の信号色は使わない —— 既製ポーカーアプリの見た目に寄るうえ、
- * 卓の上で本当に目を引くべきものが埋もれるため。
- *  - ポット獲得だけがゴールド(卓上で唯一の彩色)
- *  - ベット/レイズ/オールインは黒の塗り(強い意思表示)
- *  - コール/チェックは白地に黒フチ(応答)
+ * 卓上バッジの配色。プレイヤーが行ったアクションは色で意味を分ける(オーナー指示により、
+ * 一度モノクロへ統一したものを元の配色へ戻した)。黒フチ(ring-ink-950)は全バッジ共通で、
+ * アプリの面構えを保ったまま塗りだけを色分けする。ActionBar のボタン配色と同じ言語:
+ *  - コール/チェックはミント(応答)
+ *  - ベット/レイズ/オールインはクリムゾン(強い意思表示)
+ *  - ポット獲得はゴールド(卓上で唯一の"結果"の色。アクションではないので据え置き)
  *  - フォールドは輪郭も文字も落として静かに引く
  */
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   win: "bg-gold-500 text-ink-950 ring-ink-950",
-  raise: "bg-ink-950 text-white ring-ink-950",
-  call: "bg-white text-ink-950 ring-ink-950",
+  raise: "bg-crimson-500 text-white ring-ink-950",
+  call: "bg-mint-500 text-white ring-ink-950",
   fold: "bg-white text-ink-400 ring-ink-300",
 };
 
