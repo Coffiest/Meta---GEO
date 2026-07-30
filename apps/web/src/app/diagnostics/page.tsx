@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { APP_VERSION } from "@/lib/version";
 
@@ -21,8 +21,10 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 interface Snapshot {
   uptimeSec: number;
   memory: { rssMb: number; heapUsedMb: number; heapTotalMb: number };
-  eventLoop: { meanMs: number; maxMs: number; p99Ms: number; peakSinceLogMs: number };
-  db: { pingMs: number | null };
+  eventLoop: { meanMs: number; maxMs: number; p99Ms: number; peakSinceLogMs: number; nowMs: number };
+  db: { pingMs: number | null; loopDelayDuringPingMs: number; estimatedDbMs: number | null };
+  auth: { calls: number; cacheHits: number; remoteCalls: number; avgRemoteMs: number | null; maxRemoteMs: number };
+  cpu: { percent: number; load1: number };
   counters: { requests: number; slowRequests: number; errors: number };
   slowRequests: { path: string; method: string; status: number; durationMs: number; at: string }[];
   errors: { scope: string; message: string; at: string }[];
@@ -62,13 +64,18 @@ export default function DiagnosticsPage() {
   const [fetchMs, setFetchMs] = useState<number | null>(null);
   const [probes, setProbes] = useState<Probe[]>([]);
   const [loading, setLoading] = useState(false);
+  // 実行中の測定を識別する。測定中に「再測定」を押された場合、古い測定の結果を
+  // 混ぜて二重に並べないための番号。
+  const runId = useRef(0);
 
   const load = useCallback(async () => {
+    const myRun = ++runId.current;
     setLoading(true);
     setFetchError(null);
     const started = performance.now();
     try {
       const res = await fetch(`${SERVER_URL}/api/diagnostics`, { cache: "no-store" });
+      if (runId.current !== myRun) return;
       setFetchMs(Math.round(performance.now() - started));
       if (!res.ok) {
         setFetchError(`サーバーが ${res.status} ${res.statusText} を返しました`);
@@ -77,40 +84,65 @@ export default function DiagnosticsPage() {
         setSnapshot((await res.json()) as Snapshot);
       }
     } catch (err) {
+      if (runId.current !== myRun) return;
       setFetchMs(Math.round(performance.now() - started));
       setFetchError(
         `サーバーに接続できません: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}（接続先 ${SERVER_URL}）`,
       );
       setSnapshot(null);
     } finally {
-      setLoading(false);
+      if (runId.current === myRun) setLoading(false);
     }
 
     // この端末からの実測レイテンシ。サーバー内部の数値と突き合わせて経路の遅さを切り分ける。
-    const results: Probe[] = [];
+    // 1本ずつ順に測り、測れたものからすぐ表示する(全部終わるまで何も出ないと、
+    // 遅いときに画面が空のまま固まって見える)。
+    setProbes([]);
     for (const probe of PROBES) {
       const t0 = performance.now();
+      let result: Probe;
       try {
         const res = await fetch(`${SERVER_URL}${probe.path}`, { cache: "no-store" });
-        results.push({ ...probe, ms: Math.round(performance.now() - t0), status: res.status });
+        result = { ...probe, ms: Math.round(performance.now() - t0), status: res.status };
       } catch (err) {
-        results.push({
+        result = {
           ...probe,
           ms: Math.round(performance.now() - t0),
           status: err instanceof Error ? err.name : "失敗",
-        });
+        };
       }
+      // 途中で再測定が始まっていたら、古い測定の結果は捨てる(行が二重に並ぶのを防ぐ)。
+      if (runId.current !== myRun) return;
+      setProbes((prev) => [...prev, result]);
     }
-    setProbes(results);
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const loopWarn = (snapshot?.eventLoop.p99Ms ?? 0) > 200 || (snapshot?.eventLoop.peakSinceLogMs ?? 0) > 500;
+  // 判定は行ごとに独立させる。以前は「ピークが高いならp99も赤」にしていたため、
+  // 健全な 0ms が赤く表示されて原因を取り違えやすかった。
   const memWarn = (snapshot?.memory.rssMb ?? 0) > 400;
-  const dbWarn = snapshot?.db.pingMs === null || (snapshot?.db.pingMs ?? 0) > 300;
+  const dbFailed = snapshot != null && snapshot.db.pingMs === null;
+  // DBの遅さは「実時間」ではなく、ループ遅延を差し引いた推定値で判定する
+  // (CPUが詰まっているとDBまで遅いように見えるため)。
+  const dbWarn = dbFailed || (snapshot?.db.estimatedDbMs ?? 0) > 300;
+  const cpuWarn = (snapshot?.cpu.percent ?? 0) > 80;
+  const authWarn = (snapshot?.auth.avgRemoteMs ?? 0) > 300;
+
+  /** 「原因はここ」を1行で言い切るための総合判定。 */
+  function verdict(s: Snapshot): { text: string; tone: "ok" | "warn" } {
+    if (s.db.pingMs === null) return { text: "DBに接続できていません。まずDB(Supabase)の状態を確認してください。", tone: "warn" };
+    if (s.eventLoop.nowMs > 300 || s.cpu.percent > 80)
+      return { text: "CPUが詰まっています(イベントループ遅延)。VMの増強が最も効きます。", tone: "warn" };
+    if ((s.db.estimatedDbMs ?? 0) > 300)
+      return { text: "DB自体の応答が遅いです。DBのリージョン/接続方式(pooler)を確認してください。", tone: "warn" };
+    if ((s.auth.avgRemoteMs ?? 0) > 300)
+      return { text: "認証トークンの検証(Supabase Authへの往復)が遅いです。", tone: "warn" };
+    if (s.memory.rssMb > 400) return { text: "メモリがVM上限に近づいています。増強が必要です。", tone: "warn" };
+    return { text: "サーバー内部の数値は正常範囲です。遅い場合は経路(回線)か端末側が原因です。", tone: "ok" };
+  }
 
   return (
     <div className="min-h-screen bg-ink-50 text-ink-950">
@@ -152,16 +184,58 @@ export default function DiagnosticsPage() {
 
         {snapshot && (
           <>
-            <section className="mt-5 rounded-2xl border border-ink-200 bg-white p-4">
+            {(() => {
+              const v = verdict(snapshot);
+              return (
+                <div
+                  className={`mt-5 rounded-2xl border p-4 ${
+                    v.tone === "warn" ? "border-crimson-500 bg-crimson-500/10" : "border-ink-200 bg-white"
+                  }`}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-ink-400">判定</p>
+                  <p
+                    className={`mt-1 text-[13.5px] font-bold leading-relaxed ${
+                      v.tone === "warn" ? "text-crimson-500" : "text-ink-800"
+                    }`}
+                  >
+                    {v.text}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <section className="mt-4 rounded-2xl border border-ink-200 bg-white p-4">
               <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-ink-400">サーバーの状態</h2>
               <div className="mt-2">
                 <Row
+                  label="イベントループ遅延 (いま)"
+                  value={`${snapshot.eventLoop.nowMs} ms`}
+                  warn={snapshot.eventLoop.nowMs > 300}
+                  hint="測定した瞬間の詰まり。数百msを超えていればその瞬間サーバーは固まっています。"
+                />
+                <Row
                   label="イベントループ遅延 (p99)"
                   value={`${snapshot.eventLoop.p99Ms} ms`}
-                  warn={loopWarn}
-                  hint="数百msを超えるとその瞬間サーバーは固まっています。CPU不足か同期処理の詰まり。"
+                  warn={snapshot.eventLoop.p99Ms > 200}
+                  hint="起動からの分布。ここが大きいなら「たまに固まる」ではなく常時詰まっています。"
                 />
-                <Row label="イベントループ遅延 (直近ピーク)" value={`${snapshot.eventLoop.peakSinceLogMs} ms`} warn={loopWarn} />
+                <Row
+                  label="イベントループ遅延 (直近1分の最大)"
+                  value={`${snapshot.eventLoop.peakSinceLogMs} ms`}
+                  warn={snapshot.eventLoop.peakSinceLogMs > 500}
+                />
+                <Row
+                  label="イベントループ遅延 (起動以来の最大)"
+                  value={`${snapshot.eventLoop.maxMs} ms`}
+                  warn={snapshot.eventLoop.maxMs > 2000}
+                />
+                <Row
+                  label="CPU使用率"
+                  value={`${snapshot.cpu.percent} %`}
+                  warn={cpuWarn}
+                  hint="共有CPUのVMでは100%付近に張り付くとスロットリングで固まります。"
+                />
+                <Row label="ロードアベレージ (1分)" value={`${snapshot.cpu.load1}`} warn={snapshot.cpu.load1 > snapshot.runtime.cpus} />
                 <Row
                   label="メモリ (RSS)"
                   value={`${snapshot.memory.rssMb} MB`}
@@ -170,10 +244,31 @@ export default function DiagnosticsPage() {
                 />
                 <Row label="ヒープ使用" value={`${snapshot.memory.heapUsedMb} / ${snapshot.memory.heapTotalMb} MB`} />
                 <Row
-                  label="DB応答"
+                  label="DB応答 (実時間)"
                   value={snapshot.db.pingMs === null ? "失敗" : `${snapshot.db.pingMs} ms`}
+                  warn={dbFailed}
+                  hint="CPUが詰まっているとDBも遅く見えます。下の「DB自体」で切り分けてください。"
+                />
+                <Row
+                  label="DB応答 (DB自体)"
+                  value={snapshot.db.estimatedDbMs === null ? "失敗" : `${snapshot.db.estimatedDbMs} ms`}
                   warn={dbWarn}
-                  hint="ここだけ遅い場合はDB側の詰まり（接続枯渇・クエリ重い）。"
+                  hint="実時間からループ遅延を差し引いた値。ここだけ遅いならDB側(リージョン/接続方式)が原因。"
+                />
+                <Row
+                  label="認証検証 (Supabaseへの往復)"
+                  value={snapshot.auth.avgRemoteMs === null ? "往復なし" : `平均 ${snapshot.auth.avgRemoteMs} ms`}
+                  warn={authWarn}
+                  hint="APIごとに毎回往復すると重くなるため結果をキャッシュしています。"
+                />
+                <Row
+                  label="認証キャッシュ率"
+                  value={
+                    snapshot.auth.calls === 0
+                      ? "-"
+                      : `${Math.round((snapshot.auth.cacheHits / snapshot.auth.calls) * 100)} %（${snapshot.auth.cacheHits}/${snapshot.auth.calls}）`
+                  }
+                  hint="高いほど良い。低いままなら毎回Supabaseへ往復しています。"
                 />
                 <Row label="CPUコア数" value={`${snapshot.runtime.cpus}`} hint="1ならVMは最小構成。増強の余地があります。" />
                 <Row label="同時接続ソケット" value={`${snapshot.sockets}`} />
@@ -228,9 +323,9 @@ export default function DiagnosticsPage() {
           <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-ink-400">この端末からの実測</h2>
           <div className="mt-2">
             {fetchMs !== null && <Row label="診断API（往復）" value={`${fetchMs} ms`} warn={fetchMs > 1500} />}
-            {probes.map((p) => (
+            {probes.map((p, i) => (
               <Row
-                key={p.path}
+                key={`${p.path}-${i}`}
                 label={`${p.label}`}
                 value={p.ms === null ? "-" : `${p.ms} ms（${p.status}）`}
                 warn={typeof p.ms === "number" && p.ms > 1500}

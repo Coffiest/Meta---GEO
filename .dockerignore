@@ -8,3 +8,9 @@ apps/web/node_modules
 **/*.log
 .env
 .env.local
+
+# GTOポストフロップ解の元データ(28MB)。DBへの投入は GitHub Actions の migrate-db ジョブが
+# 行い、対戦サーバーは投入済みのDBを読むだけなのでイメージには不要。
+# ビルドコンテキストの転送とイメージサイズを削ってデプロイ/再起動を速くする。
+# (参照しているのは packages/db/scripts/*.ts のシード用スクリプトのみ)
+packages/db/src/data/postflopSolutions.json
