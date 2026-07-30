@@ -19,6 +19,7 @@ import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { WelcomeTour, hasTourBeenSeen } from "@/components/WelcomeTour";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
+import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 
 const SEAT_COUNT = 6;
@@ -298,6 +299,26 @@ function GameScreen({
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   // ハンドショウ: 自分の手札をハンド終了時に公開する意思(自席のカードをタップでトグル)。
   const [heroShowIntent, setHeroShowIntent] = useState(false);
+  // 卓上の金額表示モード(bb換算/点数)。自席スタックのタップで切り替え、選択は端末に保存する。
+  const [amountDisplayMode, setAmountDisplayMode] = useState<AmountDisplayMode>(() => {
+    if (typeof window === "undefined") return "bb";
+    try {
+      return window.localStorage.getItem("tableAmountDisplayMode") === "chips" ? "chips" : "bb";
+    } catch {
+      return "bb";
+    }
+  });
+  const toggleAmountDisplayMode = useCallback(() => {
+    setAmountDisplayMode((cur) => {
+      const next = cur === "bb" ? "chips" : "bb";
+      try {
+        window.localStorage.setItem("tableAmountDisplayMode", next);
+      } catch {
+        /* プライベートブラウズ等で保存できなくても切り替え自体は行う */
+      }
+      return next;
+    });
+  }, []);
   const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
   // レジストレーションクローズの締切時刻(MTT・RC前のみ)。表示はCountdownTextに任せる。
   const regClosesAt =
@@ -558,6 +579,8 @@ function GameScreen({
             onHeroChatClick={() => setChatInputOpen(true)}
             heroShowIntent={heroShowIntent}
             onToggleHeroShow={toggleHeroShow}
+            displayMode={amountDisplayMode}
+            onToggleDisplayMode={toggleAmountDisplayMode}
           />
         )}
       </main>
