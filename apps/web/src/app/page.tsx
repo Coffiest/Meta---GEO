@@ -451,8 +451,10 @@ function GameScreen({
             endsAt={levelEndsAt}
             className="mt-0.5 block text-[26px] font-black tabular-nums leading-none text-gold-600"
           />
-          {/* 生存者数(MTT)。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。 */}
-          {gameKey === "mtt" && tournamentInfo && (
+          {/* 生存者数。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。
+              MTT・Sit&Goのどちらでも必ず出す(サーバーは両方とも remaining/total を送っている)。
+              以前はMTT限定の条件で囲っていたため、Sit&Goでは人数が一切見えなかった。 */}
+          {tournamentInfo && tournamentInfo.total > 0 && (
             <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700">
