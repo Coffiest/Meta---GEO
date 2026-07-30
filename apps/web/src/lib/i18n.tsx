@@ -37,6 +37,7 @@ const ja: Dict = {
   "action.away": "離席",
   "action.armCheckFold": "チェック/フォールドを予約",
   "seat.chat": "チャット",
+  "seat.timeBankUsed": "タイムバンク",
   "seat.away": "離席中",
 
   "common.close": "閉じる",
@@ -397,6 +398,7 @@ const en: Dict = {
   "action.away": "Away",
   "action.armCheckFold": "Pre-set check/fold",
   "seat.chat": "Chat",
+  "seat.timeBankUsed": "Time Bank",
   "seat.away": "Away",
 
   "common.close": "Close",
@@ -757,6 +759,7 @@ const ko: Dict = {
   "action.away": "자리비움",
   "action.armCheckFold": "체크/폴드 예약",
   "seat.chat": "채팅",
+  "seat.timeBankUsed": "타임뱅크",
   "seat.away": "자리비움",
 
   "common.close": "닫기",
@@ -1117,6 +1120,7 @@ const zh: Dict = {
   "action.away": "离席",
   "action.armCheckFold": "预设过牌/弃牌",
   "seat.chat": "聊天",
+  "seat.timeBankUsed": "时间银行",
   "seat.away": "离席中",
 
   "common.close": "关闭",

@@ -214,7 +214,7 @@ export interface SeatViewProps {
   revealCards: boolean;
   badge?: SeatBadge | null;
   /** 手番の残り時間(アバター周囲のリングで表示)。この席がアクティブなときだけ渡す。 */
-  timer?: { endsAt: number; durationMs: number } | null;
+  timer?: { endsAt: number; durationMs: number; timeBank?: boolean } | null;
   size?: "sm" | "lg";
   /** 離席中(自分・他プレイヤー双方に表示)。 */
   away?: boolean;
@@ -381,6 +381,22 @@ export function Seat({
             aria-hidden
             className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-ink-950"
           />
+        )}
+
+        {/* タイムバンク使用の告知。誰の席でも同じ条件・同じ見た目で出す
+            (出方に差があると、それ自体が相手の種別を推測する手掛かりになってしまう)。
+            アイコンは使わず、金色のピルに文字だけを載せる。 */}
+        {isActingSeat && timer?.timeBank && (
+          // 中央寄せ(-translate-x-1/2)とアニメーションを同じ要素に置くと、キーフレームの
+          // transform が中央寄せを打ち消してしまう。外側で位置決め、内側でアニメーションする。
+          <span className="pointer-events-none absolute -top-3 left-1/2 z-40 -translate-x-1/2">
+            <span
+              role="status"
+              className="block animate-time-bank-badge whitespace-nowrap rounded-full bg-gold-500 px-2 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] text-ink-950 shadow-[0_2px_6px_-2px_rgba(10,10,10,0.6)]"
+            >
+              {t("seat.timeBankUsed")}
+            </span>
+          </span>
         )}
 
         {/* 自分の席: カード右側の丸いチャット入力ボタン。 */}
