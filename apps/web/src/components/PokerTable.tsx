@@ -30,6 +30,51 @@ const SEAT_LAYOUT: Record<number, string> = {
   5: "top-[55%] right-[4%]",
 };
 
+/**
+ * ディーラーボタンの置き場所(表示スロットごと)。実卓と同じように、プレイヤーに貼り付けるのではなく
+ * 「その席の前のフェルト上」に置く。
+ *
+ * フェルトは FELT_BOX のとおりコンテナ内 x:18〜82% / y:10〜82% の楕円(中心 50%,46% / 半径 32%,36%)。
+ * 各席から中心へ向かって内側に入った、楕円の内側に必ず収まる座標を選んである。あわせて
+ * 画像のロゴ帯(上部 約5-31%)・カードスロット帯(約44-56%)・ワードマーク帯(約59-78%)の
+ * 中央列を避けるため、上下の席は左右へずらしてある(卓上の意匠と重ならないように)。
+ */
+const DEALER_BUTTON_LAYOUT: Record<number, string> = {
+  0: "top-[70%] left-[64%]",
+  1: "top-[56%] left-[28%]",
+  2: "top-[32%] left-[30%]",
+  3: "top-[20%] left-[58%]",
+  // 左右は left-% の鏡像で指定する(right-% と混在させると中心合わせのマージン分だけ左右非対称になる)。
+  4: "top-[32%] left-[70%]",
+  5: "top-[56%] left-[72%]",
+};
+
+/**
+ * フェルト上に置かれたディーラーボタン。実物のボタン(白い樹脂ディスクに"D"の刻印)に寄せて、
+ * 二重リング+わずかな落ち影で「卓に置かれた物体」として読ませる。ボタンが移動する卓では
+ * ハンドごとに位置が変わるため、layout アニメーションで席から席へ滑らせる
+ * (reduced-motion 時は移動アニメーションを切る)。
+ */
+function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
+  return (
+    <motion.div
+      // key を固定して同一要素として扱わせることで、position の変化が layout で補間される。
+      layout={!reduced}
+      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
+      aria-hidden
+      // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
+      // 上書きするため、移動中だけ半径ぶんズレてしまう)。
+      className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
+    >
+      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-ink-950 bg-white shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
+        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-ink-400 text-[9px] font-black leading-none text-ink-950">
+          D
+        </span>
+      </span>
+    </motion.div>
+  );
+}
+
 // テーブルデザイン画像。felt.pngと同一比率(1000×1500=2:3)・同一内部レイアウトで、
 // 実線の外枠を追加したtable_v2.pngへ差し替え(座席/ボード/ポットの位置校正はそのまま合う)。
 const TABLE_IMAGE_SRC = "/table/table_v2.png";
@@ -358,6 +403,10 @@ export function PokerTable({
         })}
       </div>
 
+      {/* ディーラーボタン: プレイヤーではなく、その席の前のフェルト上に置く(実卓と同じ扱い)。
+          座席の描画とは独立させているので、表示名の長さや席ピルの幅に一切影響されない。 */}
+      {state && <DealerButton slot={displaySlotOf(state.buttonFixedPos)} reduced={reducedMotion} />}
+
       {/* 全座席(スロット0=自分が常に下) */}
       {Array.from({ length: seatCount }).map((_, seatIndex) => {
         const slot = displaySlotOf(seatIndex);
@@ -415,7 +464,6 @@ export function PokerTable({
             revealCards={isHero || Boolean(revealed)}
             timer={timerForSeat}
             size={isHero ? "lg" : "sm"}
-            isButton={state?.buttonFixedPos === seatIndex}
             away={player?.away ?? false}
             displayMode={displayMode}
             onStackTap={isHero ? onToggleDisplayMode : undefined}
