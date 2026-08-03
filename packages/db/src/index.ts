@@ -6,7 +6,6 @@ export * from "./rrRating.js";
 export * from "./rankedEntries.js";
 export * from "./playerNotes.js";
 export * from "./referral.js";
-export * from "./badges.js";
 export * from "./leaderboard.js";
 export * from "./solverSpot.js";
 export * from "./reviewClassify.js";

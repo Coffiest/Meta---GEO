@@ -9,7 +9,6 @@ import { issueCouponForReferral } from "./premiumCoupons.js";
  *
  * バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が
  * 出るため、特典は有料機能の無料アクセス期間に限定している。
- * 称号(スカウト/リクルーター等)は引き続きバッジ図鑑の実績として残るが、特典そのものではない。
  */
 
 /** コードに使う文字。読み間違えやすい I/O/0/1 を除外している(口頭・手入力で伝わるように)。 */
@@ -19,37 +18,9 @@ const CODE_LENGTH = 8;
 /** 招待1件につき発行するクーポン1枚あたりの棋譜解析プラン無料月数。 */
 export const REFERRAL_REWARD_MONTHS = 1;
 
-/** 招待人数に応じた称号(しきい値の昇順)。ラベルはWeb側のi18n(`invite.tier.*`)で解決する。
- *  特典は上のクーポン発行が本体で、称号はバッジ図鑑の実績表示として残している。 */
-export const REFERRAL_TIERS = [
-  { key: "scout", minInvites: 1 },
-  { key: "recruiter", minInvites: 3 },
-  { key: "ambassador", minInvites: 5 },
-  { key: "legend", minInvites: 10 },
-] as const;
-
-export type ReferralTierKey = (typeof REFERRAL_TIERS)[number]["key"];
-
 /** 入力された招待コードを正規化する(大文字化+英数字以外を除去)。URLからの取り込みにも使う。 */
 export function normalizeReferralCode(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
-}
-
-/** 招待成立数に対応する現在の称号。1人未満はnull(称号なし)。 */
-export function referralTierFor(invitedCount: number): ReferralTierKey | null {
-  let current: ReferralTierKey | null = null;
-  for (const tier of REFERRAL_TIERS) {
-    if (invitedCount >= tier.minInvites) current = tier.key;
-  }
-  return current;
-}
-
-/** 次に到達する称号としきい値。最高称号に達していればnull。 */
-export function nextReferralTier(invitedCount: number): { key: ReferralTierKey; minInvites: number } | null {
-  for (const tier of REFERRAL_TIERS) {
-    if (invitedCount < tier.minInvites) return { key: tier.key, minInvites: tier.minInvites };
-  }
-  return null;
 }
 
 function generateCode(): string {
@@ -93,10 +64,6 @@ export interface ReferralSummary {
   invitedCount: number;
   /** 直近の招待成立者(最大10件)。 */
   invitees: ReferralInvitee[];
-  /** 現在の称号。1人も招待していなければnull。 */
-  tier: ReferralTierKey | null;
-  /** 次の称号としきい値。最高称号ならnull。 */
-  nextTier: { key: ReferralTierKey; minInvites: number } | null;
   /** 自分を招待してくれた人の表示名。誰の招待でもなければnull。 */
   invitedByDisplayName: string | null;
   /** 招待特典(棋譜解析プラン無料クーポン)の状況。 */
@@ -137,8 +104,6 @@ export async function getReferralSummary(userId: string): Promise<ReferralSummar
       avatarKey: r.invitee.avatarKey,
       createdAt: r.createdAt,
     })),
-    tier: referralTierFor(invitedCount),
-    nextTier: nextReferralTier(invitedCount),
     invitedByDisplayName: received?.inviter.displayName ?? null,
     reward: { monthsPerInvite: REFERRAL_REWARD_MONTHS, couponsEarned, couponsAvailable },
   };

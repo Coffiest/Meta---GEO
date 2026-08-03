@@ -12,7 +12,6 @@ import {
   redeemReferralCode,
   getCouponWallet,
   redeemCouponCode,
-  getBadgeCollection,
   getHandProfitGraph,
   getRRRating,
   getTournamentHistory,
@@ -451,18 +450,6 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
     // ホールカードや進行中のアクションは一切含めないため、覗き見による不正の余地は無い。
     if (url.pathname === "/api/lobby/live") {
       sendJson(res, 200, { live: liveStatus.get() });
-      return true;
-    }
-
-    // バッジ図鑑。全バッジの達成状況と、未達成バッジの現在値(進捗)を返す。
-    if (url.pathname === "/api/lobby/badges") {
-      const verified = await verifyAccessToken(extractBearerToken(req));
-      if (!verified) {
-        sendJson(res, 401, { error: "unauthorized" });
-        return true;
-      }
-      const user = await resolveDbUser(verified);
-      sendJson(res, 200, await getBadgeCollection(user.id));
       return true;
     }
 

@@ -4,32 +4,13 @@ import {
   getOrCreateReferralCode,
   getReferralSummary,
   grantReferralReward,
-  nextReferralTier,
   normalizeReferralCode,
   redeemReferralCode,
-  referralTierFor,
 } from "../src/referral.js";
 import { getSubscriptionStatusForUser } from "../src/subscriptions.js";
 import { formatCouponCode, getCouponWallet } from "../src/premiumCoupons.js";
 
-describe("referral tiers (pure)", () => {
-  it("has no title until the first invite lands, then climbs by threshold", () => {
-    expect(referralTierFor(0)).toBeNull();
-    expect(referralTierFor(1)).toBe("scout");
-    expect(referralTierFor(2)).toBe("scout");
-    expect(referralTierFor(3)).toBe("recruiter");
-    expect(referralTierFor(5)).toBe("ambassador");
-    expect(referralTierFor(10)).toBe("legend");
-    expect(referralTierFor(999)).toBe("legend");
-  });
-
-  it("points at the next threshold, and at nothing once the top title is reached", () => {
-    expect(nextReferralTier(0)).toEqual({ key: "scout", minInvites: 1 });
-    expect(nextReferralTier(1)).toEqual({ key: "recruiter", minInvites: 3 });
-    expect(nextReferralTier(9)).toEqual({ key: "legend", minInvites: 10 });
-    expect(nextReferralTier(10)).toBeNull();
-  });
-
+describe("referral codes (pure)", () => {
   it("normalizes hand-typed codes (case, spaces, separators)", () => {
     expect(normalizeReferralCode(" k7q-mx2a ")).toBe("K7QMX2A");
     expect(normalizeReferralCode("――")).toBe("");
@@ -67,7 +48,7 @@ describe("referral codes and redemption (integration, real Postgres)", () => {
     expect(await getOrCreateReferralCode(user.id)).toBe(first);
   });
 
-  it("lands an invite, counts it towards the inviter's title, and records who invited whom", async () => {
+  it("lands an invite, counts it for the inviter, and records who invited whom", async () => {
     const inviter = await createUser("Inviter");
     const invitee = await createUser("Invitee");
     const code = await getOrCreateReferralCode(inviter.id);
@@ -77,8 +58,6 @@ describe("referral codes and redemption (integration, real Postgres)", () => {
 
     const inviterSummary = await getReferralSummary(inviter.id);
     expect(inviterSummary.invitedCount).toBe(1);
-    expect(inviterSummary.tier).toBe("scout");
-    expect(inviterSummary.nextTier).toEqual({ key: "recruiter", minInvites: 3 });
     expect(inviterSummary.invitees[0]?.displayName).toBe(invitee.displayName);
     expect(inviterSummary.invitedByDisplayName).toBeNull();
 

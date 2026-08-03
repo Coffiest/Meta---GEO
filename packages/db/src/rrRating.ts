@@ -76,7 +76,7 @@ export interface RRRatingEntry {
 
 /** 全実プレイヤーのトナメ偏差値を、偏差値の高い順に並べて返す。 */
 export async function computeRRRatings(): Promise<RRRatingEntry[]> {
-  // 偏差値・リーダーボード・バッジ図鑑が同じ全体集計を要求するため、取得は共有キャッシュに任せる
+  // 偏差値とリーダーボードが同じ全体集計を要求するため、取得は共有キャッシュに任せる
   // (ホーム表示のたびにTournamentEntryを全件フェッチしていたのが、体感の重さの主因だった)。
   const entries = await getRankedEntries();
 

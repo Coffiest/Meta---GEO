@@ -9,8 +9,6 @@
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 const PENDING_KEY = "pendingReferralCode";
 
-export type ReferralTierKey = "scout" | "recruiter" | "ambassador" | "legend";
-
 export interface ReferralInvitee {
   displayName: string;
   avatarKey: string | null;
@@ -30,8 +28,6 @@ export interface ReferralSummary {
   code: string;
   invitedCount: number;
   invitees: ReferralInvitee[];
-  tier: ReferralTierKey | null;
-  nextTier: { key: ReferralTierKey; minInvites: number } | null;
   invitedByDisplayName: string | null;
   reward: ReferralReward;
 }
