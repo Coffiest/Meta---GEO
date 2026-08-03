@@ -31,7 +31,8 @@ export interface PlayerNote {
 export interface PlayerStatsSummary {
   tournamentsPlayed: number;
   itmRate: number;
-  profit: number;
+  /** 値を出さない相手ではnull。UIは枠を残して「--」を表示する。 */
+  profit: number | null;
   roi: number;
   nationalRank: number | null;
   totalRankedPlayers: number;
@@ -89,7 +90,8 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
   const itmRate = between(0.12, 0.34);
   const roi = between(0.78, 1.55);
   const avgBuyIn = between(1000, 2000);
-  const profit = Math.round((roi - 1) * avgBuyIn * tournamentsPlayed);
+  // 収支も値を出さない(枠は残し、UI側で「--」を表示する)。
+  const profit = null;
   const vpipRate = between(0.16, 0.36);
   const pfrRate = Math.min(vpipRate - 0.02, between(0.1, 0.28));
   const threeBetRate = between(0.03, 0.1);

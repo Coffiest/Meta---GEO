@@ -128,12 +128,12 @@ export function PlayerDetailModal({
         ) : (
           <>
             {/* 主要指標。どのプレイヤーでも同じ項目・同じ枠を必ず並べる。
-                偏差値と全国順位だけは値が取れない相手があり、その場合も枠は残して「--」にする。 */}
+                収支・偏差値・全国順位は値が取れない相手があり、その場合も枠は残して「--」にする。 */}
             <div className="grid grid-cols-2 gap-2">
               <Metric
                 label="収支"
-                value={`${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
-                accent={s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
+                value={s.profit == null ? "--" : `${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
+                accent={s.profit == null ? "flat" : s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
               />
               <Metric label="ROI(還元率)" value={roiPct(s.roi)} />
               <Metric label="インマネ率" value={pct(s.itmRate)} />

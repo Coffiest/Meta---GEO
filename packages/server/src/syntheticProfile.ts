@@ -37,7 +37,8 @@ export interface SyntheticProfile {
     itmRate: number;
     totalBuyIns: number;
     totalPayouts: number;
-    profit: number;
+    /** 値を出さない相手ではnull。UI側は枠を残して「--」を表示する。 */
+    profit: number | null;
     roi: number;
     /** 値を出さない相手ではnull。UI側は枠を残して「--」を表示する。 */
     nationalRank: number | null;
@@ -72,7 +73,8 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
   const avgBuyIn = between(1000, 2000);
   const totalBuyIns = Math.round(avgBuyIn * tournamentsPlayed);
   const totalPayouts = Math.round(totalBuyIns * roi);
-  const profit = totalPayouts - totalBuyIns;
+  // 収支も値を出さない(偏差値・全国順位と同じ扱い)。
+  const profit = null;
   const vpipRate = between(0.16, 0.36);
   const pfrRate = Math.min(vpipRate - 0.02, between(0.1, 0.28));
   const threeBetRate = between(0.03, 0.1);
