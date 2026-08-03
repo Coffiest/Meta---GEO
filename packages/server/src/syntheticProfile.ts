@@ -37,9 +37,11 @@ export interface SyntheticProfile {
     itmRate: number;
     totalBuyIns: number;
     totalPayouts: number;
-    profit: number;
+    /** 値を出さない相手ではnull。UI側は枠を残して「--」を表示する。 */
+    profit: number | null;
     roi: number;
-    nationalRank: number;
+    /** 値を出さない相手ではnull。UI側は枠を残して「--」を表示する。 */
+    nationalRank: number | null;
     totalRankedPlayers: number;
     vpipCount: number;
     vpipOpportunities: number;
@@ -52,10 +54,10 @@ export interface SyntheticProfile {
     threeBetRate: number;
   };
   rrRating: {
-    rrRating: number;
+    rrRating: number | null;
     roi: number;
     tournamentsPlayed: number;
-    nationalRank: number;
+    nationalRank: number | null;
     totalRankedPlayers: number;
   };
 }
@@ -71,15 +73,15 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
   const avgBuyIn = between(1000, 2000);
   const totalBuyIns = Math.round(avgBuyIn * tournamentsPlayed);
   const totalPayouts = Math.round(totalBuyIns * roi);
-  const profit = totalPayouts - totalBuyIns;
+  // 収支も値を出さない(偏差値・全国順位と同じ扱い)。
+  const profit = null;
   const vpipRate = between(0.16, 0.36);
   const pfrRate = Math.min(vpipRate - 0.02, between(0.1, 0.28));
   const threeBetRate = between(0.03, 0.1);
-  const rrRating = between(41, 63);
   const totalRankedPlayers = Math.floor(between(1200, 4800));
-  // 偏差値が高いほど順位が上(数字が小さい)になるよう素朴にマッピングする。
-  const pctile = Math.min(0.99, Math.max(0.01, 1 - (rrRating - 35) / 30));
-  const nationalRank = Math.max(1, Math.round(pctile * totalRankedPlayers));
+  // 偏差値と全国順位だけは値を出さない(nullで返し、UI側は枠を残して「--」を表示する)。
+  const rrRating = null;
+  const nationalRank = null;
   const vpipOpportunities = Math.max(1, Math.round(tournamentsPlayed * between(18, 42)));
   const pfrOpportunities = vpipOpportunities;
   const threeBetOpportunities = Math.max(1, Math.round(vpipOpportunities * between(0.4, 0.7)));
