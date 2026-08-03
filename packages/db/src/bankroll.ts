@@ -542,6 +542,8 @@ export interface HandHistoryRow {
   deltaChips: number;
   bigBlind: number;
   tournamentId: string;
+  /** トーナメント内のハンド番号(#n)。プレイ中のハンド履歴との突き合わせ用。 */
+  handNumber: number;
   /** トナメごとのグルーピング用の見出し(ゲーム種別+開始日時)。 */
   tournamentLabel: string;
   isFavorite: boolean;
@@ -552,14 +554,20 @@ const POSITION_TABLE_6MAX = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
 /**
  * 指定ユーザーのハンド履歴(TenFourのHand History画面相当)。新しい順。
  * `favoritesOnly` を渡すと、お気に入り登録済みのハンドだけに絞り込む。
+ * `tournamentId` を渡すと、そのトーナメントのハンドだけに絞り込む(プレイ中のハンド履歴詳細用)。
  */
 export async function getUserHandHistory(
   userId: string,
   limit = 100,
   favoritesOnly = false,
+  tournamentId?: string,
 ): Promise<HandHistoryRow[]> {
   const seats = await prisma.handSeat.findMany({
-    where: { userId, ...(favoritesOnly ? { isFavorite: true } : {}) },
+    where: {
+      userId,
+      ...(favoritesOnly ? { isFavorite: true } : {}),
+      ...(tournamentId ? { hand: { is: { tournamentId } } } : {}),
+    },
     orderBy: { hand: { createdAt: "desc" } },
     take: limit,
     include: {
@@ -571,6 +579,7 @@ export async function getUserHandHistory(
           buttonFixedPos: true,
           levelBigBlind: true,
           tournamentId: true,
+          handNumber: true,
           tournament: { select: { seatCount: true, gameType: true, createdAt: true } },
         },
       },
@@ -591,6 +600,7 @@ export async function getUserHandHistory(
       deltaChips: s.resultStackDelta,
       bigBlind: s.hand.levelBigBlind,
       tournamentId: s.hand.tournamentId,
+      handNumber: s.hand.handNumber,
       tournamentLabel: `${gameLabel} ・ ${tournamentStart.toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
       isFavorite: s.isFavorite,
     };

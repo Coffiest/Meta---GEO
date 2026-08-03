@@ -147,6 +147,48 @@ export async function fetchHandReview(handId: string, accessToken: string): Prom
   return (await res.json()) as HandReviewResponse;
 }
 
+/**
+ * プレイ中のハンド履歴詳細用: 1ハンドのタイムラインのみ(GTO解析なし)を取得。
+ * サーバー側で解析・ソルバー・無料枠消費を一切行わない軽量エンドポイントなので、
+ * 無料のままプレイ中に何度でも呼べる。
+ */
+export async function fetchHandTimeline(handId: string, accessToken: string): Promise<HandTimeline | null> {
+  const res = await fetch(`${SERVER_URL}/api/review/hand/${encodeURIComponent(handId)}/timeline`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { timeline?: HandTimeline };
+  return data.timeline ?? null;
+}
+
+/** 進行中トーナメントのハンド履歴一覧の1行(/api/lobby/history?tournamentId= の応答)。 */
+export interface LiveHandHistoryRow {
+  handId: string;
+  playedAt: string;
+  position: string;
+  holeCards: string[];
+  board: string[];
+  deltaChips: number;
+  bigBlind: number;
+  tournamentId: string;
+  handNumber: number;
+  isFavorite: boolean;
+}
+
+/** 進行中トーナメントの自分のハンド一覧を取得(プレイ中のハンド履歴詳細用)。 */
+export async function fetchTournamentHandHistory(
+  tournamentId: string,
+  accessToken: string,
+): Promise<LiveHandHistoryRow[] | null> {
+  const res = await fetch(`${SERVER_URL}/api/lobby/history?tournamentId=${encodeURIComponent(tournamentId)}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as LiveHandHistoryRow[];
+}
+
 /** 無料枠超過(402)の情報。次に無料解析できる時刻(ISO)を含む。 */
 export interface ReviewQuotaInfo {
   remaining: number;

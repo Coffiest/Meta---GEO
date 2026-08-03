@@ -498,35 +498,35 @@ function GameScreen({
               </svg>
               <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
                 {tournamentInfo.remaining}
-                <span className="text-ink-400">/</span>
+                <span className="text-ink-500">/</span>
                 {tournamentInfo.total}
               </span>
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">残り</span>
+              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">残り</span>
             </div>
           )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
           {regClosesAt && (
             <div className="mt-0.5 flex items-center gap-1 leading-none">
-              <span className="text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Reg締切</span>
+              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Reg締切</span>
               <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-500" />
             </div>
           )}
           <div className="mt-1 flex items-end gap-2 leading-none">
             <div>
-              <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Blind</span>
+              <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Blind</span>
               <span className="text-[11px] font-black tabular-nums text-ink-950">
                 {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
               </span>
             </div>
             {level && level.bbAnte > 0 && (
-              <div className="border-l border-ink-200 pl-2">
-                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">ANTE</span>
+              <div className="border-l border-ink-400 pl-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">ANTE</span>
                 <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
               </div>
             )}
             {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
-              <div className="border-l border-ink-200 pl-2">
-                <span className="block text-[7px] font-black uppercase tracking-[0.18em] text-ink-600">Ave</span>
+              <div className="border-l border-ink-400 pl-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Ave</span>
                 <span className="text-[11px] font-black tabular-nums text-gold-600">
                   {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
                   <span className="text-[8px] text-ink-600">BB</span>
@@ -844,6 +844,9 @@ function GameScreen({
             bigBlind={bigBlind}
             displayName={displayName}
             onClose={() => setHistoryOpen(false)}
+            tournamentId={tournamentInfo?.tournamentId ?? null}
+            accessToken={accessToken}
+            displayMode={amountDisplayMode}
           />
         )}
       </AnimatePresence>
@@ -891,6 +894,7 @@ function GameScreen({
           timeBank={timeBank}
           onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
           onToggleAway={setAway}
+          displayMode={amountDisplayMode}
         />
       )}
     </div>

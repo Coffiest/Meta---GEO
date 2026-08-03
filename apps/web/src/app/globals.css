@@ -113,7 +113,7 @@ textarea:focus-visible,
 .bet-slider::-moz-range-track {
   height: 8px;
   border-radius: 9999px;
-  background: #e5e5e5;
+  background: #d4d4d4;
 }
 .bet-slider::-moz-range-progress {
   height: 8px;
