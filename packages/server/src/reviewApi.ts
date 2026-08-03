@@ -158,6 +158,33 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
       return true;
     }
 
+    // 1ハンドのタイムラインのみ(GTO解析なし)。プレイ中のハンド履歴詳細(全アクション経過+
+    // 公開ハンド)用の軽量エンドポイント。解析・ソルバー起動・無料枠の消費を一切行わないため
+    // 無料でプレイ中に何度でも叩ける。露出する情報は下の /api/review/hand/:id と同範囲。
+    // 注意: 下の startsWith("/api/review/hand/") 判定に前方一致で吸われるため、必ずこの位置
+    // (より手前)で判定すること。
+    if (url.pathname.startsWith("/api/review/hand/") && url.pathname.endsWith("/timeline")) {
+      const handId = decodeURIComponent(
+        url.pathname.slice("/api/review/hand/".length, -"/timeline".length),
+      );
+      if (!handId) {
+        sendJson(res, 400, { error: "handId required" });
+        return true;
+      }
+      const timeline = await getHandTimeline(handId);
+      if (!timeline) {
+        sendJson(res, 404, { error: "hand not found" });
+        return true;
+      }
+      // リクエスタがそのハンドの参加者であることを確認(/api/review/hand/:id と同一の認可)。
+      if (!timeline.seats.some((s) => s.userId === user.id)) {
+        sendJson(res, 403, { error: "forbidden" });
+        return true;
+      }
+      sendJson(res, 200, { timeline });
+      return true;
+    }
+
     // 1ハンドのレビュー(分類結果)+再生用タイムライン。
     if (url.pathname.startsWith("/api/review/hand/")) {
       const handId = decodeURIComponent(url.pathname.slice("/api/review/hand/".length));

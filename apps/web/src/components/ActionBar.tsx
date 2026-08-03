@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { PlayerAction } from "@meta-geo/engine";
-import { formatBb } from "@/lib/format";
+import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import type { TimeBankInfo } from "@/lib/socket";
 import { useI18n } from "@/lib/i18n";
 
@@ -18,11 +18,11 @@ function Switch({ on }: { on: boolean }) {
   return (
     <span
       className={`relative h-4 w-7 shrink-0 rounded-full border transition-colors ${
-        on ? "border-ink-950 bg-ink-950" : "border-ink-400 bg-white"
+        on ? "border-ink-950 bg-ink-950" : "border-ink-500 bg-white"
       }`}
     >
       <motion.span
-        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-white" : "bg-ink-400"}`}
+        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-white" : "bg-ink-500"}`}
         animate={{ left: on ? 13 : 2 }}
         transition={{ type: "spring", stiffness: 520, damping: 30 }}
       />
@@ -117,11 +117,11 @@ function P5GhostButton({
       transition={{ type: "spring", stiffness: 600, damping: 18 }}
       onClick={onClick}
       aria-label={ariaLabel}
-      className="relative min-h-[60px] flex-1"
+      className="relative min-h-[64px] flex-1"
     >
       <span
         className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 overflow-hidden border-2 transition-colors ${
-          active ? "border-ink-950 bg-ink-950 text-white" : "border-ink-300 bg-white text-ink-400"
+          active ? "border-ink-950 bg-ink-950 text-white" : "border-ink-500 bg-white text-ink-600"
         }`}
         style={{ transform: "skewX(-9deg)" }}
       >
@@ -175,18 +175,22 @@ function computePresets(params: {
   streetContribution: number;
   bigBlind: number;
   effectiveStackBehind: number;
+  displayMode: AmountDisplayMode;
   t: (key: string) => string;
 }): Preset[] {
-  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, t } = params;
+  const { street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, displayMode, t } = params;
   const clamp = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
+  // クランプでAll in(=max)と同額に丸まったプリセットを除外する。末尾に必ずAll inピルを
+  // 付けるため、残すと同額の2ピルが同時ハイライトされて紛らわしい。
+  const withAllIn = (list: Preset[]): Preset[] => [
+    ...list.filter((p) => p.toAmount < maxRaiseToAmount),
+    { label: t("action.allInPreset"), toAmount: maxRaiseToAmount },
+  ];
 
   // プリフロップでまだ誰もレイズしていない(オープンレイズ想定の)スポットは、bbの倍数プリセット。
   if (street === "preflop" && toCall <= bigBlind) {
     const amounts = [...new Set([2, 2.3, 2.5, 3, 4, 5].map((mult) => clamp(Math.round(bigBlind * mult))))];
-    return [
-      ...amounts.map((amt) => ({ label: formatBb(amt, bigBlind), toAmount: amt })),
-      { label: t("action.allInPreset"), toAmount: maxRaiseToAmount },
-    ];
+    return withAllIn(amounts.map((amt) => ({ label: formatAmount(amt, bigBlind, displayMode), toAmount: amt })));
   }
 
   // 相手のベット/レイズに直面している場面(toCall > 0)は、相手のベット/レイズ額に対する
@@ -198,10 +202,7 @@ function computePresets(params: {
       const amt = clamp(Math.round(currentBet * mult));
       if (!byAmount.has(amt)) byAmount.set(amt, `×${mult}`);
     }
-    return [
-      ...[...byAmount.entries()].map(([toAmount, label]) => ({ label, toAmount })),
-      { label: "All in", toAmount: maxRaiseToAmount },
-    ];
+    return withAllIn([...byAmount.entries()].map(([toAmount, label]) => ({ label, toAmount })));
   }
 
   // それ以外(ポストフロップで自分から先にベットする場面)はポット比率プリセット。
@@ -218,7 +219,7 @@ function computePresets(params: {
   const geoPreset: Preset[] =
     geoAmount !== null && !byAmount.has(clamp(geoAmount)) ? [{ label: t("action.geometric"), toAmount: clamp(geoAmount) }] : [];
 
-  return [...pctPresets, ...geoPreset, { label: t("action.allInPreset"), toAmount: maxRaiseToAmount }];
+  return withAllIn([...pctPresets, ...geoPreset]);
 }
 
 export function ActionBar({
@@ -237,6 +238,7 @@ export function ActionBar({
   timeBank,
   onToggleTimeBank,
   onToggleAway,
+  displayMode = "bb",
 }: {
   isYourTurn: boolean;
   street: string;
@@ -259,9 +261,15 @@ export function ActionBar({
   onToggleTimeBank?: () => void;
   /** 離席状態をサーバーに通知する(全員の座席に「離席中」を表示するため)。 */
   onToggleAway?: (away: boolean) => void;
+  /** 卓上の金額表示モード(bb換算/点数)。ベット額入力・プリセット・CALL/RAISE額に反映する。 */
+  displayMode?: AmountDisplayMode;
 }) {
   const { t } = useI18n();
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
+  // ベット額入力欄の「編集中の生文字列」。null=非編集中(raiseToから導出した値を表示)。
+  // 以前はonChangeのたびに即クランプしていたため「12」の1文字目で最小額へ丸められ
+  // 2桁の数値が実質入力できなかった。編集中は自由に打たせ、確定(blur/Enter)時にだけ丸める。
+  const [raiseInput, setRaiseInput] = useState<string | null>(null);
   // 「チェック/フォールドを予約」: 手番でない間にONにしておくと、次に手番が来た瞬間に
   // 一度だけ自動でチェック(できなければフォールド)する。よくあるポーカーアプリの
   // 事前アクション予約と同じく、発火後は自動でOFFに戻る(毎回のハンドで明示的に予約し直す)。
@@ -273,6 +281,7 @@ export function ActionBar({
 
   useEffect(() => {
     setRaiseTo(minRaiseToAmount);
+    setRaiseInput(null);
   }, [minRaiseToAmount, isYourTurn]);
 
   // 手番が「来た瞬間」(false→trueに変わった瞬間)だけ発火させる。isYourTurnがtrueの間
@@ -298,13 +307,13 @@ export function ActionBar({
     >
       <Switch on={timeBank.armed} />
       <span>{t("action.timeBank")}</span>
-      <span className="flex items-center gap-1 border-l border-ink-200 pl-2">
+      <span className="flex items-center gap-1 border-l border-ink-400 pl-2">
         {timeBank.cards > 0 ? (
           Array.from({ length: timeBank.cards }).map((_, i) => (
             <span key={i} className="h-1.5 w-1.5 rounded-full bg-ink-950" />
           ))
         ) : (
-          <span className="text-[10px] text-ink-400">{t("action.remaining0")}</span>
+          <span className="text-[11px] text-ink-600">{t("action.remaining0")}</span>
         )}
       </span>
     </motion.button>
@@ -330,15 +339,163 @@ export function ActionBar({
     </motion.button>
   );
 
-  if (!isYourTurn) {
-    // 手番待ち中も、アクティブ時のP5ボタンと同じ平行四辺形のシルエットを保つ(色塗り・影は省いた
-    // 控えめな枠線のみ)。左=x/f(チェック/フォールド予約)、中央=非活性プレースホルダ、右=離席トグル。
-    // 手番が来ると同じ形が下の色付きP5ボタンへ“起動”する、一貫したデザイン言語。
-    return (
-      <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
-        <div className="mx-auto max-w-md space-y-2.5">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">{timeBankRow}</div>
+  // プリフロップはブラインドが「最初のベット」に相当するため、常に「レイズ」表記にする。
+  const isRaiseLabel = street === "preflop" || toCall > 0;
+  const canGoAllIn = maxRaiseToAmount > 0;
+  const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
+  // レイズUI(プリセット行+スライダー行)を実際に描画するか。非表示時も行の高さは
+  // 確保したまま(invisible)にする — 手番前後・raiseDisabled切替でアクションバーの高さが
+  // 変わると、盤面(main flex-1 justify-center)が再センタリングされて画面全体が上下に
+  // ジャンプするため。「常に同じ高さ」がこのコンポーネントの最重要不変条件。
+  const showRaiseUI = isYourTurn && !raiseDisabled;
+  const presets = showRaiseUI
+    ? computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, displayMode, t })
+    : [];
+  const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
+  const sliderRange = Math.max(1, maxRaiseToAmount - minRaiseToAmount);
+  const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
 
+  // ベット額入力欄: 編集中(raiseInput!==null)は生文字列をそのまま表示し、非編集中は
+  // raiseToから表示モードに応じた値(bb小数1桁/チップ整数)を導出する。
+  const derivedInputValue =
+    displayMode === "chips" ? String(Math.round(raiseTo)) : String(Math.round((raiseTo / (bigBlind || 1)) * 10) / 10);
+  const inputValue = raiseInput ?? derivedInputValue;
+  // 確定(blur/Enter): 数値として解釈できれば範囲内へ丸めて反映、できなければ元の値へ戻す。
+  const commitRaiseInput = () => {
+    if (raiseInput === null) return;
+    const cleaned = raiseInput.replace(/[,\s]/g, "");
+    const v = Number(cleaned);
+    if (cleaned !== "" && Number.isFinite(v)) {
+      const chips = displayMode === "chips" ? Math.round(v) : Math.round(v * bigBlind);
+      setRaiseTo(clampToRange(chips));
+    }
+    setRaiseInput(null);
+  };
+  // ステッパー(±1bb)。編集中の文字列は破棄して確定値ベースで動かす。
+  const stepRaise = (deltaBb: number) => {
+    setRaiseInput(null);
+    setRaiseTo(clampToRange(raiseTo + deltaBb * bigBlind));
+  };
+
+  // 常に同一の4行構造(トグル行/プリセット行/スライダー行/ボタン行)を同じ高さで描画し、
+  // 状態(手番待ち/手番/レイズ不可)では中身だけを差し替える。行の増減は絶対にしない。
+  return (
+    <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-400">
+      <div className="mx-auto max-w-md space-y-2.5">
+        {/* 行1: トグル行(常に h-9)。タイムバンク未提供の卓でも高さは保つ。 */}
+        <div className="flex h-9 items-center gap-2 overflow-x-auto no-scrollbar">
+          {timeBankRow}
+          {isYourTurn && awayRow}
+        </div>
+
+        {/* 行2: プリセットpill行(常に h-10。レイズUIが無い間は空のまま高さだけ確保) */}
+        <div className="flex h-10 items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {showRaiseUI &&
+            presets.map((preset) => (
+              <button
+                key={preset.label}
+                onClick={() => {
+                  setRaiseInput(null);
+                  setRaiseTo(preset.toAmount);
+                }}
+                className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold tabular-nums border transition-colors ${
+                  raiseTo === preset.toAmount
+                    ? "bg-ink-950 text-white border-ink-950"
+                    : "bg-white text-ink-800 border-ink-950"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+        </div>
+
+        {/* 行3: スライダー+ステッパー+数値入力(常に h-11)。invisible時はフォーカスも当たらない。 */}
+        <div className={`flex h-11 items-center gap-2 ${showRaiseUI ? "" : "invisible"}`}>
+          <input
+            type="range"
+            min={minRaiseToAmount}
+            max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
+            value={clampToRange(raiseTo)}
+            onChange={(e) => {
+              setRaiseInput(null);
+              setRaiseTo(Number(e.target.value));
+            }}
+            aria-label={t("action.betAmount")}
+            className="bet-slider min-w-0 flex-1"
+            style={{ background: `linear-gradient(to right, #0a0a0a ${sliderPct}%, #d4d4d4 ${sliderPct}%)` }}
+          />
+          <button
+            type="button"
+            onClick={() => stepRaise(-1)}
+            aria-label={t("action.betMinus")}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+          <input
+            type="text"
+            inputMode={displayMode === "chips" ? "numeric" : "decimal"}
+            value={inputValue}
+            onChange={(e) => setRaiseInput(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onBlur={commitRaiseInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            aria-label={t("action.betAmount")}
+            className="h-11 w-20 shrink-0 rounded-xl border border-ink-950 bg-white text-center text-base font-semibold tabular-nums text-ink-950"
+          />
+          <button
+            type="button"
+            onClick={() => stepRaise(1)}
+            aria-label={t("action.betPlus")}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 行4: ボタン行(常に min-h-[64px])。
+            手番待ち: 左=x/f予約、中央=非活性プレースホルダ、右=離席トグル(枠線のみのゴースト)。
+            手番: 左=フォールド、中央=コール/チェック、右=ベット/レイズ(P5風の色付きボタン)。 */}
+        {isYourTurn ? (
+          <div className="flex gap-3">
+            {!canCheck && (
+              <P5Button tone="fold" tapRotate={-2} onClick={() => onAction({ kind: "fold" })}>
+                <span className="text-[20px] font-black italic uppercase tracking-[0.06em]">Fold</span>
+              </P5Button>
+            )}
+
+            <P5Button tone="call" tapRotate={canCheck ? 0 : 2} onClick={() => onAction({ kind: canCheck ? "check" : "call" })}>
+              {canCheck ? (
+                <span className="text-[20px] font-black italic uppercase tracking-[0.06em]">Check</span>
+              ) : (
+                <>
+                  <span className="text-[10px] font-black italic uppercase tracking-[0.16em] text-white/85">Call</span>
+                  <span className="mt-0.5 text-[20px] font-black italic tabular-nums">{formatAmount(toCall, bigBlind, displayMode)}</span>
+                </>
+              )}
+            </P5Button>
+
+            <P5Button
+              tone="raise"
+              tapRotate={2}
+              disabled={raiseDisabled}
+              onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
+            >
+              <span className="text-[10px] font-black italic uppercase tracking-[0.16em] text-white/85">
+                {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
+              </span>
+              <span className="mt-0.5 text-[20px] font-black italic tabular-nums">
+                {formatAmount(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind, displayMode)}
+              </span>
+            </P5Button>
+          </div>
+        ) : (
           <div className="flex gap-3">
             {/* x/f 予約(普段フォールドがある左スロット) */}
             <P5GhostButton active={checkFoldArmed} onClick={() => setCheckFoldArmed((v) => !v)} ariaLabel={t("action.armCheckFold")}>
@@ -347,16 +504,16 @@ export function ActionBar({
             </P5GhostButton>
 
             {/* 中央: 手番待ちの非活性プレースホルダ(押せない) */}
-            <div className="relative min-h-[60px] flex-1">
+            <div className="relative min-h-[64px] flex-1">
               <span
-                className="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-ink-200 bg-white text-ink-300"
+                className="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-ink-400 bg-white text-ink-500"
                 style={{ transform: "skewX(-9deg)" }}
               >
                 <span className="flex gap-1" style={{ transform: "skewX(9deg)" }}>
                   {[0, 1, 2].map((i) => (
                     <motion.span
                       key={i}
-                      className="h-1.5 w-1.5 rounded-full bg-ink-300"
+                      className="h-1.5 w-1.5 rounded-full bg-ink-500"
                       animate={{ opacity: [0.3, 1, 0.3] }}
                       transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
                     />
@@ -381,106 +538,7 @@ export function ActionBar({
               <span className="text-[11px] font-black italic tracking-wide">{t("action.away")}</span>
             </P5GhostButton>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // プリフロップはブラインドが「最初のベット」に相当するため、常に「レイズ」表記にする。
-  const isRaiseLabel = street === "preflop" || toCall > 0;
-  const canGoAllIn = maxRaiseToAmount > 0;
-  const raiseDisabled = !canRaise || minRaiseToAmount > maxRaiseToAmount;
-  const presets = computePresets({ street, toCall, minRaiseToAmount, maxRaiseToAmount, potTotal, streetContribution, bigBlind, effectiveStackBehind, t });
-  const clampToRange = (v: number) => Math.min(maxRaiseToAmount, Math.max(minRaiseToAmount, v));
-  const sliderRange = Math.max(1, maxRaiseToAmount - minRaiseToAmount);
-  const sliderPct = Math.min(100, Math.max(0, ((raiseTo - minRaiseToAmount) / sliderRange) * 100));
-
-  return (
-    <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-200">
-      <div className="mx-auto max-w-md space-y-2.5">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {timeBankRow}
-          {awayRow}
-        </div>
-
-        {!raiseDisabled && (
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-            {presets.map((preset) => (
-              <button
-                key={preset.label}
-                onClick={() => setRaiseTo(preset.toAmount)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold tabular-nums border transition-colors ${
-                  raiseTo === preset.toAmount
-                    ? "bg-ink-950 text-white border-ink-950"
-                    : "bg-white text-ink-800 border-ink-950"
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
         )}
-
-        {!raiseDisabled && (
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={minRaiseToAmount}
-              max={Math.max(minRaiseToAmount, maxRaiseToAmount)}
-              value={raiseTo}
-              onChange={(e) => setRaiseTo(Number(e.target.value))}
-              className="bet-slider flex-1"
-              style={{ background: `linear-gradient(to right, #0a0a0a ${sliderPct}%, #e5e5e5 ${sliderPct}%)` }}
-            />
-            <input
-              type="number"
-              inputMode="decimal"
-              step={0.1}
-              value={Math.round((raiseTo / (bigBlind || 1)) * 10) / 10}
-              onChange={(e) => {
-                const bb = Number(e.target.value);
-                if (Number.isNaN(bb)) return;
-                setRaiseTo(clampToRange(Math.round(bb * bigBlind)));
-              }}
-              className="w-16 shrink-0 rounded-xl bg-white text-ink-950 text-sm text-center tabular-nums border border-ink-950 focus:outline-none"
-            />
-          </div>
-        )}
-
-        {/* ボタン配置: 左=パッシブ(フォールド)、中央=コール/チェック、右=アクティブ(ベット/レイズ)。
-            ペルソナ5風: 斜めに歪んだ平行四辺形+黒のハードなオフセット影+太いイタリック体。 */}
-        <div className="flex gap-3">
-          {!canCheck && (
-            <P5Button tone="fold" tapRotate={-2} onClick={() => onAction({ kind: "fold" })}>
-              <span className="text-[18px] font-black italic uppercase tracking-[0.06em]">Fold</span>
-            </P5Button>
-          )}
-
-          <P5Button tone="call" tapRotate={canCheck ? 0 : 2} onClick={() => onAction({ kind: canCheck ? "check" : "call" })}>
-            {canCheck ? (
-              <span className="text-[18px] font-black italic uppercase tracking-[0.06em]">Check</span>
-            ) : (
-              <>
-                <span className="text-[9px] font-black italic uppercase tracking-[0.16em] text-white/85">Call</span>
-                <span className="mt-0.5 text-[18px] font-black italic tabular-nums">{formatBb(toCall, bigBlind)}</span>
-              </>
-            )}
-          </P5Button>
-
-          <P5Button
-            tone="raise"
-            tapRotate={2}
-            disabled={raiseDisabled}
-            onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
-          >
-            <span className="text-[9px] font-black italic uppercase tracking-[0.16em] text-white/85">
-              {raiseTo >= maxRaiseToAmount ? "All In" : isRaiseLabel ? "Raise" : "Bet"}
-            </span>
-            <span className="mt-0.5 text-[18px] font-black italic tabular-nums">
-              {formatBb(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind)}
-            </span>
-          </P5Button>
-        </div>
       </div>
     </div>
   );

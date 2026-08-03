@@ -253,7 +253,9 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
       const favoritesOnly = url.searchParams.get("favorites") === "1";
-      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100, favoritesOnly) : []);
+      // tournamentId指定時はそのトーナメントのハンドだけを返す(プレイ中のハンド履歴詳細用)。
+      const tournamentId = url.searchParams.get("tournamentId") ?? undefined;
+      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100, favoritesOnly, tournamentId) : []);
       return true;
     }
 
