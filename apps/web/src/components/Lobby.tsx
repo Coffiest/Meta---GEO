@@ -21,7 +21,6 @@ import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PrimeTimeCard } from "./PrimeTimeCard";
-import { BadgeCollectionCard } from "./BadgeCollectionCard";
 import { PushOptInCard } from "./PushOptInCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
@@ -1299,7 +1298,6 @@ export function Lobby({
           >
             <TabHeader eyebrow="Your numbers" title="Stats" />
 
-            <BadgeCollectionCard accessToken={accessToken} />
             {accessToken ? (
               stats ? (
                 <>
