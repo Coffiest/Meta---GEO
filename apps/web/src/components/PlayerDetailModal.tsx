@@ -106,8 +106,10 @@ export function PlayerDetailModal({
           </div>
           <div className="shrink-0 rounded-xl border border-ink-950 px-3 py-1.5 text-center">
             <p className="text-[9px] font-black uppercase tracking-[0.15em] text-ink-400">偏差値</p>
-            {/* 偏差値の値は全プレイヤー一律で非表示(「--」)。枠・ラベルは残す。相手の種別で出し分けはしない。 */}
-            <p className="text-lg font-black leading-none tabular-nums text-ink-950">--</p>
+            {/* 偏差値。値が取れない相手でも枠・ラベルは必ず残し、値だけ「--」にする。 */}
+            <p className="text-lg font-black leading-none tabular-nums text-ink-950">
+              {loading || !rr || rr.rrRating == null ? "--" : rr.rrRating.toFixed(1)}
+            </p>
           </div>
           <button onClick={onClose} className="shrink-0 self-start text-[12px] font-semibold text-ink-500">
             閉じる
@@ -125,8 +127,8 @@ export function PlayerDetailModal({
           <p className="py-10 text-center text-sm text-ink-500">スタッツを取得できませんでした。</p>
         ) : (
           <>
-            {/* 主要指標。どのプレイヤーでも同じ項目・同じ形式で出す(値の伏せ方で相手の種別が
-                推測できてはいけないため、一部だけ「ー」にするような出し分けはしない)。 */}
+            {/* 主要指標。どのプレイヤーでも同じ項目・同じ枠を必ず並べる。
+                偏差値と全国順位だけは値が取れない相手があり、その場合も枠は残して「--」にする。 */}
             <div className="grid grid-cols-2 gap-2">
               <Metric
                 label="収支"
@@ -137,7 +139,7 @@ export function PlayerDetailModal({
               <Metric label="インマネ率" value={pct(s.itmRate)} />
               <Metric
                 label="全国順位"
-                value="--"
+                value={rr.nationalRank == null ? "--" : `${rr.nationalRank} / ${rr.totalRankedPlayers}`}
               />
             </div>
 
