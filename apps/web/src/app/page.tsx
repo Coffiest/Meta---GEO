@@ -1242,6 +1242,11 @@ export default function Page() {
           setGameKey(null);
           void auth.signOut();
         }}
+        onAccountDeleted={() => {
+          // 退会後はもうログインできないので、卓から抜けてサインアウトしログイン画面へ戻す。
+          setGameKey(null);
+          void auth.signOut();
+        }}
       />
       {/* 離席中に終わったゲームの結果サジェスト(復帰時に1回だけ表示)。 */}
       <AnimatePresence>

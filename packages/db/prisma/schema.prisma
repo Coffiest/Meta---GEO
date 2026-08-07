@@ -26,6 +26,13 @@ model User {
   /// 未発行はnull(BOTには発行しない)。
   referralCode String? @unique
   createdAt   DateTime @default(now())
+  /// アカウント削除(退会)した時刻。未削除はnull。
+  ///
+  /// 重要: 退会しても User 行そのものは消さない。ハンド履歴(Hand/HandSeat)=GEO DATABASE の
+  /// 実データが HandSeat.userId で User を参照しており、行を消すと集計対象のハンドまで
+  /// 巻き添えになるため。退会処理では認証情報と表示名を匿名化するだけにして、
+  /// GEOの集計結果は退会前とまったく同じに保つ。
+  deletedAt   DateTime?
 
   tournamentEntries    TournamentEntry[]
   handSeats            HandSeat[]
@@ -38,6 +45,8 @@ model User {
   couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
   couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
   errorReports ErrorReport[]
+
+  @@index([deletedAt])
 }
 
 /// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
