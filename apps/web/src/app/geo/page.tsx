@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   geoTreeApi,
+  GeoApiError,
   PREFLOP_BUCKET_LABELS,
   POSTFLOP_BUCKET_LABELS,
   STACK_BUCKET_LABELS,
@@ -179,11 +180,18 @@ function GeoDatabase() {
   const [pollTick, setPollTick] = useState(0);
   /** 一時的な取得失敗をリトライ中(スピナー文言を「再試行中」に切り替える用)。 */
   const [reconnecting, setReconnecting] = useState(false);
+  /**
+   * 直近の取得失敗の内訳。以前は catch でエラーを握り潰していたため、画面には
+   * 「接続を再試行中…」しか出ず原因を切り分けられなかった。何が・どこで・どれだけ待って
+   * 失敗したのかをそのまま保持し、待たせている間も画面に出す。
+   */
+  const [failure, setFailure] = useState<{ reason: string; detail: string; attempt: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setFailure(null);
 
     // GTOタブは実スタック選択(gtoStackBb)を band へ写像して送る。push/fold/Nashノード用に近い範囲バケットも併送。
     const gtoBand = GTO_STACK_TO_BAND[gtoStackBb];
@@ -243,16 +251,22 @@ function GeoDatabase() {
           setMatrix(result.matrix);
           if (result.node.sampleSize > 0) setJustPickedBoard(false);
           setError(null);
+          setFailure(null);
           return;
-        } catch {
+        } catch (err) {
           if (cancelled) return;
+          // 何が起きたかを必ず残す。GeoApiError なら原因種別・HTTPステータス・所要時間まで分かる。
+          const reason = err instanceof GeoApiError ? err.describe() : err instanceof Error ? err.message : String(err);
+          const detail =
+            err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          setFailure({ reason, detail, attempt: attempt + 1 });
           if (attempt < MAX_ATTEMPTS - 1) {
             setReconnecting(true);
             await new Promise((r) => setTimeout(r, Math.min(5000, 700 * 2 ** attempt)));
           } else {
             setNode(null);
             setReconnecting(false);
-            setError("サーバーに接続できません。自動的に再試行しています…");
+            setError(`${reason}（${MAX_ATTEMPTS}回試行。自動で再試行を続けます）`);
             setTimeout(() => {
               if (!cancelled) setPollTick((t) => t + 1);
             }, 5000);
@@ -517,7 +531,18 @@ function GeoDatabase() {
 
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
         {error && (
-          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-400 text-sm px-4 py-3 mb-4">{error}</div>
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
+            <p className="text-sm text-crimson-400">{error}</p>
+            {/* 原因の技術詳細(種別・エンドポイント・HTTPステータス・所要ms)。そのまま共有できる。 */}
+            {failure && <p className="mt-1 font-mono text-[10px] leading-snug text-crimson-300/70 break-all">{failure.detail}</p>}
+            <button
+              type="button"
+              onClick={() => setPollTick((t) => t + 1)}
+              className="mt-2.5 rounded-full bg-crimson-500 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
+            >
+              今すぐ再試行
+            </button>
+          </div>
         )}
 
         {/* サンプル数が少ない(n<5000)実測ノードの注意書き。レンジ表自体は表示するが、統計的に不十分な旨を明示する。 */}
@@ -540,13 +565,22 @@ function GeoDatabase() {
 
         <div className="mt-3 lg:mt-1">
           {loading || solving ? (
-            <div className="flex items-center justify-center gap-2 rounded-2xl border border-navy-800 bg-navy-900 p-8 text-center text-sm text-navy-400">
-              <span className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
-              {solving
-                ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
-                : reconnecting
-                ? "接続を再試行中…"
-                : "読み込み中…"}
+            <div className="rounded-2xl border border-navy-800 bg-navy-900 p-8 text-center text-sm text-navy-400">
+              <div className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
+                {solving
+                  ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
+                  : reconnecting
+                  ? `接続を再試行中…(${failure?.attempt ?? 1}回目)`
+                  : "読み込み中…"}
+              </div>
+              {/* 待たせている間も理由を隠さない。「ずっと再試行中」の原因がその場で読める。 */}
+              {reconnecting && failure && (
+                <div className="mt-3 space-y-1 text-left">
+                  <p className="text-[12px] leading-snug text-crimson-300">{failure.reason}</p>
+                  <p className="font-mono text-[10px] leading-snug text-navy-500 break-all">{failure.detail}</p>
+                </div>
+              )}
             </div>
           ) : noBoardData ? (
             <motion.div
