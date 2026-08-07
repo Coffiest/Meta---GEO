@@ -126,18 +126,16 @@ function computeGeometricToAmount(params: {
   return Math.round(potTotal * fraction) + streetContribution;
 }
 
+// 注意: トーナメント情報(gameType/buyIn/entries)はここに含めない。
+// 以前は各ハンドに `tournament.entries` をぶら下げて取得していたため、同一トーナメントの
+// ハンド数だけ同じ entries 行が転送されていた(100ハンドのトナメなら100回重複)。
+// 現在はトーナメント単位で1回だけ取得し(fetchTournamentInfos)、tournamentId でメモリjoinする。
 const RAW_HAND_SELECT = {
+  tournamentId: true,
   handNumber: true,
   buttonFixedPos: true,
   levelBigBlind: true,
   board: true,
-  tournament: {
-    select: {
-      gameType: true,
-      buyIn: true,
-      entries: { select: { userId: true, bustedAtHandNumber: true }, orderBy: { seatIndex: "asc" as const } },
-    },
-  },
   seats: {
     select: {
       seatIndex: true,
@@ -157,42 +155,120 @@ const RAW_HAND_SELECT = {
   },
 };
 
+/** BOTのみの卓は人間のサンプルを1つも生まないので、取得段階で落とす。 */
+const HUMAN_SEATED = { seats: { some: { user: { isBot: false } } } } as const;
+
+/**
+ * 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
+ * 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
+ * 結果が不安定になりうる。
+ */
+const RAW_HAND_ORDER = { createdAt: "asc" as const };
+
 async function fetchRawHandsUncached() {
-  // BOTのアクションはGEO(実プレイヤーの戦略DB)の集計対象にしない。BOTのみの卓は人間の
-  // サンプルを1つも生まないので、あらかじめ「人間が最低1人いる卓」に絞り込んで取得量を削る。
-  // (BOT席の記録自体は、同卓の人間のライン再生=ポジション順の整合のために保持している。)
-  return prisma.hand.findMany({
-    where: { seats: { some: { user: { isBot: false } } } },
-    // 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
-    // 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
-    // 結果が不安定になりうる。
-    orderBy: { createdAt: "asc" },
-    select: RAW_HAND_SELECT,
-  });
+  return prisma.hand.findMany({ where: HUMAN_SEATED, orderBy: RAW_HAND_ORDER, select: RAW_HAND_SELECT });
 }
 
 type RawHand = Awaited<ReturnType<typeof fetchRawHandsUncached>>[number];
 
+/** バブル段階の判定に必要なトーナメント単位の情報(ハンドごとではなくトーナメントごとに1件)。 */
+interface TournamentInfo {
+  gameType: string;
+  buyIn: number;
+  entries: { bustedAtHandNumber: number | null }[];
+}
+
+const TOURNAMENT_SELECT = {
+  id: true,
+  gameType: true,
+  buyIn: true,
+  // userId は集計に使わない(生存者数と延べエントリー数だけを見る)ので取得しない。
+  entries: { select: { bustedAtHandNumber: true }, orderBy: { seatIndex: "asc" as const } },
+};
+
+function toTournamentMap(rows: { id: string; gameType: string; buyIn: number; entries: { bustedAtHandNumber: number | null }[] }[]) {
+  return new Map<string, TournamentInfo>(
+    rows.map((t) => [t.id, { gameType: t.gameType, buyIn: t.buyIn, entries: t.entries }]),
+  );
+}
+
+/**
+ * 指定の板面を含むハンドだけを取得する(ポストフロップ用)。
+ *
+ * `hasEvery` は「その配列の全要素を含む」であって順序も位置も保証しないため、これは
+ * 候補を絞る粗いフィルタとして使い、街ごとの厳密一致(board.slice(0,n)の完全一致)は
+ * 呼び出し側で確認する。それでも、指定フロップに無関係なハンドの大半をDB側で落とせる。
+ */
+async function fetchHandsForBoard(board: string[]) {
+  return prisma.hand.findMany({
+    where: { ...HUMAN_SEATED, board: { hasEvery: board } },
+    orderBy: RAW_HAND_ORDER,
+    select: RAW_HAND_SELECT,
+  });
+}
+
+/** 指定IDのトーナメント情報だけを取得する(板面で絞り込んだ少数のハンド用)。 */
+async function fetchTournamentInfos(ids: string[]): Promise<Map<string, TournamentInfo>> {
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.tournament.findMany({ where: { id: { in: ids } }, select: TOURNAMENT_SELECT });
+  return toTournamentMap(rows);
+}
+
+/** GEO集計の入力一式。ハンド本体と、そのバブル段階判定に使うトーナメント情報。 */
+interface GeoDataset {
+  hands: RawHand[];
+  tournaments: Map<string, TournamentInfo>;
+}
+
 // 全ハンド走査は高コスト。棋譜解析は1トナメで多数の決定について同じ全ハンド集合を繰り返し
-// 参照するため、短TTLでメモ化してDB往復を1回に集約する(GEOタブの連続操作にも効く)。
-// TTLは短く保ち、直近のプレイや管理者の除外操作がすぐ反映されるようにする。
-const RAW_HANDS_TTL_MS = 10_000;
-let rawHandsCache: { at: number; data: RawHand[] } | null = null;
+// 参照するため、メモ化してDB往復を1回に集約する(GEOタブの連続操作にも効く)。
+const RAW_HANDS_TTL_MS = 60_000;
+let datasetCache: { at: number; data: GeoDataset } | null = null;
+/** 再構築中のPromise。同時アクセスで全件取得が多重に走るのを防ぐ(single-flight)。 */
+let datasetInFlight: Promise<GeoDataset> | null = null;
 // テスト(vitest)は1プロセス内でDBを繰り返しseed→集計するため、キャッシュがstaleになり結果が壊れる。
-// テスト時はキャッシュを無効化し、常に最新を取得する(本番は短TTLで有効)。
+// テスト時はキャッシュを無効化し、常に最新を取得する(本番はTTLで有効)。
 const RAW_HANDS_CACHE_ENABLED = !process.env["VITEST"];
 
-async function fetchRawHands(): Promise<RawHand[]> {
+async function loadGeoDataset(): Promise<GeoDataset> {
+  const [hands, tournamentRows] = await Promise.all([
+    fetchRawHandsUncached(),
+    prisma.tournament.findMany({ select: TOURNAMENT_SELECT }),
+  ]);
+  return { hands, tournaments: toTournamentMap(tournamentRows) };
+}
+
+/**
+ * GEO集計の入力を取得する。
+ *
+ * TTL内はそのまま返す。TTL切れの場合も **古い値を即座に返しつつ裏で1回だけ再構築** する
+ * (stale-while-revalidate)。全件取得は重く、TTLが切れた瞬間のリクエストにその待ち時間を
+ * 丸ごと被せると体感が跳ねるため。再構築中の重複呼び出しは同じPromiseを共有する。
+ */
+async function fetchGeoDataset(): Promise<GeoDataset> {
+  if (!RAW_HANDS_CACHE_ENABLED) return loadGeoDataset();
+
   const now = Date.now();
-  if (RAW_HANDS_CACHE_ENABLED && rawHandsCache && now - rawHandsCache.at < RAW_HANDS_TTL_MS) return rawHandsCache.data;
-  const data = await fetchRawHandsUncached();
-  if (RAW_HANDS_CACHE_ENABLED) rawHandsCache = { at: now, data };
-  return data;
+  const cached = datasetCache;
+  if (cached && now - cached.at < RAW_HANDS_TTL_MS) return cached.data;
+
+  if (!datasetInFlight) {
+    datasetInFlight = loadGeoDataset()
+      .then((data) => {
+        datasetCache = { at: Date.now(), data };
+        return data;
+      })
+      .finally(() => {
+        datasetInFlight = null;
+      });
+  }
+  // 古い値があるなら待たずに返す(裏で更新中)。無ければ完成を待つ。
+  return cached ? cached.data : datasetInFlight;
 }
 
 /** キャッシュを明示的に破棄する(直近のプレイ/管理者の除外操作を即時反映したい場合)。 */
 export function clearRawHandsCache(): void {
-  rawHandsCache = null;
+  datasetCache = null;
 }
 
 /** そのハンド時点で生存していた参加者数(バスト済みでない人数)を数える。 */
@@ -200,9 +276,14 @@ function aliveCountAtHand(entries: { bustedAtHandNumber: number | null }[], hand
   return entries.filter((e) => e.bustedAtHandNumber === null || e.bustedAtHandNumber >= handNumber).length;
 }
 
-/** ハンド単位でバブル段階を判定する(SNG/MTTとも「インマネまでの残り人数」基準)。 */
-function computeBubbleStage(hand: RawHand): BubbleStage {
-  const { gameType, buyIn, entries } = hand.tournament;
+/**
+ * ハンド単位でバブル段階を判定する(SNG/MTTとも「インマネまでの残り人数」基準)。
+ * トーナメント情報が引けないハンド(データ不整合)は "normal" 扱いにして集計から落とさない。
+ */
+function computeBubbleStage(hand: RawHand, tournaments: Map<string, TournamentInfo>): BubbleStage {
+  const info = tournaments.get(hand.tournamentId);
+  if (!info) return "normal";
+  const { gameType, buyIn, entries } = info;
   const alive = aliveCountAtHand(entries, hand.handNumber);
   const paidPlaces = gameType === "sng" ? SNG_PAYOUTS.length : computeMttPrizeStructure(entries.length, buyIn).places.length;
   const remainingUntilMoney = Math.max(0, alive - paidPlaces);
@@ -423,13 +504,14 @@ export async function getPreflopNode(params: {
   /** 卓の参加人数(2〜6)で絞り込む。未指定なら全人数のハンドを対象にする。 */
   playerCount?: number | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
-  const [hands, ratingOk] = await Promise.all([fetchRawHands(), buildRatingFilter(params.ratingRange)]);
+  const [dataset, ratingOk] = await Promise.all([fetchGeoDataset(), buildRatingFilter(params.ratingRange)]);
+  const { hands, tournaments } = dataset;
   const nextDecisions: ReplayedDecision[] = [];
   let expectedPosition: string | null = null;
 
   for (const hand of hands) {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
-    if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
+    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
     // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
     // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
@@ -584,14 +666,22 @@ export async function getPostflopNode(params: {
     throw new Error(`board must have exactly ${requiredBoardLen} cards for street ${params.street}`);
   }
 
-  const [hands, ratingOk] = await Promise.all([fetchRawHands(), buildRatingFilter(params.ratingRange)]);
+  // 板面の絞り込みはDB側で行う。指定フロップに一致するハンドは全履歴のごく一部(多くはゼロ件)
+  // なのに、以前は全ハンドを読み出してからJSで捨てていた。ここが効くとポストフロップは
+  // 履歴の総量にほとんど依存しなくなる。
+  const [hands, ratingOk] = await Promise.all([
+    fetchHandsForBoard(params.board),
+    buildRatingFilter(params.ratingRange),
+  ]);
+  const tournaments = await fetchTournamentInfos([...new Set(hands.map((h) => h.tournamentId))]);
   const nextDecisions: ReplayedPostflopDecision[] = [];
   let expectedPosition: string | null = null;
 
   for (const hand of hands) {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
-    if (!bubbleStageMatches(computeBubbleStage(hand), params.bubbleStage)) continue;
+    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
     if (hand.board.length < requiredBoardLen) continue;
+    // hasEvery は順序を保証しないため、街ごとの厳密一致はここで確認する。
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
 
     // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
