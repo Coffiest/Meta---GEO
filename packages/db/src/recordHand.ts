@@ -1,6 +1,7 @@
 import type { HandEngine } from "@meta-geo/engine";
 import { cardToString } from "@meta-geo/engine";
 import { prisma } from "./client.js";
+import { rebuildGeoDecisionsForHand } from "./geoTree.js";
 
 export interface RecordHandSeatInput {
   readonly seatIndex: number;
@@ -96,6 +97,15 @@ export async function recordHand(input: RecordHandInput): Promise<string> {
 
     return hand.id;
   });
+
+  // GEO集計用の事前展開(GeoDecision)。ここで書いておくことで、GEOのノードを開くたびに
+  // 全履歴をリプレイしなくて済む。失敗してもハンドの記録自体は成立させたいので握りつぶし、
+  // ログにだけ残す(取りこぼしはバックフィルで埋め直せる)。
+  try {
+    await rebuildGeoDecisionsForHand(handId);
+  } catch (err) {
+    console.error("[recordHand] failed to build GeoDecision rows:", err);
+  }
 
   return handId;
 }

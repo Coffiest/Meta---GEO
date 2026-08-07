@@ -1,4 +1,5 @@
 import { computePositionLabels } from "@meta-geo/engine";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
 import { computeMttPrizeStructure, SNG_PAYOUTS } from "./bankroll.js";
 import { computeRRRatings } from "./rrRating.js";
@@ -131,6 +132,7 @@ function computeGeometricToAmount(params: {
 // ハンド数だけ同じ entries 行が転送されていた(100ハンドのトナメなら100回重複)。
 // 現在はトーナメント単位で1回だけ取得し(fetchTournamentInfos)、tournamentId でメモリjoinする。
 const RAW_HAND_SELECT = {
+  id: true,
   tournamentId: true,
   handNumber: true,
   buttonFixedPos: true,
@@ -138,6 +140,7 @@ const RAW_HAND_SELECT = {
   board: true,
   seats: {
     select: {
+      id: true,
       seatIndex: true,
       userId: true,
       startingStack: true,
@@ -154,6 +157,16 @@ const RAW_HAND_SELECT = {
     select: { sequenceNumber: true, seatIndex: true, street: true, kind: true, toAmount: true, potBefore: true },
   },
 };
+
+/**
+ * 集計テーブル(GeoDecision)経由で読むかどうか。
+ *
+ * バックフィルが済むまでは旧経路(全履歴リプレイ)のままにしておきたいので、環境変数で切り替える。
+ * 有効化は GEO_USE_DECISION_TABLE=1。問題が出たら外すだけで即座に旧経路へ戻せる。
+ */
+function useDecisionTable(): boolean {
+  return process.env["GEO_USE_DECISION_TABLE"] === "1";
+}
 
 /** BOTのみの卓は人間のサンプルを1つも生まないので、取得段階で落とす。 */
 const HUMAN_SEATED = { seats: { some: { user: { isBot: false } } } } as const;
@@ -504,6 +517,19 @@ export async function getPreflopNode(params: {
   /** 卓の参加人数(2〜6)で絞り込む。未指定なら全人数のハンドを対象にする。 */
   playerCount?: number | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
+  if (useDecisionTable()) {
+    return nodeFromDecisionTable({
+      street: "preflop",
+      lineKey: lineKeyOf(params.line),
+      boardKey: "",
+      preflopKey: null,
+      stackBucket: params.stackBucket,
+      bubbleStage: params.bubbleStage,
+      playerCount: params.playerCount,
+      ratingRange: params.ratingRange,
+    });
+  }
+
   const [dataset, ratingOk] = await Promise.all([fetchGeoDataset(), buildRatingFilter(params.ratingRange)]);
   const { hands, tournaments } = dataset;
   const nextDecisions: ReplayedDecision[] = [];
@@ -666,6 +692,19 @@ export async function getPostflopNode(params: {
     throw new Error(`board must have exactly ${requiredBoardLen} cards for street ${params.street}`);
   }
 
+  if (useDecisionTable()) {
+    return nodeFromDecisionTable({
+      street: params.street,
+      lineKey: lineKeyOf(params.postflopLine),
+      boardKey: params.board.join(","),
+      preflopKey: lineKeyOf(params.preflopLine),
+      stackBucket: params.stackBucket,
+      bubbleStage: params.bubbleStage,
+      playerCount: params.playerCount,
+      ratingRange: params.ratingRange,
+    });
+  }
+
   // 板面の絞り込みはDB側で行う。指定フロップに一致するハンドは全履歴のごく一部(多くはゼロ件)
   // なのに、以前は全ハンドを読み出してからJSで捨てていた。ここが効くとポストフロップは
   // 履歴の総量にほとんど依存しなくなる。
@@ -789,4 +828,254 @@ export async function getGeoNodeForReviewSpot(params: {
     playerCount,
   });
   return { position: node.position, sampleSize: node.sampleSize, options: node.options, matrix };
+}
+
+// ---------------------------------------------------------------------------
+// GeoDecision(集計テーブル)の行生成
+//
+// GEOのノードを開くたびに全履歴をリプレイするのをやめ、ハンド記録時に「1意思決定 = 1行」へ
+// 展開しておく。ここで作る行の意味論は、既存のリプレイ経路(getPreflopNode/getPostflopNode)と
+// 完全に一致していなければならない。両者の一致は packages/db/test/geoDecision.test.ts で検証する。
+// ---------------------------------------------------------------------------
+
+/** 街ごとに、板面として意味を持つカード枚数。 */
+const BOARD_LEN_FOR_STREET: Record<string, number> = { flop: 3, turn: 4, river: 5 };
+
+/** ライン系列を1本のキー文字列にする。要求ラインと突き合わせるための正規形。 */
+export function lineKeyOf(line: { position: string; bucket: string }[]): string {
+  return line.map((s) => `${s.position}:${s.bucket}`).join("|");
+}
+
+/** GeoDecision に書き込む1行(idはDB側で採番するため持たない)。 */
+export interface GeoDecisionRow {
+  handId: string;
+  handSeatId: string;
+  userId: string;
+  street: string;
+  lineKey: string;
+  boardKey: string;
+  preflopKey: string;
+  position: string;
+  bucket: string;
+  stackBucket: string;
+  bubbleStage: string;
+  playerCount: number;
+  isGeometric: boolean;
+  handClassRow: number | null;
+  handClassCol: number | null;
+  sequenceNumber: number;
+}
+
+/**
+ * ハンド1件を GeoDecision の行へ展開する。
+ *
+ * 行を書くのは「実プレイヤーの意思決定」だけ(自動プレイヤー・離席中の席は書かない)。これらは
+ * ハンド確定時に決まる不変の事実なので焼き込んで問題ない。一方 excludedFromGeo は管理者が後から
+ * 切り替えられるため焼き込まず、読み出し時に HandSeat をJOINして除外する。
+ *
+ * ライン系列(lineKey)は、集計対象外の席の行動も含めた**全シーケンス**から作る。対象席だけを
+ * 間引くとポジション順がずれるため(replayPreflopDecisions のコメント参照)。
+ */
+export function buildGeoDecisionRows(hand: RawHand, tournaments: Map<string, TournamentInfo>): GeoDecisionRow[] {
+  const seatById = new Map(hand.seats.map((s) => [s.seatIndex, s]));
+  // ライン再生には全席を渡す(ホールカードも全席ぶん引けるようにする)。
+  const allSeats = new Map(hand.seats.map((s) => [s.seatIndex, s.holeCards]));
+  const bubbleStage = computeBubbleStage(hand, tournaments);
+  const playerCount = hand.seats.length;
+  const rows: GeoDecisionRow[] = [];
+
+  /** その席の意思決定を行として書き出す対象か(自動プレイヤー・離席中は書かない)。 */
+  const writable = (seatIndex: number): boolean => {
+    const seat = seatById.get(seatIndex);
+    return Boolean(seat && !seat.user.isBot && !seat.wasAway);
+  };
+
+  const push = (
+    d: ReplayedDecision,
+    street: string,
+    lineKey: string,
+    boardKey: string,
+    preflopKey: string,
+  ): void => {
+    const seat = seatById.get(d.seatIndex);
+    if (!seat) return;
+    const coords = classify(d.holeCards);
+    rows.push({
+      handId: hand.id,
+      handSeatId: seat.id,
+      userId: seat.userId,
+      street,
+      lineKey,
+      boardKey,
+      preflopKey,
+      position: d.position,
+      bucket: d.bucket,
+      stackBucket: stackBucketOf(d.stackBb),
+      bubbleStage,
+      playerCount,
+      isGeometric: d.isGeometric,
+      handClassRow: coords?.row ?? null,
+      handClassCol: coords?.col ?? null,
+      sequenceNumber: d.sequenceNumber,
+    });
+  };
+
+  const preflop = replayPreflopDecisions(hand, allSeats);
+  preflop.forEach((d, i) => {
+    if (!writable(d.seatIndex)) return;
+    push(d, "preflop", lineKeyOf(preflop.slice(0, i)), "", "");
+  });
+
+  // ポストフロップ。プリフロップ全系列を preflopKey として持たせ、要求プリフロップラインの
+  // 前方一致判定を読み出し側で行えるようにする。
+  const preflopKey = lineKeyOf(preflop);
+  const foldedSeats = new Set(preflop.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
+  const postflop = replayPostflopDecisions(hand, allSeats, foldedSeats);
+
+  for (const street of ["flop", "turn", "river"]) {
+    const requiredLen = BOARD_LEN_FOR_STREET[street]!;
+    if (hand.board.length < requiredLen) continue;
+    const boardKey = hand.board.slice(0, requiredLen).join(",");
+    const streetDecisions = postflop.filter((d) => d.street === street);
+    streetDecisions.forEach((d, i) => {
+      if (!writable(d.seatIndex)) return;
+      push(d, street, lineKeyOf(streetDecisions.slice(0, i)), boardKey, preflopKey);
+    });
+  }
+
+  return rows;
+}
+
+/** 指定ハンドのGeoDecisionを作り直す(冪等)。ハンド記録直後とバックフィルの両方から使う。 */
+export async function rebuildGeoDecisionsForHand(handId: string): Promise<number> {
+  const hand = await prisma.hand.findUnique({ where: { id: handId }, select: RAW_HAND_SELECT });
+  if (!hand) return 0;
+  const tournaments = await fetchTournamentInfos([hand.tournamentId]);
+  const rows = buildGeoDecisionRows(hand, tournaments);
+  await prisma.$transaction([
+    prisma.geoDecision.deleteMany({ where: { handId } }),
+    ...(rows.length > 0 ? [prisma.geoDecision.createMany({ data: rows })] : []),
+  ]);
+  return rows.length;
+}
+
+// ---------------------------------------------------------------------------
+// GeoDecision(集計テーブル)からの読み出し
+//
+// 全履歴のリプレイではなく、インデックス1本 + GROUP BY で答える。返す値の意味は
+// buildNodeFromDecisions と完全に一致させる(options / matrix / position)。
+// ---------------------------------------------------------------------------
+
+/** 集計クエリの共通WHERE。ratingUserIds は null なら偏差値フィルタ無し。 */
+function decisionWhere(params: {
+  street: string;
+  lineKey: string;
+  boardKey: string;
+  preflopKey: string | null;
+  bubbleStage: BubbleStage;
+  playerCount: number | undefined;
+  ratingUserIds: string[] | null;
+  stackBucket: StackBucket | null;
+}): Prisma.Sql {
+  const parts: Prisma.Sql[] = [
+    Prisma.sql`d."street" = ${params.street}`,
+    Prisma.sql`d."lineKey" = ${params.lineKey}`,
+    Prisma.sql`d."boardKey" = ${params.boardKey}`,
+    // 管理者がGEOから除外した席は集計しない(後から切り替わるためJOINで見る)。
+    Prisma.sql`s."excludedFromGeo" = false`,
+  ];
+  if (params.stackBucket !== null) parts.push(Prisma.sql`d."stackBucket" = ${params.stackBucket}`);
+  // 要求が "normal" のときは全バブル段階が対象(bubbleStageMatches と同じ意味)。
+  if (params.bubbleStage !== "normal") parts.push(Prisma.sql`d."bubbleStage" = ${params.bubbleStage}`);
+  if (params.playerCount !== undefined) parts.push(Prisma.sql`d."playerCount" = ${params.playerCount}`);
+  // プリフロップラインは前方一致(linesMatch は「要求が実際の先頭に一致」で判定するため)。
+  if (params.preflopKey !== null) {
+    parts.push(
+      params.preflopKey === ""
+        ? Prisma.sql`TRUE`
+        : Prisma.sql`(d."preflopKey" = ${params.preflopKey} OR d."preflopKey" LIKE ${params.preflopKey + "|%"})`,
+    );
+  }
+  if (params.ratingUserIds !== null) parts.push(Prisma.sql`d."userId" = ANY(${params.ratingUserIds}::text[])`);
+  return Prisma.join(parts, " AND ");
+}
+
+/** 偏差値レンジに入るユーザーIDの一覧。範囲未指定なら null(フィルタ無し)。 */
+async function ratingUserIdsFor(range?: RatingRange): Promise<string[] | null> {
+  if (!range) return null;
+  const ratings = await computeRRRatings();
+  return ratings.filter((r) => r.rrRating >= range.min && r.rrRating <= range.max).map((r) => r.userId);
+}
+
+interface DecisionGroupRow {
+  bucket: string;
+  position: string;
+  handClassRow: number | null;
+  handClassCol: number | null;
+  isGeometric: boolean;
+  n: number;
+}
+
+/** GeoDecision を集計してノード(options + 13x13マトリクス)を組み立てる。 */
+async function nodeFromDecisionTable(params: {
+  street: string;
+  lineKey: string;
+  boardKey: string;
+  preflopKey: string | null;
+  stackBucket: StackBucket;
+  bubbleStage: BubbleStage;
+  playerCount?: number | undefined;
+  ratingRange?: RatingRange | undefined;
+}): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
+  const ratingUserIds = await ratingUserIdsFor(params.ratingRange);
+  const base = { ...params, ratingUserIds, playerCount: params.playerCount };
+
+  const groups = await prisma.$queryRaw<DecisionGroupRow[]>(Prisma.sql`
+    SELECT d."bucket", d."position", d."handClassRow", d."handClassCol", d."isGeometric", COUNT(*)::int AS n
+    FROM "GeoDecision" d
+    JOIN "HandSeat" s ON s."id" = d."handSeatId"
+    WHERE ${decisionWhere({ ...base, stackBucket: params.stackBucket })}
+    GROUP BY 1, 2, 3, 4, 5
+  `);
+
+  const tally = new Map<string, { count: number; geometricCount: number }>();
+  const cells = emptyMatrix();
+  let totalSamples = 0;
+  let position: string | null = null;
+
+  for (const g of groups) {
+    const entry = tally.get(g.bucket) ?? { count: 0, geometricCount: 0 };
+    entry.count += g.n;
+    if (g.isGeometric) entry.geometricCount += g.n;
+    tally.set(g.bucket, entry);
+    totalSamples += g.n;
+    position ??= g.position;
+    if (g.handClassRow !== null && g.handClassCol !== null) {
+      const cell = cells[g.handClassRow]![g.handClassCol]!;
+      cell.count += g.n;
+      cell.byBucket[g.bucket] = (cell.byBucket[g.bucket] ?? 0) + g.n;
+    }
+  }
+
+  const options: ActionOption[] = [...tally.entries()].map(([bucket, { count, geometricCount }]) => ({
+    bucket,
+    count,
+    frequency: totalSamples > 0 ? count / totalSamples : 0,
+    geometricRatio: count > 0 ? geometricCount / count : 0,
+  }));
+
+  // 該当スタック帯にサンプルが1件も無い場合でも、そのノードのポジション名は出す
+  // (旧経路の expectedPosition と同じ。スタック帯を外して1件だけ引く)。
+  if (position === null) {
+    const fallback = await prisma.$queryRaw<{ position: string }[]>(Prisma.sql`
+      SELECT d."position"
+      FROM "GeoDecision" d
+      JOIN "HandSeat" s ON s."id" = d."handSeatId"
+      WHERE ${decisionWhere({ ...base, stackBucket: null })}
+      LIMIT 1
+    `);
+    position = fallback[0]?.position ?? null;
+  }
+
+  return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
