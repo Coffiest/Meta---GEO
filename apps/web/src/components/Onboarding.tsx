@@ -57,6 +57,8 @@ const NEXT_UP_KEYS = ["onb.next1", "onb.next2", "onb.next3"];
  * Swiss(モノクロ + ゴールドの単一アクセント)を保ったまま、アニメーションとコピーで
  * 「これからプレイする」高揚感を演出する。
  */
+import { ReportErrorButton } from "./ReportErrorButton";
+
 export function Onboarding({
   title = "プロフィールを設定",
   initialName = "",
@@ -222,7 +224,12 @@ export function Onboarding({
             />
           </div>
 
-          {error && <p className="mt-3 px-1 text-[12px] text-crimson-500">{error}</p>}
+          {error && (
+            <div className="mt-3 px-1">
+              <p className="text-[12px] text-crimson-500">{error}</p>
+              <ReportErrorButton scope="onboarding" message={error} className="mt-1.5" />
+            </div>
+          )}
 
           <button
             onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}

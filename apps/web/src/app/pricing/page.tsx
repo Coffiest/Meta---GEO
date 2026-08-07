@@ -13,6 +13,8 @@ const FEATURES = [
   "全ハンドを1手ずつ通し再生できるリプレイ",
 ];
 
+import { ReportErrorButton } from "@/components/ReportErrorButton";
+
 export default function PricingPage() {
   const { session } = useAuth();
   const accessToken = session?.access_token;
@@ -145,7 +147,12 @@ export default function PricingPage() {
               )}
             </button>
           )}
-          {error && <p className="mt-2 text-center text-[11px] font-bold text-crimson-500">{error}</p>}
+          {error && (
+            <div className="mt-2 text-center">
+              <p className="text-[11px] font-bold text-crimson-500">{error}</p>
+              <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
+            </div>
+          )}
         </div>
 
         {/* 課金せずに使う手段。招待で貰ったクーポンをここでも確認・コピー・適用できる。 */}

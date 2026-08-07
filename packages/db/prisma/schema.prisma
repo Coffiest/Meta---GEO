@@ -37,6 +37,7 @@ model User {
   premiumCoupon        PremiumCoupon?
   couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
   couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
+  errorReports ErrorReport[]
 }
 
 /// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
@@ -395,4 +396,43 @@ model ReviewDecision {
   spotKey          String?
 
   @@index([reviewId])
+}
+
+/// ユーザーが「運営に報告する」を押したときのエラー報告。
+/// 画面に出ていた文言だけでなく、原因特定に必要な技術詳細(エラー種別・HTTPステータス・
+/// 所要時間・通信状態など)をそのまま保存し、運営が後から読んで修正できるようにする。
+model ErrorReport {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+
+  /// 発生元の画面/機能。例: "geo" | "table" | "login" | "onboarding" | "review" 等。
+  scope String
+
+  /// 画面にユーザー向けとして出ていたメッセージ本文。
+  message String
+
+  /// 技術詳細(1行)。エラー種別・エンドポイント・HTTPステータス・所要msなど。
+  detail String?
+
+  /// 追加の構造化コンテキスト(画面ごとの状態、通信診断のスナップショット等)。
+  context Json?
+
+  /// 報告時点のアプリバージョン(例 "3.20.0")。再現条件の切り分けに使う。
+  appVersion String?
+
+  /// 端末情報とページURL。どの環境・どの画面で起きたかの特定に使う。
+  userAgent String?
+  url       String?
+
+  /// ログイン中なら報告者。未ログインでも報告できるようnull許容。
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// 運営が対応済みにした時刻。未対応はnull。
+  resolvedAt DateTime?
+
+  @@index([createdAt])
+  @@index([scope, createdAt])
+  @@index([resolvedAt])
 }

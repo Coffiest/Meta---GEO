@@ -37,6 +37,8 @@ function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active
  * - GEO戦略DBからのプレイライン削除(全期間 or 期間指定の論理削除)と復元
  * ができる。操作はサーバー側でも同じパスコードを検証する。
  */
+import { ReportErrorButton } from "@/components/ReportErrorButton";
+
 export default function AdminPage() {
   const [passcode, setPasscode] = useState<string | null>(null);
   const [gateNeeded, setGateNeeded] = useState(false);
@@ -238,8 +240,9 @@ export default function AdminPage() {
               </div>
             )}
             {error && (
-              <div className="mt-3 rounded-xl bg-crimson-500/10 px-3.5 py-2.5 text-[12px] font-bold text-crimson-500 ring-1 ring-crimson-500/30">
-                {error}
+              <div className="mt-3 rounded-xl bg-crimson-500/10 px-3.5 py-2.5 ring-1 ring-crimson-500/30">
+                <p className="text-[12px] font-bold text-crimson-500">{error}</p>
+                <ReportErrorButton scope="admin" message={error} className="mt-2" />
               </div>
             )}
 

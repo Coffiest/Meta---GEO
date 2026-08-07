@@ -89,6 +89,8 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
   );
 }
 
+import { ReportErrorButton } from "@/components/ReportErrorButton";
+
 export default function ReviewHandPage() {
   const params = useParams();
   const router = useRouter();
@@ -158,8 +160,9 @@ export default function ReviewHandPage() {
             解析中…
           </div>
         ) : error ? (
-          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 text-crimson-500 text-sm px-4 py-3">
-            {error}
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3">
+            <p className="text-sm text-crimson-500">{error}</p>
+            <ReportErrorButton scope="review:hand" message={error} className="mt-2" />
           </div>
         ) : review && timeline ? (
           <>

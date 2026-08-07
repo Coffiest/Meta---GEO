@@ -23,3 +23,4 @@ export * from "./review.js";
 export * from "./subscriptions.js";
 export * from "./premiumCoupons.js";
 export * from "./adminGeo.js";
+export * from "./errorReport.js";

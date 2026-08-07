@@ -47,6 +47,8 @@ function XLogo({ className = "h-4 w-4" }: { className?: string }) {
  * 増殖を避けるための意図的な設計)。
  * まだ誰の招待も受けていないユーザーには、招待コードの手入力欄も出す。
  */
+import { ReportErrorButton } from "./ReportErrorButton";
+
 export function InviteCard({ accessToken }: { accessToken?: string }) {
   const { t } = useI18n();
   const [summary, setSummary] = useState<ReferralSummary | null>(null);
@@ -211,7 +213,12 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
               {redeeming ? t("invite.applying") : t("invite.apply")}
             </button>
           </div>
-          {redeemError && <p className="mt-1.5 text-[11.5px] font-semibold text-crimson-500">{redeemError}</p>}
+          {redeemError && (
+            <div className="mt-1.5">
+              <p className="text-[11.5px] font-semibold text-crimson-500">{redeemError}</p>
+              <ReportErrorButton scope="referral" message={redeemError} className="mt-1.5" />
+            </div>
+          )}
         </div>
       ) : (
         <button

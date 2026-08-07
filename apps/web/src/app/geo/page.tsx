@@ -21,6 +21,7 @@ import {
   type TreeNode,
 } from "@/lib/geoApi";
 import { GeoSettingsModal, RATING_MIN, RATING_MAX } from "@/components/geo/GeoSettingsModal";
+import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
 import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
@@ -535,13 +536,22 @@ function GeoDatabase() {
             <p className="text-sm text-crimson-400">{error}</p>
             {/* 原因の技術詳細(種別・エンドポイント・HTTPステータス・所要ms)。そのまま共有できる。 */}
             {failure && <p className="mt-1 font-mono text-[10px] leading-snug text-crimson-300/70 break-all">{failure.detail}</p>}
-            <button
-              type="button"
-              onClick={() => setPollTick((t) => t + 1)}
-              className="mt-2.5 rounded-full bg-crimson-500 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
-            >
-              今すぐ再試行
-            </button>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPollTick((t) => t + 1)}
+                className="rounded-full bg-crimson-500 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
+              >
+                今すぐ再試行
+              </button>
+              <ReportErrorButton
+                scope="geo"
+                message={error}
+                detail={failure?.detail ?? null}
+                tone="dark"
+                context={{ mode, street, stackBucket, bubbleStage, attempt: failure?.attempt ?? null }}
+              />
+            </div>
           </div>
         )}
 

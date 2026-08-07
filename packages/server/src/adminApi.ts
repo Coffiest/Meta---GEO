@@ -6,6 +6,9 @@ import {
   restoreGeoData,
   revokeCompSubscription,
   searchUsersForAdmin,
+  listErrorReports,
+  summarizeErrorReports,
+  setErrorReportResolved,
   type CompDurationUnit,
 } from "@meta-geo/db";
 
@@ -137,6 +140,35 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       }
       const revoked = await revokeCompSubscription(userId);
       sendJson(res, 200, { ok: true, revoked });
+      return true;
+    }
+
+    // ユーザーからのエラー報告の一覧。`?scope=` で絞り込み、`?unresolved=1` で未対応のみ。
+    // 画面に出ていた文言だけでなく、技術詳細(detail)と構造化コンテキスト(context)まで返す。
+    if (url.pathname === "/api/admin/error-reports" && req.method === "GET") {
+      const limitRaw = Number(url.searchParams.get("limit") ?? "100");
+      const limit = Number.isFinite(limitRaw) ? Math.trunc(limitRaw) : 100;
+      const scope = url.searchParams.get("scope");
+      const unresolvedOnly = url.searchParams.get("unresolved") === "1";
+      const [reports, summary] = await Promise.all([
+        listErrorReports({ limit, ...(scope ? { scope } : {}), unresolvedOnly }),
+        summarizeErrorReports(50),
+      ]);
+      sendJson(res, 200, { reports, summary });
+      return true;
+    }
+
+    // 対応済み/未対応の切り替え: { id, resolved }
+    if (url.pathname === "/api/admin/error-report-resolve" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const resolved = body["resolved"] !== false;
+      if (!id) {
+        sendJson(res, 400, { error: "id is required" });
+        return true;
+      }
+      await setErrorReportResolved(id, resolved);
+      sendJson(res, 200, { ok: true });
       return true;
     }
 

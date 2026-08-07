@@ -48,6 +48,8 @@ function nextFreeText(nextFreeAt: string | null): string | null {
   return h > 0 ? `次の無料解析まで あと約${h}時間` : `次の無料解析まで あと約${Math.max(1, m)}分`;
 }
 
+import { ReportErrorButton } from "../ReportErrorButton";
+
 export function ReviewPaywall({
   tournamentId,
   accessToken,
@@ -172,7 +174,12 @@ export function ReviewPaywall({
           )}
         </motion.button>
 
-        {msg && <p className="mt-2 text-center text-[11px] font-bold text-crimson-500">{msg}</p>}
+        {msg && (
+          <div className="mt-2 text-center">
+            <p className="text-[11px] font-bold text-crimson-500">{msg}</p>
+            <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
+          </div>
+        )}
 
         <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-400">
           いつでも解約可能・クレジットカード決済(Stripe)

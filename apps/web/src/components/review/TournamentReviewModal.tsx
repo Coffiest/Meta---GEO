@@ -247,6 +247,8 @@ function Chevron() {
   );
 }
 
+import { ReportErrorButton } from "../ReportErrorButton";
+
 export function TournamentReviewModal({
   tournamentId,
   accessToken,
@@ -816,7 +818,10 @@ export function TournamentReviewModal({
             全ハンドを解析中…
           </div>
         ) : error ? (
-          <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-500">{error}</div>
+          <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5">
+            <p className="text-[14px] font-medium text-crimson-500">{error}</p>
+            <ReportErrorButton scope="review:tournament" message={error} className="mt-2" />
+          </div>
         ) : quota ? (
           <ReviewPaywall
             tournamentId={tournamentId}

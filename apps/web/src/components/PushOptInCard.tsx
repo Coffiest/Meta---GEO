@@ -24,6 +24,8 @@ function BellGlyph({ className = "h-4 w-4" }: { className?: string }) {
  * (ホームに常設のノイズを残さない)。
  * iOSでは、ホーム画面に追加したPWAでしか通知を使えないため、その場合は追加方法を案内する。
  */
+import { ReportErrorButton } from "./ReportErrorButton";
+
 export function PushOptInCard({ accessToken }: { accessToken?: string }) {
   const { t } = useI18n();
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -107,7 +109,12 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
           >
             {busy ? t("push.enabling") : t("push.enable")}
           </button>
-          {error && <p className="mt-2 text-[11.5px] font-semibold text-crimson-500">{error}</p>}
+          {error && (
+            <div className="mt-2">
+              <p className="text-[11.5px] font-semibold text-crimson-500">{error}</p>
+              <ReportErrorButton scope="push" message={error} className="mt-1.5" />
+            </div>
+          )}
         </>
       )}
     </motion.div>
