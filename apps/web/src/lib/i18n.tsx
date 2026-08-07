@@ -98,6 +98,7 @@ const ja: Dict = {
   "app.profileErr.relogin": "ログインし直す",
   "menu.editProfile": "プロフィールを編集",
   "menu.logout": "ログアウト",
+  "menu.inviteCoupon": "友達を招待 / クーポン",
 
   "login.heroLine1": "GTOを、",
   "login.heroLine2": "超えていけ",
@@ -436,6 +437,7 @@ const en: Dict = {
   "app.profileErr.relogin": "Sign in again",
   "menu.editProfile": "Edit profile",
   "menu.logout": "Log out",
+  "menu.inviteCoupon": "Invite friends / Coupons",
 
   "login.heroLine1": "Go beyond",
   "login.heroLine2": "GTO",
@@ -774,6 +776,7 @@ const ko: Dict = {
   "app.profileErr.relogin": "다시 로그인",
   "menu.editProfile": "프로필 편집",
   "menu.logout": "로그아웃",
+  "menu.inviteCoupon": "친구 초대 / 쿠폰",
 
   "login.heroLine1": "GTO를",
   "login.heroLine2": "넘어서라",
@@ -1112,6 +1115,7 @@ const zh: Dict = {
   "app.profileErr.relogin": "重新登录",
   "menu.editProfile": "编辑资料",
   "menu.logout": "退出登录",
+  "menu.inviteCoupon": "邀请好友 / 优惠券",
 
   "login.heroLine1": "超越",
   "login.heroLine2": "GTO",
