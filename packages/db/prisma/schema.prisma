@@ -254,6 +254,10 @@ model Hand {
   reviews HandReview[]
 
   @@unique([tournamentId, handNumber])
+  /// GEO集計は常に createdAt 昇順で走査するため、全件ソートを避けるインデックス。
+  @@index([createdAt])
+  /// ポストフロップGEOは板面でハンドを絞り込む(board @> ARRAY[...])。配列包含はGINが効く。
+  @@index([board(ops: ArrayOps)], type: Gin)
 }
 
 /// そのハンドにおける各プレイヤーの着席情報。GEO分析上、全ハンド終了後はホールカードを常に記録する
