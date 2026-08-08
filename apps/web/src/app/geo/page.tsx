@@ -30,18 +30,51 @@ import { Icon } from "@/components/Lobby";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
-import { GeoComingSoon } from "@/components/geo/GeoComingSoon";
+import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
+import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
 
+/** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
+const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
+
 /**
- * /geo のゲート。DATABASEタブを開くたびに毎回「近日公開」プロモ画面(GeoComingSoon)を表示し、
- * 隠しパスコード(2357)を入力したそのとき(この画面を開いている間)だけ本物のGEO DATABASEを表示する。
- * 解錠は保存しない — 一度ホーム等へ離れて再びDATABASEへ来ると、また最初からパスコード入力が必要になる。
+ * /geo のゲート。GEO DATABASE は一般開放済み(ログイン済みユーザーのみ)。
+ * - 初回アクセス時、または ?guide=1(メニューからの再表示)のときは使い方チュートリアル(GeoGuide)を表示し、
+ *   「使ってみる」/スキップで本体(GeoDatabase)へ。以降は本体を直接開く。
+ * - 未ログイン(Supabase有効時)はホーム(ログイン画面)へ誘導する。
  */
 export default function GeoPage() {
-  const [unlocked, setUnlocked] = useState(false);
-  if (!unlocked) return <GeoComingSoon onUnlock={() => setUnlocked(true)} />;
+  const { authAvailable, loading, session } = useAuth();
+  const router = useRouter();
+  const [showGuide, setShowGuide] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    // database タブを開いた記録を残す(次回以降ホームの解放トーストを出さない)。
+    try {
+      localStorage.setItem(GEO_DB_OPENED_KEY, "1");
+    } catch {
+      /* localStorage不可でも致命ではない */
+    }
+    // ?guide=1 は既読でも強制表示(ハンバーガーメニューの「使い方」から)。それ以外は初回のみ。
+    const forced =
+      typeof window !== "undefined" && new URLSearchParams(window.location.search).get("guide") === "1";
+    setShowGuide(forced || !hasGeoGuideBeenSeen());
+    setReady(true);
+  }, []);
+
+  // ログイン必須(Supabaseが有効な本番のみ)。ゲストモード(authAvailable=false)ではブロックしない。
+  useEffect(() => {
+    if (authAvailable && !loading && !session) router.replace("/");
+  }, [authAvailable, loading, session, router]);
+
+  if (authAvailable && !loading && !session) return null; // リダイレクト中は何も出さない
+  if (loading || !ready) {
+    // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
+    return <div className="flex min-h-screen items-center justify-center bg-white text-[13px] text-ink-500">読み込み中…</div>;
+  }
+  if (showGuide) return <GeoGuide onDone={() => setShowGuide(false)} />;
   return <GeoDatabase />;
 }
 
