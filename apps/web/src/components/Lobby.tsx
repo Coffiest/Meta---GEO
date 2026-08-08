@@ -1077,6 +1077,14 @@ function HamburgerMenu({
           <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
             {t("menu.editProfile")} <span className="text-ink-600">›</span>
           </button>
+          {/* GEO DATABASE の使い方(スワイプ式チュートリアル)を再表示する導線。?guide=1 で既読でも強制表示。 */}
+          <Link
+            href="/geo?guide=1"
+            onClick={onClose}
+            className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900"
+          >
+            {t("menu.geoGuide")} <span className="text-ink-600">›</span>
+          </Link>
           {/* 言語切替。ログイン後もいつでも変更できるようメニューに常設する。 */}
           <div className="flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
             <span>{t("common.language")}</span>
@@ -1191,6 +1199,25 @@ export function Lobby({
   const [historySubTab, setHistorySubTab] = useState<"all" | "favorites">("all");
   // ホーム最上段の「復帰」バナー用: いま参加中のゲーム種別(サーバーが常時記録)。非破壊peekでポーリング。
   const [activeGameKey, setActiveGameKey] = useState<GameKey | null>(null);
+  // GEO DATABASE 解放のお知らせトースト。ログイン済み & まだ database タブを開いていないときだけ出す。
+  const [showGeoToast, setShowGeoToast] = useState(false);
+
+  // GEO DATABASE 解放のトースト表示判定。SSR不整合を避けるためマウント後にlocalStorageを見る。
+  // 「database タブを一度開いたら(=/geo を訪れて geoDbOpened が立ったら)」以降は出さない。
+  useEffect(() => {
+    if (!accessToken) return; // ログイン済みユーザーのみ
+    let opened = false;
+    try {
+      opened = localStorage.getItem("pokerart.geoDbOpened.v1") === "1";
+    } catch {
+      opened = true; // localStorage不可の環境では出さない側に倒す
+    }
+    if (opened) return;
+    setShowGeoToast(true);
+    // トーストらしく数秒で自動的に引っ込める(次回ホーム表示時に database 未訪問ならまた出る)。
+    const timer = setTimeout(() => setShowGeoToast(false), 6000);
+    return () => clearTimeout(timer);
+  }, [accessToken]);
 
   // 参加中ゲームを常時確認: マウント時 + 復帰(focus/visibilitychange)時 + 30秒間隔。
   // peek=1 は結果サジェストを消費しないので、復帰後に結果が1回だけ出る通常動作を壊さない。
@@ -1903,6 +1930,38 @@ export function Lobby({
             accessToken={accessToken}
             onClose={() => setReviewTournamentId(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* GEO DATABASE 解放のお知らせ(小さめトースト)。タップで database タブ(/geo)へ。 */}
+      <AnimatePresence>
+        {showGeoToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-40 flex justify-center px-4 lg:bottom-6"
+          >
+            <Link
+              href="/geo"
+              onClick={() => setShowGeoToast(false)}
+              className="flex max-w-[360px] items-center gap-3 rounded-2xl border border-ink-800 bg-ink-950 px-4 py-3 text-left shadow-[0_10px_28px_-12px_rgba(10,10,10,0.55)]"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gold-500 text-ink-950">
+                {/* データベースアイコン(絵文字禁止のためSVG) */}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <ellipse cx="12" cy="5" rx="8" ry="3" />
+                  <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+                  <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[12.5px] font-black leading-tight text-white">GEO DATABASE が解放されました</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-white/70">database タブから使ってみましょう →</span>
+              </span>
+            </Link>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
