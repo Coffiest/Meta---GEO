@@ -157,5 +157,32 @@ describe("GEO tree with mixed table sizes (integration, real Postgres)", () => {
     const next4 = await at(4, line);
     expect(next6.node.position, "6人卓のUTGの次はHJ").toBe("HJ");
     expect(next4.node.position, "4人卓のUTGの次はBTN").toBe("BTN");
+    expect(next4.node.sampleSize, "4人卓(通常)のBTNは3ハンドぶん").toBe(3);
+
+    // --- 人数を揃えてもアクション順が1通りとは限らない(デッドボタン方式) ---
+    //
+    // 席1(SB)を空けた4人卓を作る。SBがデッドになり、席3=UTG・席4=CO・席0=BTN・席2=BB と
+    // 命名されるので、アクション順は UTG→CO→BTN→BB になる。通常の4人卓(UTG→BTN→SB→BB)と
+    // 同じ "UTG:raise2-5" ラインなのに、次に動くポジションが CO と BTN で食い違う。
+    await playHand([0, 2, 3, 4], 6);
+    await playHand([0, 2, 3, 4], 7);
+
+    const deadSbRoot = await at(4, []);
+    expect(deadSbRoot.node.position, "どちらの並びでも最初はUTG").toBe("UTG");
+    expect(deadSbRoot.node.sampleSize, "通常3 + SBデッド2 = 5ハンド").toBe(5);
+
+    // 次のノードは2つの並びが競合する。多い方(通常の並びのBTN=3件)に揃え、
+    // 少ない方(SBデッドのCO=2件)を混ぜないこと。混ぜると別スポットの頻度が合算されてしまう。
+    const contested = await at(4, line);
+    expect(contested.node.position, "多数派の並びに揃える").toBe("BTN");
+    expect(contested.node.sampleSize, "COの2件を混ぜず、BTNの3件だけ数える").toBe(3);
+
+    // 旧経路も同じ結論になること(両経路が食い違うと画面が不安定になる)。
+    const contestedLegacy = await withDecisionTable(false, async () => {
+      clearRawHandsCache();
+      return getPreflopNode({ stackBucket: "30+", bubbleStage: "normal", playerCount: 4, line });
+    });
+    expect(contestedLegacy.node.position).toBe(contested.node.position);
+    expect(contestedLegacy.node.sampleSize).toBe(contested.node.sampleSize);
   }, 120_000);
 });
