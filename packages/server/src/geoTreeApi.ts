@@ -221,9 +221,20 @@ function parseLine(v: unknown): LineStep[] | null {
   return line;
 }
 
+/**
+ * GEOの応答時間をサーバーログに出す。集計テーブル(GeoDecision)経由へ切り替えた前後で、
+ * 実際にどれだけ速くなったかを数字で比較できるようにするための計測。
+ * どの経路で答えたかも一緒に出す(env の GEO_USE_DECISION_TABLE に対応)。
+ */
 export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (!url.pathname.startsWith("/api/geo-tree/")) return false;
+  const startedAt = Date.now();
+  const route = url.pathname.slice("/api/geo-tree/".length);
+  const path = process.env["GEO_USE_DECISION_TABLE"] === "1" ? "table" : "replay";
+  res.on("finish", () => {
+    console.log(`[geoTreeApi] ${route} ${Date.now() - startedAt}ms (${path})`);
+  });
 
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
