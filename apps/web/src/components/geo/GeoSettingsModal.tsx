@@ -87,15 +87,15 @@ export function GeoSettingsModal({
   gtoStackBb: GtoStack;
   bubbleStage: BubbleStage;
   ratingRange: { min: number; max: number };
-  /** GEOタブの人数フィルタ。null=全人数(フィルタなし)。 */
-  playerCount: number | null;
+  /** GEOタブの卓人数(2〜6)。人数ごとにアクション順が違うため、まとめずに1つ選ぶ。 */
+  playerCount: number;
   /** GTOタブの人数(2〜6)。少人数はアーリーポジションの自動フォールドで表現する。 */
   gtoPlayerCount: number;
   onChangeStackBucket: (v: StackBucket) => void;
   onChangeGtoStackBb: (v: GtoStack) => void;
   onChangeBubbleStage: (v: BubbleStage) => void;
   onChangeRatingRange: (r: { min: number; max: number }) => void;
-  onChangePlayerCount: (v: number | null) => void;
+  onChangePlayerCount: (v: number) => void;
   onChangeGtoPlayerCount: (v: number) => void;
   onClose: () => void;
 }) {
@@ -161,22 +161,11 @@ export function GeoSettingsModal({
           )}
         </div>
 
-        {/* 人数(2〜6)。GEOは実測ハンドの参加人数フィルタ(全人数も選べる)、
+        {/* 人数(2〜6)。GEOは実測ハンドの参加人数(必ず1つ選ぶ)、
             GTOは少人数卓(アーリーポジションがフォールド済みのツリー)の表示。 */}
         <div className={isGto ? "mt-5" : "mb-5"}>
           <p className="text-[11px] tracking-wide text-navy-400 uppercase font-bold mb-2">人数</p>
           <div className="flex flex-wrap gap-1.5">
-            {!isGto && (
-              <motion.button
-                whileTap={{ scale: 0.94 }}
-                onClick={() => onChangePlayerCount(null)}
-                className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
-                  playerCount === null ? "bg-gold-500 text-navy-950 border-gold-500" : "bg-navy-950 text-navy-300 border-navy-700"
-                }`}
-              >
-                全体
-              </motion.button>
-            )}
             {[2, 3, 4, 5, 6].map((n) => {
               const selected = isGto ? gtoPlayerCount === n : playerCount === n;
               return (
@@ -196,7 +185,7 @@ export function GeoSettingsModal({
           <p className="mt-1.5 text-[10px] text-navy-500">
             {isGto
               ? "少人数はアーリーポジションがフォールドした局面のGTO戦略を表示します。"
-              : "その人数でプレイされたハンドだけを集計します(変更するとラインはリセット)。"}
+              : "その人数でプレイされたハンドだけを集計します(変更するとラインはリセット)。人数が違うとアクション順そのものが変わる(6人のHJ・5人のCO・4人のBTNは同じ順番)ため、人数はまとめずに1つ選びます。"}
           </p>
         </div>
 

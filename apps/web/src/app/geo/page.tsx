@@ -67,18 +67,23 @@ const FULL_PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 const FULL_POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
 
 /** GEOタブ: 人数ごとのブラインド基準ポジション並び(プリフロップのアクション順)。
- * サーバー(geoTree)のブラインド基準ラベルと同じ命名: 3人=BTN/SB/BB、4人=UTG/BTN/SB/BB、
- * ヘッズアップはボタンがSBを兼ねるため BTN(SB)。 */
+ * サーバー(geoTree)のブラインド基準ラベルと同じ命名。ヘッズアップはボタンがSBを兼ねるため BTN(SB)。
+ *
+ * 3人卓にも UTG を入れてある。デッドボタン方式では、バスト直後などで着席が飛び飛びになると
+ * 「ブラインドでもボタンでもない席」が生まれ、その席は UTG と命名される(engine の
+ * computePositionLabels)。3人卓を BTN/SB/BB だけにしていた頃は、実際に記録されている
+ * 3人卓 UTG の意思決定へ画面から到達できなかった。存在しない人数では単に空で出るだけなので
+ * 入れておいて害はない。 */
 const GEO_PREFLOP_ORDER: Record<number, string[]> = {
   2: ["BTN(SB)", "BB"],
-  3: ["BTN", "SB", "BB"],
+  3: ["UTG", "BTN", "SB", "BB"],
   4: ["UTG", "BTN", "SB", "BB"],
   5: ["UTG", "CO", "BTN", "SB", "BB"],
   6: FULL_PREFLOP_ORDER,
 };
 const GEO_POSTFLOP_ORDER: Record<number, string[]> = {
   2: ["BB", "BTN(SB)"],
-  3: ["SB", "BB", "BTN"],
+  3: ["SB", "BB", "UTG", "BTN"],
   4: ["SB", "BB", "UTG", "BTN"],
   5: ["SB", "BB", "UTG", "CO", "BTN"],
   6: FULL_POSTFLOP_ORDER,
@@ -109,8 +114,16 @@ function GeoDatabase() {
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
-  /** GEOタブ: 卓の参加人数フィルタ(2〜6)。null=全人数。 */
-  const [playerCount, setPlayerCount] = useState<number | null>(null);
+  /**
+   * GEOタブ: 卓の参加人数(2〜6)。必ずどれか1つを選ぶ。
+   *
+   * 人数をまとめて集計してはいけない。ラインはポジション名の並びで表すが、人数が違うと
+   * アクション順そのものが変わるため、同じ "UTG:fold" というラインが6人卓のHJ・5人卓のCO・
+   * 4人卓のBTNを1つのノードへ合流させてしまう。さらにルート(ライン無し)だけは全人数の
+   * 最初のアクションが合算されるので、「UTGだけ異常にデータが多く、その先が急に痩せる」
+   * という実体のない偏りが生まれていた。
+   */
+  const [playerCount, setPlayerCount] = useState<number>(6);
   /** GTOタブ: 人数(2〜6)。6未満はアーリーポジションの自動フォールド接頭辞で表現する。 */
   const [gtoPlayerCount, setGtoPlayerCount] = useState(6);
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
@@ -151,7 +164,7 @@ function GeoDatabase() {
   /** 現在のモード/人数でのプリフロップのアクション順(表示対象ポジション)。 */
   function preflopOrder(): string[] {
     if (mode === "gto") return FULL_PREFLOP_ORDER.slice(6 - gtoPlayerCount);
-    return GEO_PREFLOP_ORDER[playerCount ?? 6] ?? FULL_PREFLOP_ORDER;
+    return GEO_PREFLOP_ORDER[playerCount] ?? FULL_PREFLOP_ORDER;
   }
 
   /** 現在のモード/人数でのポストフロップのアクション順。 */
@@ -160,7 +173,7 @@ function GeoDatabase() {
       const visible = new Set(preflopOrder());
       return FULL_POSTFLOP_ORDER.filter((p) => visible.has(p));
     }
-    return GEO_POSTFLOP_ORDER[playerCount ?? 6] ?? FULL_POSTFLOP_ORDER;
+    return GEO_POSTFLOP_ORDER[playerCount] ?? FULL_POSTFLOP_ORDER;
   }
 
   function foldedBeforeStreet(streetKey: Street): Set<string> {
@@ -268,7 +281,7 @@ function GeoDatabase() {
             bubbleStage,
             line: preflopLine,
             ratingRange: ratingFilter,
-            ...(playerCount !== null ? { playerCount } : {}),
+            playerCount,
           })
         : geoTreeApi.postflopNode({
             stackBucket,
@@ -278,7 +291,7 @@ function GeoDatabase() {
             street,
             postflopLine: streetLines[street],
             ratingRange: ratingFilter,
-            ...(playerCount !== null ? { playerCount } : {}),
+            playerCount,
           });
 
     // 失敗したら「1回目で」原因を画面に出す。ここでリトライを重ねてから表示すると、
@@ -368,7 +381,7 @@ function GeoDatabase() {
     resetLines();
   }
 
-  function changePlayerCount(next: number | null) {
+  function changePlayerCount(next: number) {
     if (next === playerCount) return;
     setPlayerCount(next);
     resetLines();
@@ -562,7 +575,7 @@ function GeoDatabase() {
                   <div className="text-[11px] font-bold text-navy-50 whitespace-nowrap">
                     {mode === "gto"
                       ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
-                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount !== null ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
                   </div>
                 </motion.button>
                 <PositionPillBar
