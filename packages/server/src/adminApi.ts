@@ -11,16 +11,13 @@ import {
   setErrorReportResolved,
   type CompDurationUnit,
 } from "@meta-geo/db";
+import { checkAdminAuth } from "./adminAuth.js";
+import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
- * 管理者API(`/api/admin/*`)。ログイン画面のバージョン表記→パスコード(既定2357)から開く
- * 管理者画面のバックエンド。すべてのルートで x-admin-passcode ヘッダーを検証する。
- * パスコードは環境変数 ADMIN_PASSCODE で上書き可能。
+ * 管理者API(`/api/admin/*`)。ログイン画面のバージョン表記→パスコードから開く管理者画面の
+ * バックエンド。認証・レート制限・タイミングセーフ比較は adminAuth.ts に集約している。
  */
-
-function adminPasscode(): string {
-  return process.env["ADMIN_PASSCODE"] ?? "2357";
-}
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, {
@@ -30,22 +27,8 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-function passcodeOk(req: IncomingMessage): boolean {
-  const header = req.headers["x-admin-passcode"];
-  const value = Array.isArray(header) ? header[0] : header;
-  return value === adminPasscode();
-}
-
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  try {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk as Buffer);
-    const raw = Buffer.concat(chunks);
-    if (raw.length === 0) return {};
-    return JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 export async function handleAdminApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -62,7 +45,12 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     return true;
   }
 
-  if (!passcodeOk(req)) {
+  const auth = checkAdminAuth(req);
+  if (auth === "rate_limited") {
+    sendJson(res, 429, { error: "試行回数が多すぎます。しばらく待ってから再度お試しください。" });
+    return true;
+  }
+  if (auth !== "ok") {
     sendJson(res, 401, { error: "unauthorized" });
     return true;
   }
@@ -146,8 +134,7 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     // ユーザーからのエラー報告の一覧。`?scope=` で絞り込み、`?unresolved=1` で未対応のみ。
     // 画面に出ていた文言だけでなく、技術詳細(detail)と構造化コンテキスト(context)まで返す。
     if (url.pathname === "/api/admin/error-reports" && req.method === "GET") {
-      const limitRaw = Number(url.searchParams.get("limit") ?? "100");
-      const limit = Number.isFinite(limitRaw) ? Math.trunc(limitRaw) : 100;
+      const limit = clampLimit(url.searchParams.get("limit"), 100, 1, 500);
       const scope = url.searchParams.get("scope");
       const unresolvedOnly = url.searchParams.get("unresolved") === "1";
       const [reports, summary] = await Promise.all([

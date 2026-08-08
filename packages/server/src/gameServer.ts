@@ -45,7 +45,7 @@ const BOT_NAME_GROUPS: readonly (readonly string[])[] = [
   ],
   // C. ネタ(ポーカー用語いじり・お笑い系)
   [
-    "オナホールデム", "全ツッパ", "降りない男", "とりまコール", "ぶっぱ太郎", "沼", "養分", "レイズしか勝たん",
+    "ホールデム侍", "全ツッパ", "降りない男", "とりまコール", "ぶっぱ太郎", "沼", "養分", "レイズしか勝たん",
     "課金は正義", "ノールック", "フロップの妖精", "おりたくない", "万年ドベ", "初手オールイン", "チップは飾り",
     "気合いでコール", "運だけ", "まくり最強", "リバー爆弾", "実質勝ち", "たぶん勝てる", "おっつけ番長",
     "ベット魔", "全部乗せ",
@@ -397,6 +397,8 @@ export class TableSession implements GameSession {
   readonly buyIn = SNG_BUY_IN;
   private readonly seatCount: number;
   private readonly configHumans: HumanPlayer[];
+  /** BOTを座らせる席番号(人間の席をシャッフルで決めた残り)。start()でBOTを埋める順に使う。 */
+  private readonly botSeats: number[];
   private readonly io: Server;
   private readonly roomId = `table:${randomUUID()}`;
   /** 進行フェーズ記録上のこのセッションの識別子(/api/diagnostics で卓を追うためのキー)。 */
@@ -407,12 +409,23 @@ export class TableSession implements GameSession {
     this.seatCount = config.seatCount;
     this.configHumans = config.humans;
 
+    // 席割当はシャッフルする。人間を常にseat 0から詰めると、数戦見ただけで「自分の後ろは全部
+    // 自動プレイヤー」と分かってしまう。全席をランダムに並べ替え、先頭から人間、残りをBOT席とする。
+    const seatOrder = Array.from({ length: this.seatCount }, (_, i) => i);
+    for (let i = seatOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [seatOrder[i], seatOrder[j]] = [seatOrder[j]!, seatOrder[i]!];
+    }
+    const humanSeats = seatOrder.slice(0, this.configHumans.length);
+    this.botSeats = seatOrder.slice(this.configHumans.length);
+
     // 人間の席とHumanSeatはコンストラクタで同期的に確保する(start()を待つとattachHumanが
     // start()より先に呼ばれた場合に無視されてしまうため)。BOT席とトーナメント作成は
     // start()側で非同期に行う。
     this.configHumans.forEach((h, i) => {
-      this.players.set(i, { seatIndex: i, userId: h.userId, displayName: h.displayName, avatarKey: h.avatarKey, isBot: false });
-      this.humansBySeat.set(i, {
+      const seatIndex = humanSeats[i]!;
+      this.players.set(seatIndex, { seatIndex, userId: h.userId, displayName: h.displayName, avatarKey: h.avatarKey, isBot: false });
+      this.humansBySeat.set(seatIndex, {
         userId: h.userId,
         displayName: h.displayName,
         avatarKey: h.avatarKey,
@@ -448,10 +461,24 @@ export class TableSession implements GameSession {
 
   /** マッチング完了後に呼ばれる: 残りの席をBOTで埋めてトーナメントを即座に開始する。 */
   async start(): Promise<void> {
+    try {
+      await this.startInternal();
+    } catch (err) {
+      // 開始途中で失敗した卓は「死んだまま activeSessions に残り、そのユーザーが二度と新しい
+      // ゲームに参加できない」状態を生む(H5)。finished を立てておけば、handleJoinGame が
+      // 「既存セッションは終了済み」と判断して新規作成へ進み、定期掃除でも除去される。
+      this.finished = true;
+      throw err;
+    }
+  }
+
+  private async startInternal(): Promise<void> {
     const botCount = this.seatCount - this.configHumans.length;
     const botUsers = await ensureBotUsers(botCount);
     botUsers.forEach((u, i) => {
-      const seatIndex = this.configHumans.length + i;
+      // 人間の席をシャッフルで決めた残り(botSeats)へBOTを座らせる。人間が常にseat 0という
+      // 固定パターンを作らないため。
+      const seatIndex = this.botSeats[i]!;
       this.players.set(seatIndex, { seatIndex, userId: u.id, displayName: u.displayName, avatarKey: u.avatarKey, isBot: true });
     });
 
@@ -495,6 +522,14 @@ export class TableSession implements GameSession {
       this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
     }
     void socket.join(this.roomId);
+    // 同じソケットで attachHuman が二度呼ばれても、アクション/チャットがN重処理されないよう、
+    // 先に自分が張るゲームイベントを剥がしてから登録し直す。`disconnect` はここで消すと
+    // index.ts の接続数カウンタまで剥がしてしまうため対象外にする(重複しても早期returnで無害)。
+    socket.removeAllListeners("action");
+    socket.removeAllListeners("timeBankArm");
+    socket.removeAllListeners("sitOut");
+    socket.removeAllListeners("chat");
+    socket.removeAllListeners("showCards");
     socket.on("action", (action: PlayerAction, ack?: unknown) => {
       // 自分でアクションしたら連続タイムアウトをリセット。タイムアウトで離席状態になっていた
       // 場合は自動的に復帰させる(全員の画面の「離席中」も解除)。
@@ -707,7 +742,14 @@ export class TableSession implements GameSession {
       return this.handlePlayerActionInner(seatIndex, action);
     } catch (err) {
       console.error("[sng] handlePlayerAction failed:", err);
-      if (this.hand?.isHandComplete()) void this.finishHand();
+      // 例外でハンドが宙ぶらりんのまま卓が永久停止しないよう、必ず進行を再武装する(H7)。
+      // 完了していれば精算、未完了なら手番タイマーを張り直し「時間切れ→自動処理」で先へ進める。
+      try {
+        if (this.hand?.isHandComplete()) void this.finishHand();
+        else if (this.hand) this.scheduleTurn();
+      } catch (err2) {
+        console.error("[sng] recovery after handler failure also failed:", err2);
+      }
       return "HANDLER_ERROR";
     }
   }

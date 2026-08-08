@@ -298,6 +298,10 @@ export function TournamentReviewModal({
         if (res.status === "ok") setFreeData(res.data);
         else setFreeError("このトーナメントの解析を取得できませんでした。");
       })
+      .catch(() => {
+        // 通信失敗でも「解析中…」のまま固まらせない。原因を出して閉じられる状態にする。
+        if (!cancelled) setFreeError("通信エラーで解析を取得できませんでした。時間をおいて再度お試しください。");
+      })
       .finally(() => !cancelled && setFreeLoading(false));
     return () => {
       cancelled = true;
@@ -313,9 +317,13 @@ export function TournamentReviewModal({
         clearInterval(timer);
         return;
       }
-      fetchTournamentReviewSummary(tournamentId, accessToken).then((res) => {
-        if (res.status === "ok") setFreeData(res.data);
-      });
+      fetchTournamentReviewSummary(tournamentId, accessToken)
+        .then((res) => {
+          if (res.status === "ok") setFreeData(res.data);
+        })
+        .catch(() => {
+          // ポーリングの一時的な失敗は無視して次のtickで再試行する(未処理rejectを出さない)。
+        });
     }, 5000);
     return () => clearInterval(timer);
   }, [freeData?.solving, accessToken, tournamentId]);

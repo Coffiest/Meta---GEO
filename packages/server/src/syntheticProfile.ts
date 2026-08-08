@@ -78,7 +78,10 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
   const vpipRate = between(0.16, 0.36);
   const pfrRate = Math.min(vpipRate - 0.02, between(0.1, 0.28));
   const threeBetRate = between(0.03, 0.1);
-  const totalRankedPlayers = Math.floor(between(1200, 4800));
+  // 仮の値(呼び出し側 lobbyApi が実プレイヤーと同じグローバル値へ必ず上書きする)。
+  // ここをID毎のランダム値のまま返すと、プロフィールを2人分見比べるだけで判別できてしまうため、
+  // 単体では使わないこと。
+  const totalRankedPlayers = 0;
   // 偏差値と全国順位だけは値を出さない(nullで返し、UI側は枠を残して「--」を表示する)。
   const rrRating = null;
   const nationalRank = null;

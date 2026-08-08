@@ -131,6 +131,10 @@ export default function ReviewHandPage() {
             }
           }
         })
+        .catch(() => {
+          // 通信失敗で真っ白/永久ローディングにしない。原因を出して戻れる状態にする。
+          if (!cancelled) setError("通信エラーでレビューを取得できませんでした。時間をおいて再度お試しください。");
+        })
         .finally(() => !cancelled && setLoading(false));
     };
     load();

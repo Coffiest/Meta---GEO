@@ -123,6 +123,22 @@ export async function computeRRRatings(): Promise<RRRatingEntry[]> {
     .sort((a, b) => b.rrRating - a.rrRating);
 }
 
+/**
+ * ランキング母集団の人数(＝実プレイヤーが自分/他人のプロフィールで見る totalRankedPlayers と同じ値)。
+ *
+ * 自動プレイヤーの擬似プロフィールにも「実プレイヤーと同一のグローバル値」を入れるために使う。
+ * ここがID毎のランダム値だと、プロフィールを2人分見比べるだけで自動プレイヤーが判別できてしまう
+ * (実プレイヤーは全員この単一の値で揃うため)。取得は getRankedEntries の共有キャッシュに乗る。
+ */
+export async function getRankedPlayerCount(): Promise<number> {
+  const entries = await getRankedEntries();
+  const byUser = new Map<string, number>();
+  for (const e of entries) byUser.set(e.userId, (byUser.get(e.userId) ?? 0) + e.buyIn);
+  let count = 0;
+  for (const totalBuyIns of byUser.values()) if (totalBuyIns > 0) count += 1;
+  return count;
+}
+
 export interface RRRatingResult {
   rrRating: number;
   roi: number;

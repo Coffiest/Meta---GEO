@@ -168,7 +168,7 @@ function GameStartCards({
   onJoin,
 }: {
   games: typeof GAMES;
-  onJoin: (key: GameKey) => void;
+  onJoin: (key: GameKey, unlockCode?: string) => void;
 }) {
   const { t } = useI18n();
   // 準備中カードをタップしたときに出す案内モーダル(nullなら閉じている)。
@@ -252,7 +252,8 @@ function GameStartCards({
             onUnlock={() => {
               const key = comingSoonFor;
               setComingSoonFor(null);
-              onJoin(key);
+              // 解錠パスコードをサーバーのMTTゲートへ渡す(クライアント判定だけでは直送で突破できるため)。
+              onJoin(key, DEV_UNLOCK_CODE);
             }}
           />
         )}
@@ -1162,7 +1163,7 @@ export function Lobby({
   providers?: string[];
   userId?: string | null;
   accessToken?: string;
-  onJoin: (gameKey: GameKey) => void;
+  onJoin: (gameKey: GameKey, unlockCode?: string) => void;
   onEditProfile: () => void;
   onSignOut?: () => void;
   /** 退会完了時。呼び出し側でサインアウトしてログイン画面へ戻す。 */

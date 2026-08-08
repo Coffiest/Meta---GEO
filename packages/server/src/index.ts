@@ -7,6 +7,7 @@ import { handleReviewApiRequest } from "./reviewApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
+import { checkAdminAuth, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
 import {
   getDiagnostics,
@@ -63,7 +64,18 @@ const httpServer = createServer((req, res) => {
 
   // サーバーの重さの原因を切り分けるための詳細メトリクス。
   // メモリ / イベントループ遅延 / DB応答 / 遅いリクエスト / 直近のエラーを返す。
+  // 例外メッセージ・卓ID・DBエラーコードなど内部情報を含むため、管理者パスコードで保護する
+  // (以前は無認証で、無認証のまま毎回DBを叩いてプールを消費できた)。
   if (path === "/api/diagnostics") {
+    const auth = checkAdminAuth(req);
+    if (auth !== "ok") {
+      res.writeHead(auth === "rate_limited" ? 429 : 401, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
+      });
+      res.end(JSON.stringify({ error: auth === "rate_limited" ? "too many attempts" : "unauthorized" }));
+      return;
+    }
     getDiagnostics()
       .then((snapshot) => {
         res.writeHead(200, {
@@ -133,4 +145,5 @@ startPrimeTimeNotifier();
 
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);
+  warnIfDefaultAdminPasscode();
 });

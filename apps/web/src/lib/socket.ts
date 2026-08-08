@@ -273,9 +273,11 @@ export interface PokerSocketParams {
   gameKey: GameKey;
   /** Supabase Authのアクセストークン。未ログイン(ゲストモード)ならundefined。 */
   accessToken?: string;
+  /** MTT解錠パスコード(準備中モードのサーバーゲート通過用)。SNGでは不要。 */
+  unlockCode?: string;
 }
 
-export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }: PokerSocketParams) {
+export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
   // 席ごとのアクションバッジ消去タイマー。座席index→timeout id。
   const badgeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -284,6 +286,14 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
   // 対局が開始したか(state を1度でも受信)。開始後の再接続は resumeGame(卓へ復帰)、
   // マッチング中の再接続は joinGame(キューへ再参加)にする。
   const hasStartedRef = useRef(false);
+  // Supabaseトークンは約1時間ごとに自動更新される。これを接続effectの依存に入れると、
+  // トークンが変わるたびソケットを張り替え→hasStartedRefがリセットされ、resumeGameでなく
+  // joinGameを送ってしまう(長時間のMTTで「卓が変わる/新規参加扱い」になる主因)。
+  // そこでトークンはrefで持ち、接続effectを張り替えず、再接続時のauthだけ最新値へ差し替える。
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
+  const unlockCodeRef = useRef(unlockCode);
+  unlockCodeRef.current = unlockCode;
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
     spectating: false,
@@ -372,7 +382,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
     hasJoinedRef.current = false;
     hasStartedRef.current = false;
     const socket = io(SOCKET_URL, {
-      auth: { displayName, avatarKey, accessToken },
+      auth: { displayName, avatarKey, accessToken: accessTokenRef.current },
       transports: ["websocket", "polling"],
       // 切断を検知したら無限に自動再接続する(バックグラウンド/回線断からの復帰を確実にする)。
       reconnection: true,
@@ -417,7 +427,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
         return;
       }
       if (hasStartedRef.current) s.emit("resumeGame");
-      else s.emit("joinGame", { gameKey });
+      else s.emit("joinGame", { gameKey, unlockCode: unlockCodeRef.current });
       clearResyncFallback();
       resyncFallbackRef.current = setTimeout(() => {
         const s2 = socketRef.current;
@@ -505,11 +515,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       // 新しいSNG卓を勝手に立てない)、まだマッチング中ならもう一度 joinGame でキューへ再参加する。
       if (!hasJoinedRef.current) {
         hasJoinedRef.current = true;
-        socket.emit("joinGame", { gameKey });
+        socket.emit("joinGame", { gameKey, unlockCode: unlockCodeRef.current });
       } else if (hasStartedRef.current) {
         socket.emit("resumeGame");
       } else {
-        socket.emit("joinGame", { gameKey });
+        socket.emit("joinGame", { gameKey, unlockCode: unlockCodeRef.current });
       }
     });
     socket.on("disconnect", (reason: string) => {
@@ -738,7 +748,18 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken }:
       }
       socket.disconnect();
     };
-  }, [displayName, avatarKey, gameKey, accessToken]);
+    // accessToken は依存に含めない(C3)。トークン更新でソケットを張り替えると復帰が新規参加扱いに
+    // なるため、更新は下の専用effectで socket.auth を差し替える形で吸収する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayName, avatarKey, gameKey]);
+
+  // トークンが更新されたら、張り替えずに次回の(再)接続で使う認証情報だけ最新へ差し替える。
+  // これで長時間セッション中にトークンが切れて再接続が弾かれる事態も防ぐ。
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+    s.auth = { ...(s.auth as Record<string, unknown>), accessToken };
+  }, [accessToken]);
 
   const sendAction = useCallback((action: PlayerAction) => {
     const s = socketRef.current;
