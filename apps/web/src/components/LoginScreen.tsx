@@ -98,6 +98,8 @@ const item: Variants = {
  * ヒーロー見出しの直下に認証カードを置き、スクロールせずログインできるようにしている。
  * その下に流れるキーワード帯・機能インデックスでアプリの価値を提示する。
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
+import { ReportErrorButton } from "./ReportErrorButton";
+
 export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -265,7 +267,12 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               >
                 {resendState === "sending" ? "再送信中…" : resendState === "sent" ? "再送信しました" : "メールが届かない場合は再送信"}
               </button>
-              {error && <p className="mt-3 text-center text-[12px] text-crimson-500">{error}</p>}
+              {error && (
+                <div className="mt-3 text-center">
+                  <p className="text-[12px] text-crimson-500">{error}</p>
+                  <ReportErrorButton scope="login" message={error} className="mt-1.5 justify-center" />
+                </div>
+              )}
 
               <button
                 onClick={() => {
@@ -398,7 +405,12 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               {auth.oauthErrorRaw && <p className="break-all text-ink-400">{t("login.oauthDetail")}: {auth.oauthErrorRaw}</p>}
             </div>
           )}
-          {error && <p className="mt-4 text-[12px] text-crimson-500">{error}</p>}
+          {error && (
+            <div className="mt-4">
+              <p className="text-[12px] text-crimson-500">{error}</p>
+              <ReportErrorButton scope="login" message={error} className="mt-1.5" />
+            </div>
+          )}
           {info && <p className="mt-4 text-[12px] text-mint-700">{info}</p>}
 
           <button

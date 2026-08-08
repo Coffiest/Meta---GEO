@@ -18,6 +18,7 @@ import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { WelcomeTour, hasTourBeenSeen } from "@/components/WelcomeTour";
+import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -677,9 +678,16 @@ function GameScreen({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mx-auto mb-2 max-w-md rounded-full bg-crimson-500/10 ring-1 ring-crimson-500/40 text-crimson-600 text-xs px-4 py-1.5 text-center"
+            className="mx-auto mb-2 max-w-md rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/40 px-4 py-2 text-center"
           >
-            {actionError ?? joinError}
+            <p className="text-xs text-crimson-600">{actionError ?? joinError}</p>
+            <ReportErrorButton
+              scope={actionError ? "table:action" : "table:join"}
+              message={actionError ?? joinError ?? ""}
+              accessToken={accessToken}
+              className="mt-1.5 justify-center"
+              context={{ gameKey, yourSeatIndex, connected, stallReason: diag?.stallReason ?? null }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -722,6 +730,18 @@ function GameScreen({
                     今すぐ再同期する
                   </button>
                 )}
+                <ReportErrorButton
+                  scope={tableNotice ? "table:notice" : "table:stalled"}
+                  message={
+                    tableNotice
+                      ? tableNotice.message
+                      : STALL_INFO[diag?.stallReason ?? ""]?.title ?? "卓の進行が止まっています"
+                  }
+                  detail={diag?.stallReason ?? null}
+                  accessToken={accessToken}
+                  className="mt-2"
+                  context={{ gameKey, connected, tableNotice, diag }}
+                />
               </div>
             </div>
           </motion.div>
@@ -1219,6 +1239,11 @@ export default function Page() {
         onJoin={setGameKey}
         onEditProfile={() => setEditingProfile(true)}
         onSignOut={() => {
+          setGameKey(null);
+          void auth.signOut();
+        }}
+        onAccountDeleted={() => {
+          // 退会後はもうログインできないので、卓から抜けてサインアウトしログイン画面へ戻す。
           setGameKey(null);
           void auth.signOut();
         }}

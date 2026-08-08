@@ -37,6 +37,47 @@ export interface ErrorRecord {
   at: string;
 }
 
+/**
+ * 卓の進行フェーズ。
+ *
+ * 上のリソース計測(イベントループ・メモリ・DB応答)は「サーバー全体が重いか」を測るもので、
+ * 「特定の卓が進行の途中で止まった」ことは捉えられない。卓の進行は
+ *   ハンド完了 → 精算 → 記録 → 次ハンド予約 → 次ハンド開始
+ * という一本道なので、各段の通過をここに記録しておけば、止まったときに
+ * 「最後に到達したフェーズ」がそのまま原因の場所を指す。
+ */
+export type ProgressPhase =
+  | "finishHandEntered"
+  | "recordHandQueued"
+  | "recordHandSkipped"
+  | "settled"
+  | "handEndedEmitted"
+  | "humanFinishRecorded"
+  | "finishHandInnerDone"
+  | "nextHandScheduled"
+  | "nextHandStarting"
+  | "nextHandStarted"
+  | "nextHandFailed"
+  | "tournamentFinishing"
+  | "sessionFinished"
+  | "abortedEarlyReturn";
+
+export interface PhaseRecord {
+  /** セッション識別子(例: `sng:ab12cd34` / `mtt:ef56ab78#t2`)。 */
+  scope: string;
+  phase: ProgressPhase;
+  /** 直前のフェーズからの経過ms。ここが極端に大きいフェーズが詰まりの箇所。 */
+  sincePrevMs: number;
+  detail?: Record<string, unknown>;
+  at: string;
+}
+
+/** 進行フェーズの保持件数。複数卓が並行するため、リソース計測より多めに持つ。 */
+const PHASE_LIMIT = 300;
+const phases: PhaseRecord[] = [];
+/** スコープごとの直前フェーズ(経過msの算出用)。 */
+const lastPhaseByScope = new Map<string, { phase: ProgressPhase; at: number }>();
+
 let histogram: IntervalHistogram | null = null;
 const slowRequests: SlowRequestRecord[] = [];
 const errors: ErrorRecord[] = [];
@@ -164,6 +205,46 @@ export function recordError(scope: string, error: unknown): void {
   console.error(`[diag] error in ${scope}: ${message}`);
 }
 
+/**
+ * 卓の進行フェーズを1件記録する。
+ *
+ * 目立たせたいのは「異常に長くかかった段」なので、通常のフェーズはログに出さず、
+ * 直前のフェーズから NEXT_HAND_DELAY を大きく超えて時間がかかった場合と、
+ * 明らかな異常フェーズ(失敗・早期return)だけを警告ログに出す。全件は
+ * /api/diagnostics から時系列で読める。
+ */
+const PHASE_SLOW_WARN_MS = 12_000;
+const PHASE_ALWAYS_LOG: ReadonlySet<ProgressPhase> = new Set(["nextHandFailed", "abortedEarlyReturn"]);
+
+export function recordPhase(scope: string, phase: ProgressPhase, detail?: Record<string, unknown>): void {
+  const now = Date.now();
+  const prev = lastPhaseByScope.get(scope);
+  const sincePrevMs = prev ? now - prev.at : 0;
+  const record: PhaseRecord = {
+    scope,
+    phase,
+    sincePrevMs,
+    ...(detail ? { detail } : {}),
+    at: new Date(now).toISOString(),
+  };
+  // push() は RECENT_LIMIT(40件)で切るので、フェーズはここで独自に PHASE_LIMIT まで保持する。
+  phases.push(record);
+  if (phases.length > PHASE_LIMIT) phases.splice(0, phases.length - PHASE_LIMIT);
+  lastPhaseByScope.set(scope, { phase, at: now });
+
+  if (PHASE_ALWAYS_LOG.has(phase) || sincePrevMs > PHASE_SLOW_WARN_MS) {
+    const detailText = detail ? ` ${JSON.stringify(detail)}` : "";
+    console.warn(
+      `[diag] phase ${scope} ${phase} (+${sincePrevMs}ms from ${prev?.phase ?? "-"})${detailText}`,
+    );
+  }
+}
+
+/** セッション終了時に呼ぶ。経過ms算出用の直前フェーズを捨ててメモリを解放する。 */
+export function forgetPhaseScope(scope: string): void {
+  lastPhaseByScope.delete(scope);
+}
+
 export interface DbPingResult {
   /** DBへの往復にかかった実時間(ms)。失敗時はnull。 */
   pingMs: number | null;
@@ -209,6 +290,13 @@ export interface DiagnosticsSnapshot {
   counters: { requests: number; slowRequests: number; errors: number };
   slowRequests: SlowRequestRecord[];
   errors: ErrorRecord[];
+  /**
+   * 卓の進行フェーズ(古い→新しい)。停止した卓の scope を追えば、
+   * 最後に到達したフェーズがそのまま詰まりの箇所を指す。
+   */
+  phases: PhaseRecord[];
+  /** scope ごとの「最後に到達したフェーズ」と、そこからの経過ms。停止中の卓を一目で見つけるため。 */
+  lastPhases: { scope: string; phase: ProgressPhase; sinceMs: number }[];
   /** 実行環境の情報(VMの増強が効いているかの確認用)。 */
   runtime: { node: string; cpus: number; region: string | null };
 }
@@ -236,6 +324,11 @@ export async function getDiagnostics(): Promise<DiagnosticsSnapshot> {
     counters: { requests: requestCount, slowRequests: slowRequestCount, errors: errorCount },
     slowRequests: [...slowRequests].reverse(),
     errors: [...errors].reverse(),
+    // フェーズは時系列で読むものなので、他と違って古い→新しいの順でそのまま返す。
+    phases: [...phases],
+    lastPhases: [...lastPhaseByScope.entries()]
+      .map(([scope, v]) => ({ scope, phase: v.phase, sinceMs: Date.now() - v.at }))
+      .sort((a, b) => b.sinceMs - a.sinceMs),
     runtime: {
       node: process.version,
       cpus: cpus().length,

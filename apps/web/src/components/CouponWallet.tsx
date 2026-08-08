@@ -49,6 +49,8 @@ function TicketGlyph({ className = "h-4 w-4" }: { className?: string }) {
  * `onRedeemed` は適用が成功したときに呼ばれる。ペイウォールから使ったとき、その場で
  * 解析を再取得するために使う。
  */
+import { ReportErrorButton } from "./ReportErrorButton";
+
 export function CouponWallet({
   accessToken,
   onRedeemed,
@@ -196,13 +198,17 @@ export function CouponWallet({
           </button>
         </div>
         {message && (
-          <p
-            className={`mt-1.5 text-[11.5px] font-semibold ${
-              message.tone === "ok" ? "text-gold-700" : "text-crimson-500"
-            }`}
-          >
-            {message.text}
-          </p>
+          <div className="mt-1.5">
+            <p
+              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-gold-700" : "text-crimson-500"}`}
+            >
+              {message.text}
+            </p>
+            {/* 失敗時だけ報告導線を出す(成功メッセージには不要)。 */}
+            {message.tone !== "ok" && (
+              <ReportErrorButton scope="coupon" message={message.text} className="mt-1.5" />
+            )}
+          </div>
         )}
       </div>
     </div>

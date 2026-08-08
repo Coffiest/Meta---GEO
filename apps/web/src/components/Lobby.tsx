@@ -990,6 +990,7 @@ function HamburgerMenu({
   onClose,
   onEditProfile,
   onSignOut,
+  onAccountDeleted,
 }: {
   displayName: string;
   avatarKey: string | null;
@@ -1000,8 +1001,44 @@ function HamburgerMenu({
   onClose: () => void;
   onEditProfile: () => void;
   onSignOut?: () => void;
+  /** 退会が完了したときに呼ぶ(呼び出し側でサインアウトしてホームへ戻す)。 */
+  onAccountDeleted?: () => void;
 }) {
   const { t } = useI18n();
+  // 退会は取り消せないため、必ず2段階(ボタン→確認パネル)にする。
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const runDelete = async () => {
+    if (!accessToken || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/lobby/delete-account`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        let reason = `HTTP ${res.status}`;
+        try {
+          const parsed = JSON.parse(body) as { error?: unknown };
+          if (typeof parsed.error === "string") reason = parsed.error;
+        } catch {
+          /* 本文が読めなければステータスだけ */
+        }
+        setDeleteError(reason);
+        setDeleting(false);
+        return;
+      }
+      onAccountDeleted?.();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : String(err));
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" onClick={onClose}>
       <motion.div
@@ -1049,6 +1086,49 @@ function HamburgerMenu({
               {t("menu.logout")} <span className="text-ink-600">›</span>
             </button>
           )}
+          {/* アカウントの完全削除。取り消せない操作なので、必ず確認パネルを挟む。 */}
+          {!isGuest && accessToken && (
+            <div className="py-1">
+              {!confirmingDelete ? (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-500"
+                >
+                  {t("menu.deleteAccount")} <span className="text-ink-600">›</span>
+                </button>
+              ) : (
+                <div className="rounded-xl bg-crimson-500/[0.06] px-3 py-3">
+                  <p className="text-[13px] font-black text-crimson-500">{t("menu.deleteAccount.confirmTitle")}</p>
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-ink-700">{t("menu.deleteAccount.confirmBody")}</p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-ink-600">{t("menu.deleteAccount.geoNotice")}</p>
+                  {deleteError && (
+                    <p className="mt-2 text-[11px] font-semibold text-crimson-500">
+                      {t("menu.deleteAccount.failed")}: {deleteError}
+                    </p>
+                  )}
+                  <div className="mt-2.5 flex gap-2">
+                    <button
+                      onClick={() => void runDelete()}
+                      disabled={deleting}
+                      className="flex-1 rounded-lg bg-crimson-500 py-2 text-[12px] font-bold text-white disabled:opacity-60"
+                    >
+                      {deleting ? t("menu.deleteAccount.deleting") : t("menu.deleteAccount.confirm")}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmingDelete(false);
+                        setDeleteError(null);
+                      }}
+                      disabled={deleting}
+                      className="flex-1 rounded-lg bg-ink-200 py-2 text-[12px] font-bold text-ink-800"
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 友達招待とクーポンをひとつのセクションに集約(旧ホームから移設)。 */}
@@ -1074,6 +1154,7 @@ export function Lobby({
   onJoin,
   onEditProfile,
   onSignOut,
+  onAccountDeleted,
 }: {
   displayName: string;
   avatarKey: string | null;
@@ -1084,6 +1165,8 @@ export function Lobby({
   onJoin: (gameKey: GameKey) => void;
   onEditProfile: () => void;
   onSignOut?: () => void;
+  /** 退会完了時。呼び出し側でサインアウトしてログイン画面へ戻す。 */
+  onAccountDeleted?: () => void;
 }) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -1792,6 +1875,10 @@ export function Lobby({
                   }
                 : undefined
             }
+            onAccountDeleted={() => {
+              setMenuOpen(false);
+              onAccountDeleted?.();
+            }}
           />
         )}
       </AnimatePresence>

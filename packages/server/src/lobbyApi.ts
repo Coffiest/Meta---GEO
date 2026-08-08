@@ -20,8 +20,9 @@ import {
   setHandFavorite,
   upsertPlayerNote,
   type PlayerNoteColor,
+  deleteAccount,
 } from "@meta-geo/db";
-import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
 import {
@@ -524,6 +525,35 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const code = typeof body["code"] === "string" ? body["code"] : "";
       // 使えなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
       sendJson(res, 200, await redeemCouponCode(user.id, code));
+      return true;
+    }
+
+    /**
+     * アカウントの完全削除(退会)。
+     *
+     * GEO DATABASE のデータは絶対に消さない。ハンド履歴(Hand/HandSeat)がGEOの実データで、
+     * HandSeat.userId が User を参照しているため、User 行を消すと集計対象のハンドまで
+     * 巻き添えになる。そこで deleteAccount は「個人データは物理削除、User 行は匿名化して残す」
+     * 実装になっている。ここではそれを呼んだうえで、Supabase Auth 側のユーザーも消して
+     * 二度とログインできない状態にする。
+     */
+    if (url.pathname === "/api/lobby/delete-account" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const result = await deleteAccount(user.id);
+      // DB側の匿名化が済んでから Auth を消す(順序を逆にすると、Auth削除後にDB処理が失敗した場合
+      // 「ログインできないのにデータだけ残る」宙ぶらりんの状態になる)。
+      const authRemoved = result.authId ? await deleteAuthUser(result.authId) : false;
+      sendJson(res, 200, {
+        ok: true,
+        authRemoved,
+        // GEOデータが保持されていることを応答でも確認できるようにする。
+        keptHandSeats: result.keptHandSeats,
+      });
       return true;
     }
 

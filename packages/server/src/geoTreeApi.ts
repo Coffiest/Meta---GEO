@@ -26,6 +26,46 @@ import {
 /** プリフロップの行動順(UTGが最初)。GTOのRFIノード判定に使う。 */
 const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
 
+/**
+ * 実測ノード(GEOタブ)の短期キャッシュ。
+ *
+ * getPreflopNode / getPostflopNode はハンド履歴に対する集計クエリで、対戦サーバーと同じ
+ * コネクションプールを共有している。GEO画面は「同じノードを何度も引く」使い方(戻る/進む、
+ * タブ復帰、取得失敗時の自動リトライ)が支配的なので、短時間だけ結果を持つだけで
+ * 体感速度もDB負荷も大きく変わる。
+ *
+ * 集計は数十秒スケールで変わるものではないため、TTLは短め(45秒)で十分。
+ * 同一キーへの同時リクエストは1本にまとめ(in-flight共有)、リトライの重複発火で
+ * 同じ重いクエリが並列に走るのを防ぐ。
+ */
+const NODE_CACHE_TTL_MS = 45_000;
+const NODE_CACHE_MAX = 120;
+const nodeCache = new Map<string, { at: number; value: unknown }>();
+const nodeInFlight = new Map<string, Promise<unknown>>();
+
+async function cachedNode<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = nodeCache.get(key);
+  if (hit && Date.now() - hit.at < NODE_CACHE_TTL_MS) return hit.value as T;
+
+  const inFlight = nodeInFlight.get(key);
+  if (inFlight) return (await inFlight) as T;
+
+  const promise = load()
+    .then((value) => {
+      if (nodeCache.size >= NODE_CACHE_MAX) {
+        const oldest = nodeCache.keys().next().value;
+        if (oldest !== undefined) nodeCache.delete(oldest);
+      }
+      nodeCache.set(key, { at: Date.now(), value });
+      return value;
+    })
+    .finally(() => {
+      nodeInFlight.delete(key);
+    });
+  nodeInFlight.set(key, promise);
+  return (await promise) as T;
+}
+
 /** スタックバケット → 転記レンジのバンド(GTOタブ)。 */
 const BUCKET_TO_BAND: Record<string, string> = {
   "30+": "100",
@@ -212,7 +252,8 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       }
       const ratingRange = parseRatingRange(body["ratingRange"]);
       const playerCount = parsePlayerCount(body["playerCount"]);
-      sendJson(res, 200, await getPreflopNode({ stackBucket, bubbleStage, line, ratingRange, playerCount }));
+      const key = `pre:${JSON.stringify([stackBucket, bubbleStage, line, ratingRange ?? null, playerCount ?? null])}`;
+      sendJson(res, 200, await cachedNode(key, () => getPreflopNode({ stackBucket, bubbleStage, line, ratingRange, playerCount })));
       return true;
     }
 
@@ -426,10 +467,13 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       }
       const ratingRange = parseRatingRange(body["ratingRange"]);
       const playerCount = parsePlayerCount(body["playerCount"]);
+      const key = `post:${JSON.stringify([stackBucket, bubbleStage, preflopLine, board, street, postflopLine, ratingRange ?? null, playerCount ?? null])}`;
       sendJson(
         res,
         200,
-        await getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine, ratingRange, playerCount }),
+        await cachedNode(key, () =>
+          getPostflopNode({ stackBucket, bubbleStage, preflopLine, board: board as string[], street, postflopLine, ratingRange, playerCount }),
+        ),
       );
       return true;
     }

@@ -30,6 +30,22 @@ const verifier = createTokenVerifier(async (accessToken) => {
   return { authId: data.user.id, email: data.user.email ?? null };
 });
 
+/**
+ * Supabase Auth 側のユーザーを削除する(退会処理の仕上げ)。
+ * これを行わないと、DB側を匿名化しても同じアカウントでログインし直せてしまう。
+ * 認証が無効な環境(ローカル開発)では false を返すだけで、退会自体は成立させる。
+ */
+export async function deleteAuthUser(authId: string): Promise<boolean> {
+  const client = getAdminClient();
+  if (!client) return false;
+  const { error } = await client.auth.admin.deleteUser(authId);
+  if (error) {
+    console.error("[auth] failed to delete supabase user:", error.message);
+    return false;
+  }
+  return true;
+}
+
 /** クライアントから受け取ったSupabaseアクセストークンを検証し、認証済みユーザー情報を返す。 */
 export async function verifyAccessToken(accessToken: string | undefined): Promise<VerifiedUser | null> {
   if (!accessToken) return null;

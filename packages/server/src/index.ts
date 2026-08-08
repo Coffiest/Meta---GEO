@@ -6,6 +6,7 @@ import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleAdminApiRequest } from "./adminApi.js";
+import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
 import {
   getDiagnostics,
@@ -91,8 +92,11 @@ const httpServer = createServer((req, res) => {
             if (handled4) return;
             return handleAdminApiRequest(req, res).then((handled5) => {
               if (handled5) return;
-              res.writeHead(404);
-              res.end();
+              return handleErrorReportApiRequest(req, res).then((handled6) => {
+                if (handled6) return;
+                res.writeHead(404);
+                res.end();
+              });
             });
           });
         });
