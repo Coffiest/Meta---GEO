@@ -514,7 +514,20 @@ function buildNodeFromDecisions(
   stackBucket: StackBucket,
   expectedPosition: string | null,
 ): { node: TreeNode; matrix: HandClassMatrixResult } {
-  const filtered = nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
+  const inBucket = nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
+
+  // ノードは1つのポジションだけを集計する。
+  //
+  // 人数を揃えてもアクション順が1通りとは限らない。デッドボタン方式では、着席が飛び飛びに
+  // なるとSBやボタンの席が空き、残った人が1つ後ろの名前になる。例えば4人卓には
+  // 「UTG→BTN→SB→BB」と「UTG→CO→BTN→BB」(SBデッド)の2通りがあり、"UTG:fold" という
+  // 同じラインの次が、前者ではBTN・後者ではCOになる。これを1つのノードにまとめると、
+  // 別々のスポットの頻度が混ざった数字になってしまう。多い方のポジションに揃える。
+  const positionsInBucket = new Map<string, number>();
+  for (const d of inBucket) positionsInBucket.set(d.position, (positionsInBucket.get(d.position) ?? 0) + 1);
+  const nodePosition = dominantPosition(positionsInBucket) ?? expectedPosition ?? null;
+  const filtered = nodePosition === null ? inBucket : inBucket.filter((d) => d.position === nodePosition);
+
   const tally = new Map<string, { count: number; geometricCount: number }>();
   const cells = emptyMatrix();
   let totalSamples = 0;
@@ -541,12 +554,7 @@ function buildNodeFromDecisions(
     geometricRatio: count > 0 ? geometricCount / count : 0,
   }));
 
-  // 集計テーブル経路と同じ規則で決める: まず該当スタック帯の多数決、1件も無ければ
-  // スタック帯を外した多数決(expectedPosition)。1件目を採ると順序次第で名前が変わる。
-  const filteredPositions = new Map<string, number>();
-  for (const d of filtered) filteredPositions.set(d.position, (filteredPositions.get(d.position) ?? 0) + 1);
-  const position = dominantPosition(filteredPositions) ?? expectedPosition ?? null;
-  return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
+  return { node: { position: nodePosition, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
 
 /**
@@ -1077,22 +1085,29 @@ async function nodeFromDecisionTable(params: {
     GROUP BY 1, 2, 3, 4, 5
   `);
 
+  // ポジション名は「最も多く出たもの」を採り、そのポジションの行だけを集計する
+  // (旧経路の buildNodeFromDecisions と同じ規則)。
+  //
+  // 先頭行をそのまま使うと、GROUP BY の行順はDBの実行計画次第なので同じ問い合わせでも
+  // 呼ぶたびに名前が変わりうる(実際、旧経路がUTGを返すノードで集計テーブル経路が
+  // BTN(SB)を返していた)。また、人数を揃えてもデッドボタン方式で複数のアクション順が
+  // 同居するため(4人卓の UTG→BTN と UTG→CO)、混ぜたままだと別スポットの頻度が
+  // 合算された数字になってしまう。
+  const positionCounts = new Map<string, number>();
+  for (const g of groups) positionCounts.set(g.position, (positionCounts.get(g.position) ?? 0) + g.n);
+  let position = dominantPosition(positionCounts);
+
   const tally = new Map<string, { count: number; geometricCount: number }>();
   const cells = emptyMatrix();
   let totalSamples = 0;
-  // ポジション名は「最も多く出たもの」を採る。GROUP BY の行順はDBの実行計画次第で変わるため、
-  // 先頭行をそのまま使うと同じ問い合わせでも呼ぶたびに名前が変わりうる(実際、旧経路がUTGを
-  // 返すノードで集計テーブル経路がBTN(SB)を返していた)。人数を指定していれば全行が同じ
-  // ポジションになるので、ここで差が出ること自体が人数混在のサインでもある。
-  const positionCounts = new Map<string, number>();
 
   for (const g of groups) {
+    if (g.position !== position) continue;
     const entry = tally.get(g.bucket) ?? { count: 0, geometricCount: 0 };
     entry.count += g.n;
     if (g.isGeometric) entry.geometricCount += g.n;
     tally.set(g.bucket, entry);
     totalSamples += g.n;
-    positionCounts.set(g.position, (positionCounts.get(g.position) ?? 0) + g.n);
     if (g.handClassRow !== null && g.handClassCol !== null) {
       const cell = cells[g.handClassRow]![g.handClassCol]!;
       cell.count += g.n;
@@ -1106,8 +1121,6 @@ async function nodeFromDecisionTable(params: {
     frequency: totalSamples > 0 ? count / totalSamples : 0,
     geometricRatio: count > 0 ? geometricCount / count : 0,
   }));
-
-  let position = dominantPosition(positionCounts);
 
   // 該当スタック帯にサンプルが1件も無い場合でも、そのノードのポジション名は出す
   // (旧経路の expectedPosition と同じ。スタック帯を外して数える)。
