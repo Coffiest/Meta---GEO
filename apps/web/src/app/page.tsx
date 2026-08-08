@@ -252,12 +252,14 @@ function GameScreen({
   avatarKey,
   gameKey,
   accessToken,
+  unlockCode,
   onExit,
 }: {
   displayName: string;
   avatarKey: string | null;
   gameKey: GameKey;
   accessToken?: string;
+  unlockCode?: string;
   onExit: () => void;
 }) {
   const {
@@ -296,7 +298,7 @@ function GameScreen({
     chatLog,
     seatBubbles,
     gameHandHistory,
-  } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken });
+  } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -997,6 +999,9 @@ export default function Page() {
   const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
+  // MTTは通常「準備中」でサーバー側もゲートしている。解錠パスコードを入れて入室した場合のみ、
+  // その値をソケットのjoinGameに載せてサーバーのゲートを通す(SNGでは undefined)。
+  const [unlockCode, setUnlockCode] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
@@ -1173,12 +1178,18 @@ export default function Page() {
         onSubmit={(params) => {
           setSaving(true);
           setSaveError(null);
-          void saveProfile(accessToken!, params).then(async (saved) => {
-            if (!saved) setSaveError(t("onb.saveFailed"));
-            else await reload();
-            setSaving(false);
-            setEditingProfile(false);
-          });
+          void saveProfile(accessToken!, params)
+            .then(async (saved) => {
+              if (!saved) setSaveError(t("onb.saveFailed"));
+              else await reload();
+              setSaving(false);
+              setEditingProfile(false);
+            })
+            .catch(() => {
+              // 通信失敗でも保存ボタンが「保存中…」のまま固まらないようにする(操作不能を防ぐ)。
+              setSaveError(t("onb.saveFailed"));
+              setSaving(false);
+            });
         }}
         onCancel={profile.onboarded ? () => setEditingProfile(false) : undefined}
       />
@@ -1192,6 +1203,7 @@ export default function Page() {
         avatarKey={profile.avatarKey}
         gameKey={gameKey}
         accessToken={accessToken}
+        unlockCode={unlockCode}
         onExit={() => setGameKey(null)}
       />
     );
@@ -1236,7 +1248,10 @@ export default function Page() {
         providers={providers}
         userId={profile.id}
         accessToken={accessToken}
-        onJoin={setGameKey}
+        onJoin={(key, code) => {
+          setUnlockCode(code);
+          setGameKey(key);
+        }}
         onEditProfile={() => setEditingProfile(true)}
         onSignOut={() => {
           setGameKey(null);

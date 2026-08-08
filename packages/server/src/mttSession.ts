@@ -167,6 +167,8 @@ export class MttSession implements GameSession {
   private bustedOrder: string[] = [];
   /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
   private readonly pendingForcedEliminations = new Set<string>();
+  /** リエントリ処理中のユーザー。連打による二重課金・二重着席・entryCount多重加算を防ぐ(H4)。 */
+  private readonly reEntryInFlight = new Set<string>();
   private levelEndsAt = 0;
   /**
    * ハンド履歴のDB書き込みを卓の進行から切り離すための直列キュー。
@@ -475,8 +477,14 @@ export class MttSession implements GameSession {
   }
 
   private wireHumanSocket(socket: Socket, userId: string): void {
+    // 同じソケットで再ワイヤーされても、アクション/チャット/リエントリがN重処理されないよう、
+    // 自分が張るゲームイベントを一通り剥がしてから登録し直す。`disconnect` はここで消すと
+    // index.ts の接続数カウンタまで剥がしてしまうため対象外(重複しても早期returnで無害)。
     socket.removeAllListeners("action");
     socket.removeAllListeners("timeBankArm");
+    socket.removeAllListeners("reEntry");
+    socket.removeAllListeners("sitOut");
+    socket.removeAllListeners("chat");
     socket.on("action", (action: PlayerAction, ack?: unknown) => {
       // クライアントのフリーズ診断用ACK。どの分岐で処理が終わったか(=なぜ何も起きなかったか)を
       // 必ず返すことで、「タップしたのに無反応」の原因をクライアント側で特定できるようにする。
@@ -590,40 +598,59 @@ export class MttSession implements GameSession {
     if (this.finished || this.registrationClosed || !this.mtt || !this.dbTournamentId) return;
     const human = this.humans.get(userId);
     if (!human || !human.done) return; // バスト済み(done)のみリエントリ可
+    // 連打・重複イベントで二重課金/二重着席/entryCount多重加算が起きないよう、処理中は弾く(H4)。
+    if (this.reEntryInFlight.has(userId)) return;
     if (this.aliveCount() >= MTT_FIELD_CAP) {
       human.socket?.emit("actionError", { message: "満員のため今はリエントリできません" });
       return;
     }
 
-    // 参加費(-2,000)を記録し、新規エントリーとして数える。
-    this.entryCount += 1;
-    this.humanEntriesSinceLastTopup += 1;
-    await recordBuyIn({ userId, tournamentId: this.dbTournamentId, amount: this.buyIn }).catch(() => {});
-    await prisma.tournamentEntry
-      .create({ data: { tournamentId: this.dbTournamentId, userId, seatIndex: this.entryCount - 1 } })
-      .catch(() => {});
+    this.reEntryInFlight.add(userId);
+    try {
+      // 参加費(-2,000)と新規エントリー記録を先に確定させる。ここが失敗したら着席させずエラーを返す。
+      // 以前は .catch(()=>{}) で握り潰しており、失敗時に「タダでリエントリできる/賞金・順位が壊れる」
+      // 事態を招いていた(H16)。seatIndex は増分前の entryCount を使う(従来の entryCount-1 と同義)。
+      const entrySeatIndex = this.entryCount;
+      try {
+        await recordBuyIn({ userId, tournamentId: this.dbTournamentId, amount: this.buyIn });
+        await prisma.tournamentEntry.create({
+          data: { tournamentId: this.dbTournamentId, userId, seatIndex: entrySeatIndex },
+        });
+      } catch (err) {
+        console.error("[mtt] reEntry charge failed:", err);
+        human.socket?.emit("actionError", {
+          message: "リエントリの処理に失敗しました。時間をおいて再度お試しください。",
+        });
+        return;
+      }
+      // 課金が確定してからカウントを進める(失敗時に多重加算が残らないようにする)。
+      this.entryCount += 1;
+      this.humanEntriesSinceLastTopup += 1;
 
-    // バスト状態を解除して復帰。順位計算のためバスト順からも除く。
-    human.done = false;
-    human.left = false;
-    human.away = false;
-    human.consecutiveTimeouts = 0;
-    const bi = this.bustedOrder.indexOf(userId);
-    if (bi !== -1) this.bustedOrder.splice(bi, 1);
+      // バスト状態を解除して復帰。順位計算のためバスト順からも除く。
+      human.done = false;
+      human.left = false;
+      human.away = false;
+      human.consecutiveTimeouts = 0;
+      const bi = this.bustedOrder.indexOf(userId);
+      if (bi !== -1) this.bustedOrder.splice(bi, 1);
 
-    // 開始スタックで着席し直す。可能なら元の卓・元の席へ(空いていて進行中でなければ)、
-    // 無ければ最少人数卓へ。進行中の卓は動かさない。
-    const pref = this.lastSeatByUser.get(userId);
-    const assignment = await this.runExclusive(() =>
-      this.mtt!.registerLatePlayer({ playerId: userId, displayName: human.displayName }, this.busyTableIds(), pref),
-    );
-    human.currentTableId = assignment.tableId;
-    if (human.socket) void human.socket.join(this.tableRoom(assignment.tableId));
+      // 開始スタックで着席し直す。可能なら元の卓・元の席へ(空いていて進行中でなければ)、
+      // 無ければ最少人数卓へ。進行中の卓は動かさない。
+      const pref = this.lastSeatByUser.get(userId);
+      const assignment = await this.runExclusive(() =>
+        this.mtt!.registerLatePlayer({ playerId: userId, displayName: human.displayName }, this.busyTableIds(), pref),
+      );
+      human.currentTableId = assignment.tableId;
+      if (human.socket) void human.socket.join(this.tableRoom(assignment.tableId));
 
-    human.socket?.emit("reEntered", { seatIndex: assignment.seatIndex, tableId: assignment.tableId, stack: 20_000 });
-    this.emitPlayersForTable(assignment.tableId);
-    this.broadcastTournamentInfo();
-    this.reconcileTables();
+      human.socket?.emit("reEntered", { seatIndex: assignment.seatIndex, tableId: assignment.tableId, stack: 20_000 });
+      this.emitPlayersForTable(assignment.tableId);
+      this.broadcastTournamentInfo();
+      this.reconcileTables();
+    } finally {
+      this.reEntryInFlight.delete(userId);
+    }
   }
 
   // --- テーブル/席のヘルパー ---
@@ -768,11 +795,24 @@ export class MttSession implements GameSession {
       return;
     }
     this.phase(tableId, "nextHandStarted", { attempt, occupancy });
+    this.pumpTablePostStart(rt, tableId, attempt);
+  }
 
-    // ここから先で例外が出ても卓ごと固まらない・プロセスを落とさないよう防御する。
-    // (例外はこの卓の再試行として扱い、他卓・他ゲームへの影響を遮断する)
+  /**
+   * ハンド開始直後の配信・手番スケジュールのみを行う。ここで例外が出ても卓ごと固まらない・
+   * プロセスを落とさないよう防御する(例外はこの卓の再試行として扱い、他卓へ波及させない)。
+   *
+   * 重要(H6): 失敗時の再試行は pumpTable ではなく自分自身を呼ぶ。pumpTable へ戻すと、rt.hand が
+   * セット済みのため先頭の「既に進行中」ガードで必ず早期returnし、卓が永久停止する。また rt.hand を
+   * 作り直す(startNextHandOnTable 再実行)とボタンが二重に進みハンドが破棄されるため、
+   * 既存の rt.hand に対してこの後処理だけをやり直す。
+   */
+  private pumpTablePostStart(rt: TableRuntime, tableId: number, attempt: number): void {
+    rt.pumpScheduled = false;
+    const hand = rt.hand;
+    if (!hand) return;
     try {
-      if (rt.hand.isHandComplete()) {
+      if (hand.isHandComplete()) {
         // 開始と同時に完了したハンド(ブラインドで全員オールインの配剥け等)。
         // scheduleTurn は完了済みハンドを扱わないため、ここで精算まで進めないと卓が永久に固まる。
         if (this.tableHasHuman(tableId)) {
@@ -795,7 +835,7 @@ export class MttSession implements GameSession {
       console.error(`[mtt] pumpTable post-start failed on table ${tableId} (attempt ${attempt}):`, err);
       if (attempt < 5) {
         rt.pumpScheduled = true;
-        setTimeout(() => this.pumpTable(tableId, attempt + 1), 2000);
+        setTimeout(() => this.pumpTablePostStart(rt, tableId, attempt + 1), 2000);
       }
     }
   }
@@ -825,8 +865,14 @@ export class MttSession implements GameSession {
       return this.handleActionInner(rt, seatIndex, action);
     } catch (err) {
       console.error(`[mtt] handleAction failed on table ${rt.tableId}:`, err);
-      // ハンドが完了していれば精算へ進めて卓の凍結を防ぐ。
-      if (rt.hand?.isHandComplete()) void this.finishHand(rt);
+      // 例外でハンドが宙ぶらりんのまま卓が永久停止しないよう、必ず進行を再武装する(H7)。
+      // 完了していれば精算、未完了なら手番タイマーを張り直し「時間切れ→自動処理」で先へ進める。
+      try {
+        if (rt.hand?.isHandComplete()) void this.finishHand(rt);
+        else if (rt.hand) this.scheduleTurn(rt);
+      } catch (err2) {
+        console.error(`[mtt] recovery after handler failure also failed on table ${rt.tableId}:`, err2);
+      }
       return "HANDLER_ERROR";
     }
   }

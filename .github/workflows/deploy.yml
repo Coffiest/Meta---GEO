@@ -65,9 +65,13 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Set Fly secrets
         run: |
+          # WEB_ORIGIN は本番Webオリジンに限定する(以前は "*" で全API/Socket.IOがオリジン無制限だった)。
+          # secrets.WEB_ORIGIN があればそれを、無ければ固定の本番URLを使う。
+          ORIGIN="${{ secrets.WEB_ORIGIN }}"
+          if [ -z "$ORIGIN" ]; then ORIGIN="https://meta-geo-poker.vercel.app"; fi
           flyctl secrets set \
             DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-            WEB_ORIGIN="*" \
+            WEB_ORIGIN="$ORIGIN" \
             SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
@@ -78,6 +82,18 @@ jobs:
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Set ADMIN_PASSCODE (secret が設定されている場合のみ)
+        # 未設定なら既定パスコードのまま(移行期間)。空文字で上書きしないよう ifガードする。
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          ADMIN_PASSCODE: ${{ secrets.ADMIN_PASSCODE }}
+        run: |
+          if [ -n "$ADMIN_PASSCODE" ]; then
+            flyctl secrets set ADMIN_PASSCODE="$ADMIN_PASSCODE" --app meta---geo
+            echo "ADMIN_PASSCODE を設定しました。"
+          else
+            echo "ADMIN_PASSCODE secret 未設定。既定パスコードのまま稼働します(移行期間)。"
+          fi
       - name: Deploy to Fly.io
         run: |
           flyctl deploy \

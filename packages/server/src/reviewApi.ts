@@ -12,6 +12,7 @@ import {
   checkAndConsumeReviewQuota,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { readJsonBodyLimited } from "./httpBody.js";
 
 /** 進行中のソルバー解析(hand|user または tournament|user)。多重起動を防ぐ。 */
 const enrichInFlight = new Set<string>();
@@ -41,13 +42,7 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 async function resolveDbUser(verified: VerifiedUser) {

@@ -51,13 +51,21 @@ export function PlayerDetailModal({
     void Promise.all([
       fetchPlayerProfile(accessToken, target.userId),
       fetchPlayerNote(accessToken, target.userId),
-    ]).then(([prof, noteData]) => {
-      if (!alive) return;
-      setProfile(prof ?? syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
-      setColor(noteData.color);
-      setNote(noteData.note);
-      setLoading(false);
-    });
+    ])
+      .then(([prof, noteData]) => {
+        if (!alive) return;
+        setProfile(prof ?? syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
+        setColor(noteData.color);
+        setNote(noteData.note);
+        setLoading(false);
+      })
+      .catch(() => {
+        // 取得失敗でもスピナーのまま固まらせない。相手の種別を悟らせないため、通常プレイヤー同様に
+        // 決定論的な擬似スタッツで枠を埋めて表示する(挙動を分岐させない)。
+        if (!alive) return;
+        setProfile(syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
+        setLoading(false);
+      });
     return () => {
       alive = false;
     };

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readJsonBodyLimited } from "./httpBody.js";
 import {
   getPreflopNode,
   getPostflopNode,
@@ -182,13 +183,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 function isStackBucket(v: unknown): v is StackBucket {

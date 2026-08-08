@@ -5,6 +5,7 @@ import type { GameSession, HumanPlayer } from "./gameServer.js";
 import { SngMatchmaker } from "./sngMatchmaker.js";
 import { MttScheduler } from "./mttScheduler.js";
 import { activeGames } from "./activeGames.js";
+import { isValidUnlockCode } from "./adminAuth.js";
 
 export type GameKey = "sng" | "mtt";
 
@@ -44,10 +45,21 @@ export class Lobby {
       }
     });
     this.mttScheduler = new MttScheduler(io);
+    // 終了済みセッションを activeSessions から掃除する(H9: 放置するとセッション実体を永久保持し、
+    // 512MB VMでメモリが枯渇する)。start()失敗で finished=true になった卓もここで除去される(H5)。
+    const timer = setInterval(() => this.pruneFinishedSessions(), 60_000);
+    if (typeof timer.unref === "function") timer.unref();
+  }
+
+  /** 終了済みセッションへの参照を activeSessions から取り除く。プロセス常駐のメモリ肥大を防ぐ。 */
+  private pruneFinishedSessions(): void {
+    for (const [userId, session] of this.activeSessions) {
+      if (session.isFinished()) this.activeSessions.delete(userId);
+    }
   }
 
   handleConnection(socket: Socket): void {
-    socket.on("joinGame", (payload: { gameKey?: string }) => {
+    socket.on("joinGame", (payload: { gameKey?: string; unlockCode?: string }) => {
       this.handleJoinGame(socket, payload ?? {}).catch((err) => {
         console.error(`[lobby] joinGame failed for ${socket.id}:`, err);
         socket.emit("joinGameError", { message: "参加処理に失敗しました" });
@@ -103,10 +115,20 @@ export class Lobby {
     return { userId: user.id, displayName: user.displayName, avatarKey: user.avatarKey };
   }
 
-  private async handleJoinGame(socket: Socket, payload: { gameKey?: string }): Promise<void> {
+  private async handleJoinGame(socket: Socket, payload: { gameKey?: string; unlockCode?: string }): Promise<void> {
     if (!isGameKey(payload.gameKey)) {
       socket.emit("joinGameError", { message: "不正なゲーム種別です" });
       return;
+    }
+
+    // MTTは一般公開を停止中(準備中)。クライアントのモーダルだけでは `joinGame {gameKey:"mtt"}` の
+    // 直送で突破できてしまうため、サーバー側でも解錠コードを照合する。env MTT_OPEN=1 で全開放。
+    if (payload.gameKey === "mtt") {
+      const open = process.env["MTT_OPEN"] === "1";
+      if (!open && !isValidUnlockCode(payload.unlockCode)) {
+        socket.emit("joinGameError", { message: "このモードは現在準備中です" });
+        return;
+      }
     }
 
     const resolved = await this.resolveUser(socket);

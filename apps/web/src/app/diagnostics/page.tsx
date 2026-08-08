@@ -74,10 +74,19 @@ export default function DiagnosticsPage() {
     setFetchError(null);
     const started = performance.now();
     try {
-      const res = await fetch(`${SERVER_URL}/api/diagnostics`, { cache: "no-store" });
+      // 診断は内部情報を含むため管理者パスコードで保護されている。管理画面で保存済みの
+      // パスコード(sessionStorage)を送る。無ければ入力を促す。
+      const passcode = typeof window !== "undefined" ? sessionStorage.getItem("adminPasscode") : null;
+      const res = await fetch(`${SERVER_URL}/api/diagnostics`, {
+        cache: "no-store",
+        headers: passcode ? { "x-admin-passcode": passcode } : {},
+      });
       if (runId.current !== myRun) return;
       setFetchMs(Math.round(performance.now() - started));
-      if (!res.ok) {
+      if (res.status === 401) {
+        setFetchError("この画面は管理者専用です。ホーム画面フッターのバージョン表記からパスコードで管理画面を開いてください。");
+        setSnapshot(null);
+      } else if (!res.ok) {
         setFetchError(`サーバーが ${res.status} ${res.statusText} を返しました`);
         setSnapshot(null);
       } else {

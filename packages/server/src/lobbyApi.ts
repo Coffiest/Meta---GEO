@@ -14,6 +14,7 @@ import {
   redeemCouponCode,
   getHandProfitGraph,
   getRRRating,
+  getRankedPlayerCount,
   getTournamentHistory,
   getUserHandHistory,
   prisma,
@@ -36,6 +37,7 @@ import {
 } from "./push.js";
 import { putTransfer, takeTransfer } from "./authTransfer.js";
 import { syntheticPlayerProfile } from "./syntheticProfile.js";
+import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -53,14 +55,10 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
   return value.slice("Bearer ".length);
 }
 
+// ボディ読み取りは共通ヘルパー(64KB上限つき)へ委譲する。無認証・無制限の巨大ボディで
+// メモリを枯渇させられないようにするため。呼び出し側の使い勝手は従来どおり。
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 const EMPTY_STATS = {
@@ -240,7 +238,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      const limitParam = Number(url.searchParams.get("limit") ?? 20);
+      const limitParam = clampLimit(url.searchParams.get("limit"), 20, 1, 200);
       sendJson(res, 200, user ? await getTournamentHistory(user.id, limitParam) : []);
       return true;
     }
@@ -291,7 +289,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      const limitParam = Number(url.searchParams.get("limit") ?? 1000);
+      const limitParam = clampLimit(url.searchParams.get("limit"), 1000, 1, 5000);
       sendJson(res, 200, user ? await getBankrollGraph(user.id, limitParam) : []);
       return true;
     }
@@ -304,7 +302,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      const limitParam = Number(url.searchParams.get("limit") ?? 1000);
+      const limitParam = clampLimit(url.searchParams.get("limit"), 1000, 1, 5000);
       sendJson(res, 200, user ? await getHandProfitGraph(user.id, limitParam) : []);
       return true;
     }
@@ -333,7 +331,13 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       // 自動プレイヤーは擬似スタッツで通常プレイヤーと同じ形で応答する。
       // ここで404を返すと、応答の違いそのものが「相手が自動プレイヤーである」ことの手掛かりになる。
       if (target.isBot) {
-        sendJson(res, 200, syntheticPlayerProfile(target.id, target.displayName, target.avatarKey));
+        // totalRankedPlayers は実プレイヤーが見るグローバル値と一致させる。
+        // ここをID毎の値にすると、プロフィールを2人分見比べるだけで判別できてしまう。
+        const rankedPlayers = await getRankedPlayerCount();
+        const synthetic = syntheticPlayerProfile(target.id, target.displayName, target.avatarKey);
+        synthetic.stats.totalRankedPlayers = rankedPlayers;
+        synthetic.rrRating.totalRankedPlayers = rankedPlayers;
+        sendJson(res, 200, synthetic);
         return true;
       }
       const [stats, rr] = await Promise.all([getPlayerStats(target.id), getRRRating(target.id)]);

@@ -9,6 +9,7 @@ import {
   upsertSubscriptionFromStripeEvent,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { readJsonBodyLimited, readRawBody as readRawBodyLimited } from "./httpBody.js";
 
 let stripeClient: Stripe | null | undefined;
 
@@ -36,20 +37,14 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
   return value.slice("Bearer ".length);
 }
 
+// Stripe Webの署名検証には生ボディが要る。共通ヘルパーで64KB上限をかける
+// (Stripeイベントはこれより十分小さい。超過分でメモリを食わせないため)。
 async function readRawBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks);
+  return readRawBodyLimited(req);
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  try {
-    const raw = await readRawBody(req);
-    if (raw.length === 0) return {};
-    return JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 async function resolveDbUser(verified: VerifiedUser) {
@@ -206,7 +201,14 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   const signature = req.headers["stripe-signature"];
-  const rawBody = await readRawBody(req);
+  let rawBody: Buffer;
+  try {
+    rawBody = await readRawBody(req);
+  } catch {
+    // ボディ上限超過(BodyTooLargeError)。正規のStripeイベントは十分小さいので拒否してよい。
+    sendJson(res, 413, { error: "payload too large" });
+    return;
+  }
 
   let event: Stripe.Event;
   try {
