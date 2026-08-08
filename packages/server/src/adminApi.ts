@@ -4,6 +4,7 @@ import {
   excludeGeoData,
   getGeoBackfillStatus,
   getGeoDataCounts,
+  getGeoPositionStats,
   grantCompSubscription,
   restoreGeoData,
   revokeCompSubscription,
@@ -215,6 +216,13 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         alreadyRunning,
         ...geoBackfillState,
       });
+      return true;
+    }
+
+    // GEOのポジション別の集まり具合。「UTGばかりでBTN/SB/BBが少ない」の原因が
+    // 母集団の偏りなのか、木構造・卓人数による見え方の問題なのかを切り分けるための計測。
+    if (url.pathname === "/api/admin/geo-position-stats" && req.method === "GET") {
+      sendJson(res, 200, await getGeoPositionStats());
       return true;
     }
 
