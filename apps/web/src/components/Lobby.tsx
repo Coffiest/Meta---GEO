@@ -20,7 +20,7 @@ import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
-import { PrimeTimeCard } from "./PrimeTimeCard";
+import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
@@ -986,10 +986,10 @@ function HamburgerMenu({
   email,
   providers,
   isGuest,
+  accessToken,
   onClose,
   onEditProfile,
   onSignOut,
-  accessToken,
   onAccountDeleted,
 }: {
   displayName: string;
@@ -997,10 +997,10 @@ function HamburgerMenu({
   email?: string | null;
   providers?: string[];
   isGuest: boolean;
+  accessToken?: string;
   onClose: () => void;
   onEditProfile: () => void;
   onSignOut?: () => void;
-  accessToken?: string | undefined;
   /** 退会が完了したときに呼ぶ(呼び出し側でサインアウトしてホームへ戻す)。 */
   onAccountDeleted?: () => void;
 }) {
@@ -1130,6 +1130,15 @@ function HamburgerMenu({
             </div>
           )}
         </div>
+
+        {/* 友達招待とクーポンをひとつのセクションに集約(旧ホームから移設)。 */}
+        {accessToken && (
+          <div className="mt-5 px-4 space-y-3">
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-ink-500">{t("menu.inviteCoupon")}</p>
+            <InviteCard accessToken={accessToken} />
+            <CouponWallet accessToken={accessToken} />
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -1162,6 +1171,8 @@ export function Lobby({
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
+  // リーダーボードでタップされたプレイヤー(スタッツ詳細モーダルを開く対象)。
+  const [lbTapped, setLbTapped] = useState<{ userId: string; displayName: string; avatarKey: string | null } | null>(null);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
@@ -1341,8 +1352,6 @@ export function Lobby({
 
             <GameStartCards games={GAMES} onJoin={onJoin} />
 
-            <PrimeTimeCard onJoin={onJoin} />
-
             <PushOptInCard accessToken={accessToken} />
 
             <RRRatingCard
@@ -1356,11 +1365,6 @@ export function Lobby({
               onViewLeaderboard={() => setTab("leaderboard")}
               onViewHistory={() => setTab("tournaments")}
             />
-
-            <InviteCard accessToken={accessToken} />
-
-            {/* 招待で貰ったクーポンはいつでもここで確認・コピー・適用できる。 */}
-            <CouponWallet accessToken={accessToken} />
 
             <RRPokerPromoBanner />
 
@@ -1605,12 +1609,16 @@ export function Lobby({
                       const primaryClass =
                         lbMetric === "profit" ? signedClass(row.profit) : "text-ink-950";
                       return (
-                        <motion.div
+                        <motion.button
                           key={row.userId}
+                          type="button"
+                          onClick={() =>
+                            setLbTapped({ userId: row.userId, displayName: row.displayName, avatarKey: row.avatarKey })
+                          }
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 ${
+                          className={`flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left transition-transform active:scale-[0.99] ${
                             isYou ? "border-[1.5px] border-gold-500" : "border border-ink-200"
                           }`}
                         >
@@ -1630,7 +1638,7 @@ export function Lobby({
                               {lbMetric === "profit" && `ROI ${(row.roi * 100).toFixed(0)}%`}
                             </div>
                           </div>
-                        </motion.div>
+                        </motion.button>
                       );
                     })}
                   </div>
@@ -1853,6 +1861,7 @@ export function Lobby({
             email={email}
             providers={providers}
             isGuest={!accessToken}
+            accessToken={accessToken}
             onClose={() => setMenuOpen(false)}
             onEditProfile={() => {
               setMenuOpen(false);
@@ -1866,11 +1875,21 @@ export function Lobby({
                   }
                 : undefined
             }
-            accessToken={accessToken}
             onAccountDeleted={() => {
               setMenuOpen(false);
               onAccountDeleted?.();
             }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* リーダーボードのプレイヤーをタップ→そのプレイヤーのスタッツ詳細(卓上と同じモーダル)。 */}
+      <AnimatePresence>
+        {lbTapped && (
+          <PlayerDetailModal
+            target={lbTapped}
+            accessToken={accessToken}
+            onClose={() => setLbTapped(null)}
           />
         )}
       </AnimatePresence>

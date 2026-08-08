@@ -105,6 +105,7 @@ const ja: Dict = {
   "menu.deleteAccount.confirm": "完全に削除する",
   "menu.deleteAccount.deleting": "削除中…",
   "menu.deleteAccount.failed": "削除に失敗しました",
+  "menu.inviteCoupon": "友達を招待 / クーポン",
 
   "login.heroLine1": "GTOを、",
   "login.heroLine2": "超えていけ",
@@ -450,6 +451,7 @@ const en: Dict = {
   "menu.deleteAccount.confirm": "Delete permanently",
   "menu.deleteAccount.deleting": "Deleting…",
   "menu.deleteAccount.failed": "Deletion failed",
+  "menu.inviteCoupon": "Invite friends / Coupons",
 
   "login.heroLine1": "Go beyond",
   "login.heroLine2": "GTO",
@@ -795,6 +797,7 @@ const ko: Dict = {
   "menu.deleteAccount.confirm": "완전히 삭제",
   "menu.deleteAccount.deleting": "삭제 중…",
   "menu.deleteAccount.failed": "삭제에 실패했습니다",
+  "menu.inviteCoupon": "친구 초대 / 쿠폰",
 
   "login.heroLine1": "GTO를",
   "login.heroLine2": "넘어서라",
@@ -1140,6 +1143,7 @@ const zh: Dict = {
   "menu.deleteAccount.confirm": "永久删除",
   "menu.deleteAccount.deleting": "删除中…",
   "menu.deleteAccount.failed": "删除失败",
+  "menu.inviteCoupon": "邀请好友 / 优惠券",
 
   "login.heroLine1": "超越",
   "login.heroLine2": "GTO",

@@ -258,12 +258,17 @@ model Hand {
   wonByFold       Boolean
   createdAt       DateTime @default(now())
 
-  seats   HandSeat[]
-  actions HandAction[]
-  pots    HandPot[]
-  reviews HandReview[]
+  seats     HandSeat[]
+  actions   HandAction[]
+  pots      HandPot[]
+  reviews   HandReview[]
+  decisions GeoDecision[]
 
   @@unique([tournamentId, handNumber])
+  /// GEO集計は常に createdAt 昇順で走査するため、全件ソートを避けるインデックス。
+  @@index([createdAt])
+  /// ポストフロップGEOは板面でハンドを絞り込む(board @> ARRAY[...])。配列包含はGINが効く。
+  @@index([board(ops: ArrayOps)], type: Gin)
 }
 
 /// そのハンドにおける各プレイヤーの着席情報。GEO分析上、全ハンド終了後はホールカードを常に記録する
@@ -289,6 +294,8 @@ model HandSeat {
   /// 同卓他プレイヤーのライン再生が壊れるため)が、GEO集計のサンプルには一切含めない。
   excludedFromGeo  Boolean @default(false)
 
+  decisions GeoDecision[]
+
   @@unique([handId, seatIndex])
   @@index([userId])
 }
@@ -307,6 +314,47 @@ model HandAction {
 
   @@index([handId, sequenceNumber])
   @@index([street, kind])
+}
+
+/// GEO戦略DBの集計用に事前展開した「1意思決定 = 1行」のテーブル。
+///
+/// 以前はGEOのノードを開くたびに全ハンドの全履歴を読み出してNode側でリプレイしていたため、
+/// プレイが増えるほど際限なく重くなっていた。ここへ書き出しておくことで、GEOの問い合わせを
+/// インデックス1本 + GROUP BY で答えられるようにする(応答時間がデータ総量に依存しなくなる)。
+///
+/// 行を書くのは「実プレイヤーの意思決定」だけ(自動プレイヤー・離席中の席は書かない)。
+/// 管理者が後から切り替えられる excludedFromGeo は焼き込まず、HandSeat をJOINして除外する。
+model GeoDecision {
+  id         String   @id @default(uuid())
+  handId     String
+  hand       Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  /// excludedFromGeo を参照するための HandSeat。
+  handSeatId String
+  handSeat   HandSeat @relation(fields: [handSeatId], references: [id], onDelete: Cascade)
+  /// 偏差値レンジでの絞り込み用。
+  userId     String
+  street     String
+  /// 同一ストリート内で、この意思決定の直前までのライン系列。"UTG:fold|MP:raise2-5" 形式。
+  /// 要求されたラインと完全一致で引ける(要求ライン = 対象決定の直前までの系列、という対応)。
+  lineKey    String
+  /// ポストフロップのみ。そのストリートまでの板面。"9s,8s,7s" 形式。プリフロップは空文字。
+  boardKey   String
+  /// ポストフロップのみ。そのハンドのプリフロップ全系列(要求プリフロップラインの前方一致判定用)。
+  preflopKey String
+  position   String
+  bucket     String
+  stackBucket String
+  bubbleStage String
+  playerCount Int
+  isGeometric Boolean
+  /// 13x13ハンドレンジ表の座標。分類できないホールカードは null。
+  handClassRow Int?
+  handClassCol Int?
+  sequenceNumber Int
+
+  @@index([street, lineKey, boardKey, stackBucket, bubbleStage, playerCount])
+  @@index([handId])
+  @@index([handSeatId])
 }
 
 model HandPot {

@@ -29,6 +29,8 @@ async function main(): Promise<void> {
 
   // 外部キーの依存順に、子テーブルから削除する。
   const deleted = await prisma.$transaction(async (tx) => {
+    // GEO集計用の事前展開テーブル。Hand へのFKはCascadeだが、件数を出すため明示的に消す。
+    const geoDecision = await tx.geoDecision.deleteMany({});
     const reviewDecision = await tx.reviewDecision.deleteMany({});
     const handReview = await tx.handReview.deleteMany({});
     const handAction = await tx.handAction.deleteMany({});
@@ -38,6 +40,7 @@ async function main(): Promise<void> {
     return {
       reviewDecision: reviewDecision.count,
       handReview: handReview.count,
+      geoDecision: geoDecision.count,
       handAction: handAction.count,
       handSeat: handSeat.count,
       handPot: handPot.count,
