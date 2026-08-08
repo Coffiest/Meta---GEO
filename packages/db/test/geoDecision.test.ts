@@ -3,7 +3,9 @@ import { HandEngine } from "@meta-geo/engine";
 import { prisma } from "../src/client.js";
 import { recordHand } from "../src/recordHand.js";
 import {
+  backfillGeoDecisions,
   clearRawHandsCache,
+  getGeoBackfillStatus,
   getPreflopNode,
   getPostflopNode,
   rebuildGeoDecisionsForHand,
@@ -202,5 +204,41 @@ describe("GeoDecision aggregation parity (integration, real Postgres)", () => {
       // ポストフロップ側も空同士の比較になっていないことを確かめる。
       expect(next.node.sampleSize, `postflop line=${JSON.stringify(postflopLine)} has samples`).toBeGreaterThan(0);
     }
+  });
+  it("backfills existing hands idempotently and reports progress", async () => {
+    // 段階2導入より前に記録されたハンド(=GeoDecisionが1行も無い状態)を再現し、
+    // バックフィルがそれを埋め切れること・何度流しても結果が変わらないことを確認する。
+    const handIds = await prisma.geoDecision
+      .findMany({ distinct: ["handId"], select: { handId: true } })
+      .then((rows) => rows.map((r) => r.handId));
+    expect(handIds.length).toBeGreaterThan(0);
+
+    const rowsBefore = await prisma.geoDecision.count();
+    await prisma.geoDecision.deleteMany({ where: { handId: { in: handIds } } });
+
+    const missingBefore = await getGeoBackfillStatus();
+    expect(missingBefore.missingHands).toBeGreaterThan(0);
+
+    // 進捗コールバックが呼ばれ、単調に増えること。
+    const seen: number[] = [];
+    const run1 = await backfillGeoDecisions({
+      onlyMissing: true,
+      onProgress: (p) => seen.push(p.processed),
+    });
+    expect(run1.processed).toBe(missingBefore.missingHands);
+    expect(run1.rows).toBe(rowsBefore);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
+
+    // 埋め終わったので未展開はゼロ。
+    const afterFirst = await getGeoBackfillStatus();
+    expect(afterFirst.missingHands).toBe(0);
+    expect(await prisma.geoDecision.count()).toBe(rowsBefore);
+
+    // onlyMissing=true なら対象ゼロ、全件やり直しても行数は変わらない(冪等)。
+    expect((await backfillGeoDecisions({ onlyMissing: true })).processed).toBe(0);
+    const run3 = await backfillGeoDecisions({ onlyMissing: false });
+    expect(run3.rows).toBe(rowsBefore);
+    expect(await prisma.geoDecision.count()).toBe(rowsBefore);
   });
 });
