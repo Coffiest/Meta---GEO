@@ -445,6 +445,26 @@ function replayPreflopDecisions(hand: RawHand, countedSeats: Map<number, string[
   return decisions;
 }
 
+/**
+ * ノードのポジション名を決める。
+ *
+ * 卓の人数で絞っていれば、そのノードの意思決定はすべて同じポジションになる。人数を絞らないと
+ * 6人卓のHJ・5人卓のCO・4人卓のBTNが同じライン("UTG:fold")に合流するため、複数の名前が
+ * 混ざる。どれを出すかは「最も件数の多いもの」で決め、同数なら名前順で固定する。
+ * 件数を見ずに先頭を採ると、集計順やDBの実行計画が変わるだけで表示名が変わってしまう。
+ */
+function dominantPosition(counts: ReadonlyMap<string, number>): string | null {
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const [position, count] of [...counts].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (count > bestCount) {
+      best = position;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 function linesMatch(actual: ReplayedDecision[], requested: LineStep[]): boolean {
   if (actual.length < requested.length) return false;
   for (let i = 0; i < requested.length; i++) {
@@ -521,7 +541,11 @@ function buildNodeFromDecisions(
     geometricRatio: count > 0 ? geometricCount / count : 0,
   }));
 
-  const position = filtered[0]?.position ?? expectedPosition ?? null;
+  // 集計テーブル経路と同じ規則で決める: まず該当スタック帯の多数決、1件も無ければ
+  // スタック帯を外した多数決(expectedPosition)。1件目を採ると順序次第で名前が変わる。
+  const filteredPositions = new Map<string, number>();
+  for (const d of filtered) filteredPositions.set(d.position, (filteredPositions.get(d.position) ?? 0) + 1);
+  const position = dominantPosition(filteredPositions) ?? expectedPosition ?? null;
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
 
@@ -552,7 +576,7 @@ export async function getPreflopNode(params: {
 
   const [tournaments, ratingOk] = await Promise.all([fetchAllTournaments(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedDecision[] = [];
-  let expectedPosition: string | null = null;
+  const positionCounts = new Map<string, number>();
 
   await forEachRawHand(HUMAN_SEATED, (hand) => {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) return;
@@ -570,14 +594,14 @@ export async function getPreflopNode(params: {
     if (!linesMatch(decisions, params.line)) return;
     const next = decisions[params.line.length];
     if (!next) return;
-    // 一致した最初のハンドの値を採用する(全ての正常な6-maxハンドはここで一致するはずなので、
-    // 後続のハンドで無条件に上書きすると、万一データに異常のあるハンドが1件混ざっただけで
-    // 正しい大多数の結果が塗り替えられてしまう)。
-    if (expectedPosition === null) expectedPosition = next.position;
+    // ポジション名は多数決で決める(dominantPosition)。1件目を採ると、データに異常のある
+    // ハンドが先頭に1件混ざっただけで正しい大多数の結果が塗り替えられてしまう。
+    // 集計テーブル経路も同じ規則にしてあり、両経路の表示名が一致する。
+    positionCounts.set(next.position, (positionCounts.get(next.position) ?? 0) + 1);
     if (next.isCounted) nextDecisions.push(next);
   });
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, dominantPosition(positionCounts));
 }
 
 interface ReplayedPostflopDecision extends ReplayedDecision {
@@ -729,7 +753,7 @@ export async function getPostflopNode(params: {
   // 履歴の総量にほとんど依存しなくなる。
   const [tournaments, ratingOk] = await Promise.all([fetchAllTournaments(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedPostflopDecision[] = [];
-  let expectedPosition: string | null = null;
+  const positionCounts = new Map<string, number>();
 
   await forEachRawHand(boardWhere(params.board), (hand) => {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) return;
@@ -759,12 +783,12 @@ export async function getPostflopNode(params: {
 
     const next = streetDecisions[params.postflopLine.length];
     if (!next) return;
-    // getPreflopNodeと同じ理由で、最初に一致したハンドの値のみ採用する。
-    if (expectedPosition === null) expectedPosition = next.position;
+    // getPreflopNodeと同じく多数決で決める。
+    positionCounts.set(next.position, (positionCounts.get(next.position) ?? 0) + 1);
     if (next.isCounted) nextDecisions.push(next);
   });
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, dominantPosition(positionCounts));
 }
 
 // ============================================================================
@@ -1056,7 +1080,11 @@ async function nodeFromDecisionTable(params: {
   const tally = new Map<string, { count: number; geometricCount: number }>();
   const cells = emptyMatrix();
   let totalSamples = 0;
-  let position: string | null = null;
+  // ポジション名は「最も多く出たもの」を採る。GROUP BY の行順はDBの実行計画次第で変わるため、
+  // 先頭行をそのまま使うと同じ問い合わせでも呼ぶたびに名前が変わりうる(実際、旧経路がUTGを
+  // 返すノードで集計テーブル経路がBTN(SB)を返していた)。人数を指定していれば全行が同じ
+  // ポジションになるので、ここで差が出ること自体が人数混在のサインでもある。
+  const positionCounts = new Map<string, number>();
 
   for (const g of groups) {
     const entry = tally.get(g.bucket) ?? { count: 0, geometricCount: 0 };
@@ -1064,7 +1092,7 @@ async function nodeFromDecisionTable(params: {
     if (g.isGeometric) entry.geometricCount += g.n;
     tally.set(g.bucket, entry);
     totalSamples += g.n;
-    position ??= g.position;
+    positionCounts.set(g.position, (positionCounts.get(g.position) ?? 0) + g.n);
     if (g.handClassRow !== null && g.handClassCol !== null) {
       const cell = cells[g.handClassRow]![g.handClassCol]!;
       cell.count += g.n;
@@ -1079,17 +1107,19 @@ async function nodeFromDecisionTable(params: {
     geometricRatio: count > 0 ? geometricCount / count : 0,
   }));
 
+  let position = dominantPosition(positionCounts);
+
   // 該当スタック帯にサンプルが1件も無い場合でも、そのノードのポジション名は出す
-  // (旧経路の expectedPosition と同じ。スタック帯を外して1件だけ引く)。
+  // (旧経路の expectedPosition と同じ。スタック帯を外して数える)。
   if (position === null) {
-    const fallback = await prisma.$queryRaw<{ position: string }[]>(Prisma.sql`
-      SELECT d."position"
+    const fallback = await prisma.$queryRaw<{ position: string; n: number }[]>(Prisma.sql`
+      SELECT d."position", COUNT(*)::int AS n
       FROM "GeoDecision" d
       JOIN "HandSeat" s ON s."id" = d."handSeatId"
       WHERE ${decisionWhere({ ...base, stackBucket: null })}
-      LIMIT 1
+      GROUP BY 1
     `);
-    position = fallback[0]?.position ?? null;
+    position = dominantPosition(new Map(fallback.map((r) => [r.position, r.n])));
   }
 
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
