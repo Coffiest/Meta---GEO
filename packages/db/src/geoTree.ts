@@ -168,6 +168,24 @@ function useDecisionTable(): boolean {
   return process.env["GEO_USE_DECISION_TABLE"] === "1";
 }
 
+/**
+ * 全ハンド走査の途中でイベントループを他へ譲る間隔(ハンド数)。
+ *
+ * リプレイ経路の走査は同期処理なので、履歴が1万件規模になると1リクエストで数十秒
+ * CPUを占有する。Nodeはシングルスレッドなので、その間サーバーは /health も
+ * Socket.IO(対戦卓)も一切さばけなくなり、GEOを開くだけでアプリ全体が固まる。
+ * 一定件数ごとに制御を返せば、GEO自体が速くなるわけではないが、GEOの重さが
+ * 他の機能を巻き込んで止めることは無くなる。
+ */
+const SCAN_YIELD_EVERY_HANDS = 200;
+
+/** マクロタスク境界まで制御を戻し、待たせている他のI/O・タイマーを進ませる。 */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
 /** BOTのみの卓は人間のサンプルを1つも生まないので、取得段階で落とす。 */
 const HUMAN_SEATED = { seats: { some: { user: { isBot: false } } } } as const;
 
@@ -535,7 +553,9 @@ export async function getPreflopNode(params: {
   const nextDecisions: ReplayedDecision[] = [];
   let expectedPosition: string | null = null;
 
+  let scanned = 0;
   for (const hand of hands) {
+    if (++scanned % SCAN_YIELD_EVERY_HANDS === 0) await yieldToEventLoop();
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
     if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
     // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
@@ -716,7 +736,9 @@ export async function getPostflopNode(params: {
   const nextDecisions: ReplayedPostflopDecision[] = [];
   let expectedPosition: string | null = null;
 
+  let scanned = 0;
   for (const hand of hands) {
+    if (++scanned % SCAN_YIELD_EVERY_HANDS === 0) await yieldToEventLoop();
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
     if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
     if (hand.board.length < requiredBoardLen) continue;
