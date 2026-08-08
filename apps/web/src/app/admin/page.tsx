@@ -39,6 +39,15 @@ function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active
  */
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 
+/** GEO集計テーブルの再構築状況(サーバーの /api/admin/geo-backfill の応答)。 */
+interface GeoBackfillStatus {
+  totalHands: number;
+  missingHands: number;
+  running: boolean;
+  progress: { total: number; processed: number; rows: number } | null;
+  error: string | null;
+}
+
 export default function AdminPage() {
   const [passcode, setPasscode] = useState<string | null>(null);
   const [gateNeeded, setGateNeeded] = useState(false);
@@ -53,6 +62,10 @@ export default function AdminPage() {
   const [customUnit, setCustomUnit] = useState<"week" | "month">("week");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   /** GEOデータの期間指定削除フォームを開いているユーザーID。 */
+  // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
+  const [geoBackfill, setGeoBackfill] = useState<GeoBackfillStatus | null>(null);
+  const [geoBackfillBusy, setGeoBackfillBusy] = useState(false);
+
   const [geoRangeFor, setGeoRangeFor] = useState<string | null>(null);
   const [geoFrom, setGeoFrom] = useState("");
   const [geoTo, setGeoTo] = useState("");
@@ -95,11 +108,34 @@ export default function AdminPage() {
     [],
   );
 
+  /** 再構築の状況を取得する(実行中は定期的に呼び直す)。 */
+  const loadGeoBackfill = useCallback(
+    async (code: string) => {
+      try {
+        const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, { headers: { "x-admin-passcode": code } });
+        if (!res.ok) return;
+        setGeoBackfill((await res.json()) as GeoBackfillStatus);
+      } catch {
+        /* 一時的な通信断。次のポーリングで取り直す。 */
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!passcode) return;
     const timer = setTimeout(() => void search(query, passcode), 300);
     return () => clearTimeout(timer);
   }, [query, passcode, search]);
+
+  // GEO集計テーブルの状況。実行中だけ3秒ごとに追いかけ、終わったらポーリングを止める。
+  useEffect(() => {
+    if (!passcode) return;
+    void loadGeoBackfill(passcode);
+    if (!geoBackfill?.running) return;
+    const timer = setInterval(() => void loadGeoBackfill(passcode), 3000);
+    return () => clearInterval(timer);
+  }, [passcode, geoBackfill?.running, loadGeoBackfill]);
 
   async function grant(userId: string, unit: "week" | "month", amount: number) {
     if (!passcode) return;
@@ -125,6 +161,27 @@ export default function AdminPage() {
   }
 
   /** GEOプレイラインの除外(論理削除)。from/to未指定なら全期間。 */
+  async function startGeoBackfill() {
+    if (!passcode || geoBackfillBusy) return;
+    setGeoBackfillBusy(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        body: JSON.stringify({ onlyMissing: true }),
+      });
+      const data = (await res.json()) as GeoBackfillStatus & { alreadyRunning?: boolean };
+      setGeoBackfill(data);
+      setNotice(data.alreadyRunning ? "再構築は既に実行中です。" : "GEO集計テーブルの再構築を開始しました。");
+    } catch {
+      setError("再構築の開始に失敗しました。");
+    } finally {
+      setGeoBackfillBusy(false);
+    }
+  }
+
   async function geoDelete(userId: string, from?: string, to?: string) {
     if (!passcode) return;
     const rangeText = from || to ? `期間 ${from || "最初"} 〜 ${to || "現在"} の` : "全期間の";
@@ -214,6 +271,58 @@ export default function AdminPage() {
 
         {passcode && (
           <>
+            {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
+            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+              <div className="flex items-start gap-2.5">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-gold-600"
+                >
+                  <ellipse cx="12" cy="5.5" rx="8" ry="3" />
+                  <path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13" />
+                  <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+                </svg>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black text-ink-950">GEO集計テーブルの再構築</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                    過去のハンドをGEOの高速集計用に展開します。未展開が0件になるまでGEOは従来の集計経路で動きます。
+                  </p>
+                  {geoBackfill && (
+                    <p className="mt-1.5 text-[11px] font-bold tabular-nums text-ink-800">
+                      対象 {geoBackfill.totalHands.toLocaleString()} ハンド / 未展開{" "}
+                      <span className={geoBackfill.missingHands === 0 ? "text-mint-700" : "text-crimson-500"}>
+                        {geoBackfill.missingHands.toLocaleString()}
+                      </span>{" "}
+                      ハンド
+                      {geoBackfill.running && geoBackfill.progress && (
+                        <>
+                          {" — 実行中 "}
+                          {geoBackfill.progress.processed.toLocaleString()}/
+                          {geoBackfill.progress.total.toLocaleString()}
+                        </>
+                      )}
+                    </p>
+                  )}
+                  {geoBackfill?.error && (
+                    <p className="mt-1 text-[11px] font-bold text-crimson-500">前回の実行が失敗しました: {geoBackfill.error}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void startGeoBackfill()}
+                  disabled={geoBackfillBusy || geoBackfill?.running}
+                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97] disabled:opacity-40"
+                >
+                  {geoBackfill?.running ? "実行中…" : "再構築"}
+                </button>
+              </div>
+            </div>
+
             {/* 検索 */}
             <div className="relative">
               <svg

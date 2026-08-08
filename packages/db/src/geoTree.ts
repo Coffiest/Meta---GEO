@@ -1079,3 +1079,74 @@ async function nodeFromDecisionTable(params: {
 
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
+
+/** バックフィルの進捗。管理画面から状況を見られるようにするため、呼び出し側へ逐次通知する。 */
+export interface GeoBackfillProgress {
+  /** 対象ハンド総数。 */
+  total: number;
+  /** ここまでに処理したハンド数。 */
+  processed: number;
+  /** ここまでに書き込んだ意思決定の行数。 */
+  rows: number;
+}
+
+/** 1回のDB往復で取り出すハンド数。 */
+const GEO_BACKFILL_BATCH_SIZE = 200;
+
+/** GEO集計の対象となるハンドの条件(GEO集計側と同じく「人間が最低1人着席」)。 */
+function backfillWhere(onlyMissing: boolean) {
+  return {
+    ...HUMAN_SEATED,
+    // まだ1行も無いハンドだけに絞ると、中断したバックフィルの再開が速い。
+    ...(onlyMissing ? { decisions: { none: {} } } : {}),
+  };
+}
+
+/** バックフィルの対象ハンド数と、既に展開済みのハンド数を返す(進捗表示用)。 */
+export async function getGeoBackfillStatus(): Promise<{ totalHands: number; missingHands: number }> {
+  const [totalHands, missingHands] = await Promise.all([
+    prisma.hand.count({ where: backfillWhere(false) }),
+    prisma.hand.count({ where: backfillWhere(true) }),
+  ]);
+  return { totalHands, missingHands };
+}
+
+/**
+ * 既存ハンドを GeoDecision へ展開し直す。
+ *
+ * 冪等: ハンド単位で delete → insert するため、何度実行しても結果は同じ。途中で止まっても
+ * もう一度流せば続きから埋まる。CLIスクリプトと管理APIの両方からこの関数を使う
+ * (処理を二重に持たない)。
+ */
+export async function backfillGeoDecisions(options?: {
+  onlyMissing?: boolean;
+  onProgress?: (progress: GeoBackfillProgress) => void;
+}): Promise<GeoBackfillProgress> {
+  const onlyMissing = options?.onlyMissing ?? false;
+  const where = backfillWhere(onlyMissing);
+  const total = await prisma.hand.count({ where });
+
+  let processed = 0;
+  let rows = 0;
+  let cursor: string | undefined;
+
+  for (;;) {
+    const batch = await prisma.hand.findMany({
+      where,
+      orderBy: { id: "asc" },
+      take: GEO_BACKFILL_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true },
+    });
+    if (batch.length === 0) break;
+
+    for (const h of batch) {
+      rows += await rebuildGeoDecisionsForHand(h.id);
+      processed += 1;
+    }
+    cursor = batch[batch.length - 1]!.id;
+    options?.onProgress?.({ total, processed, rows });
+  }
+
+  return { total, processed, rows };
+}

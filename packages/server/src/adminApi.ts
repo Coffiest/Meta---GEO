@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  backfillGeoDecisions,
   excludeGeoData,
+  getGeoBackfillStatus,
   getGeoDataCounts,
   grantCompSubscription,
   restoreGeoData,
@@ -10,6 +12,7 @@ import {
   summarizeErrorReports,
   setErrorReportResolved,
   type CompDurationUnit,
+  type GeoBackfillProgress,
 } from "@meta-geo/db";
 import { checkAdminAuth } from "./adminAuth.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
@@ -19,6 +22,39 @@ import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
  * バックエンド。認証・レート制限・タイミングセーフ比較は adminAuth.ts に集約している。
  */
 
+/**
+ * GEO集計テーブル(GeoDecision)のバックフィル進捗。プロセス内に1つだけ持つ。
+ * 全履歴を舐める重い処理なので、多重起動は必ず防ぐ(実行中の要求は現在の進捗だけを返す)。
+ */
+let geoBackfillState: { running: boolean; progress: GeoBackfillProgress | null; error: string | null } = {
+  running: false,
+  progress: null,
+  error: null,
+};
+
+/** バックフィルを開始する(既に実行中なら何もしない)。完了を待たず即座に戻る。 */
+function startGeoBackfill(onlyMissing: boolean): void {
+  if (geoBackfillState.running) return;
+  geoBackfillState = { running: true, progress: null, error: null };
+  void backfillGeoDecisions({
+    onlyMissing,
+    onProgress: (progress) => {
+      geoBackfillState.progress = progress;
+    },
+  })
+    .then((progress) => {
+      geoBackfillState = { running: false, progress, error: null };
+      console.log(`[admin] geo backfill done: hands=${progress.processed}/${progress.total} rows=${progress.rows}`);
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      geoBackfillState = { running: false, progress: geoBackfillState.progress, error: message };
+      console.error("[admin] geo backfill failed:", err);
+    });
+}
+
+// 管理者パスコードの検証は adminAuth.ts(checkAdminAuth)に一本化した(C1)。
+// ここに独自の adminPasscode() は持たない(タイミングセーフ比較・レート制限を必ず経由させるため)。
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -156,6 +192,29 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       }
       await setErrorReportResolved(id, resolved);
       sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // GEO集計テーブル(GeoDecision)の状況。未展開のハンドが0件になればバックフィル完了。
+    if (url.pathname === "/api/admin/geo-backfill" && req.method === "GET") {
+      const status = await getGeoBackfillStatus();
+      sendJson(res, 200, { ...status, ...geoBackfillState });
+      return true;
+    }
+
+    // GEO集計テーブルの再構築を開始する。重い処理なのでレスポンスは待たせず、進捗はGETで見る。
+    // 既に実行中なら新たに起動せず、現在の進捗をそのまま返す(多重起動の防止)。
+    if (url.pathname === "/api/admin/geo-backfill" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      // 既定は「まだ展開されていないハンドだけ」。全件やり直したいときだけ onlyMissing=false。
+      const onlyMissing = body["onlyMissing"] !== false;
+      const alreadyRunning = geoBackfillState.running;
+      startGeoBackfill(onlyMissing);
+      sendJson(res, alreadyRunning ? 409 : 202, {
+        ok: !alreadyRunning,
+        alreadyRunning,
+        ...geoBackfillState,
+      });
       return true;
     }
 
