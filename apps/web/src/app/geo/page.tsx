@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -43,6 +43,24 @@ export default function GeoPage() {
   const [unlocked, setUnlocked] = useState(false);
   if (!unlocked) return <GeoComingSoon onUnlock={() => setUnlocked(true)} />;
   return <GeoDatabase />;
+}
+
+/** 読み込み開始からの経過秒。これ以上かかっているときだけ「時間がかかっています」に切り替える。 */
+const SLOW_HINT_AFTER_SEC = 3;
+
+/**
+ * 読み込み開始からの経過秒表示。毎秒のsetStateをこの葉コンポーネントに閉じ込め、
+ * 親(GeoDatabase)のツリー全体が毎秒再描画されないようにする(発熱・カクつき対策)。
+ */
+function ElapsedText({ startedAt }: { startedAt: number }) {
+  const [sec, setSec] = useState(() => Math.floor((Date.now() - startedAt) / 1000));
+  useEffect(() => {
+    setSec(Math.floor((Date.now() - startedAt) / 1000));
+    const timer = setInterval(() => setSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+  if (sec < SLOW_HINT_AFTER_SEC) return <span>読み込み中…</span>;
+  return <span>時間がかかっています…({sec}秒経過)</span>;
 }
 
 const FULL_PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
@@ -187,12 +205,48 @@ function GeoDatabase() {
    * 失敗したのかをそのまま保持し、待たせている間も画面に出す。
    */
   const [failure, setFailure] = useState<{ reason: string; detail: string; attempt: number } | null>(null);
+  /** 現在のリクエストを開始した時刻(経過秒の表示用)。応答が遅いことを待っている間に伝える。 */
+  const [requestStartedAt, setRequestStartedAt] = useState<number | null>(null);
+  /** 同じ条件で連続して失敗した回数。条件が変わるか成功したらリセットする。 */
+  const retryRoundRef = useRef(0);
+  /** 直前のリクエスト条件。pollTickによる再試行と、条件変更による新規取得を区別するために持つ。 */
+  const lastRequestKeyRef = useRef<string | null>(null);
+
+  // 条件(モード/スタック/ライン/ボード等)を一意に表す文字列。pollTickは含めない —
+  // これが変わったときだけ「新しい取得」とみなしてエラー表示をクリアする。
+  const requestKey = JSON.stringify([
+    mode,
+    stackBucket,
+    gtoStackBb,
+    bubbleStage,
+    street,
+    preflopLine,
+    board,
+    streetLines[street],
+    ratingFilter?.min,
+    ratingFilter?.max,
+    playerCount,
+    gtoPlayerCount,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
-    setFailure(null);
+    setRequestStartedAt(Date.now());
+    // 条件が変わった=新しい取得なので、前の条件で出したエラーは消す。
+    // 逆にpollTickによる再試行では消さない — 以前はここで無条件にクリアしていたため、
+    // 出したエラーが5秒後の再試行で勝手に消えてスピナーへ戻り、原因が読めなかった。
+    if (lastRequestKeyRef.current !== requestKey) {
+      lastRequestKeyRef.current = requestKey;
+      retryRoundRef.current = 0;
+      setError(null);
+      setFailure(null);
+      setReconnecting(false);
+    } else if (retryRoundRef.current > 0) {
+      // 失敗後のバックグラウンド再試行。スピナーを「再試行中(N回目)」にして、
+      // エラー表示と合わせて「今まさに復帰を試している」ことが分かるようにする。
+      setReconnecting(true);
+    }
 
     // GTOタブは実スタック選択(gtoStackBb)を band へ写像して送る。push/fold/Nashノード用に近い範囲バケットも併送。
     const gtoBand = GTO_STACK_TO_BAND[gtoStackBb];
@@ -227,64 +281,63 @@ function GeoDatabase() {
             ...(playerCount !== null ? { playerCount } : {}),
           });
 
-    // 取得は必ず自動リトライする。一時的な接続失敗(デプロイ中・コールドスタート・通信断)で
-    // ツリーが壊れたり「サーバーに接続できません」で操作不能になったりしないようにするため:
-    // - 成功するまで指数バックオフで最大6回再試行(この間はloading=trueで入力を凍結)。
-    // - それでも失敗したら node を破棄して、直前ノードへのアクション重複追加ループを断ち切り、
-    //   5秒後にeffectごと再実行してバックグラウンドで復帰し続ける(ユーザーは操作不能にならない)。
+    // 失敗したら「1回目で」原因を画面に出す。ここでリトライを重ねてから表示すると、
+    // 1回ぶんのタイムアウト(10秒)×回数ぶんだけ表示が遅れ、その間ユーザーには
+    // 「再試行中…」しか見えない=事実上フリーズ、という元の不具合に逆戻りするため。
+    // リトライは必ずバックグラウンドに回す:
+    // - 失敗を確定表示 → node を破棄(直前ノードへのアクション重複追加ループを断つ)
+    // - loading=false にして画面を凍結させない(ユーザーは操作・手動再試行ができる)
+    // - 5秒後にeffectごと再実行し、復帰するまでエラーを出したまま裏で試し続ける
     async function run() {
-      const MAX_ATTEMPTS = 6;
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (cancelled) return;
+      try {
+        const result = await makeRequest();
         if (cancelled) return;
-        try {
-          const result = await makeRequest();
-          if (cancelled) return;
-          setReconnecting(false);
-          setSolving(Boolean(result.solving));
-          if (result.solving) {
-            // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
-            setTimeout(() => {
-              if (!cancelled) setPollTick((t) => t + 1);
-            }, 3500);
-            return;
-          }
-          setNode(result.node);
-          setMatrix(result.matrix);
-          if (result.node.sampleSize > 0) setJustPickedBoard(false);
-          setError(null);
-          setFailure(null);
+        setReconnecting(false);
+        setSolving(Boolean(result.solving));
+        if (result.solving) {
+          // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
+          setTimeout(() => {
+            if (!cancelled) setPollTick((t) => t + 1);
+          }, 3500);
           return;
-        } catch (err) {
-          if (cancelled) return;
-          // 何が起きたかを必ず残す。GeoApiError なら原因種別・HTTPステータス・所要時間まで分かる。
-          const reason = err instanceof GeoApiError ? err.describe() : err instanceof Error ? err.message : String(err);
-          const detail =
-            err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-          setFailure({ reason, detail, attempt: attempt + 1 });
-          if (attempt < MAX_ATTEMPTS - 1) {
-            setReconnecting(true);
-            await new Promise((r) => setTimeout(r, Math.min(5000, 700 * 2 ** attempt)));
-          } else {
-            setNode(null);
-            setReconnecting(false);
-            setError(`${reason}（${MAX_ATTEMPTS}回試行。自動で再試行を続けます）`);
-            setTimeout(() => {
-              if (!cancelled) setPollTick((t) => t + 1);
-            }, 5000);
-          }
         }
+        setNode(result.node);
+        setMatrix(result.matrix);
+        if (result.node.sampleSize > 0) setJustPickedBoard(false);
+        retryRoundRef.current = 0;
+        setError(null);
+        setFailure(null);
+      } catch (err) {
+        if (cancelled) return;
+        // 何が起きたかを必ず残す。GeoApiError なら原因種別・HTTPステータス・所要時間まで分かる。
+        const reason = err instanceof GeoApiError ? err.describe() : err instanceof Error ? err.message : String(err);
+        const detail =
+          err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        const round = retryRoundRef.current + 1;
+        retryRoundRef.current = round;
+        setNode(null);
+        setReconnecting(false);
+        setFailure({ reason, detail, attempt: round });
+        setError(round === 1 ? reason : `${reason}(${round}回試行。自動で再試行を続けます)`);
+        setTimeout(() => {
+          if (!cancelled) setPollTick((t) => t + 1);
+        }, 5000);
       }
     }
 
     void run().finally(() => {
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+        setRequestStartedAt(null);
+      }
     });
 
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stackBucket, gtoStackBb, bubbleStage, street, preflopLine, board, streetLines[street], ratingFilter?.min, ratingFilter?.max, playerCount, gtoPlayerCount, pollTick]);
+  }, [requestKey, pollTick]);
 
   // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
   // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
@@ -578,14 +631,21 @@ function GeoDatabase() {
             <div className="rounded-2xl border border-navy-800 bg-navy-900 p-8 text-center text-sm text-navy-400">
               <div className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
-                {solving
-                  ? "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
-                  : reconnecting
-                  ? `接続を再試行中…(${failure?.attempt ?? 1}回目)`
-                  : "読み込み中…"}
+                {solving ? (
+                  "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
+                ) : reconnecting ? (
+                  `接続を再試行中…(${failure?.attempt ?? 1}回目)`
+                ) : requestStartedAt !== null ? (
+                  // 待たされていること自体を必ず伝える。無言のスピナーだけだと
+                  // 「進んでいるのか固まっているのか」が利用者にもこちらにも分からない。
+                  <ElapsedText startedAt={requestStartedAt} />
+                ) : (
+                  "読み込み中…"
+                )}
               </div>
-              {/* 待たせている間も理由を隠さない。「ずっと再試行中」の原因がその場で読める。 */}
-              {reconnecting && failure && (
+              {/* 待たせている間も理由を隠さない。「ずっと再試行中」の原因がその場で読める。
+                  上のエラーバナーに同じ内容が出ているときは重複させない。 */}
+              {reconnecting && failure && !error && (
                 <div className="mt-3 space-y-1 text-left">
                   <p className="text-[12px] leading-snug text-crimson-300">{failure.reason}</p>
                   <p className="font-mono text-[10px] leading-snug text-navy-500 break-all">{failure.detail}</p>

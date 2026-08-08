@@ -207,8 +207,10 @@ export class GeoApiError extends Error {
  *
  * 上限を設けていなかったため、サーバーが詰まって応答を返さないと fetch が永久に解決せず、
  * 画面が「接続を再試行中…」のまま何分でも固まっていた。打ち切って再試行するほうが速く復帰する。
+ * この値がそのまま「エラーが画面に出るまでの最長時間」になる(呼び出し側は1回目の失敗で
+ * 原因を表示し、以降の再試行はバックグラウンドで回すため)。
  */
-const REQUEST_TIMEOUT_MS = 12_000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 async function postJson<T>(path: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const startedAt = Date.now();
