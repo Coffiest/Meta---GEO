@@ -48,6 +48,29 @@ interface GeoBackfillStatus {
   error: string | null;
 }
 
+/**
+ * ポジション別の集まり具合(サーバーの /api/admin/geo-position-stats の応答)。
+ *
+ * 「プリフロップがUTGばかりで後ろのポジションが集まらない」の原因を切り分けるための計測。
+ * hands(重複なしのハンド数)が人数ごとに揃っていれば母集団は健全で、見え方の問題だと分かる。
+ */
+interface GeoPositionStats {
+  preflop: { position: string; playerCount: number; decisions: number; hands: number }[];
+  byStreet: { street: string; rows: number }[];
+  seats: { total: number; bot: number; human: number; humanAway: number; humanExcluded: number };
+  handsWithoutDecisions: number;
+  totalHands: number;
+}
+
+/** 人数ごとに、その卓で成立しうるポジションを前(早い)から順に並べたもの。 */
+const POSITIONS_BY_PLAYER_COUNT: Record<number, string[]> = {
+  2: ["BTN(SB)", "BB"],
+  3: ["UTG", "BTN", "SB", "BB"],
+  4: ["UTG", "BTN", "SB", "BB"],
+  5: ["UTG", "CO", "BTN", "SB", "BB"],
+  6: ["UTG", "HJ", "CO", "BTN", "SB", "BB"],
+};
+
 export default function AdminPage() {
   const [passcode, setPasscode] = useState<string | null>(null);
   const [gateNeeded, setGateNeeded] = useState(false);
@@ -65,6 +88,9 @@ export default function AdminPage() {
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
   const [geoBackfill, setGeoBackfill] = useState<GeoBackfillStatus | null>(null);
   const [geoBackfillBusy, setGeoBackfillBusy] = useState(false);
+  // ポジション別の集まり具合。重い集計ではないが、開いたときだけ取りに行く。
+  const [posStats, setPosStats] = useState<GeoPositionStats | null>(null);
+  const [posStatsOpen, setPosStatsOpen] = useState(false);
 
   const [geoRangeFor, setGeoRangeFor] = useState<string | null>(null);
   const [geoFrom, setGeoFrom] = useState("");
@@ -122,11 +148,30 @@ export default function AdminPage() {
     [],
   );
 
+  /** ポジション別の集まり具合を取得する。 */
+  const loadPosStats = useCallback(async (code: string) => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/geo-position-stats`, {
+        headers: { "x-admin-passcode": code },
+      });
+      if (!res.ok) return;
+      setPosStats((await res.json()) as GeoPositionStats);
+    } catch {
+      /* 一時的な通信断。開き直せば取り直す。 */
+    }
+  }, []);
+
   useEffect(() => {
     if (!passcode) return;
     const timer = setTimeout(() => void search(query, passcode), 300);
     return () => clearTimeout(timer);
   }, [query, passcode, search]);
+
+  // ポジション別の内訳は、パネルを開いたときにだけ取りに行く。
+  useEffect(() => {
+    if (!passcode || !posStatsOpen || posStats) return;
+    void loadPosStats(passcode);
+  }, [passcode, posStatsOpen, posStats, loadPosStats]);
 
   // GEO集計テーブルの状況。実行中だけ3秒ごとに追いかけ、終わったらポーリングを止める。
   useEffect(() => {
@@ -321,6 +366,118 @@ export default function AdminPage() {
                   {geoBackfill?.running ? "実行中…" : "再構築"}
                 </button>
               </div>
+            </div>
+
+            {/* ポジション別の集まり具合。「UTGばかり集まる」の原因切り分け用。 */}
+            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+              <div className="flex items-start gap-2.5">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-gold-600"
+                >
+                  <path d="M4 20V10" />
+                  <path d="M10 20V4" />
+                  <path d="M16 20v-7" />
+                  <path d="M22 20H2" />
+                </svg>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black text-ink-950">ポジション別の集まり具合</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                    プリフロップの意思決定を、卓の人数×ポジションで数えます。人数ごとに横並びの数字が
+                    おおむね揃っていれば母集団は健全です。特定のポジションだけ極端に少なければ、
+                    席の割り当てかボタン回転を疑います。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPosStatsOpen((v) => !v);
+                    if (posStatsOpen && passcode) setPosStats(null);
+                  }}
+                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                >
+                  {posStatsOpen ? "閉じる" : "内訳を見る"}
+                </button>
+              </div>
+
+              {posStatsOpen && !posStats && <p className="mt-2.5 text-[11px] text-ink-600">読み込み中…</p>}
+
+              {posStatsOpen && posStats && (
+                <div className="mt-3 space-y-3">
+                  {[6, 5, 4, 3, 2].map((pc) => {
+                    const order = POSITIONS_BY_PLAYER_COUNT[pc] ?? [];
+                    const rows = posStats.preflop.filter((r) => r.playerCount === pc);
+                    if (rows.length === 0) return null;
+                    // 表に載らないポジション名(想定外の値)も落とさず末尾に出す。
+                    const extra = rows.map((r) => r.position).filter((p) => !order.includes(p));
+                    const columns = [...order, ...new Set(extra)];
+                    const max = Math.max(...rows.map((r) => r.hands), 1);
+                    return (
+                      <div key={pc}>
+                        <p className="mb-1 text-[11px] font-black text-ink-800">{pc}人卓</p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[380px] border-collapse text-[11px] tabular-nums">
+                            <thead>
+                              <tr className="text-ink-500">
+                                {columns.map((p) => (
+                                  <th key={p} className="border-b border-ink-200 px-1.5 py-1 text-left font-bold">
+                                    {p}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                {columns.map((p) => {
+                                  const row = rows.find((r) => r.position === p);
+                                  const hands = row?.hands ?? 0;
+                                  // 最大の1/4を下回るポジションは、偏りの候補として色を変える。
+                                  const weak = hands < max / 4;
+                                  return (
+                                    <td
+                                      key={p}
+                                      className={`border-b border-ink-100 px-1.5 py-1 font-bold ${
+                                        weak ? "text-crimson-500" : "text-ink-900"
+                                      }`}
+                                    >
+                                      {hands.toLocaleString()}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="rounded-lg bg-ink-100 p-2.5 text-[11px] leading-relaxed text-ink-700">
+                    <p className="font-bold text-ink-900">母数の内訳</p>
+                    <p className="mt-0.5">
+                      席 {posStats.seats.total.toLocaleString()}（うち自動 {posStats.seats.bot.toLocaleString()} /
+                      実プレイヤー {posStats.seats.human.toLocaleString()}）
+                    </p>
+                    <p>
+                      集計から外れた実プレイヤー席: 離席 {posStats.seats.humanAway.toLocaleString()} / 除外{" "}
+                      {posStats.seats.humanExcluded.toLocaleString()}
+                    </p>
+                    <p>
+                      ハンド {posStats.totalHands.toLocaleString()}（うち意思決定が1件も無い{" "}
+                      {posStats.handsWithoutDecisions.toLocaleString()}）
+                    </p>
+                    <p className="mt-0.5">
+                      ストリート別:{" "}
+                      {posStats.byStreet.map((s) => `${s.street} ${s.rows.toLocaleString()}`).join(" / ")}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 検索 */}

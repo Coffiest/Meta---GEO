@@ -1165,3 +1165,94 @@ export async function backfillGeoDecisions(options?: {
 
   return { total, processed, rows };
 }
+
+// ---------------------------------------------------------------------------
+// ポジション別の偏りを測る診断
+//
+// 「GEOのプリフロップがUTGばかりで、BTN/SB/BBのデータが集まらない」という症状は、
+// 原因が3つに分かれる。数字を見ずに直すと的を外すので、切り分けられる形で測る。
+//
+//  (a) 母集団の偏り   — 人間が座るポジションそのものが偏っている(席割当・ボタン回転の問題)
+//  (b) 木構造による分散 — 母集団は均等でも、ラインを1段掘るごとにサンプルが枝分かれして減る。
+//                        後ろのポジションほど深い階層にあるので「集まっていない」ように見える
+//  (c) 卓人数による分断 — 6人卓のUTG/HJ/COと5人卓のUTG/COは別ラインになる。人数で絞らずに
+//                        見ると、同じ「BTN」でも到達に必要なラインが人数ごとに違う
+//
+// (a)なら実装を直す。(b)(c)は仕様なので、見せ方(人数の明示・到達しやすいライン)で解く。
+// ---------------------------------------------------------------------------
+
+/** ポジション×卓人数ごとの、プリフロップ意思決定の集まり具合。 */
+export interface GeoPositionStatRow {
+  position: string;
+  playerCount: number;
+  /** GeoDecision の行数(1ハンドで同じ人が複数回行動すれば複数行)。 */
+  decisions: number;
+  /** そのポジションで人間が行動したハンド数(重複なし)。母集団の偏りはこちらで見る。 */
+  hands: number;
+}
+
+/** 集計母数の内訳。ポジション偏りの原因が「そもそも集計対象外」かを切り分ける。 */
+export interface GeoPositionStats {
+  /** プリフロップのポジション×人数の内訳(hands の多い順)。 */
+  preflop: GeoPositionStatRow[];
+  /** ストリート別の行数(プリフロップ以外も含めた全体像)。 */
+  byStreet: { street: string; rows: number }[];
+  /** 席の内訳。人間席のうち、離席・管理者除外で集計から落ちた数。 */
+  seats: { total: number; bot: number; human: number; humanAway: number; humanExcluded: number };
+  /** GeoDecision が1行も無いハンド数。バックフィル漏れと「0行が正常」の区別に使う。 */
+  handsWithoutDecisions: number;
+  totalHands: number;
+}
+
+/**
+ * ポジション別の集まり具合を返す。
+ *
+ * `hands`(重複なしのハンド数)が人数ごとにおおむね揃っていれば母集団は健全で、
+ * 「UTGばかり」に見えるのは木構造(b)と人数分断(c)が理由だと判断できる。
+ * 逆にここが偏っていれば、席割当かボタン回転の実装を疑う。
+ */
+export async function getGeoPositionStats(): Promise<GeoPositionStats> {
+  const preflopRows = await prisma.$queryRaw<
+    { position: string; playerCount: number; decisions: bigint; hands: bigint }[]
+  >`
+    SELECT d."position"                        AS "position",
+           d."playerCount"                     AS "playerCount",
+           COUNT(*)                            AS "decisions",
+           COUNT(DISTINCT d."handId")          AS "hands"
+      FROM "GeoDecision" d
+      JOIN "HandSeat" s ON s."id" = d."handSeatId"
+     WHERE d."street" = 'preflop'
+       AND s."excludedFromGeo" = false
+     GROUP BY 1, 2
+     ORDER BY 4 DESC
+  `;
+
+  const streetRows = await prisma.$queryRaw<{ street: string; rows: bigint }[]>`
+    SELECT d."street" AS "street", COUNT(*) AS "rows"
+      FROM "GeoDecision" d
+     GROUP BY 1
+     ORDER BY 2 DESC
+  `;
+
+  const [total, bot, humanAway, humanExcluded, totalHands, handsWithDecisions] = await Promise.all([
+    prisma.handSeat.count(),
+    prisma.handSeat.count({ where: { user: { isBot: true } } }),
+    prisma.handSeat.count({ where: { user: { isBot: false }, wasAway: true } }),
+    prisma.handSeat.count({ where: { user: { isBot: false }, excludedFromGeo: true } }),
+    prisma.hand.count({ where: HUMAN_SEATED }),
+    prisma.hand.count({ where: { ...HUMAN_SEATED, decisions: { some: {} } } }),
+  ]);
+
+  return {
+    preflop: preflopRows.map((r) => ({
+      position: r.position,
+      playerCount: r.playerCount,
+      decisions: Number(r.decisions),
+      hands: Number(r.hands),
+    })),
+    byStreet: streetRows.map((r) => ({ street: r.street, rows: Number(r.rows) })),
+    seats: { total, bot, human: total - bot, humanAway, humanExcluded },
+    handsWithoutDecisions: totalHands - handsWithDecisions,
+    totalHands,
+  };
+}
