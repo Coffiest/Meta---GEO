@@ -168,39 +168,57 @@ function useDecisionTable(): boolean {
   return process.env["GEO_USE_DECISION_TABLE"] === "1";
 }
 
-/**
- * 全ハンド走査の途中でイベントループを他へ譲る間隔(ハンド数)。
- *
- * リプレイ経路の走査は同期処理なので、履歴が1万件規模になると1リクエストで数十秒
- * CPUを占有する。Nodeはシングルスレッドなので、その間サーバーは /health も
- * Socket.IO(対戦卓)も一切さばけなくなり、GEOを開くだけでアプリ全体が固まる。
- * 一定件数ごとに制御を返せば、GEO自体が速くなるわけではないが、GEOの重さが
- * 他の機能を巻き込んで止めることは無くなる。
- */
-const SCAN_YIELD_EVERY_HANDS = 200;
-
-/** マクロタスク境界まで制御を戻し、待たせている他のI/O・タイマーを進ませる。 */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    setImmediate(resolve);
-  });
-}
-
 /** BOTのみの卓は人間のサンプルを1つも生まないので、取得段階で落とす。 */
 const HUMAN_SEATED = { seats: { some: { user: { isBot: false } } } } as const;
 
 /**
  * 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
  * 採用するため、この順序が未指定(DB内部の物理格納順まかせ)だと本番でVACUUM等により
- * 結果が不安定になりうる。
+ * 結果が不安定になりうる。createdAt が同値のハンド同士でも順序が決まるよう、
+ * カーソルページング(下記 forEachRawHand)の要件も兼ねて id を第2キーに置く。
  */
-const RAW_HAND_ORDER = { createdAt: "asc" as const };
+const RAW_HAND_ORDER = [{ createdAt: "asc" as const }, { id: "asc" as const }];
 
-async function fetchRawHandsUncached() {
-  return prisma.hand.findMany({ where: HUMAN_SEATED, orderBy: RAW_HAND_ORDER, select: RAW_HAND_SELECT });
+/**
+ * 1回のクエリで読むハンド件数。
+ *
+ * 以前は該当ハンドを一度に全件メモリへ載せていた。本番のVMは 512MB しかないため、
+ * 履歴が1万件規模になった時点で読み込み中にOOMでプロセスごと落ち、Fly側は502を返していた。
+ * サーバーが再起動すると進行中の卓(インメモリ)も道連れになるため、GEOを開くだけで
+ * 対戦中のプレイヤーが飛ぶという最悪の壊れ方をしていた。
+ * ページ単位で読んで捨てれば、履歴が何件になってもメモリ使用量は一定に保てる。
+ */
+const HAND_PAGE_SIZE = 300;
+
+function fetchHandPage(where: Prisma.HandWhereInput, cursorId: string | null) {
+  return prisma.hand.findMany({
+    where,
+    orderBy: RAW_HAND_ORDER,
+    select: RAW_HAND_SELECT,
+    take: HAND_PAGE_SIZE,
+    ...(cursorId === null ? {} : { cursor: { id: cursorId }, skip: 1 }),
+  });
 }
 
-type RawHand = Awaited<ReturnType<typeof fetchRawHandsUncached>>[number];
+type RawHand = Awaited<ReturnType<typeof fetchHandPage>>[number];
+
+/**
+ * 条件に合うハンドを古い順に1件ずつ渡す。ページを読み終えるたびに前のページは捨てる。
+ *
+ * ページ境界の await が自然にイベントループを解放するので、走査中も他のリクエスト
+ * (ヘルスチェックや対戦卓のSocket.IO)がさばける。1ページ分のリプレイは同期処理だが、
+ * HAND_PAGE_SIZE 件ぶんなので占有時間は数十ms程度に収まる。
+ */
+async function forEachRawHand(where: Prisma.HandWhereInput, onHand: (hand: RawHand) => void): Promise<void> {
+  let cursorId: string | null = null;
+  for (;;) {
+    const page = await fetchHandPage(where, cursorId);
+    if (page.length === 0) return;
+    for (const hand of page) onHand(hand);
+    if (page.length < HAND_PAGE_SIZE) return;
+    cursorId = page[page.length - 1]!.id;
+  }
+}
 
 /** バブル段階の判定に必要なトーナメント単位の情報(ハンドごとではなくトーナメントごとに1件)。 */
 interface TournamentInfo {
@@ -230,12 +248,8 @@ function toTournamentMap(rows: { id: string; gameType: string; buyIn: number; en
  * 候補を絞る粗いフィルタとして使い、街ごとの厳密一致(board.slice(0,n)の完全一致)は
  * 呼び出し側で確認する。それでも、指定フロップに無関係なハンドの大半をDB側で落とせる。
  */
-async function fetchHandsForBoard(board: string[]) {
-  return prisma.hand.findMany({
-    where: { ...HUMAN_SEATED, board: { hasEvery: board } },
-    orderBy: RAW_HAND_ORDER,
-    select: RAW_HAND_SELECT,
-  });
+function boardWhere(board: string[]): Prisma.HandWhereInput {
+  return { ...HUMAN_SEATED, board: { hasEvery: board } };
 }
 
 /** 指定IDのトーナメント情報だけを取得する(板面で絞り込んだ少数のハンド用)。 */
@@ -245,61 +259,49 @@ async function fetchTournamentInfos(ids: string[]): Promise<Map<string, Tourname
   return toTournamentMap(rows);
 }
 
-/** GEO集計の入力一式。ハンド本体と、そのバブル段階判定に使うトーナメント情報。 */
-interface GeoDataset {
-  hands: RawHand[];
-  tournaments: Map<string, TournamentInfo>;
-}
-
-// 全ハンド走査は高コスト。棋譜解析は1トナメで多数の決定について同じ全ハンド集合を繰り返し
-// 参照するため、メモ化してDB往復を1回に集約する(GEOタブの連続操作にも効く)。
-const RAW_HANDS_TTL_MS = 60_000;
-let datasetCache: { at: number; data: GeoDataset } | null = null;
-/** 再構築中のPromise。同時アクセスで全件取得が多重に走るのを防ぐ(single-flight)。 */
-let datasetInFlight: Promise<GeoDataset> | null = null;
+/**
+ * トーナメント情報だけはメモ化する。
+ *
+ * ハンド本体と違い、トーナメントは「1トナメ1行 + 参加者の bustedAtHandNumber だけ」なので
+ * 全件持っても数百KB規模に収まる。一方でバブル段階の判定に全ハンドで参照されるため、
+ * ここをページごとに引き直すとDB往復が跳ねる。メモリが問題になるのはハンド側だけ。
+ */
+const TOURNAMENTS_TTL_MS = 60_000;
+let tournamentsCache: { at: number; data: Map<string, TournamentInfo> } | null = null;
+/** 再構築中のPromise。同時アクセスで多重に走るのを防ぐ(single-flight)。 */
+let tournamentsInFlight: Promise<Map<string, TournamentInfo>> | null = null;
 // テスト(vitest)は1プロセス内でDBを繰り返しseed→集計するため、キャッシュがstaleになり結果が壊れる。
 // テスト時はキャッシュを無効化し、常に最新を取得する(本番はTTLで有効)。
-const RAW_HANDS_CACHE_ENABLED = !process.env["VITEST"];
+const TOURNAMENTS_CACHE_ENABLED = !process.env["VITEST"];
 
-async function loadGeoDataset(): Promise<GeoDataset> {
-  const [hands, tournamentRows] = await Promise.all([
-    fetchRawHandsUncached(),
-    prisma.tournament.findMany({ select: TOURNAMENT_SELECT }),
-  ]);
-  return { hands, tournaments: toTournamentMap(tournamentRows) };
+async function loadAllTournaments(): Promise<Map<string, TournamentInfo>> {
+  return toTournamentMap(await prisma.tournament.findMany({ select: TOURNAMENT_SELECT }));
 }
 
-/**
- * GEO集計の入力を取得する。
- *
- * TTL内はそのまま返す。TTL切れの場合も **古い値を即座に返しつつ裏で1回だけ再構築** する
- * (stale-while-revalidate)。全件取得は重く、TTLが切れた瞬間のリクエストにその待ち時間を
- * 丸ごと被せると体感が跳ねるため。再構築中の重複呼び出しは同じPromiseを共有する。
- */
-async function fetchGeoDataset(): Promise<GeoDataset> {
-  if (!RAW_HANDS_CACHE_ENABLED) return loadGeoDataset();
+/** バブル段階の判定に使うトーナメント情報を返す(TTL付きメモ化)。 */
+async function fetchAllTournaments(): Promise<Map<string, TournamentInfo>> {
+  if (!TOURNAMENTS_CACHE_ENABLED) return loadAllTournaments();
 
-  const now = Date.now();
-  const cached = datasetCache;
-  if (cached && now - cached.at < RAW_HANDS_TTL_MS) return cached.data;
+  const cached = tournamentsCache;
+  if (cached && Date.now() - cached.at < TOURNAMENTS_TTL_MS) return cached.data;
 
-  if (!datasetInFlight) {
-    datasetInFlight = loadGeoDataset()
+  if (!tournamentsInFlight) {
+    tournamentsInFlight = loadAllTournaments()
       .then((data) => {
-        datasetCache = { at: Date.now(), data };
+        tournamentsCache = { at: Date.now(), data };
         return data;
       })
       .finally(() => {
-        datasetInFlight = null;
+        tournamentsInFlight = null;
       });
   }
   // 古い値があるなら待たずに返す(裏で更新中)。無ければ完成を待つ。
-  return cached ? cached.data : datasetInFlight;
+  return cached ? cached.data : tournamentsInFlight;
 }
 
 /** キャッシュを明示的に破棄する(直近のプレイ/管理者の除外操作を即時反映したい場合)。 */
 export function clearRawHandsCache(): void {
-  datasetCache = null;
+  tournamentsCache = null;
 }
 
 /** そのハンド時点で生存していた参加者数(バスト済みでない人数)を数える。 */
@@ -548,16 +550,13 @@ export async function getPreflopNode(params: {
     });
   }
 
-  const [dataset, ratingOk] = await Promise.all([fetchGeoDataset(), buildRatingFilter(params.ratingRange)]);
-  const { hands, tournaments } = dataset;
+  const [tournaments, ratingOk] = await Promise.all([fetchAllTournaments(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedDecision[] = [];
   let expectedPosition: string | null = null;
 
-  let scanned = 0;
-  for (const hand of hands) {
-    if (++scanned % SCAN_YIELD_EVERY_HANDS === 0) await yieldToEventLoop();
-    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
-    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
+  await forEachRawHand(HUMAN_SEATED, (hand) => {
+    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) return;
+    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) return;
     // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
     // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
@@ -565,18 +564,18 @@ export async function getPreflopNode(params: {
         .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
         .map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (countedSeats.size === 0) continue;
+    if (countedSeats.size === 0) return;
 
     const decisions = replayPreflopDecisions(hand, countedSeats);
-    if (!linesMatch(decisions, params.line)) continue;
+    if (!linesMatch(decisions, params.line)) return;
     const next = decisions[params.line.length];
-    if (!next) continue;
+    if (!next) return;
     // 一致した最初のハンドの値を採用する(全ての正常な6-maxハンドはここで一致するはずなので、
     // 後続のハンドで無条件に上書きすると、万一データに異常のあるハンドが1件混ざっただけで
     // 正しい大多数の結果が塗り替えられてしまう)。
     if (expectedPosition === null) expectedPosition = next.position;
     if (next.isCounted) nextDecisions.push(next);
-  }
+  });
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
 }
@@ -728,22 +727,16 @@ export async function getPostflopNode(params: {
   // 板面の絞り込みはDB側で行う。指定フロップに一致するハンドは全履歴のごく一部(多くはゼロ件)
   // なのに、以前は全ハンドを読み出してからJSで捨てていた。ここが効くとポストフロップは
   // 履歴の総量にほとんど依存しなくなる。
-  const [hands, ratingOk] = await Promise.all([
-    fetchHandsForBoard(params.board),
-    buildRatingFilter(params.ratingRange),
-  ]);
-  const tournaments = await fetchTournamentInfos([...new Set(hands.map((h) => h.tournamentId))]);
+  const [tournaments, ratingOk] = await Promise.all([fetchAllTournaments(), buildRatingFilter(params.ratingRange)]);
   const nextDecisions: ReplayedPostflopDecision[] = [];
   let expectedPosition: string | null = null;
 
-  let scanned = 0;
-  for (const hand of hands) {
-    if (++scanned % SCAN_YIELD_EVERY_HANDS === 0) await yieldToEventLoop();
-    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) continue;
-    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) continue;
-    if (hand.board.length < requiredBoardLen) continue;
+  await forEachRawHand(boardWhere(params.board), (hand) => {
+    if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) return;
+    if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) return;
+    if (hand.board.length < requiredBoardLen) return;
     // hasEvery は順序を保証しないため、街ごとの厳密一致はここで確認する。
-    if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) continue;
+    if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) return;
 
     // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
     // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
@@ -752,24 +745,24 @@ export async function getPostflopNode(params: {
         .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
         .map((s) => [s.seatIndex, s.holeCards]),
     );
-    if (countedSeats.size === 0) continue;
+    if (countedSeats.size === 0) return;
 
     const preflopDecisions = replayPreflopDecisions(hand, countedSeats);
-    if (!linesMatch(preflopDecisions, params.preflopLine)) continue;
+    if (!linesMatch(preflopDecisions, params.preflopLine)) return;
 
     // フォールド済み座席は「実際のハンドで起きた全プリフロップフォールド」を対象にする
     // (要求ラインの範囲内だけではない。ライン一致判定と実際のゲーム進行は別物)。
     const foldedSeats = new Set(preflopDecisions.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
     const allPostflop = replayPostflopDecisions(hand, countedSeats, foldedSeats);
     const streetDecisions = allPostflop.filter((d) => d.street === params.street);
-    if (!linesMatch(streetDecisions, params.postflopLine)) continue;
+    if (!linesMatch(streetDecisions, params.postflopLine)) return;
 
     const next = streetDecisions[params.postflopLine.length];
-    if (!next) continue;
+    if (!next) return;
     // getPreflopNodeと同じ理由で、最初に一致したハンドの値のみ採用する。
     if (expectedPosition === null) expectedPosition = next.position;
     if (next.isCounted) nextDecisions.push(next);
-  }
+  });
 
   return buildNodeFromDecisions(nextDecisions, params.stackBucket, expectedPosition);
 }
