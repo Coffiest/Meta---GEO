@@ -1,267 +1,192 @@
 /**
- * アプリ唯一のアイコン入口。
+ * アプリ唯一のアイコン入口。絵柄は **Phosphor Icons 1本** に統一している。
  *
  * 以前は各コンポーネントが `<svg viewBox="0 0 24 24">` を直書きしており、33ファイル・101箇所に
  * 散らばっていた。線幅が 1.6 / 1.7 / 1.8 / 2 / 2.2 / 2.4 / 2.6 とばらばらで、同じ意味のアイコン
- * (矢印・情報・トロフィー等)が場所ごとに微妙に違う絵柄になっていた。ここへ集約し、
- * 名前で引く形にすることで見た目を1箇所で揃える。
+ * (矢印・情報・トロフィー等)が場所ごとに微妙に違う絵柄になっていた。ここへ集約する。
  *
- * 絵柄の出所は3つ。CLAUDE.md の「アイコンはSVG(ストローク/モノクロ)、絵文字禁止」に沿う。
+ * なぜ Phosphor 1本なのか(Iconoir / Hugeicons と比較して):
+ *  - **ポーカー固有の絵柄を持つ唯一のセット**。PokerChip / Cards / Spade があり、
+ *    このアプリの主題をそのまま描ける。Iconoir にはどれも無い
+ *  - **ブランドマークを持つ**。共有(X)・ログイン(Apple)・導線(Instagram)に必要で、
+ *    これも Iconoir には無い
+ *  - **太さが6段階**(thin/light/regular/bold/fill/duotone)。強弱を別ファミリーで作らずに
+ *    済むので、光学サイズがばらつかない
  *
- *  - Iconoir(基本) — 24pxグリッド・線画で、従来の自作SVGと重心がほぼ同じ。UIのほぼ全て
- *  - Phosphor      — Iconoir に無い絵柄だけ(ポーカーチップ・トランプ・チケット・ブランドマーク)
- *  - Hugeicons     — 訴求面の見出しで、面を持つ Duotone を使って階層をつける箇所のみ
- *
- * 同じ行や同じクラスタの中で複数ファミリーを混ぜないこと(光学サイズがばらつく)。
+ * 複数セットを混ぜると、同じ大きさでも線の太さと角の丸みが揃わず寄せ集めに見える。
+ * 1セットに絞ることが見た目の統一に一番効く。
  */
-import type { ComponentType, SVGProps } from "react";
 import {
+  AppleLogo,
+  ArrowClockwise,
+  ArrowLineUp,
   ArrowRight,
+  Backspace,
   Bell,
-  ChatBubble,
+  Cards,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  ChartBar,
+  ChatCircleDots,
   Check,
   Clock,
-  ClockRotateRight,
+  ClockCounterClockwise,
   Coins,
   Copy,
   Database,
+  DotsThreeVertical,
+  Envelope,
   Eye,
-  Filter,
   Folder,
-  GraphUp,
-  Community,
-  Home,
-  InfoCircle,
+  Funnel,
+  Gear,
+  House,
+  Info,
+  InstagramLogo,
+  Lightbulb,
+  List,
   Lock,
-  Mail,
+  MagnifyingGlass,
   Medal,
-  Menu,
-  MultiplePages,
   Minus,
-  MoreVert,
-  NavArrowDown,
-  NavArrowLeft,
-  NavArrowRight,
+  PaperPlaneTilt,
   Pause,
   Play,
   Plus,
-  Refresh,
-  Search,
-  Send,
-  Settings,
-  ShareAndroid,
+  PokerChip,
+  ShareNetwork,
+  Stack,
   Star,
-  StatsUpSquare,
-  Suggestion,
-  Table2Columns,
+  Table,
+  Ticket,
+  TrendUp,
   Trophy,
-  Upload,
   User,
   UserPlus,
+  UsersThree,
+  Warning,
   WarningCircle,
-  WarningTriangle,
-  Xmark,
-} from "iconoir-react";
-import {
-  AppleLogo,
-  Backspace,
-  Cards,
-  InstagramLogo,
-  PokerChip,
-  Ticket,
+  X,
   XLogo,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Icon as PhosphorGlyph } from "@phosphor-icons/react";
 
-/**
- * 絵柄コンポーネント。
- *
- * Iconoir は素の SVG プロパティを取る。Phosphor はそれに加えて太さを決める `weight` を取るので、
- * 両方を受けられる形にしておく(呼び分けは Icon 側で行う)。
- */
-type IconoirGlyph = ComponentType<SVGProps<SVGSVGElement>>;
-
-/**
- * 名前 → 絵柄。
- *
- * `solid` を持つ名前は `filled` で塗り表現に切り替わる(お気に入りの星など)。
- * `phosphor` は Phosphor 由来で、viewBox が 256 のため線幅の指定単位が Iconoir と異なる。
- */
-type Entry =
-  | { glyph: IconoirGlyph; phosphor?: false }
-  /** Phosphor 製。太さは weight で決まるので、fill/stroke を外から渡してはいけない。 */
-  | { glyph: PhosphorGlyph; phosphor: true };
-
 const REGISTRY = {
   // --- ナビゲーション / 画面移動 ---
-  home: { glyph: Home },
-  stats: { glyph: StatsUpSquare },
-  trophy: { glyph: Trophy },
-  layers: { glyph: MultiplePages },
-  history: { glyph: ClockRotateRight },
-  seat: { glyph: User },
-  settings: { glyph: Settings },
-  db: { glyph: Database },
-  star: { glyph: Star },
-  menu: { glyph: Menu },
-  more: { glyph: MoreVert },
+  home: House,
+  stats: ChartBar,
+  trophy: Trophy,
+  layers: Stack,
+  seat: User,
+  settings: Gear,
+  db: Database,
+  star: Star,
+  menu: List,
+  more: DotsThreeVertical,
+  history: ClockCounterClockwise,
 
   // --- 方向 ---
-  "arrow-right": { glyph: ArrowRight },
-  "chevron-right": { glyph: NavArrowRight },
-  "chevron-left": { glyph: NavArrowLeft },
-  "chevron-down": { glyph: NavArrowDown },
-  "arrow-up": { glyph: Upload },
+  "arrow-right": ArrowRight,
+  "chevron-right": CaretRight,
+  "chevron-left": CaretLeft,
+  "chevron-down": CaretDown,
+  "arrow-up": ArrowLineUp,
 
   // --- 操作 ---
-  check: { glyph: Check },
-  close: { glyph: Xmark },
-  plus: { glyph: Plus },
-  minus: { glyph: Minus },
-  search: { glyph: Search },
-  copy: { glyph: Copy },
-  refresh: { glyph: Refresh },
-  play: { glyph: Play },
-  filter: { glyph: Filter },
-  send: { glyph: Send },
-  pause: { glyph: Pause },
-  backspace: { glyph: Backspace, phosphor: true },
+  check: Check,
+  close: X,
+  plus: Plus,
+  minus: Minus,
+  search: MagnifyingGlass,
+  copy: Copy,
+  refresh: ArrowClockwise,
+  play: Play,
+  pause: Pause,
+  filter: Funnel,
+  send: PaperPlaneTilt,
+  backspace: Backspace,
 
   // --- 状態 / 通知 ---
-  info: { glyph: InfoCircle },
-  warning: { glyph: WarningTriangle },
-  error: { glyph: WarningCircle },
-  bell: { glyph: Bell },
-  clock: { glyph: Clock },
-  eye: { glyph: Eye },
-  lock: { glyph: Lock },
-  chat: { glyph: ChatBubble },
-  mail: { glyph: Mail },
-  idea: { glyph: Suggestion },
+  info: Info,
+  error: WarningCircle,
+  warning: Warning,
+  bell: Bell,
+  clock: Clock,
+  eye: Eye,
+  lock: Lock,
+  chat: ChatCircleDots,
+  mail: Envelope,
+  idea: Lightbulb,
 
   // --- 人 ---
-  user: { glyph: User },
-  "user-plus": { glyph: UserPlus },
-  group: { glyph: Community },
+  user: User,
+  "user-plus": UserPlus,
+  group: UsersThree,
 
   // --- 数値 / 分析 ---
-  "graph-up": { glyph: GraphUp },
-  "bar-chart": { glyph: StatsUpSquare },
-  table: { glyph: Table2Columns },
-  share: { glyph: ShareAndroid },
-  medal: { glyph: Medal },
+  "graph-up": TrendUp,
+  "bar-chart": ChartBar,
+  table: Table,
+  share: ShareNetwork,
+  medal: Medal,
 
-  // --- ポーカー固有(Iconoir に無いので Phosphor) ---
-  chip: { glyph: PokerChip, phosphor: true },
-  cards: { glyph: Cards, phosphor: true },
+  // --- ポーカー / 物品 ---
+  chip: PokerChip,
+  cards: Cards,
+  coins: Coins,
+  ticket: Ticket,
+  folder: Folder,
 
-  // --- その他 ---
-  coins: { glyph: Coins },
-  ticket: { glyph: Ticket, phosphor: true },
-  folder: { glyph: Folder },
-
-  // --- ブランドマーク(Phosphor のロゴセット) ---
-  "logo-x": { glyph: XLogo, phosphor: true },
-  "logo-instagram": { glyph: InstagramLogo, phosphor: true },
-  "logo-apple": { glyph: AppleLogo, phosphor: true },
-} as const satisfies Record<string, Entry>;
+  // --- ブランドマーク ---
+  "logo-x": XLogo,
+  "logo-instagram": InstagramLogo,
+  "logo-apple": AppleLogo,
+} as const satisfies Record<string, PhosphorGlyph>;
 
 /** 使えるアイコン名。存在しない名前は `tsc` で落ちる(以前は実行時に無言で空になっていた)。 */
 export type IconName = keyof typeof REGISTRY;
 
-/**
- * Iconoir の線幅。従来の自作SVGが 1.8 だったので、Iconoir の既定(1.5)ではなく 1.8 に揃えて
- * 重心を保つ。
- *
- * Phosphor はここでは指定しない。Phosphor のアイコンは太さを `weight` で切り替える設計で、
- * 外から fill="none" stroke=... を渡すと本来の描き分けを壊して塗り潰しになってしまう
- * (実際、ポーカーチップとチケットが真っ黒な面になっていた)。太さは weight="regular" に任せる。
- */
-const STROKE_ICONOIR = 1.8;
+/** ブランドマークは輪郭ではなく面で描くもの。線画で出すと別物に見える。 */
+const BRAND_NAMES: ReadonlySet<string> = new Set(["logo-x", "logo-instagram", "logo-apple"]);
+
+export type IconWeight = "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
 
 export function Icon({
   name,
   className = "h-5 w-5",
   filled = false,
-  strokeWidth,
-  ...rest
+  weight,
 }: {
   name: IconName;
   className?: string;
-  /** 塗りつぶし表現(お気に入りの星、ブランドマークなど)。 */
+  /** 塗りつぶし表現(お気に入りの星など)。ブランドマークは指定不要で常に塗り。 */
   filled?: boolean;
-  /** 既定の線幅を上書きしたいときだけ渡す。 */
-  strokeWidth?: number;
-} & Omit<SVGProps<SVGSVGElement>, "name" | "className" | "filled" | "strokeWidth">) {
-  const entry: Entry = REGISTRY[name];
-
-  // Phosphor は自前の描画に任せる(weight で太さが決まる)。ブランドマークだけは面で描く。
-  if (entry.phosphor) {
-    const Glyph = entry.glyph;
-    return (
-      <Glyph
-        className={className}
-        weight={name.startsWith("logo-") || filled ? "fill" : "regular"}
-        aria-hidden
-        {...rest}
-      />
-    );
-  }
-
-  const Glyph = entry.glyph;
-  if (filled) {
-    return <Glyph className={className} fill="currentColor" stroke="none" aria-hidden {...rest} />;
-  }
-
-  return (
-    <Glyph
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth ?? STROKE_ICONOIR}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      {...rest}
-    />
-  );
+  /** 太さの上書き。既定は "regular"。強調したい箇所だけ "bold" / "duotone" を渡す。 */
+  weight?: IconWeight;
+  /** アイコンの色は親の text-* から currentColor で継承する(個別指定は不要)。 */
+  style?: React.CSSProperties;
+}) {
+  const Glyph = REGISTRY[name];
+  const resolved: IconWeight = weight ?? (filled || BRAND_NAMES.has(name) ? "fill" : "regular");
+  return <Glyph className={className} weight={resolved} aria-hidden />;
 }
 
-// ---------------------------------------------------------------------------
-// 訴求面の見出しアイコン(Hugeicons)
-//
-// 上の Icon が線1本の均質な絵柄なのに対し、こちらは面を持つ Duotone。
-// 「この1つだけ大きく出す」箇所でだけ使い、階層をつける。本文中の小さいアイコンには
-// 使わないこと(同じ大きさで線画と混ざると、面のぶんだけ重く見えて揃わない)。
-// ---------------------------------------------------------------------------
-import { HugeiconsIcon } from "@hugeicons/react";
-import { AnalyticsUpIcon, Award01Icon, Rocket01Icon } from "@hugeicons/core-free-icons";
-
-const HERO_ICONS = {
-  analytics: AnalyticsUpIcon,
-  award: Award01Icon,
-  rocket: Rocket01Icon,
-} as const;
-
-export type HeroIconName = keyof typeof HERO_ICONS;
-
-/** 訴求面の見出しに置く大きめのアイコン。既定 40px。 */
+/**
+ * 訴求面の見出しに置く大きめのアイコン。
+ *
+ * 本文中と同じ絵柄のまま太さだけ duotone(面+線)にして階層をつける。
+ * 別ファミリーを持ち込まずに強弱を作れるのが、Phosphor 1本に寄せた理由のひとつ。
+ */
 export function HeroIcon({
   name,
-  size = 40,
+  size = 30,
   className = "",
 }: {
-  name: HeroIconName;
+  name: IconName;
   size?: number;
   className?: string;
 }) {
-  return (
-    <HugeiconsIcon
-      icon={HERO_ICONS[name]}
-      size={size}
-      strokeWidth={1.6}
-      className={className}
-      aria-hidden
-    />
-  );
+  const Glyph = REGISTRY[name];
+  return <Glyph size={size} weight="duotone" className={className} aria-hidden />;
 }

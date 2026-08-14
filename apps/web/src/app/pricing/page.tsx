@@ -70,7 +70,7 @@ export default function PricingPage() {
 
         {/* 見出しの主張を1段上げるための大きめアイコン。ここだけ Hugeicons(面のある絵柄)を使う。 */}
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-950 text-gold-500">
-          <HeroIcon name="analytics" size={30} />
+          <HeroIcon name="graph-up" size={30} />
         </span>
         <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gold-600">Subscription</p>
         <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-ink-950">
