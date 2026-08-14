@@ -13,30 +13,21 @@ import {
 /** 友達招待の導線を示すグリフ(人物+プラス)。絵文字は使わずSVGで統一する。 */
 function InviteGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
-      <circle cx="9" cy="8" r="3.4" />
-      <path d="M3 20v-1a5.5 5.5 0 0 1 5.5-5.5h1A5.5 5.5 0 0 1 15 19v1" strokeLinecap="round" />
-      <path d="M18.5 7.5v5M16 10h5" strokeLinecap="round" />
-    </svg>
+    <Icon name="user-plus" className={className} />
   );
 }
 
 /** 獲得したクーポンを示すグリフ(切り欠きのあるチケット)。 */
 function RewardGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
-      <path d="M3 9V6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V9a3 3 0 0 0 0 6v2.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5V15a3 3 0 0 0 0-6Z" />
-      <path d="M12 9.5v5" strokeLinecap="round" strokeDasharray="1.6 2.2" />
-    </svg>
+    <Icon name="ticket" className={className} />
   );
 }
 
 /** X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */
 function XLogo({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-    </svg>
+    <Icon name="logo-x" className={className} />
   );
 }
 
@@ -48,6 +39,7 @@ function XLogo({ className = "h-4 w-4" }: { className?: string }) {
  * まだ誰の招待も受けていないユーザーには、招待コードの手入力欄も出す。
  */
 import { ReportErrorButton } from "./ReportErrorButton";
+import { Icon } from "./Icon";
 
 export function InviteCard({ accessToken }: { accessToken?: string }) {
   const { t } = useI18n();

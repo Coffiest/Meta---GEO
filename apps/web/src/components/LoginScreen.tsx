@@ -36,38 +36,26 @@ function GoogleIcon() {
 
 function AppleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-white">
-      <path d="M16.98 12.83c.03 3.02 2.65 4.03 2.68 4.04-.02.07-.42 1.44-1.38 2.85-.83 1.22-1.7 2.43-3.06 2.46-1.34.02-1.77-.8-3.3-.8-1.53 0-2 .77-3.27.82-1.31.05-2.31-1.32-3.15-2.53C3.78 17.18 2.47 12.66 4.23 9.6c.88-1.53 2.44-2.5 4.14-2.52 1.29-.02 2.51.87 3.3.87.79 0 2.27-1.07 3.83-.92.65.03 2.48.26 3.66 1.99-.1.06-2.19 1.28-2.18 3.81ZM14.46 5.4c.7-.85 1.17-2.03 1.04-3.2-1.01.04-2.22.67-2.94 1.51-.65.75-1.21 1.95-1.06 3.1 1.12.09 2.26-.57 2.96-1.41Z" />
-    </svg>
+    <Icon name="logo-apple" className="h-[18px] w-[18px] fill-white" />
   );
 }
 
 /** 機能アイコン(モノクロ・ストローク。Swissらしく最小限の線で構成)。 */
 function TrophyIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <path d="M6 4h12v4a6 6 0 0 1-12 0V4Z" />
-      <path d="M6 6H3v1a3 3 0 0 0 3 3M18 6h3v1a3 3 0 0 1-3 3" />
-      <path d="M12 14v3M9 21h6M10 21v-1.5a2 2 0 0 1 4 0V21" />
-    </svg>
+    <Icon name="trophy" className="h-5 w-5" />
   );
 }
 
 function MatrixIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" className="h-5 w-5">
-      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
-      <path d="M9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17" />
-    </svg>
+    <Icon name="cards" className="h-5 w-5" />
   );
 }
 
 function ChartIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <path d="M4 20V4M20 20H4" />
-      <path d="M8 20v-5M12 20V9M16 20v-8" />
-    </svg>
+    <Icon name="bar-chart" className="h-5 w-5" />
   );
 }
 
@@ -99,6 +87,7 @@ const item: Variants = {
  * その下に流れるキーワード帯・機能インデックスでアプリの価値を提示する。
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
 import { ReportErrorButton } from "./ReportErrorButton";
+import { Icon } from "./Icon";
 
 export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
@@ -210,10 +199,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             <div>
               <div className="flex justify-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold-500">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth={1.8} className="h-6 w-6">
-                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                    <path d="m3 7 9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <Icon name="mail" className="h-6 w-6" />
                 </span>
               </div>
               <h2 className="mt-3 text-center text-lg font-extrabold tracking-tight">確認メールを送信しました</h2>
@@ -225,10 +211,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
               {/* iCloud/迷惑メールの注意。確認メールが届かないケースが多いため、待つ前に明示する。 */}
               <div className="mt-4 flex gap-2.5 rounded-xl border border-gold-500/30 bg-gold-500/[0.06] px-3.5 py-3">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 8h.01M11 12h1v4h1" />
-                </svg>
+                <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
                 <div className="text-[11px] leading-relaxed text-ink-700">
                   <span className="font-bold text-ink-950">{t("login.emailNotice.title")}</span>
                   <span className="mt-0.5 block">{t("login.emailNotice.body")}</span>
@@ -387,10 +370,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               ログインを案内する。 */}
           {mode !== "login" && (
             <div className="mt-4 flex gap-2.5 rounded-xl border border-gold-500/30 bg-gold-500/[0.06] px-3.5 py-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8h.01M11 12h1v4h1" />
-              </svg>
+              <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
               <div className="text-[11px] leading-relaxed text-ink-700">
                 <span className="font-bold text-ink-950">{t("login.emailNotice.title")}</span>
                 <span className="mt-0.5 block">{t("login.emailNotice.body")}</span>

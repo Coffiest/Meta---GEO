@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Icon } from "./Icon";
 
 /**
  * 4桁パスコード入力モーダル(GEO近日公開画面の隠しゲートと同じ意匠)。
@@ -103,10 +104,7 @@ export function PasscodeModal({
             aria-label="1文字削除"
             className="flex cursor-pointer items-center justify-center rounded-2xl py-3 text-ink-500 transition-transform active:scale-90"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-              <path d="M9 5h11v14H9l-6-7 6-7Z" strokeLinejoin="round" />
-              <path d="m13 9 4 6m0-6-4 6" strokeLinecap="round" />
-            </svg>
+            <Icon name="backspace" className="h-5 w-5" />
           </button>
         </div>
       </motion.div>

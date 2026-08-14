@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Icon } from "./Icon";
 
 const SEEN_KEY = "pokerart.tour.v1.seen";
 
@@ -35,64 +36,40 @@ function detectPlatform(): Platform {
 
 function ShareIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-5 w-5">
-      <path d="M12 3v12" strokeLinecap="round" />
-      <path d="m8 7 4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Icon name="arrow-up" className="h-5 w-5" />
   );
 }
 
 function MenuDotsIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-      <circle cx="12" cy="5" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="12" cy="19" r="1.8" />
-    </svg>
+    <Icon name="more" className="h-5 w-5" />
   );
 }
 
 /** タブ/機能インデックスのアイコン。ロゴ画像内では絵文字を使わずSVGのみ。 */
 function HomeIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <path d="M3 11.5 12 4l9 7.5" />
-      <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" />
-    </svg>
+    <Icon name="home" className="h-5 w-5" />
   );
 }
 function StatsIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-    </svg>
+    <Icon name="bar-chart" className="h-5 w-5" />
   );
 }
 function LayersIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className="h-5 w-5">
-      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-      <path d="m3 13 9 5 9-5" />
-    </svg>
+    <Icon name="layers" className="h-5 w-5" />
   );
 }
 function TrophyIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <path d="M6 4h12v4a6 6 0 0 1-12 0V4Z" />
-      <path d="M6 6H3v1a3 3 0 0 0 3 3M18 6h3v1a3 3 0 0 1-3 3" />
-      <path d="M12 14v3M9 21h6M10 21v-1.5a2 2 0 0 1 4 0V21" />
-    </svg>
+    <Icon name="trophy" className="h-5 w-5" />
   );
 }
 function DatabaseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      <ellipse cx="12" cy="5" rx="8" ry="3" />
-      <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
-      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-    </svg>
+    <Icon name="db" className="h-5 w-5" />
   );
 }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Icon } from "../Icon";
 
 /**
  * GEO DATABASE の使い方チュートリアル(スワイプ式)。
@@ -35,35 +36,22 @@ export function markGeoGuideSeen(): void {
 // ---- スライドで使うSVGアイコン(絵文字禁止のためストロークSVGで実装) ----
 function RecordIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-      <ellipse cx="12" cy="5" rx="8" ry="3" />
-      <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
-      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-    </svg>
+    <Icon name="db" className="h-6 w-6" />
   );
 }
 function GridIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
-    </svg>
+    <Icon name="table" className="h-6 w-6" />
   );
 }
 function RouteIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-      <circle cx="6" cy="19" r="2.5" />
-      <circle cx="18" cy="5" r="2.5" />
-      <path d="M8.5 19H14a3.5 3.5 0 0 0 0-7H10a3.5 3.5 0 0 1 0-7h5.5" />
-    </svg>
+    <Icon name="share" className="h-6 w-6" />
   );
 }
 function FilterIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-      <path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z" />
-    </svg>
+    <Icon name="filter" className="h-6 w-6" />
   );
 }
 

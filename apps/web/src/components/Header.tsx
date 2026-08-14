@@ -1,5 +1,7 @@
 "use client";
 
+import { Icon } from "./Icon";
+
 /**
  * アプリ全体で共有するヘッダー。RRPoker(components/HomeHeader.tsx)のヘッダーと
  * 全く同じ寸法・デザインパターンに揃えている: sticky+リキッドグラス(背景ぼかし+彩度強調)の
@@ -92,8 +94,6 @@ export function HeaderIconButton({
 
 export function HamburgerIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
-      <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-    </svg>
+    <Icon name="menu" className={className} />
   );
 }

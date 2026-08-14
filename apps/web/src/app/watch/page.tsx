@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n";
 import { APP_VERSION } from "@/lib/version";
+import { Icon } from "@/components/Icon";
 
 /**
  * 観戦(配信者)ページ。ログイン不要で「いま何人が戦っているのか」が見られる。
@@ -30,9 +31,7 @@ interface LiveStatus {
 
 function XLogo({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-    </svg>
+    <Icon name="logo-x" className={className} />
   );
 }
 

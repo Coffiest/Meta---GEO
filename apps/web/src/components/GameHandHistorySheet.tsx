@@ -12,31 +12,19 @@ import {
   type HandTimeline,
   type LiveHandHistoryRow,
 } from "@/lib/reviewApi";
+import { Icon } from "./Icon";
 
 /** Xのロゴ(絵文字は使わずSVGで描画する)。 */
 function XLogo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-    </svg>
+    <Icon name="logo-x" className={className} />
   );
 }
 
 /** 行の展開状態を示すシェブロン(下向き→展開時は上向き)。 */
 function Chevron({ open, className = "h-3.5 w-3.5" }: { open: boolean; className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`${className} transition-transform ${open ? "rotate-180" : ""}`}
-      aria-hidden="true"
-    >
-      <path d="M6 9l6 6 6-6" />
-    </svg>
+    <Icon name="chevron-down" className={`${className} transition-transform ${open ? "rotate-180" : ""}`} />
   );
 }
 

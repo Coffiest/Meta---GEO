@@ -6,6 +6,7 @@ import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import type { TimeBankInfo } from "@/lib/socket";
 import { useI18n } from "@/lib/i18n";
+import { Icon } from "./Icon";
 
 interface Preset {
   label: string;
@@ -43,9 +44,7 @@ function CheckFoldIcon({ className = "h-4 w-4" }: { className?: string }) {
 /** 離席(away)のアイコン。一時停止(pause)を表すモノクロSVG。 */
 function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className}>
-      <path d="M9 5v14M15 5v14" />
-    </svg>
+    <Icon name="pause" className={className} />
   );
 }
 
@@ -430,9 +429,7 @@ export function ActionBar({
             aria-label={t("action.betMinus")}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
+            <Icon name="minus" className="h-4 w-4" />
           </button>
           <input
             type="text"
@@ -453,9 +450,7 @@ export function ActionBar({
             aria-label={t("action.betPlus")}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <Icon name="plus" className="h-4 w-4" />
           </button>
         </div>
 

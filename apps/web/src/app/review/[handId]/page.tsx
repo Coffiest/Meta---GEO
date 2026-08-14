@@ -42,11 +42,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-600">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3 shrink-0">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v4.5" strokeLinecap="round" />
-              <circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
-            </svg>
+            <Icon name="info" className="h-3 w-3 shrink-0" />
             解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
           </span>
         )}
@@ -90,6 +86,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
 }
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
+import { Icon } from "@/components/Icon";
 
 export default function ReviewHandPage() {
   const params = useParams();
@@ -225,8 +222,8 @@ export default function ReviewHandPage() {
         activeKey={null}
         items={[
           { key: "home", label: "Home", icon: "home", href: "/" },
-          { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-          { key: "database", label: "Database", icon: "layers", href: "/geo" },
+          { key: "history", label: "History", icon: "history", href: "/?tab=history" },
+          { key: "database", label: "Database", icon: "db", href: "/geo" },
           { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
         ]}
       />

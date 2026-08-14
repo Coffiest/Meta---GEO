@@ -22,6 +22,7 @@ import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 const SEAT_COUNT = 6;
 
@@ -494,11 +495,7 @@ function GameScreen({
           {tournamentInfo && tournamentInfo.total > 0 && (
             <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700">
-                <path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" />
-                <circle cx="10" cy="8" r="3.2" />
-                <path d="M20 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15.5 5.1a3.2 3.2 0 0 1 0 6" />
-              </svg>
+              <Icon name="user" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700" />
               <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
                 {tournamentInfo.remaining}
                 <span className="text-ink-500">/</span>
@@ -544,13 +541,7 @@ function GameScreen({
           className="shrink-0 h-9 w-9 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800 active:scale-95 transition-transform"
           aria-label="設定"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} className="h-[18px] w-[18px]">
-            <circle cx="12" cy="12" r="3.2" />
-            <path
-              d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Icon name="settings" className="h-[18px] w-[18px]" />
         </button>
         {settingsOpen && (
           <SettingsPopover
@@ -638,9 +629,7 @@ function GameScreen({
                 aria-label="送信"
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white transition-transform active:scale-90"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-[18px] w-[18px]">
-                  <path d="M4.5 12h13M12 5.5l6 6.5-6 6.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Icon name="arrow-right" className="h-[18px] w-[18px]" />
               </button>
             </motion.form>
           </motion.div>
@@ -780,20 +769,7 @@ function GameScreen({
             className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-ink-950 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
           >
             <div className="flex items-start gap-3">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mt-0.5 h-4 w-4 shrink-0 text-ink-950"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v4.5" />
-                <path d="M12 16h.01" />
-              </svg>
+              <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-ink-950" />
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-black text-ink-950">進行中の卓が見つかりません</p>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">

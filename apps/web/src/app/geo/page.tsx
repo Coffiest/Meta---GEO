@@ -657,11 +657,7 @@ function GeoDatabase() {
         {/* サンプル数が少ない(n<5000)実測ノードの注意書き。レンジ表自体は表示するが、統計的に不十分な旨を明示する。 */}
         {node && !node.isGto && node.sampleSize > 0 && node.sampleSize < 5000 && (
           <div className="mt-1 flex items-start gap-2.5 rounded-2xl border border-gold-500/40 bg-gold-500/10 px-4 py-3">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="mt-0.5 h-4 w-4 shrink-0 text-gold-500" aria-hidden>
-              <path d="M12 4.5 2.5 20h19L12 4.5Z" strokeLinejoin="round" />
-              <path d="M12 10v4.5" strokeLinecap="round" />
-              <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none" />
-            </svg>
+            <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0 text-gold-500" />
             <p className="text-[12px] leading-snug text-gold-100">
               このノードはサンプル数が少なめです（n={node.sampleSize.toLocaleString()}）。レンジ表として不十分なため、参考程度にご覧ください。
             </p>
@@ -807,7 +803,7 @@ function GeoDatabase() {
           items={[
             { key: "home", label: "Home", icon: "home", href: "/" },
             { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-            { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+            { key: "history", label: "History", icon: "history", href: "/?tab=history" },
             { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
           ]}
         />

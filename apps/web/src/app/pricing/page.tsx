@@ -14,6 +14,7 @@ const FEATURES = [
 ];
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
+import { Icon, HeroIcon } from "@/components/Icon";
 
 export default function PricingPage() {
   const { session } = useAuth();
@@ -67,6 +68,10 @@ export default function PricingPage() {
           </Link>
         </header>
 
+        {/* 見出しの主張を1段上げるための大きめアイコン。ここだけ Hugeicons(面のある絵柄)を使う。 */}
+        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-950 text-gold-500">
+          <HeroIcon name="analytics" size={30} />
+        </span>
         <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gold-600">Subscription</p>
         <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-ink-950">
           棋譜解析 使い放題プラン<span className="text-gold-500">.</span>
@@ -86,9 +91,7 @@ export default function PricingPage() {
             {FEATURES.map((f) => (
               <li key={f} className="flex items-start gap-2.5 text-[13px] font-medium text-ink-800">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold-500">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth={3} className="h-3 w-3">
-                    <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <Icon name="check" className="h-3 w-3" />
                 </span>
                 {f}
               </li>
@@ -98,9 +101,7 @@ export default function PricingPage() {
           {active ? (
             <div className="mt-5">
               <div className="flex items-center justify-center gap-1.5 rounded-full bg-gold-500/10 py-2.5 text-[13px] font-black text-gold-700">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4">
-                  <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Icon name="check" className="h-4 w-4" />
                 {byCoupon ? "クーポンで無料期間中" : "使い放題プランに加入中"}
               </div>
               {byCoupon ? (

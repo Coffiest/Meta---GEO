@@ -38,6 +38,7 @@ function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active
  * ができる。操作はサーバー側でも同じパスコードを検証する。
  */
 import { ReportErrorButton } from "@/components/ReportErrorButton";
+import { Icon } from "@/components/Icon";
 
 /** GEO集計テーブルの再構築状況(サーバーの /api/admin/geo-backfill の応答)。 */
 interface GeoBackfillStatus {
@@ -319,19 +320,7 @@ export default function AdminPage() {
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
             <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
               <div className="flex items-start gap-2.5">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-gold-600"
-                >
-                  <ellipse cx="12" cy="5.5" rx="8" ry="3" />
-                  <path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13" />
-                  <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-                </svg>
+                <Icon name="db" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-black text-ink-950">GEO集計テーブルの再構築</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
@@ -371,20 +360,7 @@ export default function AdminPage() {
             {/* ポジション別の集まり具合。「UTGばかり集まる」の原因切り分け用。 */}
             <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
               <div className="flex items-start gap-2.5">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-gold-600"
-                >
-                  <path d="M4 20V10" />
-                  <path d="M10 20V4" />
-                  <path d="M16 20v-7" />
-                  <path d="M22 20H2" />
-                </svg>
+                <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-black text-ink-950">ポジション別の集まり具合</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
@@ -482,16 +458,7 @@ export default function AdminPage() {
 
             {/* 検索 */}
             <div className="relative">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-              </svg>
+              <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
