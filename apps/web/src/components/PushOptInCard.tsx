@@ -85,35 +85,37 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] border-[1.5px] border-ink-950 bg-white p-4"
+      className="rounded-[20px] border-[1.5px] border-ink-950 bg-white px-4 py-3"
     >
-      <div className="flex items-center gap-2">
-        <BellGlyph className="h-4 w-4 text-gold-600" />
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-ink-400">{t("push.eyebrow")}</p>
-      </div>
-      <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-ink-950">{t("push.title")}</h3>
-      <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">{t("push.lead")}</p>
+      {/* 文字を極力持たない1行構成: ベル図形 + 英字の小見出し + 右端のトグル型ボタン。 */}
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500/15 text-gold-600">
+          <BellGlyph className="h-[18px] w-[18px]" />
+        </span>
+        <p className="min-w-0 flex-1 text-[11px] font-black uppercase tracking-[0.22em] text-ink-500">Alerts</p>
 
-      {needsInstall ? (
-        <p className="mt-3 rounded-xl bg-ink-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-ink-600">
-          {t("push.installFirst")}
-        </p>
-      ) : (
-        <>
+        {needsInstall ? (
+          // インストールが先に必要な環境(iOSのSafariタブ等)は、共有→ホーム画面追加の図形だけ示す。
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-100 text-ink-500" aria-label={t("push.installFirst")}>
+            <Icon name="share" className="h-[18px] w-[18px]" />
+          </span>
+        ) : (
           <button
             onClick={() => void handleEnable()}
             disabled={busy}
-            className="mt-3.5 w-full rounded-xl bg-gold-500 py-3 text-[13px] font-black text-ink-950 transition-transform active:scale-[0.98] disabled:opacity-50"
+            aria-label={busy ? t("push.enabling") : t("push.enable")}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500 text-ink-950 transition-transform active:scale-[0.94] disabled:opacity-50"
           >
-            {busy ? t("push.enabling") : t("push.enable")}
+            <Icon name="check" className="h-[17px] w-[17px]" weight="bold" />
           </button>
-          {error && (
-            <div className="mt-2">
-              <p className="text-[11.5px] font-semibold text-crimson-500">{error}</p>
-              <ReportErrorButton scope="push" message={error} className="mt-1.5" />
-            </div>
-          )}
-        </>
+        )}
+      </div>
+
+      {error && (
+        <div className="mt-2">
+          <p className="text-[11.5px] font-semibold text-crimson-500">{error}</p>
+          <ReportErrorButton scope="push" message={error} className="mt-1.5" />
+        </div>
       )}
     </motion.div>
   );
