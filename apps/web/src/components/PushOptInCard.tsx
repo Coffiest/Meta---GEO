@@ -9,10 +9,7 @@ import { disablePush, enablePush, fetchPushConfig, notificationPermission, pushS
 /** ベルのSVGグリフ。絵文字は使わない。 */
 function BellGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className={className} aria-hidden="true">
-      <path d="M6.5 9.5a5.5 5.5 0 0 1 11 0c0 3 .7 4.6 1.5 5.5H5c.8-.9 1.5-2.5 1.5-5.5Z" strokeLinejoin="round" />
-      <path d="M10 18a2 2 0 0 0 4 0" strokeLinecap="round" />
-    </svg>
+    <Icon name="bell" className={className} />
   );
 }
 
@@ -25,6 +22,7 @@ function BellGlyph({ className = "h-4 w-4" }: { className?: string }) {
  * iOSでは、ホーム画面に追加したPWAでしか通知を使えないため、その場合は追加方法を案内する。
  */
 import { ReportErrorButton } from "./ReportErrorButton";
+import { Icon } from "./Icon";
 
 export function PushOptInCard({ accessToken }: { accessToken?: string }) {
   const { t } = useI18n();

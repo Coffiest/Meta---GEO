@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 export interface SideNavItem {
   key: string;
   label: string;
-  icon: string;
+  icon: IconName;
   href?: string;
   onClick?: () => void;
 }
@@ -75,7 +75,7 @@ export function SideNav({
 export const SIDE_NAV_ITEMS: SideNavItem[] = [
   { key: "home", label: "Home", icon: "home", href: "/" },
   { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-  { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
+  { key: "history", label: "History", icon: "history", href: "/?tab=history" },
   { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
   { key: "database", label: "Database", icon: "db", href: "/geo" },
 ];

@@ -7,40 +7,17 @@ import {
   subscribeDiagnostics,
   type DiagnosticEntry,
 } from "@/lib/diagnostics";
+import { Icon, type IconName } from "./Icon";
 
-/** 種別ごとのアイコン(絵文字禁止のためSVGストローク)。 */
+/** 種別ごとのアイコン。error/warn/info をひと目で区別できる絵柄にする。 */
+const KIND_ICON: Record<DiagnosticEntry["kind"], IconName> = {
+  error: "error",
+  warn: "warning",
+  info: "info",
+};
+
 function KindIcon({ kind }: { kind: DiagnosticEntry["kind"] }) {
-  const common = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className: "h-4 w-4 shrink-0",
-  };
-  if (kind === "error") {
-    return (
-      <svg {...common}>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7.5v5M12 16.2v.3" />
-      </svg>
-    );
-  }
-  if (kind === "warn") {
-    return (
-      <svg {...common}>
-        <path d="M12 3.8 2.8 19.5h18.4L12 3.8Z" />
-        <path d="M12 10v4M12 17.2v.3" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5.5M12 7.6v.3" />
-    </svg>
-  );
+  return <Icon name={KIND_ICON[kind]} className="h-4 w-4 shrink-0" />;
 }
 
 /**

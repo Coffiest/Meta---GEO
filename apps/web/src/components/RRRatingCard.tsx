@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
 
 export interface RRRatingData {
   rrRating: number;
@@ -274,10 +275,7 @@ export function RRRatingCard({
             aria-label="トナメ偏差値について"
             className="h-[22px] w-[22px] shrink-0 rounded-full border border-ink-950 flex items-center justify-center text-ink-800"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 11v5.5M12 8v.01" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="info" className="h-3 w-3" />
           </motion.button>
         </div>
 
@@ -344,10 +342,7 @@ export function RRRatingCard({
       <div className="border-t border-ink-300 p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-ink-700">
-              <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
-              <path d="M7 5.2H4.6A2.4 2.4 0 0 0 7 8.4M17 5.2h2.4A2.4 2.4 0 0 1 17 8.4" strokeLinecap="round" />
-            </svg>
+            <Icon name="trophy" className="h-4 w-4 text-ink-700" />
             <p className="text-[13px] font-bold text-ink-950">Tournament History</p>
           </div>
           <button onClick={onViewHistory} className="text-[11px] text-gold-600 font-semibold underline decoration-dashed underline-offset-4">

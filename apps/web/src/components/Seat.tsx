@@ -23,6 +23,7 @@ function compactStack(stack: number, bigBlind: number, mode: AmountDisplayMode):
   return formatBb(stack, bigBlind);
 }
 import { useI18n } from "@/lib/i18n";
+import { Icon } from "./Icon";
 
 /** 卓上バッジの種別。敗北を宣言するトーンは持たない(負けはスタックが語る)。 */
 export type SeatBadgeTone = "raise" | "call" | "fold" | "win";
@@ -193,10 +194,7 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
 /** ポット獲得バッジに添えるチップのグリフ(重なった2枚)。絵文字は使わずSVGで描く。 */
 function ChipsGlyph({ className = "h-3 w-3" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className} aria-hidden="true">
-      <ellipse cx="12" cy="8.5" rx="7" ry="3.2" />
-      <path d="M5 8.5v4c0 1.77 3.13 3.2 7 3.2s7-1.43 7-3.2v-4" strokeLinecap="round" />
-    </svg>
+    <Icon name="chip" className={className} />
   );
 }
 
@@ -325,10 +323,7 @@ export function Seat({
                 animate={{ opacity: 1, scale: 1 }}
                 className="pointer-events-none absolute -top-1.5 -right-1.5 z-40 flex h-5 w-5 items-center justify-center rounded-full bg-ink-950 text-white ring-2 ring-white"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3">
-                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" strokeLinejoin="round" />
-                  <circle cx="12" cy="12" r="2.4" />
-                </svg>
+                <Icon name="eye" className="h-3 w-3" />
               </motion.span>
             )}
           </div>
@@ -407,9 +402,7 @@ export function Seat({
             aria-label={t("seat.chat")}
             className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-ink-950 bg-white text-ink-800 transition-transform active:scale-90"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5">
-              <path d="M4 5h16v11H8l-4 3z" strokeLinejoin="round" />
-            </svg>
+            <Icon name="chat" className="h-3.5 w-3.5" />
           </button>
         )}
         {!isEmpty && (

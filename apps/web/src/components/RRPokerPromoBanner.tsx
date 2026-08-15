@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Icon } from "./Icon";
 
 /**
  * 姉妹アプリ「RRPoker」の告知バナー(PokerARTホームに掲出)。
@@ -62,9 +63,7 @@ export function RRPokerPromoBanner() {
         <div className="mt-3.5 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-500 px-3.5 py-1.5 text-[12px] font-bold text-ink-950">
             アプリを見る
-            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
-              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="arrow-right" className="h-3.5 w-3.5" />
           </span>
 
           {/* Instagram DM: pointer-events を戻し、ストレッチリンクより手前(z-20)に置く。 */}
@@ -75,11 +74,7 @@ export function RRPokerPromoBanner() {
             aria-label="RRPoker 公式Instagramを開いてDMで相談する"
             className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold text-ink-800 ring-1 ring-ink-950/15 transition-colors hover:bg-ink-100 active:bg-ink-200"
           >
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-              <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.8" />
-              <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
-              <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" />
-            </svg>
+            <Icon name="logo-instagram" className="h-4 w-4" />
             DMで相談
           </a>
 

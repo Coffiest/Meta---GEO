@@ -14,28 +14,21 @@ import { CouponWallet } from "@/components/CouponWallet";
  * 課金せずに開放する手段として、招待で貰った「1ヶ月無料クーポン」をこの場で適用できる。
  */
 
-const BENEFITS: { title: string; desc: string; icon: React.ReactNode }[] = [
+const BENEFITS: { title: string; desc: string; icon: IconName }[] = [
   {
     title: "棋譜解析が使い放題",
     desc: "24時間の待ち時間なし。トーナメントを何度でも解析。",
-    icon: (
-      <path d="M4 12a8 8 0 1 1 8 8M4 12H2m2 0 3-3m-3 3 3 3" strokeLinecap="round" strokeLinejoin="round" />
-    ),
+    icon: "refresh",
   },
   {
     title: "GTO精度スコア & EVロス",
     desc: "全アクションをGTO基準で採点し、失ったEVを可視化。",
-    icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" strokeLinejoin="round" />,
+    icon: "bar-chart",
   },
   {
     title: "ワースト・ベスト & 通し再生",
     desc: "痛恨のミスと会心の一手をハイライト。全ハンド1手ずつ再生。",
-    icon: (
-      <>
-        <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" strokeLinejoin="round" />
-        <path d="M12 13v4M9 21h6" strokeLinecap="round" />
-      </>
-    ),
+    icon: "trophy",
   },
 ];
 
@@ -49,6 +42,7 @@ function nextFreeText(nextFreeAt: string | null): string | null {
 }
 
 import { ReportErrorButton } from "../ReportErrorButton";
+import { Icon, type IconName } from "../Icon";
 
 export function ReviewPaywall({
   tournamentId,
@@ -103,10 +97,7 @@ export function ReviewPaywall({
         </div>
         <div className="relative flex flex-col items-center text-center">
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-500">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth={2.2} className="h-5 w-5">
-              <rect x="5" y="11" width="14" height="9" rx="2" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" strokeLinecap="round" />
-            </svg>
+            <Icon name="lock" className="h-5 w-5" />
           </span>
           <p className="mt-3 text-[17px] font-black leading-tight text-white">
             このトーナメントの解析は<br />使い放題プランで開放
@@ -143,9 +134,7 @@ export function ReviewPaywall({
               className="flex items-start gap-3"
             >
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink-950">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#f7c548" strokeWidth={2} className="h-4 w-4">
-                  {b.icon}
-                </svg>
+                <Icon name={b.icon} className="h-4 w-4" style={{ color: "#f7c548" }} />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-black text-ink-950 leading-tight">{b.title}</p>
@@ -167,9 +156,7 @@ export function ReviewPaywall({
           ) : (
             <>
               使い放題プランに登録
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-4 w-4">
-                <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <Icon name="chevron-right" className="h-4 w-4" />
             </>
           )}
         </motion.button>
@@ -197,11 +184,7 @@ export function ReviewPaywall({
           href="/"
           className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-ink-950 bg-white text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-4 w-4">
-            <circle cx="9" cy="8" r="3.4" />
-            <path d="M3 20v-1a5.5 5.5 0 0 1 5.5-5.5h1A5.5 5.5 0 0 1 15 19v1" strokeLinecap="round" />
-            <path d="M18.5 7.5v5M16 10h5" strokeLinecap="round" />
-          </svg>
+          <Icon name="user-plus" className="h-4 w-4" />
           友達を招待してクーポンを増やす
         </Link>
       </motion.div>

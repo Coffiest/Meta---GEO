@@ -140,21 +140,11 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
         aria-expanded={open}
       >
         <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-600">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-3 w-3">
-            <path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Icon name="graph-up" className="h-3 w-3" />
           GEO解
         </span>
         <span className="text-[11px] font-semibold text-ink-500 tabular-nums">母集団 n={geo.sampleSize.toLocaleString()}</span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.4}
-          className={`ml-auto h-4 w-4 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon name="chevron-down" className={`ml-auto h-4 w-4 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {shown.map((o) => (
@@ -188,11 +178,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[13px] font-semibold text-ink-700">{subject}: {d.actionName}</span>
         <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-semibold text-ink-500">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-3 w-3 shrink-0">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v4.5" strokeLinecap="round" />
-            <circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
-          </svg>
+          <Icon name="info" className="h-3 w-3 shrink-0" />
           解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
         </span>
       </div>
@@ -241,13 +227,12 @@ interface Highlight {
 /** iOS風のチェブロン(リスト行の右端)。 */
 function Chevron() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="ml-auto h-4 w-4 shrink-0 text-[#c7c7cc]">
-      <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Icon name="chevron-right" className="ml-auto h-4 w-4 shrink-0 text-[#c7c7cc]" />
   );
 }
 
 import { ReportErrorButton } from "../ReportErrorButton";
+import { Icon } from "../Icon";
 
 export function TournamentReviewModal({
   tournamentId,
@@ -479,9 +464,7 @@ export function TournamentReviewModal({
             className="flex h-8 w-8 items-center justify-center rounded-full bg-black/[0.05] text-ink-950"
             aria-label="総括へ戻る"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-4 w-4">
-              <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="chevron-left" className="h-4 w-4" />
           </motion.button>
           <p className="text-[16px] font-bold tracking-tight text-ink-950">棋譜解析</p>
           <p className="ml-auto rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-semibold text-ink-500 tabular-nums">
@@ -594,9 +577,7 @@ export function TournamentReviewModal({
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/[0.05] text-ink-950 disabled:opacity-30"
                 aria-label="前のアクション"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-5 w-5">
-                  <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Icon name="chevron-left" className="h-5 w-5" />
               </motion.button>
               <input
                 type="range"
@@ -614,9 +595,7 @@ export function TournamentReviewModal({
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white shadow-[0_6px_16px_-6px_rgba(10,10,10,0.5)] disabled:opacity-30"
                 aria-label="次のアクション"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-5 w-5">
-                  <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Icon name="chevron-right" className="h-5 w-5" />
               </motion.button>
             </div>
           </div>
@@ -664,9 +643,7 @@ export function TournamentReviewModal({
               className="ml-auto mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-ink-600"
               aria-label="閉じる"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} className="h-3.5 w-3.5">
-                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-              </svg>
+              <Icon name="close" className="h-3.5 w-3.5" />
             </motion.button>
           </div>
 
@@ -730,10 +707,7 @@ export function TournamentReviewModal({
                   onClick={openReview}
                   className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-ink-950 text-[17px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(10,10,10,0.5)]"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-                    <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
-                    <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <Icon name="refresh" className="h-4 w-4" />
                   局後検討
                   {subStatus?.active ? (
                     <span className="ml-1 rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-bold text-ink-950">
@@ -789,9 +763,7 @@ export function TournamentReviewModal({
             className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-ink-600"
             aria-label="結果画面へ戻る"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} className="h-4 w-4">
-              <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="chevron-left" className="h-4 w-4" />
           </motion.button>
           <div className="min-w-0">
             <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink-950">局後検討</h2>
@@ -814,9 +786,7 @@ export function TournamentReviewModal({
             className="ml-auto mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.06] text-ink-600"
             aria-label="閉じる"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} className="h-3.5 w-3.5">
-              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-            </svg>
+            <Icon name="close" className="h-3.5 w-3.5" />
           </motion.button>
         </div>
 
@@ -965,9 +935,7 @@ export function TournamentReviewModal({
                 disabled={steps.length === 0}
                 className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-ink-950 text-[17px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(10,10,10,0.5)] disabled:opacity-40"
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
-                  <path d="M8.5 5.9c0-1.5 1.6-2.4 2.9-1.7l9.2 5.4c1.3.7 1.3 2.6 0 3.4l-9.2 5.4c-1.3.7-2.9-.2-2.9-1.7V5.9Z" />
-                </svg>
+                <Icon name="play" className="h-4 w-4" />
                 棋譜解析を開始
               </motion.button>
               {steps.length === 0 && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Icon } from "./Icon";
 
 /** リングの再描画間隔(ms)。10fpsあれば秒読みのリングとして十分滑らかに見える。 */
 const RING_PAINT_INTERVAL_MS = 100;
@@ -90,15 +91,6 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
 /** アイコン未設定(BOT含む)のプレイヤー用のモノクロ人型シルエット。
  * 白背景・黒(ink-950)の人アイコンで、頭文字やBOTキャラは使わず全員この共通アイコンにする。
  * 円形コンテナ(overflow-hidden)で肩の両端が自然にトリミングされ、胸像風のアバターになる。 */
-function PersonGlyph() {
-  return (
-    <path
-      fill="currentColor"
-      d="M12 12.4c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5Zm0 2.1c-3.9 0-9.6 1.96-9.6 5.85V22h19.2v-1.65c0-3.89-5.7-5.85-9.6-5.85Z"
-    />
-  );
-}
-
 /**
  * ユーザーのアイコン表示。カメラロールから選んだ画像(data URI)が設定されていればそれを、
  * 未設定(BOT含む)なら共通のモノクロ人型シルエットを表示する(頭文字・BOTキャラアバターは廃止)。
@@ -138,9 +130,12 @@ export function Avatar({
           className="absolute rounded-full bg-white flex items-end justify-center select-none ring-[1.5px] ring-ink-950 text-ink-950 overflow-hidden"
           style={innerBoxStyle}
         >
-          <svg viewBox="0 0 24 24" style={{ width: size - pad * 2, height: size - pad * 2 }} aria-hidden>
-            <PersonGlyph />
-          </svg>
+          <Icon
+            name="user"
+            filled
+            className=""
+            style={{ width: size - pad * 2, height: size - pad * 2 }}
+          />
         </div>
       )}
       {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。

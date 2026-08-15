@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 export interface FooterNavItem {
   key: string;
   label: string;
-  icon: string;
+  icon: IconName;
   href?: string;
   onClick?: () => void;
 }

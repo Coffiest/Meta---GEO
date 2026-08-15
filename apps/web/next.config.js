@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@meta-geo/engine"],
+  experimental: {
+    // Phosphor はバレル(index から数千個を再エクスポート)なので、素朴に import すると
+    // 使っていないアイコンまで解決しにいってビルド時間とメモリが跳ねる(展開後 33MB ある)。
+    // これを個別モジュールへの参照に書き換えさせる。
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
   webpack: (config) => {
     // @meta-geo/engine is consumed straight from its TypeScript source and uses
     // NodeNext-style ".js" specifiers for its own relative imports (they resolve

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { ChatMessage, SeatPlayerInfo } from "@/lib/socket";
 import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
 
 /**
  * 設定→「チャットログ」から開く、卓全体の会話ログ(LINE風)。
@@ -112,9 +113,7 @@ export function ChatLogSheet({
             aria-label="送信"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white transition-transform active:scale-90 disabled:opacity-30"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} className="h-[18px] w-[18px]">
-              <path d="M4.5 12h13M12 5.5l6 6.5-6 6.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="arrow-right" className="h-[18px] w-[18px]" />
           </button>
         </form>
       </motion.div>

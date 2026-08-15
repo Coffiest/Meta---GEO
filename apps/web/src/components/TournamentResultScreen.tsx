@@ -9,6 +9,7 @@ import { prewarmTournamentReview } from "@/lib/reviewApi";
 import { PROD_URL, buildMilestoneShareUrl, openTweetIntent } from "@/lib/share";
 import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
+import { Icon } from "./Icon";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -247,11 +248,7 @@ export function TournamentResultScreen({
           className="mb-6 pt-4 text-center"
         >
           {isWin && (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 h-14 w-14 text-gold-500">
-              <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" />
-              <path d="M7 5.4H4.4A2.6 2.6 0 0 0 7 8.6M17 5.4h2.6A2.6 2.6 0 0 1 17 8.6" />
-              <path d="M12 13.5v3.5M8.5 21h7M9.5 21v-1.2a2.5 2.5 0 0 1 5 0V21" />
-            </svg>
+            <Icon name="trophy" className="mx-auto mb-3 h-14 w-14 text-gold-500" />
           )}
           <p className="text-[11px] font-black uppercase tracking-[0.34em] text-ink-400">Tournament Result</p>
           <p
@@ -343,18 +340,7 @@ export function TournamentResultScreen({
           >
             <div className="flex items-center gap-3">
               {/* 勲章マーク。絵文字禁止のためSVGで実装。 */}
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.7}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-9 w-9 shrink-0 text-gold-600"
-              >
-                <circle cx="12" cy="9" r="5.5" />
-                <path d="M9 14.2 7.5 21l4.5-2.4 4.5 2.4-1.5-6.8" />
-              </svg>
+              <Icon name="medal" className="h-9 w-9 shrink-0 text-gold-600" />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gold-700">Milestone</p>
                 <p className="truncate text-[19px] font-black leading-tight text-ink-950">{milestone.headline}</p>
@@ -366,9 +352,7 @@ export function TournamentResultScreen({
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gold-500 py-3 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
             >
               {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-[15px] w-[15px]">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-              </svg>
+              <Icon name="logo-x" className="h-[15px] w-[15px]" />
               到達をシェアする
             </button>
           </motion.div>
@@ -380,9 +364,7 @@ export function TournamentResultScreen({
             onClick={() => setReviewOpen(true)}
             className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gold-500 py-5 text-[17px] font-black text-white shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-gold-600/40 transition-transform active:scale-[0.98]"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-              <path d="M4 19V5M4 15l4-4 3 3 6-6M14 8h3v3" />
-            </svg>
+            <Icon name="graph-up" className="h-6 w-6" />
             {t("result.reviewCta")}
           </button>
         )}
@@ -398,10 +380,7 @@ export function TournamentResultScreen({
               <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()} …復帰中</span>
             ) : (
               <>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                  <path d="M3 12a9 9 0 1 0 9-9" />
-                  <path d="M3 4v5h5" />
-                </svg>
+                <Icon name="refresh" className="h-5 w-5" />
                 リエントリ（−{(reEntryCost ?? 2000).toLocaleString()}）
               </>
             )}
@@ -421,9 +400,7 @@ export function TournamentResultScreen({
             className="flex items-center justify-center gap-2 rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
           >
             {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-[16px] w-[16px]">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-            </svg>
+            <Icon name="logo-x" className="h-[16px] w-[16px]" />
             {shared ? t("result.shareOpened") : t("result.shareX")}
           </button>
         </div>

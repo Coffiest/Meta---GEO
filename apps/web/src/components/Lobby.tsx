@@ -147,10 +147,7 @@ const DEV_UNLOCK_CODE = "2357";
 /** 対局スタートカードのCTA矢印(右向き)。絵文字禁止のためSVGストロークで実装。 */
 function EnterArrow({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path d="M5 12h13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Icon name="arrow-right" className={className} />
   );
 }
 
@@ -219,10 +216,7 @@ function GameStartCards({
                 {soon ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-2.5 py-1 text-[10px] font-black tracking-[0.08em] text-ink-500">
                     {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 7v5l3 2" />
-                    </svg>
+                    <Icon name="clock" className="h-3 w-3" />
                     {t("lobby.comingSoon.badge")}
                   </span>
                 ) : (
@@ -301,10 +295,7 @@ function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock:
         className="w-full max-w-[320px] rounded-[26px] border border-ink-950 bg-white p-6 text-center"
       >
         {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-9 w-9 text-ink-950" aria-hidden>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </svg>
+        <Icon name="clock" className="mx-auto h-9 w-9 text-ink-950" />
         <p className="mt-3 text-[18px] font-black tracking-tight text-ink-950">{t("lobby.comingSoon.title")}</p>
         <p className="mt-2 text-[12px] leading-relaxed text-ink-600">{t("lobby.comingSoon.body")}</p>
 
@@ -351,11 +342,7 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
 function ReviewGlyph({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2" />
-      <path d="M15.5 15.5L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 11.5l1.8-2.2 1.7 1.4L13.2 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Icon name="search" className={className} />
   );
 }
 
@@ -592,10 +579,7 @@ function TournamentHistoryCard({
 
 function InfoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5.5M12 8v.01" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Icon name="info" className={className} />
   );
 }
 
@@ -1328,7 +1312,7 @@ export function Lobby({
           items={[
             { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
             { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
-            { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+            { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
             { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
             { key: "database", label: "Database", icon: "db", href: "/geo" },
           ]}
@@ -1360,9 +1344,7 @@ export function Lobby({
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gold-500 px-3.5 py-2 text-[12px] font-bold text-ink-950">
               {t("lobby.resume.cta")}
-              <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 transition-transform group-active:translate-x-0.5" aria-hidden="true">
-                <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <Icon name="arrow-right" className="h-3.5 w-3.5 transition-transform group-active:translate-x-0.5" />
             </span>
           </button>
         )}
@@ -1828,9 +1810,7 @@ export function Lobby({
                                     <div className="mt-1.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-gold-600">
                                       <ReviewGlyph className="h-3 w-3" />
                                       <span>{t("lobby.reviewRowHint")}</span>
-                                      <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
-                                        <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
+                                      <Icon name="chevron-right" className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                                     </div>
                                   </motion.div>
                                 );
@@ -1874,7 +1854,7 @@ export function Lobby({
           items={[
             { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
             { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
-            { key: "history", label: "History", icon: "layers", onClick: () => setTab("history") },
+            { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
             { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
           ]}
         />
@@ -1950,11 +1930,7 @@ export function Lobby({
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gold-500 text-ink-950">
                 {/* データベースアイコン(絵文字禁止のためSVG) */}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <ellipse cx="12" cy="5" rx="8" ry="3" />
-                  <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
-                  <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-                </svg>
+                <Icon name="db" className="h-4 w-4" />
               </span>
               <span className="min-w-0">
                 <span className="block text-[12.5px] font-black leading-tight text-white">GEO DATABASE が解放されました</span>
