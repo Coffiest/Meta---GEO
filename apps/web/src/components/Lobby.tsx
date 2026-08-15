@@ -16,7 +16,6 @@ import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
-import { HomeGreeting } from "./HomeGreeting";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
@@ -193,43 +192,36 @@ function GameStartCards({
             >
               {/* 上辺アクセントバー(種別で色分け=一瞬で識別)。準備中は灰色にして「今は入れない」と分かるようにする。 */}
               <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-ink-300" : accent}`} aria-hidden />
-              {/* 左肩: 連番 + 種別ラベル */}
-              <span className="flex w-full items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-500">
-                  {i === 0 ? "Single table" : "Multi-table"}
-                </span>
-                <span className="font-mono text-[10px] font-bold tabular-nums text-ink-400">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
+
+              {/* 種別を示す図形(文字の代わり)。1卓=カード / 複数卓=大人数フィールド。 */}
+              <span className={`${soon ? "text-ink-300" : accentText}`}>
+                <Icon name={i === 0 ? "cards" : "group"} className="h-10 w-10" weight="light" />
               </span>
-              {/* タイトル(準備中は淡く) */}
-              <span className={`mt-2 text-xl font-black leading-none tracking-tight ${soon ? "text-ink-400" : "text-ink-950"}`}>
-                {game.title}
+
+              {/* 略称のみ(SNG / MTT)。説明文は置かない。 */}
+              <span className={`mt-2.5 text-[22px] font-black leading-none tracking-tight ${soon ? "text-ink-400" : "text-ink-950"}`}>
+                {game.key.toUpperCase()}
               </span>
-              {/* 一言説明 */}
-              <span className={`mt-1.5 text-[11px] leading-snug ${soon ? "text-ink-400" : "text-ink-500"}`}>
-                {t(game.detailKey)}
-              </span>
-              {/* 区切り線 + CTA行(バイイン / 入室→)。準備中はバイインを出さず「準備中」だけ見せる。 */}
+
               <span className="mt-3 h-px w-full bg-ink-100" aria-hidden />
+
+              {/* 下段: バイイン(チップ図形+数値) と 入室(矢印のみ)。準備中は時計アイコンだけ。 */}
               <span className="mt-2.5 flex w-full items-center justify-between">
                 {soon ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-2.5 py-1 text-[10px] font-black tracking-[0.08em] text-ink-500">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-ink-100 text-ink-500">
                     {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-                    <Icon name="clock" className="h-3 w-3" />
-                    {t("lobby.comingSoon.badge")}
+                    <Icon name="clock" className="h-4 w-4" />
                   </span>
                 ) : (
                   <>
-                    <span className="flex flex-col leading-none">
-                      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-ink-500">{t("play.buyIn")}</span>
-                      <span className="mt-0.5 text-[13px] font-black tabular-nums text-ink-950">
+                    <span className="flex items-center gap-1.5 text-ink-950">
+                      <Icon name="chip" className="h-4 w-4 text-ink-400" />
+                      <span className="text-[14px] font-black tabular-nums leading-none">
                         {game.buyIn.toLocaleString()}
                       </span>
                     </span>
-                    <span className={`flex items-center gap-1 text-[11px] font-black ${accentText}`}>
-                      {t("play.enter")}
-                      <EnterArrow className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                    <span className={`grid h-7 w-7 place-items-center rounded-full ${accent} text-white`}>
+                      <EnterArrow className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </span>
                   </>
                 )}
@@ -349,7 +341,7 @@ function ReviewGlyph({ className }: { className?: string }) {
 /**
  * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
  * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
- * ホーム画面のHomeGreetingと同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
+ * ホーム画面と同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
 function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <motion.div
@@ -1358,8 +1350,6 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
-            <HomeGreeting displayName={displayName} />
-
             <GameStartCards games={GAMES} onJoin={onJoin} />
 
             <PushOptInCard accessToken={accessToken} />
@@ -1380,7 +1370,7 @@ export function Lobby({
 
             <div className="pt-1">
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-ink-400">
-                v{APP_VERSION} ・ 作成者: Coffiest ・ © 2026 Poker ART
+                v{APP_VERSION} · Coffiest · © 2026 Poker ART
               </p>
             </div>
           </motion.div>

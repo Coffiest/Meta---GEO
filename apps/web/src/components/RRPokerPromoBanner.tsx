@@ -37,51 +37,33 @@ export function RRPokerPromoBanner() {
       {/* 上端の細いアンバーライン(RRの黒白+金のアクセント)。 */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-gold-500 via-gold-400 to-gold-500" />
 
-      <div className="pointer-events-none relative z-10 p-4">
-        <div className="flex items-center gap-3.5">
-          {/* リポジトリ公式アイコン(白地の黒+金のRロゴ)をそのまま掲出。 */}
-          <div className="shrink-0 grid place-items-center h-14 w-14 rounded-xl bg-white ring-1 ring-ink-950/10 overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/rrpoker-icon.png" alt="RRPoker" className="h-12 w-12 object-contain" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-500">
-              姉妹アプリ <span className="text-gold-600">・</span> <span className="text-ink-900">RRPOKER</span>
-            </p>
-            <h3 className="mt-1 text-[17px] font-black leading-tight tracking-tight text-ink-950">
-              使用店舗、大募集。
-            </h3>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
-              トーナメント管理(タイマー)もチップ集計・純増記録も自動化。ランキングや
-              トナメ偏差値でお客様の体験も向上。しかも安価に。
-            </p>
-          </div>
+      {/* 文字を極力持たない1行構成: ロゴ + ワードマーク(英字) + 遷移矢印 / Instagram の図形のみ。 */}
+      <div className="pointer-events-none relative z-10 flex items-center gap-3 px-4 py-3">
+        {/* リポジトリ公式アイコン(白地の黒+金のRロゴ)をそのまま掲出。 */}
+        <div className="shrink-0 grid place-items-center h-11 w-11 rounded-xl bg-white ring-1 ring-ink-950/10 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logos/rrpoker-icon.png" alt="RRPoker" className="h-9 w-9 object-contain" />
         </div>
 
-        {/* CTA行: RRを見る(カード全体リンクと同じ先)＋ Instagram DM(手前に重ねて別リンク)。 */}
-        <div className="mt-3.5 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-500 px-3.5 py-1.5 text-[12px] font-bold text-ink-950">
-            アプリを見る
-            <Icon name="arrow-right" className="h-3.5 w-3.5" />
-          </span>
+        <p className="min-w-0 flex-1 text-[13px] font-black tracking-tight text-ink-950">
+          RRPOKER
+          <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-[0.16em] text-ink-400">for venues</span>
+        </p>
 
-          {/* Instagram DM: pointer-events を戻し、ストレッチリンクより手前(z-20)に置く。 */}
-          <a
-            href={RRPOKER_INSTAGRAM}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="RRPoker 公式Instagramを開いてDMで相談する"
-            className="pointer-events-auto relative z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold text-ink-800 ring-1 ring-ink-950/15 transition-colors hover:bg-ink-100 active:bg-ink-200"
-          >
-            <Icon name="logo-instagram" className="h-4 w-4" />
-            DMで相談
-          </a>
+        {/* Instagram: pointer-events を戻し、ストレッチリンクより手前(z-20)に置く。 */}
+        <a
+          href={RRPOKER_INSTAGRAM}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="RRPoker 公式Instagramを開く"
+          className="pointer-events-auto relative z-20 grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-700 ring-1 ring-ink-950/15 transition-colors hover:bg-ink-100 active:bg-ink-200"
+        >
+          <Icon name="logo-instagram" className="h-4 w-4" />
+        </a>
 
-          <span className="pointer-events-none ml-auto pr-0.5 text-[10.5px] text-ink-400">
-            お気軽にどうぞ
-          </span>
-        </div>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gold-500 text-ink-950">
+          <Icon name="arrow-right" className="h-4 w-4" weight="bold" />
+        </span>
       </div>
     </motion.section>
   );
