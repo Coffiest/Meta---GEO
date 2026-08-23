@@ -134,7 +134,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: npm install --global vercel@latest
+      # vercel@latest は CLI 側の仕様変更がそのまま本番デプロイを壊す。実際に 59.5.0 で
+      # `env add` の既定可視性が secret になり、NEXT_PUBLIC_* の登録が弾かれて失敗した。
+      # メジャーを固定して、破壊的変更が黙って入ってこないようにする。
+      - run: npm install --global vercel@59
       - name: Deploy to Vercel
         # `vercel deploy` uploads only the files under the directory it's invoked from, so this
         # must run from the repo root (not apps/web) for the monorepo's install/build commands
@@ -144,24 +147,24 @@ jobs:
           vercel link --token "$VERCEL_TOKEN" --yes --project web
 
           vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
-          printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN"
+          printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --visibility config
 
           # Supabase未設定の場合は空文字を渡す(getSupabaseClient側でundefined扱いになりログイン機能が無効化される)
           vercel env rm NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" | vercel env add NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN"
+          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" | vercel env add NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN" --visibility config
           vercel env rm NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN"
+          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --visibility config
 
           # Sign in with Apple の Services ID(未設定なら空=クライアントはシート方式へフォールバック)。
           # 設定するとスタンドアロンPWAのAppleログインがリダイレクト皆無のポップアップ方式になる。
           vercel env rm NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_APPLE_SERVICES_ID }}" | vercel env add NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN"
+          printf '%s' "${{ secrets.NEXT_PUBLIC_APPLE_SERVICES_ID }}" | vercel env add NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN" --visibility config
 
           # Google AdSense未設定の場合は空文字を渡す(AdSlot側で広告枠自体が非表示になる)
           vercel env rm NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN"
+          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --visibility config
           vercel env rm NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN"
+          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN" --visibility config
 
           DEPLOY_URL=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN")
           echo "Deployed to: $DEPLOY_URL"
