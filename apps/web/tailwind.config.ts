@@ -86,16 +86,32 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // 姉妹アプリRRPokerと統一したフォントスタック。本体はlayout.tsxのnext/font/googleで
-        // 読み込んだPlus Jakarta Sansがbodyに直接適用されるが、フォールバックもここで揃えておく。
+        // 全面モノスペース。欧文・数字は JetBrains Mono、和文はそこに無いので M PLUS 1 Code へ
+        // 自動的に落ちる(この並び順がそのまま解決順になる)。sans 自体を差し替えているので、
+        // 既存の font-sans 指定もデフォルト継承も、書き換え無しで新しいフォントになる。
         sans: [
-          "'Plus Jakarta Sans'",
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "'Hiragino Sans'",
-          "'Noto Sans JP'",
-          "sans-serif",
+          "var(--font-mono)",
+          "'JetBrains Mono'",
+          "'M PLUS 1 Code'",
+          "ui-monospace",
+          "SFMono-Regular",
+          "monospace",
         ],
+        // font-mono と書いた箇所も同じ見え方にする(sans と意図的に同一)。
+        mono: [
+          "var(--font-mono)",
+          "'JetBrains Mono'",
+          "'M PLUS 1 Code'",
+          "ui-monospace",
+          "SFMono-Regular",
+          "monospace",
+        ],
+      },
+      fontWeight: {
+        // JetBrains Mono の可変軸の上限は 800、M PLUS 1 Code は 700 で、どちらも 900 を持たない。
+        // font-black を 900 のままにするとブラウザが軸上限へクランプするだけなので、
+        // 設定を実態に合わせて 800 と書く(描画結果は同じ。設定が嘘をつかないようにするため)。
+        black: "800",
       },
       boxShadow: {
         // テーブルプレイ画面(暗色)専用。プレイ中の座席の立体感を出す濃いシャドウ。

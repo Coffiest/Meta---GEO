@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/lib/i18n";
 import { DiagnosticsToaster } from "@/components/DiagnosticsToaster";
@@ -8,12 +8,32 @@ import { DiagnosticsToaster } from "@/components/DiagnosticsToaster";
 // 読み込まない(審査未通過の状態で広告タグを配信しないため)。設定後は再デプロイのみで有効化される。
 const ADSENSE_CLIENT_ID = process.env["NEXT_PUBLIC_ADSENSE_CLIENT_ID"];
 
-// 姉妹アプリRRPokerと統一したフォント。
-const jakarta = Plus_Jakarta_Sans({
+/**
+ * 欧文・数字のフォント。エディタ/ターミナルの見え方に寄せるため、コーディング用の
+ * JetBrains Mono を全面に使う。0にスラッシュが入り l と 1 が描き分けられるので、
+ * スタック・bb・%・順位といった数値の誤読が起きにくい。
+ *
+ * 和文は JetBrains Mono に無いので、下の <link> で読む M PLUS 1 Code へ自動的に
+ * フォールバックする(fontFamily の並び順で解決される)。
+ */
+const mono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
+  variable: "--font-mono",
 });
+
+/**
+ * 和文フォント(M PLUS 1 Code)の読み込み先。
+ *
+ * next/font/google は使えない。Next.js が持つフォント定義上、M PLUS 1 Code の subsets は
+ * latin / latin-ext / vietnamese しか無く **japanese が存在しない**ため、next/font 経由だと
+ * 和文グリフが1つも入らず日本語だけシステムフォントに落ちてしまう。
+ * Google Fonts の CSS API は同じフォントを 119 個の unicode-range に分割して返し、
+ * かな・漢字を含む。ブラウザは実際に使う範囲のファイルだけを取得する。
+ */
+const JP_FONT_CSS =
+  "https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400..700&display=swap";
 
 const SITE_URL = "https://meta-geo-poker.vercel.app";
 const SITE_DESCRIPTION =
@@ -150,8 +170,22 @@ const JSON_LD = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
-      <body className={`${jakarta.className} min-h-screen bg-ink-50 text-ink-950 antialiased`}>
+    // --font-mono は Tailwind の preflight(html への font-family 指定)から参照されるので、
+    // html 側で定義しないと解決されない(CSS変数は上へ継承しない)。
+    <html lang="ja" className={mono.variable}>
+      <head>
+        {/* 和文フォントは Google Fonts から。gstatic は実ファイルの配信元なので両方 preconnect する
+            (crossOrigin 無しだと接続が使い回されず、preconnect の意味が無くなる)。 */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href={JP_FONT_CSS} />
+      </head>
+      {/* body に next/font の className を付けてはいけない。その font-family は
+          JetBrains Mono とそのフォールバックだけで **M PLUS 1 Code を含まない**ため、
+          html 側の指定を上書きしてしまい和文がWebフォントに到達しなくなる。
+          ここでは何も指定せず、html の font-family
+          (var(--font-mono) → 'JetBrains Mono' → 'M PLUS 1 Code')をそのまま継承させる。 */}
+      <body className="min-h-screen bg-ink-50 text-ink-950 antialiased">
         {/* クローラー向けのブランド見出し。アプリ本体はクライアント描画でサーバーHTMLに本文が
             乗らないため、ブランド名(カナ・英字・大文字)と概要をサーバー描画のテキストとして必ず含める。
             視覚的には隠す(sr-only)がDOMには存在し、実体を正確に説明する正当なテキスト。 */}

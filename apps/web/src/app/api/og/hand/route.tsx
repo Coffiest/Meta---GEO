@@ -12,6 +12,13 @@ export const runtime = "edge";
  */
 
 /**
+ * シェア画像のフォント。アプリ本体(全面モノスペース)と揃えるため、日本語コーディング用の
+ * M PLUS 1 Code を使う。900 は存在しないので、太字は 700 が上限。
+ */
+const JP_FONT = "M PLUS 1 Code";
+const JP_FONT_NAME = "MPlus1Code";
+
+/**
  * Google Fonts の css2 から、必要な文字だけをサブセットした日本語フォントを取得する。
  * satori(next/og)は woff2 を解釈できないため、UAを付けず truetype を得る。
  * 取得失敗時は null を返し、フォント無しでレンダリングする(Latinはフォールバックで描画される)。
@@ -80,7 +87,7 @@ function Card({ code, w }: { code: string; w: number }) {
         boxShadow: "0 10px 24px -14px rgba(0,0,0,0.5)",
       }}
     >
-      <span style={{ fontSize: `${Math.round(w * 0.4)}px`, fontWeight: 900, color, lineHeight: 1 }}>{rank}</span>
+      <span style={{ fontSize: `${Math.round(w * 0.4)}px`, fontWeight: 700, color, lineHeight: 1 }}>{rank}</span>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <SuitMark suit={suit} size={Math.round(w * 0.44)} />
       </div>
@@ -90,7 +97,7 @@ function Card({ code, w }: { code: string; w: number }) {
 
 /** ── ラベル ── 風のキッカー見出し。 */
 function Kicker({ text }: { text: string }) {
-  return <span style={{ fontSize: "20px", fontWeight: 700, letterSpacing: "6px", color: INK_MUTED }}>{text}</span>;
+  return <span style={{ fontSize: "20px", fontWeight: 500, letterSpacing: "6px", color: INK_MUTED }}>{text}</span>;
 }
 
 /** カード表記のパース。"As,Kd" → ["As","Kd"]。不正な値は落とす。 */
@@ -120,14 +127,14 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
   // フォントサブセットに必要な全文字を集める(表示名 + 固定ラベル + 数字 + ランク)。
   const glyphs = `${name}${bbText}このハンド全員フォールドで決着プリフロップ無料ポーカー強くなれる実力が数字に出る0123456789+-±.,/AKQJshdcbBOARDYUHNPokerART `;
-  const [bold, black] = await Promise.all([
-    loadGoogleFont("Noto Sans JP", 700, glyphs),
-    loadGoogleFont("Noto Sans JP", 900, glyphs),
+  const [regular, bold] = await Promise.all([
+    loadGoogleFont(JP_FONT, 500, glyphs),
+    loadGoogleFont(JP_FONT, 700, glyphs),
   ]);
-  const fonts: { name: string; data: ArrayBuffer; weight: 700 | 900; style: "normal" }[] = [];
-  if (bold) fonts.push({ name: "NotoJP", data: bold, weight: 700, style: "normal" });
-  if (black) fonts.push({ name: "NotoJP", data: black, weight: 900, style: "normal" });
-  const fontFamily = fonts.length ? "NotoJP" : "sans-serif";
+  const fonts: { name: string; data: ArrayBuffer; weight: 500 | 700; style: "normal" }[] = [];
+  if (regular) fonts.push({ name: JP_FONT_NAME, data: regular, weight: 500, style: "normal" });
+  if (bold) fonts.push({ name: JP_FONT_NAME, data: bold, weight: 700, style: "normal" });
+  const fontFamily = fonts.length ? JP_FONT_NAME : "monospace";
 
   return new ImageResponse(
     (
@@ -150,7 +157,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Kicker text="HAND OF THE GAME" />
-            {name ? <span style={{ fontSize: "36px", fontWeight: 900, color: INK, marginTop: "6px" }}>{name}</span> : null}
+            {name ? <span style={{ fontSize: "36px", fontWeight: 700, color: INK, marginTop: "6px" }}>{name}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center" }}>
             <SuitMark suit="s" size={48} />
@@ -162,7 +169,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Kicker text="YOUR HAND" />
             <div style={{ display: "flex", gap: "14px", marginTop: "10px" }}>
-              {hero.length > 0 ? hero.map((c) => <Card key={c} code={c} w={112} />) : <span style={{ fontSize: "28px", fontWeight: 700, color: INK_MUTED }}>-</span>}
+              {hero.length > 0 ? hero.map((c) => <Card key={c} code={c} w={112} />) : <span style={{ fontSize: "28px", fontWeight: 500, color: INK_MUTED }}>-</span>}
             </div>
 
             <div style={{ display: "flex", marginTop: "24px" }}>
@@ -172,7 +179,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
               {board.length > 0 ? (
                 board.map((c) => <Card key={c} code={c} w={74} />)
               ) : (
-                <span style={{ fontSize: "26px", fontWeight: 700, color: INK_MUTED, display: "flex", alignItems: "center", height: "104px" }}>
+                <span style={{ fontSize: "26px", fontWeight: 500, color: INK_MUTED, display: "flex", alignItems: "center", height: "104px" }}>
                   プリフロップ
                 </span>
               )}
@@ -181,8 +188,8 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginLeft: "40px" }}>
             <div style={{ display: "flex", alignItems: "baseline" }}>
-              <span style={{ fontSize: "150px", fontWeight: 900, color: accent, lineHeight: 1 }}>{bbText}</span>
-              <span style={{ fontSize: "56px", fontWeight: 900, color: accent, marginLeft: "8px" }}>bb</span>
+              <span style={{ fontSize: "150px", fontWeight: 700, color: accent, lineHeight: 1 }}>{bbText}</span>
+              <span style={{ fontSize: "56px", fontWeight: 700, color: accent, marginLeft: "8px" }}>bb</span>
             </div>
             {wonByFold ? (
               <div
@@ -194,7 +201,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
                   background: "rgba(212,145,10,0.14)",
                   color: GOLD_DEEP,
                   fontSize: "24px",
-                  fontWeight: 900,
+                  fontWeight: 700,
                 }}
               >
                 全員フォールドで決着
@@ -205,10 +212,10 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
         {/* フッター: キャッチ + アプリ名/URL */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
-          <span style={{ fontSize: "24px", fontWeight: 700, color: INK_MUTED }}>実力が数字に出る無料ポーカー</span>
+          <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED }}>実力が数字に出る無料ポーカー</span>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "32px", fontWeight: 900, color: INK }}>Poker ART</span>
-            <span style={{ fontSize: "21px", fontWeight: 700, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
+            <span style={{ fontSize: "32px", fontWeight: 700, color: INK }}>Poker ART</span>
+            <span style={{ fontSize: "21px", fontWeight: 500, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
           </div>
         </div>
       </div>

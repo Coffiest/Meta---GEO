@@ -27,6 +27,13 @@ function ordinal(n: number): string {
 }
 
 /**
+ * シェア画像のフォント。アプリ本体(全面モノスペース)と揃えるため、日本語コーディング用の
+ * M PLUS 1 Code を使う。900 は存在しないので、太字は 700 が上限。
+ */
+const JP_FONT = "M PLUS 1 Code";
+const JP_FONT_NAME = "MPlus1Code";
+
+/**
  * Google Fonts の css2 から、必要な文字だけをサブセットした日本語フォントを取得する。
  * satori(next/og)は woff2 を解釈できないため、UAを付けず truetype を得る。
  * 取得失敗時は null を返し、フォント無しでレンダリングする(Latinはフォールバックで描画される)。
@@ -69,14 +76,14 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
   // フォントサブセットに必要な全文字を集める(表示名 + 固定ラベル + 数字)。
   const glyphs = `${name}${rankBig}トーナメント結果獲得全国位無料ポーカーで対戦強くなる実力が数字に出る${payout}${rank ?? ""}0123456789 ,./+PokerART`;
-  const [bold, black] = await Promise.all([
-    loadGoogleFont("Noto Sans JP", 700, glyphs),
-    loadGoogleFont("Noto Sans JP", 900, glyphs),
+  const [regular, bold] = await Promise.all([
+    loadGoogleFont(JP_FONT, 500, glyphs),
+    loadGoogleFont(JP_FONT, 700, glyphs),
   ]);
-  const fonts: { name: string; data: ArrayBuffer; weight: 700 | 900; style: "normal" }[] = [];
-  if (bold) fonts.push({ name: "NotoJP", data: bold, weight: 700, style: "normal" });
-  if (black) fonts.push({ name: "NotoJP", data: black, weight: 900, style: "normal" });
-  const fontFamily = fonts.length ? "NotoJP" : "sans-serif";
+  const fonts: { name: string; data: ArrayBuffer; weight: 500 | 700; style: "normal" }[] = [];
+  if (regular) fonts.push({ name: JP_FONT_NAME, data: regular, weight: 500, style: "normal" });
+  if (bold) fonts.push({ name: JP_FONT_NAME, data: bold, weight: 700, style: "normal" });
+  const fontFamily = fonts.length ? JP_FONT_NAME : "monospace";
 
   return new ImageResponse(
     (
@@ -98,9 +105,9 @@ export async function GET(req: Request): Promise<ImageResponse> {
         {/* ヘッダー: 表示名 + アプリ名 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "8px", color: INK_MUTED }}>TOURNAMENT RESULT</span>
+            <span style={{ fontSize: "22px", fontWeight: 500, letterSpacing: "8px", color: INK_MUTED }}>TOURNAMENT RESULT</span>
             {name ? (
-              <span style={{ fontSize: "40px", fontWeight: 900, color: INK, marginTop: "8px" }}>{name}</span>
+              <span style={{ fontSize: "40px", fontWeight: 700, color: INK, marginTop: "8px" }}>{name}</span>
             ) : null}
           </div>
           {/* スペードのゴールドマーク */}
@@ -114,11 +121,11 @@ export async function GET(req: Request): Promise<ImageResponse> {
         {/* 中央: 着順の超特大表示 */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
           {isWin ? (
-            <span style={{ fontSize: "30px", fontWeight: 900, letterSpacing: "6px", color: GOLD, marginBottom: "8px" }}>CHAMPION</span>
+            <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "6px", color: GOLD, marginBottom: "8px" }}>CHAMPION</span>
           ) : null}
           <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontSize: useRatio ? "150px" : "220px", fontWeight: 900, color: INK, lineHeight: 1 }}>{rankBig}</span>
-            {!useRatio && pos != null ? <span style={{ fontSize: "120px", fontWeight: 900, color: GOLD, lineHeight: 1 }}>.</span> : null}
+            <span style={{ fontSize: useRatio ? "150px" : "220px", fontWeight: 700, color: INK, lineHeight: 1 }}>{rankBig}</span>
+            {!useRatio && pos != null ? <span style={{ fontSize: "120px", fontWeight: 700, color: GOLD, lineHeight: 1 }}>.</span> : null}
           </div>
           {payout > 0 ? (
             <div
@@ -130,7 +137,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
                 background: "rgba(212,145,10,0.14)",
                 color: GOLD_DEEP,
                 fontSize: "40px",
-                fontWeight: 900,
+                fontWeight: 700,
               }}
             >
               獲得 +{payout.toLocaleString()}
@@ -143,17 +150,17 @@ export async function GET(req: Request): Promise<ImageResponse> {
           <div style={{ display: "flex", flexDirection: "column" }}>
             {rank != null ? (
               <div style={{ display: "flex", alignItems: "baseline" }}>
-                <span style={{ fontSize: "24px", fontWeight: 700, color: INK_MUTED, marginRight: "10px" }}>全国</span>
-                <span style={{ fontSize: "44px", fontWeight: 900, color: INK }}>{rank.toLocaleString()}</span>
-                <span style={{ fontSize: "24px", fontWeight: 700, color: INK_MUTED, marginLeft: "6px" }}>位</span>
+                <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED, marginRight: "10px" }}>全国</span>
+                <span style={{ fontSize: "44px", fontWeight: 700, color: INK }}>{rank.toLocaleString()}</span>
+                <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED, marginLeft: "6px" }}>位</span>
               </div>
             ) : (
-              <span style={{ fontSize: "26px", fontWeight: 700, color: INK_MUTED }}>強くなれる無料ポーカー</span>
+              <span style={{ fontSize: "26px", fontWeight: 500, color: INK_MUTED }}>強くなれる無料ポーカー</span>
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "34px", fontWeight: 900, color: INK }}>Poker ART</span>
-            <span style={{ fontSize: "22px", fontWeight: 700, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
+            <span style={{ fontSize: "34px", fontWeight: 700, color: INK }}>Poker ART</span>
+            <span style={{ fontSize: "22px", fontWeight: 500, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
           </div>
         </div>
       </div>
