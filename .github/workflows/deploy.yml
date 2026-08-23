@@ -143,30 +143,32 @@ jobs:
         # must run from the repo root (not apps/web) for the monorepo's install/build commands
         # (see vercel.json at the repo root) to have access to packages/engine, packages/db, the
         # workspace lockfile, etc.
+        #
+        # NEXT_PUBLIC_* はプロジェクトの環境変数ストアに登録せず、--build-env でビルド時にだけ渡す。
+        # 以前は毎回 `env rm` してから `env add` し直していたが、これには2つ問題があった:
+        #   1. Vercel CLI が NEXT_PUBLIC_* の Production への登録を可視性ポリシーで拒否するようになり、
+        #      デプロイが失敗するようになった(--visibility config を付けても通らない)
+        #   2. rm が成功して add が失敗すると、プロジェクトから変数が消えたまま残る。実際に
+        #      NEXT_PUBLIC_SERVER_URL がこの状態になった
+        # これらは全てビルド時にバンドルへ焼き込まれる値なので、--build-env で渡せば十分で、
+        # プロジェクト側の状態を一切変えずに済む。
         run: |
           vercel link --token "$VERCEL_TOKEN" --yes --project web
 
-          vercel env rm NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --yes || true
-          printf 'https://meta---geo.fly.dev' | vercel env add NEXT_PUBLIC_SERVER_URL production --token "$VERCEL_TOKEN" --visibility config
+          # 未設定のシークレットは引数ごと省く。空文字を渡すのとアプリ側の扱いは同じだが
+          # (getSupabaseClient や AdSlot は空を未設定として扱う)、`KEY=` という形を
+          # CLI に解釈させずに済むぶん確実。
+          BUILD_ENV=(--build-env "NEXT_PUBLIC_SERVER_URL=https://meta---geo.fly.dev")
+          add_env() {
+            if [ -n "$2" ]; then BUILD_ENV+=(--build-env "$1=$2"); fi
+          }
+          add_env NEXT_PUBLIC_SUPABASE_URL           "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
+          add_env NEXT_PUBLIC_SUPABASE_ANON_KEY      "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+          add_env NEXT_PUBLIC_APPLE_SERVICES_ID      "${{ secrets.NEXT_PUBLIC_APPLE_SERVICES_ID }}"
+          add_env NEXT_PUBLIC_ADSENSE_CLIENT_ID      "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}"
+          add_env NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID "${{ secrets.NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID }}"
 
-          # Supabase未設定の場合は空文字を渡す(getSupabaseClient側でundefined扱いになりログイン機能が無効化される)
-          vercel env rm NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" | vercel env add NEXT_PUBLIC_SUPABASE_URL production --token "$VERCEL_TOKEN" --visibility config
-          vercel env rm NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production --token "$VERCEL_TOKEN" --visibility config
-
-          # Sign in with Apple の Services ID(未設定なら空=クライアントはシート方式へフォールバック)。
-          # 設定するとスタンドアロンPWAのAppleログインがリダイレクト皆無のポップアップ方式になる。
-          vercel env rm NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_APPLE_SERVICES_ID }}" | vercel env add NEXT_PUBLIC_APPLE_SERVICES_ID production --token "$VERCEL_TOKEN" --visibility config
-
-          # Google AdSense未設定の場合は空文字を渡す(AdSlot側で広告枠自体が非表示になる)
-          vercel env rm NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_CLIENT_ID production --token "$VERCEL_TOKEN" --visibility config
-          vercel env rm NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN" --yes || true
-          printf '%s' "${{ secrets.NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID }}" | vercel env add NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID production --token "$VERCEL_TOKEN" --visibility config
-
-          DEPLOY_URL=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN")
+          DEPLOY_URL=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN" "${BUILD_ENV[@]}")
           echo "Deployed to: $DEPLOY_URL"
           # デプロイのたびにVercelがランダムなエイリアスを生成してURLが変わってしまうため、
           # 固定のエイリアスを明示的に貼り直して本番URLを安定させる。
