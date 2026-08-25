@@ -5,6 +5,11 @@ import {
   getGeoBackfillStatus,
   getGeoDataCounts,
   getGeoPositionStats,
+  listTrendItems,
+  markTrendReviewed,
+  listSocialPosts,
+  saveSocialPost,
+  listAccountsWithTrend,
   grantCompSubscription,
   restoreGeoData,
   revokeCompSubscription,
@@ -223,6 +228,62 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     // 母集団の偏りなのか、木構造・卓人数による見え方の問題なのかを切り分けるための計測。
     if (url.pathname === "/api/admin/geo-position-stats" && req.method === "GET") {
       sendJson(res, 200, await getGeoPositionStats());
+      return true;
+    }
+
+    // --- SNS運用(マーケティング) ---
+
+    // ④⑨ 収集したトレンドと、ネガティブ検知の結果。
+    if (url.pathname === "/api/admin/marketing/trends" && req.method === "GET") {
+      const sev = url.searchParams.get("severity");
+      const severity = sev === "critical" || sev === "warning" || sev === "info" ? sev : undefined;
+      sendJson(res, 200, {
+        items: await listTrendItems({
+          ...(severity ? { severity } : {}),
+          onlyUnreviewed: url.searchParams.get("unreviewed") === "1",
+          limit: clampLimit(url.searchParams.get("limit"), 50, 1, 200),
+        }),
+      });
+      return true;
+    }
+
+    // 確認済みにする(通知を消すため)。
+    if (url.pathname === "/api/admin/marketing/trend-reviewed" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : null;
+      if (!id) {
+        sendJson(res, 400, { error: "id is required" });
+        return true;
+      }
+      await markTrendReviewed(id);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // ②⑥ 原稿の一覧と保存。
+    if (url.pathname === "/api/admin/marketing/posts" && req.method === "GET") {
+      sendJson(res, 200, { posts: await listSocialPosts(clampLimit(url.searchParams.get("limit"), 50, 1, 200)) });
+      return true;
+    }
+    if (url.pathname === "/api/admin/marketing/posts" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const source = typeof body["source"] === "string" ? body["source"] : null;
+      if (!source || source.trim().length === 0) {
+        sendJson(res, 400, { error: "source is required" });
+        return true;
+      }
+      sendJson(res, 200, {
+        post: await saveSocialPost({
+          source,
+          platform: typeof body["platform"] === "string" ? body["platform"] : null,
+        }),
+      });
+      return true;
+    }
+
+    // ①⑦ 監視対象アカウントとフォロワー推移。鍵が無い間は記録が空のまま返る。
+    if (url.pathname === "/api/admin/marketing/accounts" && req.method === "GET") {
+      sendJson(res, 200, { accounts: await listAccountsWithTrend() });
       return true;
     }
 

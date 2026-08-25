@@ -70,6 +70,9 @@ importers:
       '@meta-geo/engine':
         specifier: workspace:*
         version: link:../engine
+      '@meta-geo/marketing':
+        specifier: workspace:*
+        version: link:../marketing
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)

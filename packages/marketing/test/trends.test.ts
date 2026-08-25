@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFeed, collectTrends, filterRelevant, defaultSources, youtubeChannelSource, dedupeItems } from "../src/trends.js";
+import { parseFeed, collectTrends, filterRelevant, defaultSources, youtubeChannelSource, dedupeItems, dedupeKeyOf } from "../src/trends.js";
 
 const SRC = { kind: "google-news" as const, label: "ニュース", url: "https://example.invalid/rss" };
 
@@ -117,10 +117,59 @@ describe("dedupeItems", () => {
     expect(r.map((x) => x.title)).toEqual(["同じ", "別"]);
   });
 
-  it("リンクが違えば別件として残す", () => {
+  it("題名が違えば別件として残す", () => {
     const mk = (title: string, link: string) => ({
       source: "google-news" as const, sourceLabel: "n", title, link, publishedAt: null,
     });
-    expect(dedupeItems([mk("同題名", "https://a"), mk("同題名", "https://b")])).toHaveLength(2);
+    expect(dedupeItems([mk("記事A", "https://a"), mk("記事B", "https://b")])).toHaveLength(2);
+  });
+
+  it("題名が同じなら、リンクが違っても1件にまとめる(意図した割り切り)", () => {
+    // 題名が同じ別記事を1件にしてしまう可能性は残るが、同じ見出しが並ぶ方が実害が大きい。
+    // Googleニュースが検索ごとに別URLを返す以上、リンク基準では重複を防げない。
+    const mk = (link: string) => ({
+      source: "google-news" as const, sourceLabel: "n", title: "同題名", link, publishedAt: null,
+    });
+    expect(dedupeItems([mk("https://a"), mk("https://b")])).toHaveLength(1);
+  });
+});
+
+describe("dedupeKeyOf", () => {
+  it("Googleニュースの追跡URL違いを同一記事として扱う", () => {
+    // 実測で起きた事象: 同じイカサマ報道が「ポーカー」と「テキサスホールデム」の
+    // 検索から別リンクで届き、2件保存されてしまった。リンクで見ると防げない。
+    const mk = (link: string) => ({
+      source: "google-news" as const, sourceLabel: "n", link, publishedAt: null,
+      title: "ポーカーをしていた客と店員に「イカサマやってんだろ」 - 例社",
+    });
+    const r = dedupeItems([mk("https://news.google.com/rss/articles/AAA"), mk("https://news.google.com/rss/articles/BBB")]);
+    expect(r).toHaveLength(1);
+  });
+
+  it("題名の空白ゆれを吸収する", () => {
+    expect(dedupeKeyOf({ title: "  ポーカー   大会 " })).toBe(dedupeKeyOf({ title: "ポーカー 大会" }));
+  });
+});
+
+describe("同一事件の複数媒体報道", () => {
+  it("媒体名だけが違う同じ見出しは1件にまとめる", () => {
+    // 実測で起きた事象: 同じイカサマ報道が別媒体名で2件保存された。
+    const mk = (outlet: string) => ({
+      source: "google-news" as const, sourceLabel: "n", link: `https://x/${outlet}`, publishedAt: null,
+      title: `ポーカー店で客が逮捕 - ${outlet}`,
+    });
+    expect(dedupeItems([mk("au Webポータル"), mk("FNNプライムオンライン")])).toHaveLength(1);
+  });
+
+  it("見出し本体が違えば別件として残す", () => {
+    const mk = (head: string) => ({
+      source: "google-news" as const, sourceLabel: "n", link: `https://x/${head}`, publishedAt: null,
+      title: `${head} - 同じ媒体`,
+    });
+    expect(dedupeItems([mk("大会が開催"), mk("新店舗が開店")])).toHaveLength(2);
+  });
+
+  it("媒体名の付かない見出し(はてブ等)はそのまま扱う", () => {
+    expect(dedupeKeyOf({ title: "ポーカーの確率入門" })).toBe("ポーカーの確率入門");
   });
 });

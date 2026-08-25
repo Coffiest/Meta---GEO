@@ -493,3 +493,104 @@ model ErrorReport {
   @@index([scope, createdAt])
   @@index([resolvedAt])
 }
+
+// ---------------------------------------------------------------------------
+// SNS運用(マーケティング)
+//
+// 収集・監視の結果を保存する。集計ロジック自体は packages/marketing 側に置いてあり、
+// ここは「いつ何を拾ったか」を残して時系列で追えるようにするだけ。
+// ---------------------------------------------------------------------------
+
+/// ④ 収集したトレンド/ニュース1件。
+model TrendItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// 収集元の種別。"google-trends" | "google-news" | "youtube" | "hatena"。
+  source String
+
+  /// 画面に出す収集元の名前(例 "ニュース: ポーカー")。
+  sourceLabel String
+
+  title String
+  link  String
+
+  /// 元フィードが返した公開日時。取れないフィードもあるのでnull許容。
+  publishedAt DateTime?
+
+  /// ⑨ の判定結果。"critical" | "warning" | "info"。何も当たらなければnull。
+  severity String?
+
+  /// 判定の根拠になった語。人が却下できるように残す。
+  severityTerms String[]
+
+  /// 運営が確認済みにした時刻。未確認はnull。
+  reviewedAt DateTime?
+
+  /// 同じ記事を二重に保存しないための鍵。リンクが空のものは題名を使う。
+  dedupeKey String @unique
+
+  @@index([createdAt])
+  @@index([severity, createdAt])
+  @@index([reviewedAt])
+}
+
+/// ②⑥ 投稿の原稿と、その構造分析の結果。過去投稿の再利用元にもなる。
+model SocialPost {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// 原稿本文(出し分け前の1本)。
+  source String
+
+  /// 実際に投稿したプラットフォーム。未投稿はnull。
+  platform String?
+
+  /// 投稿先のURL。実績を後から突き合わせるために持つ。
+  postedUrl String?
+  postedAt  DateTime?
+
+  /// analyzePost の結果をそのまま入れる。閾値を変えたときの再計算元にする。
+  structure Json
+
+  /// 手動で記録する実績(表示数・いいね等)。APIが無くても運用できるようにする。
+  impressions Int?
+  likes       Int?
+  reposts     Int?
+
+  @@index([createdAt])
+  @@index([platform, postedAt])
+}
+
+/// ①⑦ 監視対象のアカウント(自社・競合とも)。
+model SocialAccount {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  platform String
+  /// @を除いたハンドル。
+  handle String
+  label  String
+
+  /// 自社アカウントか(競合と区別して推移を並べるため)。
+  isOwn Boolean @default(false)
+
+  snapshots AccountSnapshot[]
+
+  @@unique([platform, handle])
+}
+
+/// ⑦ フォロワー推移。1日1件を想定。
+model AccountSnapshot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  accountId String
+  account   SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  followers Int
+  following Int?
+  posts     Int?
+
+  @@index([accountId, createdAt])
+}

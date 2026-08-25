@@ -101,13 +101,31 @@ export function parseFeed(xml: string, source: TrendSource): TrendItem[] {
  * 「ポーカー」と「テキサスホールデム」の両方から同一記事が来た)。そのまま digest に出すと
  * 同じ見出しが並び、ネガティブ検知も同じ記事を二重に通知してしまう。
  *
- * リンクが同じものを同一とみなす。リンクが空のもの(Googleトレンドの一部)は題名で見る。
+ * 判定は**媒体名を除いた見出し**で行う。理由は実測で2つ分かっている:
+ *
+ *  1. リンクでは防げない。Google ニュースは検索ごとに別の追跡URLを返すので、同一記事が
+ *     「ポーカー」と「テキサスホールデム」の両方から別リンクで届く
+ *  2. 題名そのものでも防げない。Google ニュースの題名は「見出し - 媒体名」の形で、
+ *     同じ事件を複数媒体が報じると別題名になる(実測: 同じイカサマ報道が
+ *     「… - au Webポータル」と「… - FNNプライムオンライン」で2件保存された)
+ *
+ * 割り切り: 何媒体が取り上げたかという広がりの情報は落ちる。日次で「今日見るべきもの」を
+ * 拾うのが目的で、同じ見出しが並ぶ方が実害が大きいため、そちらを優先する。
  */
+export function dedupeKeyOf(item: Pick<TrendItem, "title">): string {
+  return item.title
+    .replace(/\s+/g, " ")
+    .trim()
+    // 末尾の「 - 媒体名」を落とす。Googleニュースの規約で最後の " - " が媒体名の区切り。
+    .replace(/\s+-\s+[^-]+$/, "")
+    .trim();
+}
+
 export function dedupeItems(items: TrendItem[]): TrendItem[] {
   const seen = new Set<string>();
   const out: TrendItem[] = [];
   for (const i of items) {
-    const key = i.link.length > 0 ? `l:${i.link}` : `t:${i.title}`;
+    const key = dedupeKeyOf(i);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(i);
