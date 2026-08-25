@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PlayingCard } from "./PlayingCard";
 import { formatAmount, formatSignedBb, type AmountDisplayMode } from "@/lib/format";
-import { buildHandShareText, buildHandShareUrl, openTweetIntent, toBbValue } from "@/lib/share";
+import { buildHandShareText, buildHandShareUrl, shareOrTweet, toBbValue } from "@/lib/share";
 import type { GameHandRecord } from "@/lib/socket";
 import {
   fetchHandTimeline,
@@ -237,10 +237,11 @@ export function GameHandHistorySheet({
     }
   }
 
-  /** その1ハンドをOGPカード付きでXへ投稿する。 */
-  function shareHand(rec: { heroCards: string[]; board: string[]; delta: number; wonByFold: boolean }) {
+  /** その1ハンドをOGPカード付きで共有する。端末の共有シートを優先し、無ければXへ落とす。 */
+  async function shareHand(rec: { heroCards: string[]; board: string[]; delta: number; wonByFold: boolean }) {
     const bb = toBbValue(rec.delta, bigBlind);
-    openTweetIntent({
+    await shareOrTweet({
+      surface: "hand",
       text: buildHandShareText(bb),
       url: buildHandShareUrl({
         displayName,
@@ -401,9 +402,9 @@ export function GameHandHistorySheet({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        shareHand(row);
+                        void shareHand(row);
                       }}
-                      aria-label={`ハンド${row.label}をXでシェア`}
+                      aria-label={`ハンド${row.label}を共有`}
                       className="shrink-0 rounded-lg border border-ink-200 p-1.5 text-ink-500 transition-colors active:bg-ink-100"
                     >
                       <XLogo className="h-3.5 w-3.5" />

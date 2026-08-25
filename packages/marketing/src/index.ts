@@ -12,3 +12,4 @@ export * from "./optimize.js";
 export * from "./trends.js";
 export * from "./recycle.js";
 export * from "./sentiment.js";
+export * from "./share.js";
