@@ -10,6 +10,8 @@ import {
   listSocialPosts,
   saveSocialPost,
   listAccountsWithTrend,
+  upsertSocialAccount,
+  recordAccountSnapshot,
   grantCompSubscription,
   restoreGeoData,
   revokeCompSubscription,
@@ -20,6 +22,7 @@ import {
   type CompDurationUnit,
   type GeoBackfillProgress,
 } from "@meta-geo/db";
+import { hasXCredentials, draftReply } from "@meta-geo/marketing";
 import { checkAdminAuth } from "./adminAuth.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
@@ -281,9 +284,62 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
-    // ①⑦ 監視対象アカウントとフォロワー推移。鍵が無い間は記録が空のまま返る。
+    // ①⑦ 監視対象アカウントとフォロワー推移。
+    // 鍵の有無も返す。未設定なら管理画面は「手入力」の口を出す(自動収集は鍵を入れた瞬間に始まる)。
     if (url.pathname === "/api/admin/marketing/accounts" && req.method === "GET") {
-      sendJson(res, 200, { accounts: await listAccountsWithTrend() });
+      sendJson(res, 200, { accounts: await listAccountsWithTrend(), autoCollect: hasXCredentials() });
+      return true;
+    }
+
+    // 監視対象を追加する。
+    if (url.pathname === "/api/admin/marketing/accounts" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const platform = typeof body["platform"] === "string" ? body["platform"] : "x";
+      const handle = typeof body["handle"] === "string" ? body["handle"].trim() : "";
+      const label = typeof body["label"] === "string" ? body["label"].trim() : "";
+      if (handle.length === 0) {
+        sendJson(res, 400, { error: "handle is required" });
+        return true;
+      }
+      const account = await upsertSocialAccount({
+        platform,
+        handle,
+        label: label.length > 0 ? label : handle,
+        isOwn: body["isOwn"] === true,
+      });
+      sendJson(res, 200, { account });
+      return true;
+    }
+
+    // ⑦ フォロワー数を手で記録する。鍵が無くても推移を積めるようにするための口。
+    if (url.pathname === "/api/admin/marketing/account-snapshot" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const accountId = typeof body["accountId"] === "string" ? body["accountId"] : "";
+      const followers = typeof body["followers"] === "number" ? body["followers"] : NaN;
+      if (!accountId || !Number.isFinite(followers) || followers < 0) {
+        sendJson(res, 400, { error: "accountId と followers(0以上の数値) が必要です" });
+        return true;
+      }
+      await recordAccountSnapshot({
+        accountId,
+        followers: Math.trunc(followers),
+        following: typeof body["following"] === "number" ? Math.trunc(body["following"]) : null,
+        posts: typeof body["posts"] === "number" ? Math.trunc(body["posts"]) : null,
+      });
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // ⑤ 返信の下書き。相手の投稿を貼り付ければ動くので鍵は要らない。
+    // 送信はしない(運営の言葉として残り取り消せないため、必ず人が決める)。
+    if (url.pathname === "/api/admin/marketing/reply-draft" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const text = typeof body["text"] === "string" ? body["text"] : "";
+      if (text.trim().length === 0) {
+        sendJson(res, 400, { error: "text is required" });
+        return true;
+      }
+      sendJson(res, 200, { draft: draftReply(text) });
       return true;
     }
 

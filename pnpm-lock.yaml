@@ -128,6 +128,9 @@ importers:
       '@meta-geo/engine':
         specifier: workspace:*
         version: link:../engine
+      '@meta-geo/marketing':
+        specifier: workspace:*
+        version: link:../marketing
       '@supabase/supabase-js':
         specifier: ^2.110.0
         version: 2.110.0

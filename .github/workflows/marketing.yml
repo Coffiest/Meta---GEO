@@ -27,3 +27,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MARKETING_KEYWORDS: ${{ vars.MARKETING_KEYWORDS }}
           MARKETING_YOUTUBE_CHANNELS: ${{ vars.MARKETING_YOUTUBE_CHANNELS }}
+
+      # ①⑦ フォロワー推移。X_BEARER_TOKEN が未設定なら何もせず正常終了する
+      # (鍵が無い状態が普通なので、ここで赤くすると本当の異常に気づけなくなる)。
+      - name: Collect account metrics
+        run: pnpm --filter @meta-geo/db exec tsx scripts/collectAccounts.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}

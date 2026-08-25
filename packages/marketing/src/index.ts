@@ -13,3 +13,5 @@ export * from "./trends.js";
 export * from "./recycle.js";
 export * from "./sentiment.js";
 export * from "./share.js";
+export * from "./reply.js";
+export * from "./xClient.js";
