@@ -17,8 +17,8 @@ import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon, HeroIcon } from "@/components/Icon";
 
 export default function PricingPage() {
-  const { session } = useAuth();
-  const accessToken = session?.access_token;
+  const { accessToken: accessTokenFromAuth } = useAuth();
+  const accessToken = accessTokenFromAuth ?? undefined;
   const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -3,12 +3,26 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabaseClient";
+import {
+  isAllowedParentOrigin,
+  isEmbedded,
+  parseEmbedTokenMessage,
+  requestTokenFromParent,
+} from "./embedSession";
 
 export interface AuthState {
   /** Supabaseの環境変数が未設定の場合はfalse(ログイン機能そのものが使えない) */
   authAvailable: boolean;
   loading: boolean;
   session: Session | null;
+  /**
+   * サーバーへ送るアクセストークン。通常はSupabaseのセッションのもの、
+   * 埋め込みモード(RRPokerの中で動いているとき)は親から受け取ったトークン。
+   * 画面側はこれだけを見ればよく、どちらの認証基盤かを意識しなくてよい。
+   */
+  accessToken: string | null;
+  /** RRPokerなど別アプリの中に埋め込まれて動いているか。 */
+  embedded: boolean;
   /** Google/AppleログインのコールバックURLにエラーが付いて戻ってきた場合のメッセージ */
   oauthError: string | null;
   /** oauthErrorの元になった、Supabase/Googleが返した生のエラー文字列(原因特定用) */
@@ -68,6 +82,8 @@ export function useAuth(): AuthState {
   const [loading, setLoading] = useState(true);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthErrorRaw, setOauthErrorRaw] = useState<string | null>(null);
+  const [embedded] = useState(() => isEmbedded());
+  const [embeddedToken, setEmbeddedToken] = useState<string | null>(null);
 
   useEffect(() => {
     const result = readOauthErrorFromLocation();
@@ -75,7 +91,28 @@ export function useAuth(): AuthState {
     setOauthErrorRaw(result?.raw ?? null);
   }, []);
 
+  /**
+   * 埋め込みモードでは、自前でログインせずに親アプリからトークンを受け取る。
+   * 受け取り口は origin を必ず照合する(許可リストに無いオリジンからは受け取らない)。
+   * 親はトークンを更新するたびに送り直してくるので、失効しても勝手に追従する。
+   */
   useEffect(() => {
+    if (!embedded) return;
+    const onMessage = (event: MessageEvent) => {
+      if (!isAllowedParentOrigin(event.origin)) return;
+      const message = parseEmbedTokenMessage(event.data);
+      if (!message) return;
+      setEmbeddedToken(message.token);
+      setLoading(false);
+    };
+    window.addEventListener("message", onMessage);
+    requestTokenFromParent();
+    return () => window.removeEventListener("message", onMessage);
+  }, [embedded]);
+
+  useEffect(() => {
+    // 埋め込みモードではSupabaseのセッションを一切見ない(親のトークンだけを使う)。
+    if (embedded) return;
     if (!supabase) {
       setLoading(false);
       return;
@@ -88,14 +125,17 @@ export function useAuth(): AuthState {
       setSession(newSession);
     });
     return () => listener.subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, embedded]);
 
   const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
 
   return {
-    authAvailable: Boolean(supabase),
+    // 埋め込みモードでは親アプリがログイン済みなので、Supabaseの設定有無に関係なく使える。
+    authAvailable: embedded || Boolean(supabase),
     loading,
     session,
+    accessToken: embedded ? embeddedToken : session?.access_token ?? null,
+    embedded,
     oauthError,
     oauthErrorRaw,
     clearOauthError: () => {

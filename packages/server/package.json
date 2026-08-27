@@ -15,6 +15,7 @@
     "@meta-geo/db": "workspace:*",
     "@meta-geo/engine": "workspace:*",
     "@supabase/supabase-js": "^2.110.0",
+    "firebase-admin": "^14.3.0",
     "socket.io": "^4.8.1",
     "stripe": "^17.4.0",
     "web-push": "^3.6.7",
