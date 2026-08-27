@@ -25,12 +25,6 @@ function RewardGlyph({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 /** X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */
-function XLogo({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <Icon name="logo-x" className={className} />
-  );
-}
-
 /**
  * ホームの「友達を招待」カード。招待コード/リンクの共有と、獲得したクーポンの枚数を表示する。
  * 特典は「棋譜解析プラン1ヶ月無料クーポン」(1招待=1枚)。コードの確認・コピー・適用は
@@ -38,6 +32,7 @@ function XLogo({ className = "h-4 w-4" }: { className?: string }) {
  * 増殖を避けるための意図的な設計)。
  * まだ誰の招待も受けていないユーザーには、招待コードの手入力欄も出す。
  */
+import { shareOrTweet } from "@/lib/share";
 import { ReportErrorButton } from "./ReportErrorButton";
 import { Icon } from "./Icon";
 
@@ -79,17 +74,23 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
     }
   }
 
-  function handleShareX() {
+  /**
+   * 招待を共有する。
+   *
+   * 以前はXのintentを直接組み立てていたため、共通ヘルパー(share.ts)を x.com へ直したときに
+   * ここだけ twitter.com のまま取り残されていた。共通化して二度と食い違わないようにする。
+   *
+   * 端末の共有シートが使えるならそちらを優先する。日本のモバイルはLINEが圧倒的で、
+   * Xだけに送ると大半の共有経路を捨てることになる。
+   */
+  async function handleShare() {
     const text = t("invite.shareText", { code: summary!.code });
-    const intent =
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}` +
-      `&url=${encodeURIComponent(inviteUrl)}` +
-      `&hashtags=${encodeURIComponent("ポーカーアート,ポーカー")}`;
-    try {
-      window.open(intent, "_blank", "noopener,noreferrer");
-    } catch {
-      /* ポップアップブロック等。無視する。 */
-    }
+    await shareOrTweet({
+      text,
+      url: inviteUrl,
+      surface: "invite",
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
   }
 
   async function handleRedeem() {
@@ -171,11 +172,11 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
           {copied ? t("invite.copied") : t("invite.copy")}
         </button>
         <button
-          onClick={handleShareX}
+          onClick={() => void handleShare()}
           className="flex items-center justify-center gap-2 rounded-xl bg-ink-950 py-3 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
         >
-          <XLogo className="h-[15px] w-[15px]" />
-          {t("invite.shareX")}
+          <Icon name="share" className="h-[15px] w-[15px]" />
+          {t("invite.share")}
         </button>
       </div>
 

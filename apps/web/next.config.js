@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@meta-geo/engine"],
+  transpilePackages: ["@meta-geo/engine", "@meta-geo/marketing"],
   experimental: {
     // Phosphor はバレル(index から数千個を再エクスポート)なので、素朴に import すると
     // 使っていないアイコンまで解決しにいってビルド時間とメモリが跳ねる(展開後 33MB ある)。

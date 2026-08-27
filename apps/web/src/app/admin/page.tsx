@@ -63,6 +63,25 @@ interface GeoPositionStats {
   totalHands: number;
 }
 
+/** ④⑨ 収集したトレンド1件(サーバーの /api/admin/marketing/trends の応答)。 */
+interface TrendRow {
+  id: string;
+  createdAt: string;
+  sourceLabel: string;
+  title: string;
+  link: string;
+  severity: "critical" | "warning" | "info" | null;
+  severityTerms: string[];
+  reviewedAt: string | null;
+}
+
+/** 深刻度ごとの見た目。critical は赤で最優先に見えるようにする。 */
+const SEVERITY_STYLE: Record<"critical" | "warning" | "info", { label: string; className: string }> = {
+  critical: { label: "重大", className: "bg-crimson-500 text-white" },
+  warning: { label: "注意", className: "bg-gold-500 text-ink-950" },
+  info: { label: "軽微", className: "bg-ink-200 text-ink-700" },
+};
+
 /** 人数ごとに、その卓で成立しうるポジションを前(早い)から順に並べたもの。 */
 const POSITIONS_BY_PLAYER_COUNT: Record<number, string[]> = {
   2: ["BTN(SB)", "BB"],
@@ -92,6 +111,10 @@ export default function AdminPage() {
   // ポジション別の集まり具合。重い集計ではないが、開いたときだけ取りに行く。
   const [posStats, setPosStats] = useState<GeoPositionStats | null>(null);
   const [posStatsOpen, setPosStatsOpen] = useState(false);
+  // ④⑨ 収集したトレンドと、ネガティブ検知の結果。
+  const [trends, setTrends] = useState<TrendRow[] | null>(null);
+  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [onlyFlagged, setOnlyFlagged] = useState(true);
 
   const [geoRangeFor, setGeoRangeFor] = useState<string | null>(null);
   const [geoFrom, setGeoFrom] = useState("");
@@ -162,11 +185,31 @@ export default function AdminPage() {
     }
   }, []);
 
+  /** 収集したトレンドを取得する。既定はネガティブ検知に当たったものだけ。 */
+  const loadTrends = useCallback(async (code: string, flaggedOnly: boolean) => {
+    try {
+      const qs = flaggedOnly ? "?severity=warning&limit=50" : "?severity=info&limit=50";
+      const res = await fetch(`${SERVER_URL}/api/admin/marketing/trends${qs}`, {
+        headers: { "x-admin-passcode": code },
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items: TrendRow[] };
+      setTrends(data.items);
+    } catch {
+      /* 一時的な通信断。開き直せば取り直す。 */
+    }
+  }, []);
+
   useEffect(() => {
     if (!passcode) return;
     const timer = setTimeout(() => void search(query, passcode), 300);
     return () => clearTimeout(timer);
   }, [query, passcode, search]);
+
+  useEffect(() => {
+    if (!passcode || !trendsOpen) return;
+    void loadTrends(passcode, onlyFlagged);
+  }, [passcode, trendsOpen, onlyFlagged, loadTrends]);
 
   // ポジション別の内訳は、パネルを開いたときにだけ取りに行く。
   useEffect(() => {
@@ -452,6 +495,102 @@ export default function AdminPage() {
                       {posStats.byStreet.map((s) => `${s.street} ${s.rows.toLocaleString()}`).join(" / ")}
                     </p>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* ④⑨ SNSのトレンド収集とネガティブ検知。日次のGitHub Actionsが集めたものを見る。 */}
+            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+              <div className="flex items-start gap-2.5">
+                <Icon name="bell" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black text-ink-950">SNS・話題の監視</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                    ポーカー関連のニュース・トレンドを毎日集め、ネガティブな言及を検知します。
+                    重大なものは赤で出ます。確認したら「確認済み」で一覧から外せます。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTrendsOpen((v) => !v)}
+                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                >
+                  {trendsOpen ? "閉じる" : "開く"}
+                </button>
+              </div>
+
+              {trendsOpen && (
+                <div className="mt-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOnlyFlagged(true)}
+                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${onlyFlagged ? "bg-ink-950 text-white" : "bg-ink-100 text-ink-700"}`}
+                    >
+                      要対応のみ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOnlyFlagged(false)}
+                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${!onlyFlagged ? "bg-ink-950 text-white" : "bg-ink-100 text-ink-700"}`}
+                    >
+                      軽微も含む
+                    </button>
+                  </div>
+
+                  {trends === null && <p className="text-[11px] text-ink-600">読み込み中…</p>}
+                  {trends !== null && trends.length === 0 && (
+                    <p className="text-[11px] text-ink-600">
+                      該当なし。まだ一度も収集していない場合は、日次の収集(毎朝9時)を待つか
+                      Actions から Marketing を手動実行してください。
+                    </p>
+                  )}
+
+                  <ul className="space-y-2">
+                    {(trends ?? []).map((t) => (
+                      <li key={t.id} className="rounded-lg border border-ink-200 p-2.5">
+                        <div className="flex items-start gap-2">
+                          {t.severity && (
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black ${SEVERITY_STYLE[t.severity].className}`}>
+                              {SEVERITY_STYLE[t.severity].label}
+                            </span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <a
+                              href={t.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-[12px] font-bold leading-snug text-ink-950 underline decoration-dotted underline-offset-2"
+                            >
+                              {t.title}
+                            </a>
+                            <p className="mt-0.5 text-[10px] text-ink-500">
+                              {t.sourceLabel} · {fmtDate(t.createdAt)}
+                              {t.severityTerms.length > 0 && ` · 検知語: ${t.severityTerms.join(", ")}`}
+                            </p>
+                          </div>
+                          {t.reviewedAt === null && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!passcode) return;
+                                void fetch(`${SERVER_URL}/api/admin/marketing/trend-reviewed`, {
+                                  method: "POST",
+                                  headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+                                  body: JSON.stringify({ id: t.id }),
+                                })
+                                  .then(() => loadTrends(passcode, onlyFlagged))
+                                  .catch(() => setError("確認済みにできませんでした。"));
+                              }}
+                              className="shrink-0 rounded border border-ink-300 px-2 py-1 text-[10px] font-bold text-ink-700"
+                            >
+                              確認済み
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

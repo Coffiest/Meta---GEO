@@ -25,3 +25,4 @@ export * from "./premiumCoupons.js";
 export * from "./adminGeo.js";
 export * from "./errorReport.js";
 export * from "./accountDeletion.js";
+export * from "./marketing.js";

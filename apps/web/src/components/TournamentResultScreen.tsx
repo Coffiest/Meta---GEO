@@ -6,7 +6,7 @@ import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
-import { PROD_URL, buildMilestoneShareUrl, openTweetIntent } from "@/lib/share";
+import { PROD_URL, buildMilestoneShareUrl, shareOrTweet } from "@/lib/share";
 import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 import { Icon } from "./Icon";
@@ -195,13 +195,19 @@ export function TournamentResultScreen({
   }
 
   // Xのintentツイート。結果を一言添えてワンタップ投稿できるようにする。
-  function handleShare() {
+  async function handleShare() {
     const rank = pos != null ? (useRatio ? `${pos} / ${totalEntrants}位` : ordinal(pos)) : null;
     const head = pos === 1 ? "優勝しました" : rank ? `${rank}でフィニッシュ` : "プレイしました";
     const prize = info.yourPayout > 0 ? ` 獲得 +${info.yourPayout.toLocaleString()}` : "";
     const text = `Poker ARTのトーナメントで${head}！${prize}`;
-    const opened = openTweetIntent({ text, url: buildShareUrl(), hashtags: ["ポーカーアート", "ポーカー"] });
-    if (opened) {
+    const outcome = await shareOrTweet({
+      text,
+      url: buildShareUrl(),
+      surface: "result",
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
+    // 共有シートを閉じただけ(cancelled)は成功扱いにしない。押した手応えだけ出すと誤解を招く。
+    if (outcome === "shared" || outcome === "tweet") {
       setShared(true);
       window.setTimeout(() => setShared(false), 1600);
     }
@@ -211,9 +217,10 @@ export function TournamentResultScreen({
   const milestone = detectMilestone(before, after);
 
   /** マイルストーン専用のシェア。結果カードではなく到達カードを展開させる。 */
-  function handleMilestoneShare() {
+  async function handleMilestoneShare() {
     if (!milestone) return;
-    openTweetIntent({
+    await shareOrTweet({
+      surface: "milestone",
       text: buildMilestoneShareText(milestone),
       url: buildMilestoneShareUrl({
         displayName,
@@ -348,7 +355,7 @@ export function TournamentResultScreen({
               </div>
             </div>
             <button
-              onClick={handleMilestoneShare}
+              onClick={() => void handleMilestoneShare()}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gold-500 py-3 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
             >
               {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
@@ -396,7 +403,7 @@ export function TournamentResultScreen({
             {t("common.close")}
           </button>
           <button
-            onClick={handleShare}
+            onClick={() => void handleShare()}
             className="flex items-center justify-center gap-2 rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
           >
             {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}

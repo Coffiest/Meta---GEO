@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n";
 import { APP_VERSION } from "@/lib/version";
 import { Icon } from "@/components/Icon";
+import { PROD_URL, shareOrTweet } from "@/lib/share";
 
 /**
  * 観戦(配信者)ページ。ログイン不要で「いま何人が戦っているのか」が見られる。
@@ -72,19 +73,17 @@ export default function WatchPage() {
     };
   }, []);
 
-  function handleShare() {
+  /** 観戦ページを共有する。端末の共有シートを優先し、使えなければXへ落とす(share.ts に集約)。 */
+  async function handleShare() {
     const text = live
       ? t("watch.shareTextLive", { remaining: live.remaining, total: live.total })
       : t("watch.shareText");
-    const intent =
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}` +
-      `&url=${encodeURIComponent("https://meta-geo-poker.vercel.app/watch")}` +
-      `&hashtags=${encodeURIComponent("ポーカーアート,ポーカー")}`;
-    try {
-      globalThis.open?.(intent, "_blank", "noopener,noreferrer");
-    } catch {
-      /* ポップアップブロック等。無視する。 */
-    }
+    await shareOrTweet({
+      text,
+      url: `${PROD_URL}/watch`,
+      surface: "result",
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
   }
 
   return (
@@ -171,7 +170,7 @@ export default function WatchPage() {
             {t("watch.join")}
           </Link>
           <button
-            onClick={handleShare}
+            onClick={() => void handleShare()}
             className="flex items-center justify-center gap-2 rounded-xl bg-ink-950 py-3.5 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
           >
             <XLogo className="h-[15px] w-[15px]" />
