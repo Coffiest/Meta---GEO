@@ -971,7 +971,7 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
 export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
-  const accessToken = auth.session?.access_token;
+  const accessToken = auth.accessToken ?? undefined;
   const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
@@ -1083,7 +1083,13 @@ export default function Page() {
   }
 
   if (auth.loading) return <LoadingScreen />;
-  if (!auth.session) return <LoginScreen auth={auth} />;
+  // 埋め込みモード(RRPokerの中)では自前のログイン画面を出さない。親アプリが既にログイン済みで、
+  // トークンは親から受け取る。まだ届いていない間は読み込み中として待つ。
+  if (auth.embedded) {
+    if (!accessToken) return <LoadingScreen />;
+  } else if (!auth.session) {
+    return <LoginScreen auth={auth} />;
+  }
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
     // 失敗理由ごとに具体的な説明を出し、原因が分かるようにする。末尾に開発者向けの技術詳細
@@ -1211,9 +1217,11 @@ export default function Page() {
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
+  // 埋め込みモードでは親アプリのアカウントで入っているため、Supabaseのプロバイダ情報は無い。
+  const appMetadata = auth.session?.user.app_metadata;
   const providers =
-    (auth.session.user.app_metadata?.["providers"] as string[] | undefined) ??
-    (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
+    (appMetadata?.["providers"] as string[] | undefined) ??
+    (appMetadata?.provider ? [appMetadata.provider] : []);
 
   return (
     <>

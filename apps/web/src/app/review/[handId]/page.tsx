@@ -92,8 +92,8 @@ export default function ReviewHandPage() {
   const params = useParams();
   const router = useRouter();
   const handId = String(params?.["handId"] ?? "");
-  const { session, loading: authLoading } = useAuth();
-  const accessToken = session?.access_token;
+  const { accessToken: accessTokenFromAuth, loading: authLoading } = useAuth();
+  const accessToken = accessTokenFromAuth ?? undefined;
 
   const [data, setData] = useState<HandReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
