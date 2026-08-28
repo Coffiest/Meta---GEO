@@ -100,6 +100,11 @@ export function authAvailable(): boolean {
   return getAdminClient() !== null || firebaseAuthAvailable();
 }
 
+/** Poker ART 単体サイトのアカウント(Supabase)でのログインが使えるか。 */
+export function supabaseAuthAvailable(): boolean {
+  return getAdminClient() !== null;
+}
+
 /** RRPoker(Firebase)アカウントでのログインが使えるか。クライアントへの案内に使う。 */
 export function rrPokerAuthAvailable(): boolean {
   return firebaseAuthAvailable();

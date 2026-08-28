@@ -1,7 +1,7 @@
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import { cpus, loadavg } from "node:os";
 import { prisma } from "@meta-geo/db";
-import { getAuthStats, type AuthStats } from "./auth.js";
+import { getAuthStats, rrPokerAuthAvailable, supabaseAuthAvailable, type AuthStats } from "./auth.js";
 
 /**
  * サーバーの重さの原因を「数値で」特定するための計測基盤。
@@ -299,6 +299,13 @@ export interface DiagnosticsSnapshot {
   lastPhases: { scope: string; phase: ProgressPhase; sinceMs: number }[];
   /** 実行環境の情報(VMの増強が効いているかの確認用)。 */
   runtime: { node: string; cpus: number; region: string | null };
+  /**
+   * どの認証基盤が使える状態かどうか。
+   * 秘密情報そのものは一切出さず、「設定が入っているか」だけを真偽値で返す。
+   * RRPokerとの連携は環境変数が入って初めて動くので、設定が効いたかを
+   * ここで確かめられるようにしている。
+   */
+  authProviders: { supabase: boolean; rrPoker: boolean };
 }
 
 /** 現在のメトリクスを1つのスナップショットとして返す。 */
@@ -334,6 +341,7 @@ export async function getDiagnostics(): Promise<DiagnosticsSnapshot> {
       cpus: cpus().length,
       region: process.env["FLY_REGION"] ?? null,
     },
+    authProviders: { supabase: supabaseAuthAvailable(), rrPoker: rrPokerAuthAvailable() },
   };
 }
 
