@@ -29,6 +29,8 @@ interface Snapshot {
   slowRequests: { path: string; method: string; status: number; durationMs: number; at: string }[];
   errors: { scope: string; message: string; at: string }[];
   runtime: { node: string; cpus: number; region: string | null };
+  /** どの認証基盤が使える状態か(秘密情報は含まず、設定の有無だけ)。 */
+  authProviders?: { supabase: boolean; rrPoker: boolean };
   sockets: number;
 }
 
@@ -288,6 +290,20 @@ export default function DiagnosticsPage() {
                   warn={snapshot.counters.errors > 0}
                 />
                 <Row label="リージョン / Node" value={`${snapshot.runtime.region ?? "-"} / ${snapshot.runtime.node}`} />
+                {/* RRPoker連携は環境変数が入って初めて動く。設定が効いたかをここで確かめられる。 */}
+                {snapshot.authProviders && (
+                  <Row
+                    label="ログイン方法"
+                    value={[
+                      snapshot.authProviders.supabase ? "Poker ART" : null,
+                      snapshot.authProviders.rrPoker ? "RRPoker" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" / ") || "なし"}
+                    warn={!snapshot.authProviders.supabase && !snapshot.authProviders.rrPoker}
+                    hint="RRPokerが出ていなければ、サーバーに FIREBASE_SERVICE_ACCOUNT が設定されていません。"
+                  />
+                )}
               </div>
             </section>
 
