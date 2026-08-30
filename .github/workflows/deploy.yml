@@ -15,6 +15,9 @@ name: Deploy
 #   - STRIPE_PRICE_ID           GEOサブスクの月額プランのPrice ID
 #   - NEXT_PUBLIC_ADSENSE_CLIENT_ID      Google AdSenseの発行者ID (ca-pub-...、ブラウザ用、公開値)
 #   - NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID 棋譜解析の無料要約画面に出す広告ユニットのスロットID
+#   - FIREBASE_SERVICE_ACCOUNT  Firebaseのサービスアカウント鍵JSON (RRPokerアカウントでの
+#                               ログインを有効にする。未設定ならその経路だけが無効)
+#   - EMBED_PARENT_ORIGINS      埋め込みを許可する親オリジン (省略時は https://rrpoker.vercel.app)
 #   - VAPID_PUBLIC_KEY          PWAプッシュ通知の公開鍵 (web-push generate-vapid-keys で生成)
 #   - VAPID_PRIVATE_KEY         同 秘密鍵
 # Supabase系の4つが未設定でもデプロイ自体は失敗しない(ログイン機能が自動的に無効化され、
@@ -82,6 +85,22 @@ jobs:
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Set FIREBASE_SERVICE_ACCOUNT (secret が設定されている場合のみ)
+        # RRPokerアカウントでPoker ARTに入るために、サーバーがFirebaseのIDトークンを検証できる
+        # ようにする鍵。未設定でもデプロイは成功し、RRPoker経由のログインだけが無効のままになる
+        # (Poker ART単体のSupabaseログインには一切影響しない)。
+        # `--stage` は値を保存するだけでマシンを再起動しない。直後の `flyctl deploy` が
+        # そのまま新しい値で起動するので、再起動が二重に起きるのを避けられる。
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            flyctl secrets set FIREBASE_SERVICE_ACCOUNT="$FIREBASE_SERVICE_ACCOUNT" --stage --app meta---geo
+            echo "FIREBASE_SERVICE_ACCOUNT を設定しました。"
+          else
+            echo "FIREBASE_SERVICE_ACCOUNT secret 未設定。RRPokerアカウントでのログインは無効のままです。"
+          fi
       - name: Set ADMIN_PASSCODE (secret が設定されている場合のみ)
         # 未設定なら既定パスコードのまま(移行期間)。空文字で上書きしないよう ifガードする。
         env:
@@ -158,7 +177,15 @@ jobs:
           # 未設定のシークレットは引数ごと省く。空文字を渡すのとアプリ側の扱いは同じだが
           # (getSupabaseClient や AdSlot は空を未設定として扱う)、`KEY=` という形を
           # CLI に解釈させずに済むぶん確実。
+          # 埋め込み(iframe)を許可する親オリジン。未設定だと Poker ART はどこからの埋め込みも
+          # 受け付けないため、RRPokerの本番オリジンを既定値として持たせる。公開値なので
+          # シークレットにする必要はない。独自ドメインを足すときは EMBED_PARENT_ORIGINS
+          # secret にカンマ区切りで入れれば、そちらが優先される。
+          EMBED_ORIGINS="${{ secrets.EMBED_PARENT_ORIGINS }}"
+          if [ -z "$EMBED_ORIGINS" ]; then EMBED_ORIGINS="https://rrpoker.vercel.app"; fi
+
           BUILD_ENV=(--build-env "NEXT_PUBLIC_SERVER_URL=https://meta---geo.fly.dev")
+          BUILD_ENV+=(--build-env "NEXT_PUBLIC_EMBED_PARENT_ORIGINS=$EMBED_ORIGINS")
           add_env() {
             if [ -n "$2" ]; then BUILD_ENV+=(--build-env "$1=$2"); fi
           }
