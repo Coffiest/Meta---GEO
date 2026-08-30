@@ -1095,8 +1095,13 @@ export default function Page() {
     // 失敗理由ごとに具体的な説明を出し、原因が分かるようにする。末尾に開発者向けの技術詳細
     // (reason/HTTPステータス/サーバー本文の先頭)も小さく表示する。
     const reason = profileError?.reason;
-    const reasonMsg =
-      reason === "timeout"
+    // 埋め込みで開いているときは、認証が通らない理由が「期限切れ」ではない。トークンは
+    // 親アプリから渡されるので、この画面にログインし直す手段は無く、「ログインし直す」は
+    // 押しても何も起きない案内になってしまう。埋め込み時だけ文言と導線を差し替える。
+    const embeddedAuthProblem = auth.embedded && (reason === "unauthorized" || reason === "no-token");
+    const reasonMsg = embeddedAuthProblem
+      ? t("app.profileErr.embedUnauthorized")
+      : reason === "timeout"
         ? t("app.profileErr.timeout")
         : reason === "network"
           ? t("app.profileErr.network")
@@ -1127,7 +1132,7 @@ export default function Page() {
           <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 active:scale-[0.98] transition-transform">
             {t("app.retry")}
           </button>
-          {reason === "unauthorized" && (
+          {reason === "unauthorized" && !embeddedAuthProblem && (
             <button
               onClick={() => void auth.signOut()}
               className="text-[13px] font-semibold text-ink-600 underline underline-offset-2"
