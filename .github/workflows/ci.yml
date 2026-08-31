@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # PRを開いただけでは実行が作られないことが実際にあった(#214 / #215)。ブランチへ
+  # push すれば動くが、そのためだけに中身の無いコミットを積むのは筋が悪い。
+  # 手動で回せる口を用意しておく(Actionsタブ → CI → Run workflow)。
+  workflow_dispatch:
 
 jobs:
   test:
