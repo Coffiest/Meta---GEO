@@ -54,7 +54,7 @@ export function DiagnosticsToaster() {
             key={e.id}
             type="button"
             onClick={() => (openId === e.id ? dismissDiagnostic(e.id) : setOpenId(e.id))}
-            className={`pointer-events-auto w-full max-w-md rounded-xl border bg-surface px-3 py-2 text-left ${tone}`}
+            className={`pressable pointer-events-auto w-full max-w-md rounded-xl border bg-surface px-3 py-2 text-left ${tone}`}
           >
             <div className="flex items-center gap-2">
               <KindIcon kind={e.kind} />

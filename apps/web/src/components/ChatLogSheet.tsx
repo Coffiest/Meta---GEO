@@ -64,7 +64,7 @@ export function ChatLogSheet({
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Table chat</p>
             <h2 className="text-lg font-extrabold tracking-tight text-fg">チャットログ</h2>
           </div>
-          <button onClick={onClose} className="text-[12px] font-semibold text-fg-2">
+          <button onClick={onClose} className="pressable text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
@@ -112,7 +112,7 @@ export function ChatLogSheet({
             type="submit"
             disabled={!draft.trim()}
             aria-label="送信"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform active:scale-90 disabled:opacity-30"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform pressable disabled:opacity-30"
           >
             <Icon name="arrow-right" className="h-[18px] w-[18px]" />
           </button>

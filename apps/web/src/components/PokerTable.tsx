@@ -81,22 +81,9 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
 const TABLE_IMAGE_SRC = "/table/table_v2.png";
 
 /**
- * 卓面。`public/table/table_v2.png` を卓の形そのものとして描画する。
- *
- * 画像は「白い紙に黒い線で描いた卓」で、明るい地の上に置く前提で作られている。
- * 暗い地にそのまま置くと、不透明な白い長方形が浮いてしまう。**画像には一切手を加えず**、
- * 描画時に2つだけ手を入れて読み替える:
- *   1. invert(1) で「黒地に白い線」にする
- *   2. mix-blend-mode: screen で合成する ― screen は黒を透明として扱うので、
- *      画像の地(長方形)が完全に消え、**線だけ**が卓上に残る
- * これで線画・文字・配置は原画のまま、余計な矩形の縁も出ない。
- * 卓面そのものは下に敷いた柔らかいグラデーションが担当する(境界をぼかしてあるので、
- * 原画の楕円と1pxずれても破綻しない)。
- *
- * 新しい画像を受け取ったら TABLE_IMAGE_SRC を差し替え、この filter を外す。
+ * `public/table/table_v2.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ
+ * カード面+輪郭のフォールバック描画にする(詳細は public/table/README.md 参照)。
  */
-const TABLE_TONE_FILTER = "invert(1)";
-
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -112,27 +99,11 @@ function TableFelt() {
   }, []);
 
   return (
-    <div className={`absolute ${FELT_BOX}`}>
-      {/* 卓面。輪郭を持たない柔らかいグラデーションで「少しだけ明るい面」を作る。
-          原画の楕円とぴったり合わせる必要が無いよう、境界は意図的にぼかしてある。 */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(closest-side, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.02) 62%, transparent 82%)",
-        }}
-      />
-      {/* 卓の外周のごく淡い発光。卓が地から少し浮いて見えるだけの強さに留める
-          (常時アニメーションする画面なので、静止したグラデーション1枚で済ませる)。 */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-8 opacity-80 blur-3xl"
-        style={{ background: "radial-gradient(closest-side, rgb(var(--accent) / 0.13), transparent 76%)" }}
-      />
-      {showFrame && (
-        <div className="absolute inset-0 rounded-[46%] bg-white/[0.04] ring-1 ring-white/10" />
-      )}
+    <div
+      className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
+        showFrame ? "rounded-[46%] bg-surface ring-[1.5px] ring-line-strong" : ""
+      }`}
+    >
       {!failed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -142,8 +113,8 @@ function TableFelt() {
           draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
-          style={{ opacity: loaded ? 0.85 : 0, filter: TABLE_TONE_FILTER, mixBlendMode: "screen" }}
+          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
+          style={{ opacity: loaded ? 1 : 0 }}
         />
       )}
     </div>
@@ -378,7 +349,7 @@ export function PokerTable({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={SPRING_SNAPPY}
-              className="flex items-center gap-2 rounded-full glass-panel pl-3 pr-3.5 py-1.5 shadow-e0"
+              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
@@ -407,7 +378,7 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1.5 rounded-full glass-panel px-2.5 py-1 shadow-e0"
+                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-e0"
               >
                 <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}

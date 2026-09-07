@@ -82,7 +82,7 @@ export default function PricingPage() {
 
         <div className="mt-5 rounded-2xl border-2 border-accent bg-surface p-5 shadow-glow">
           <div className="flex items-baseline gap-1">
-            <span className="text-[40px] font-black text-fg tabular-nums leading-none">¥980</span>
+            <span className="text-[40px] tracking-[-0.025em] font-black text-fg tabular-nums leading-none">¥980</span>
             <span className="text-[13px] font-bold text-fg-2">/ 月(税込)</span>
           </div>
           <p className="mt-1 text-[11px] text-fg-2">いつでも解約可能・日割り返金はありません。</p>
@@ -139,7 +139,7 @@ export default function PricingPage() {
             <button
               onClick={handleSubscribe}
               disabled={submitting}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent active:opacity-90 transition disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable transition disabled:opacity-60"
             >
               {submitting ? (
                 <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />

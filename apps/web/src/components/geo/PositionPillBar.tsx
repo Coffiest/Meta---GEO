@@ -115,7 +115,7 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.bucket)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
+                    className="pressable flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"

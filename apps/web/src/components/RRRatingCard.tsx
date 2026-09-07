@@ -345,7 +345,7 @@ export function RRRatingCard({
             <Icon name="trophy" className="h-4 w-4 text-n-9" />
             <p className="text-[13px] font-bold text-fg">Tournament History</p>
           </div>
-          <button onClick={onViewHistory} className="text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
+          <button onClick={onViewHistory} className="pressable text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
             もっと見る
           </button>
         </div>

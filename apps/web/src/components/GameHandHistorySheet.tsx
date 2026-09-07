@@ -328,7 +328,7 @@ export function GameHandHistorySheet({
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-2">This tournament</p>
             <h2 className="text-lg font-extrabold tracking-tight text-fg">ハンド履歴</h2>
           </div>
-          <button onClick={onClose} className="text-[12px] font-semibold text-fg-2">
+          <button onClick={onClose} className="pressable text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
@@ -406,7 +406,7 @@ export function GameHandHistorySheet({
                         void shareHand(row);
                       }}
                       aria-label={`ハンド${row.label}を共有`}
-                      className="shrink-0 rounded-lg border border-line p-1.5 text-fg-2 transition-colors active:bg-n-2"
+                      className="pressable shrink-0 rounded-lg border border-line p-1.5 text-fg-2 transition-colors active:bg-n-2"
                     >
                       <XLogo className="h-3.5 w-3.5" />
                     </button>

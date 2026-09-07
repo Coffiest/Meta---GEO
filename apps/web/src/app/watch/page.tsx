@@ -40,7 +40,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="rounded-2xl glass-panel px-4 py-3.5">
       <p className="text-[10px] font-bold tracking-wide text-fg-2">{label}</p>
-      <p className="mt-1 text-[26px] font-black leading-none tabular-nums text-fg">{value}</p>
+      <p className="mt-1 text-[26px] tracking-[-0.015em] font-black leading-none tabular-nums text-fg">{value}</p>
       {sub && <p className="mt-1 text-[11px] text-fg-2">{sub}</p>}
     </div>
   );

@@ -154,7 +154,7 @@ export function Onboarding({
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform active:scale-95"
+              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform pressable"
               aria-label="アイコン画像を選択"
             >
               {/* ゆっくり回る破線のアクセントリング(注目を集める幾何モチーフ) */}
@@ -190,12 +190,12 @@ export function Onboarding({
             <div className="flex items-center gap-3 text-[12px]">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="font-semibold text-fg underline decoration-dashed underline-offset-2"
+                className="pressable font-semibold text-fg underline decoration-dashed underline-offset-2"
               >
                 {processing ? t("onb.processing") : avatarKey ? t("onb.changePhoto") : t("onb.pickPhoto")}
               </button>
               {avatarKey && (
-                <button onClick={() => setAvatarKey(null)} className="text-fg-2">
+                <button onClick={() => setAvatarKey(null)} className="pressable text-fg-2">
                   {t("onb.delete")}
                 </button>
               )}
@@ -241,7 +241,7 @@ export function Onboarding({
           </button>
 
           {onCancel && (
-            <button onClick={onCancel} className="mt-3 w-full py-1 text-[12px] text-fg-2">
+            <button onClick={onCancel} className="pressable mt-3 w-full py-1 text-[12px] text-fg-2">
               キャンセル
             </button>
           )}

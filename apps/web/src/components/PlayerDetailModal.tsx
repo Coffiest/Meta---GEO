@@ -120,7 +120,7 @@ export function PlayerDetailModal({
               {loading || !rr || rr.rrRating == null ? "--" : rr.rrRating.toFixed(1)}
             </p>
           </div>
-          <button onClick={onClose} className="shrink-0 self-start text-[12px] font-semibold text-fg-2">
+          <button onClick={onClose} className="pressable shrink-0 self-start text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
@@ -172,7 +172,7 @@ export function PlayerDetailModal({
                     type="button"
                     aria-label={PLAYER_NOTE_COLOR_LABEL[c]}
                     onClick={() => setColor(active ? null : c)}
-                    className={`h-8 w-8 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-line-strong ring-offset-2" : "ring-1 ring-line"}`}
+                    className={`pressable h-8 w-8 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-line-strong ring-offset-2" : "ring-1 ring-line"}`}
                     style={{ backgroundColor: PLAYER_NOTE_COLOR_HEX[c] }}
                   />
                 );
@@ -180,7 +180,7 @@ export function PlayerDetailModal({
               <button
                 type="button"
                 onClick={() => setColor(null)}
-                className={`ml-1 flex h-8 items-center rounded-full border px-3 text-[11px] font-bold ${
+                className={`pressable ml-1 flex h-8 items-center rounded-full border px-3 text-[11px] font-bold ${
                   color === null ? "border-line-strong text-fg" : "border-line text-fg-3"
                 }`}
               >

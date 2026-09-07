@@ -74,7 +74,7 @@ export function BlindStructureSheet({
             <h2 className="text-lg font-black tracking-tight text-fg">{gameLabel ?? "トーナメント"}</h2>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-accent">LEVEL {lv}</p>
           </div>
-          <button onClick={onClose} className="shrink-0 text-[12px] font-semibold text-fg-2">
+          <button onClick={onClose} className="pressable shrink-0 text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
@@ -91,13 +91,13 @@ export function BlindStructureSheet({
         <div className="flex items-end justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Blind</p>
-            <p className="text-[26px] font-black tabular-nums leading-none text-fg">
+            <p className="text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-fg">
               {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
             </p>
           </div>
           <div className="border-l border-line pl-4 text-right">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">ANTE</p>
-            <p className="text-[26px] font-black tabular-nums leading-none text-fg">
+            <p className="text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-fg">
               {level && level.bbAnte > 0 ? level.bbAnte.toLocaleString() : "—"}
             </p>
           </div>
@@ -143,7 +143,7 @@ export function BlindStructureSheet({
         <div className="mt-4 flex gap-2">
           <button
             onClick={() => setView((v) => (v === "ranking" ? "clock" : "ranking"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
               view === "ranking" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
@@ -151,7 +151,7 @@ export function BlindStructureSheet({
           </button>
           <button
             onClick={() => setView((v) => (v === "prize" ? "clock" : "prize"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
               view === "prize" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
@@ -159,7 +159,7 @@ export function BlindStructureSheet({
           </button>
           <button
             onClick={() => setView((v) => (v === "structure" ? "clock" : "structure"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
               view === "structure" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
@@ -225,7 +225,7 @@ export function BlindStructureSheet({
                 ) : tournamentInfo?.prizePoolTotal ? (
                   <div className="rounded-2xl border border-line-strong px-4 py-5 text-center">
                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">総額</p>
-                    <p className="mt-1 text-[34px] font-black tabular-nums leading-none text-accent">
+                    <p className="mt-1 text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none text-accent">
                       {tournamentInfo.prizePoolTotal.toLocaleString()}
                     </p>
                     <p className="mt-2 text-[11px] text-fg-3">レジクローズ時に順位別ペイアウトが確定します。</p>

@@ -410,7 +410,7 @@ function TournamentHistoryCard({
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-[16px] font-bold text-fg">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
-                <button onClick={() => setOpen(false)} className="text-[13px] text-fg-2">
+                <button onClick={() => setOpen(false)} className="pressable text-[13px] text-fg-2">
                   {t("common.close")}
                 </button>
               </div>
@@ -499,7 +499,7 @@ function StatTile({
       <div className="flex items-center gap-1 text-[11px] text-n-9">
         <span>{label}</span>
         {onInfo && (
-          <button onClick={onInfo} className="text-n-9 active:text-n-10" aria-label={t("stat.infoAria", { label })}>
+          <button onClick={onInfo} className="pressable text-n-9 active:text-n-10" aria-label={t("stat.infoAria", { label })}>
             <InfoIcon />
           </button>
         )}
@@ -652,7 +652,7 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
             <h2 className="text-base font-bold text-fg">{info.title}</h2>
             {info.subtitle && <p className="text-[11px] text-n-9">{info.subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-n-9 text-xl leading-none px-2" aria-label={t("common.close")}>
+          <button onClick={onClose} className="pressable text-n-9 text-xl leading-none px-2" aria-label={t("common.close")}>
             ×
           </button>
         </div>
@@ -746,7 +746,7 @@ function SingleLineChart({
         <span className="ml-auto text-xs font-bold tabular-nums text-fg">{formatValue(points[points.length - 1]!.y)}</span>
       )}
       {onInfo && (
-        <button onClick={onInfo} className={`text-n-9 active:text-n-10 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
+        <button onClick={onInfo} className={`pressable text-n-9 active:text-n-10 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
           <InfoIcon />
         </button>
       )}
@@ -942,7 +942,7 @@ function HamburgerMenu({
           </div>
         </div>
         <div className="px-2 mt-2 divide-y divide-line">
-          <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg">
+          <button onClick={onEditProfile} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg">
             {t("menu.editProfile")} <span className="text-n-9">›</span>
           </button>
           {/* GEO DATABASE の使い方(スワイプ式チュートリアル)を再表示する導線。?guide=1 で既読でも強制表示。 */}
@@ -959,7 +959,7 @@ function HamburgerMenu({
             <LanguageSwitcher />
           </div>
           {onSignOut && (
-            <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300">
+            <button onClick={onSignOut} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300">
               {t("menu.logout")} <span className="text-n-9">›</span>
             </button>
           )}
@@ -969,7 +969,7 @@ function HamburgerMenu({
               {!confirmingDelete ? (
                 <button
                   onClick={() => setConfirmingDelete(true)}
-                  className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300"
+                  className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300"
                 >
                   {t("menu.deleteAccount")} <span className="text-n-9">›</span>
                 </button>
@@ -987,7 +987,7 @@ function HamburgerMenu({
                     <button
                       onClick={() => void runDelete()}
                       disabled={deleting}
-                      className="flex-1 rounded-lg bg-crimson-600 py-2 text-[12px] font-bold text-white disabled:opacity-60"
+                      className="pressable flex-1 rounded-lg bg-crimson-600 py-2 text-[12px] font-bold text-white disabled:opacity-60"
                     >
                       {deleting ? t("menu.deleteAccount.deleting") : t("menu.deleteAccount.confirm")}
                     </button>
@@ -997,7 +997,7 @@ function HamburgerMenu({
                         setDeleteError(null);
                       }}
                       disabled={deleting}
-                      className="flex-1 rounded-lg bg-n-4 py-2 text-[12px] font-bold text-n-10"
+                      className="pressable flex-1 rounded-lg bg-n-4 py-2 text-[12px] font-bold text-n-10"
                     >
                       {t("common.cancel")}
                     </button>
@@ -1441,7 +1441,7 @@ export function Lobby({
                 <button
                   key={p.key}
                   onClick={() => setLbPeriod(p.key)}
-                  className={`flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
+                  className={`pressable flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
                     lbPeriod === p.key ? "bg-n-4 text-white" : "text-n-9"
                   }`}
                 >
@@ -1456,7 +1456,7 @@ export function Lobby({
                 <button
                   key={m.key}
                   onClick={() => setLbMetric(m.key)}
-                  className={`rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
+                  className={`pressable rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
                     lbMetric === m.key ? "border-line-strong bg-n-4 text-white" : "border-line text-n-9"
                   }`}
                 >
@@ -1549,7 +1549,7 @@ export function Lobby({
                 <button
                   key={v}
                   onClick={() => setHistoryView(v)}
-                  className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                  className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
                     historyView === v ? "bg-n-4 text-white" : "bg-n-4 text-n-9"
                   }`}
                 >
@@ -1570,7 +1570,7 @@ export function Lobby({
                   <div className="flex gap-1.5 mb-3">
                     <button
                       onClick={() => setHistorySubTab("all")}
-                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
                         historySubTab === "all" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
                       }`}
                     >
@@ -1578,7 +1578,7 @@ export function Lobby({
                     </button>
                     <button
                       onClick={() => setHistorySubTab("favorites")}
-                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
+                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
                         historySubTab === "favorites" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
                       }`}
                     >
@@ -1619,7 +1619,7 @@ export function Lobby({
                               {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。 */}
                               <button
                                 onClick={() => setReviewTournamentId(group.tournamentId)}
-                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-n-4 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity active:opacity-80"
+                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-n-4 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity pressable"
                               >
                                 <ReviewGlyph className="h-3.5 w-3.5" />
                                 {t("lobby.reviewHand")}
@@ -1662,7 +1662,7 @@ export function Lobby({
                                           toggleFavorite(h.handId, !h.isFavorite);
                                         }}
                                         aria-label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
-                                        className="ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-accent transition-colors hover:bg-accent/10"
+                                        className="pressable ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-accent transition-colors hover:bg-accent/10"
                                       >
                                         <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
                                       </button>

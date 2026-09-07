@@ -43,7 +43,7 @@ export default function ContentLayout({ children }: { children: ReactNode }) {
             ))}
             <Link
               href="/"
-              className="ml-1 rounded-full bg-accent px-3.5 py-1.5 text-[12px] font-black text-on-accent transition-transform active:scale-95"
+              className="ml-1 rounded-full bg-accent px-3.5 py-1.5 text-[12px] font-black text-on-accent transition-transform pressable"
             >
               プレイ
             </Link>

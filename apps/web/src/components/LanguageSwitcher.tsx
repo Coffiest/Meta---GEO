@@ -22,7 +22,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
             key={l.code}
             onClick={() => setLocale(l.code)}
             aria-pressed={active}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide transition-colors ${
+            className={`pressable rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide transition-colors ${
               active ? "bg-n-4 text-white" : "text-fg-2 hover:text-fg"
             }`}
           >

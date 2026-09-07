@@ -263,7 +263,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   setResendState("idle");
                   goTo("login");
                 }}
-                className="mt-4 w-full text-center text-[13px] font-semibold text-fg underline underline-offset-2"
+                className="pressable mt-4 w-full text-center text-[13px] font-semibold text-fg underline underline-offset-2"
               >
                 ログイン画面へ戻る
               </button>
@@ -359,7 +359,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             )}
 
             {mode === "login" && (
-              <button onClick={() => goTo("reset")} className="text-[12px] text-fg-2 underline underline-offset-2 hover:text-n-10">
+              <button onClick={() => goTo("reset")} className="pressable text-[12px] text-fg-2 underline underline-offset-2 hover:text-n-10">
                 {t("login.forgot")}
               </button>
             )}
@@ -408,19 +408,19 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
           <div className="mt-5 text-center text-[13px]">
             {mode === "login" && (
-              <button onClick={() => goTo("signup")} className="text-n-9">
+              <button onClick={() => goTo("signup")} className="pressable text-n-9">
                 {t("login.toSignupPrefix")}
                 <span className="ml-1 font-semibold text-fg underline underline-offset-2">{t("login.toSignup")}</span>
               </button>
             )}
             {mode === "signup" && (
-              <button onClick={() => goTo("login")} className="text-n-9">
+              <button onClick={() => goTo("login")} className="pressable text-n-9">
                 {t("login.toLoginPrefix")}
                 <span className="ml-1 font-semibold text-fg underline underline-offset-2">{t("login.toLogin")}</span>
               </button>
             )}
             {mode === "reset" && (
-              <button onClick={() => goTo("login")} className="font-semibold text-fg underline underline-offset-2">
+              <button onClick={() => goTo("login")} className="pressable font-semibold text-fg underline underline-offset-2">
                 {t("login.backToLogin")}
               </button>
             )}
@@ -487,7 +487,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
         <div className="mt-8 flex justify-center">
           <button
             onClick={() => setAdminGateOpen(true)}
-            className="cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
+            className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
           >
             Poker ART v{APP_VERSION} ・ © 2026 Poker ART
           </button>

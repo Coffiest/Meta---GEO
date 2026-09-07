@@ -525,14 +525,14 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => setOnlyFlagged(true)}
-                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
+                      className={`pressable rounded-full px-3 py-1 text-[11px] font-bold ${onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
                     >
                       要対応のみ
                     </button>
                     <button
                       type="button"
                       onClick={() => setOnlyFlagged(false)}
-                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${!onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
+                      className={`pressable rounded-full px-3 py-1 text-[11px] font-bold ${!onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
                     >
                       軽微も含む
                     </button>
@@ -582,7 +582,7 @@ export default function AdminPage() {
                                   .then(() => loadTrends(passcode, onlyFlagged))
                                   .catch(() => setError("確認済みにできませんでした。"));
                               }}
-                              className="shrink-0 rounded border border-line px-2 py-1 text-[10px] font-bold text-n-9"
+                              className="pressable shrink-0 rounded border border-line px-2 py-1 text-[10px] font-bold text-n-9"
                             >
                               確認済み
                             </button>
@@ -660,21 +660,21 @@ export default function AdminPage() {
                         <button
                           onClick={() => void grant(u.id, "week", 1)}
                           disabled={busy}
-                          className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
+                          className="pressable rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                         >
                           1週間 無料
                         </button>
                         <button
                           onClick={() => void grant(u.id, "month", 1)}
                           disabled={busy}
-                          className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
+                          className="pressable rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                         >
                           1ヶ月 無料
                         </button>
                         <button
                           onClick={() => setCustomFor(customFor === u.id ? null : u.id)}
                           disabled={busy}
-                          className={`rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
+                          className={`pressable rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
                             customFor === u.id ? "bg-n-4 text-white" : "border border-line text-n-9 active:bg-canvas"
                           }`}
                         >
@@ -684,7 +684,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => void revoke(u.id)}
                             disabled={busy}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="pressable rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             付与を取り消す
                           </button>
@@ -713,7 +713,7 @@ export default function AdminPage() {
                                   <button
                                     key={unitKey}
                                     onClick={() => setCustomUnit(unitKey)}
-                                    className={`px-3 py-2 ${customUnit === unitKey ? "bg-n-4 text-white" : "bg-surface text-fg-2"}`}
+                                    className={`pressable px-3 py-2 ${customUnit === unitKey ? "bg-n-4 text-white" : "bg-surface text-fg-2"}`}
                                   >
                                     {unitKey === "week" ? "週間" : "ヶ月"}
                                   </button>
@@ -725,7 +725,7 @@ export default function AdminPage() {
                                   if (n > 0) void grant(u.id, customUnit, n);
                                 }}
                                 disabled={busy || !customAmount || Number(customAmount) <= 0}
-                                className="ml-auto rounded-full bg-accent px-4 py-2 text-[11px] font-black text-on-accent active:opacity-90 disabled:opacity-40"
+                                className="ml-auto rounded-full bg-accent px-4 py-2 text-[11px] font-black text-on-accent pressable disabled:opacity-40"
                               >
                                 無料付与
                               </button>
@@ -749,14 +749,14 @@ export default function AdminPage() {
                           <button
                             onClick={() => void geoDelete(u.id)}
                             disabled={busy || u.geo.totalHands === u.geo.excludedHands}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="pressable rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             全部削除
                           </button>
                           <button
                             onClick={() => setGeoRangeFor(geoRangeFor === u.id ? null : u.id)}
                             disabled={busy}
-                            className={`rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
+                            className={`pressable rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
                               geoRangeFor === u.id ? "bg-n-4 text-white" : "border border-line text-n-9 active:bg-canvas"
                             }`}
                           >
@@ -766,7 +766,7 @@ export default function AdminPage() {
                             <button
                               onClick={() => void geoRestore(u.id)}
                               disabled={busy}
-                              className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
+                              className="pressable rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                             >
                               除外を全解除
                             </button>
@@ -806,7 +806,7 @@ export default function AdminPage() {
                                 <button
                                   onClick={() => void geoDelete(u.id, geoFrom || undefined, geoTo || undefined)}
                                   disabled={busy || (!geoFrom && !geoTo)}
-                                  className="w-full rounded-full bg-crimson-600 px-4 py-2 text-[11px] font-black text-white active:opacity-90 disabled:opacity-40"
+                                  className="w-full rounded-full bg-crimson-600 px-4 py-2 text-[11px] font-black text-white pressable disabled:opacity-40"
                                 >
                                   この期間のプレイラインを削除
                                 </button>

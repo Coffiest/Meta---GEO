@@ -403,7 +403,7 @@ export function Seat({
             type="button"
             onClick={onChatClick}
             aria-label={t("seat.chat")}
-            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full glass-panel text-n-10 transition-transform active:scale-90"
+            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full glass-panel text-n-10 transition-transform pressable"
           >
             <Icon name="chat" className="h-3.5 w-3.5" />
           </button>
@@ -439,7 +439,7 @@ export function Seat({
                     type="button"
                     onClick={onStackTap}
                     aria-label={displayMode === "chips" ? "bb表示に切り替える" : "点数表示に切り替える"}
-                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-n-10 tabular-nums underline decoration-fg-faint decoration-dotted underline-offset-2 transition-transform active:scale-95`}
+                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-n-10 tabular-nums underline decoration-fg-faint decoration-dotted underline-offset-2 transition-transform pressable`}
                   >
                     {compactStack(stack, bigBlind, displayMode)}
                   </button>

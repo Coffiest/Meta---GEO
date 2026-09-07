@@ -261,7 +261,7 @@ export function TournamentResultScreen({
           <p className="text-[11px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
           <p
             className={`mt-2 font-black leading-[0.9] tracking-tight text-fg tabular-nums ${
-              useRatio ? "text-[64px]" : "text-[88px]"
+              useRatio ? "text-[64px] tracking-[-0.035em]" : "text-[88px] tracking-[-0.035em]"
             }`}
           >
             {rankPlain}

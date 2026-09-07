@@ -229,7 +229,7 @@ function SettingsPopover({
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
-                className="flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
+                className="pressable flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
               >
                 {t("settings.leaveCancel")}
               </button>
@@ -487,7 +487,7 @@ function GameScreen({
           </div>
           <CountdownText
             endsAt={levelEndsAt}
-            className="mt-0.5 block text-[26px] font-black tabular-nums leading-none text-accent"
+            className="mt-0.5 block text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-accent"
           />
           {/* 生存者数。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。
               MTT・Sit&Goのどちらでも必ず出す(サーバーは両方とも remaining/total を送っている)。
@@ -538,7 +538,7 @@ function GameScreen({
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 active:scale-95 transition-transform"
+          className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
           aria-label="設定"
         >
           <Icon name="settings" className="h-[18px] w-[18px]" />
@@ -627,7 +627,7 @@ function GameScreen({
               <button
                 type="submit"
                 aria-label="送信"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform active:scale-90"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform pressable"
               >
                 <Icon name="arrow-right" className="h-[18px] w-[18px]" />
               </button>
@@ -953,7 +953,7 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
       <div className="flex items-center gap-2.5">
         <button
           onClick={onRetry}
-          className="rounded-xl bg-n-4 px-6 py-2.5 text-sm font-semibold text-white active:opacity-80"
+          className="rounded-xl bg-n-4 px-6 py-2.5 text-sm font-semibold text-white pressable"
         >
           今すぐ再試行
         </button>
@@ -1135,7 +1135,7 @@ export default function Page() {
           {reason === "unauthorized" && !embeddedAuthProblem && (
             <button
               onClick={() => void auth.signOut()}
-              className="text-[13px] font-semibold text-n-9 underline underline-offset-2"
+              className="pressable text-[13px] font-semibold text-n-9 underline underline-offset-2"
             >
               {t("app.profileErr.relogin")}
             </button>

@@ -173,7 +173,7 @@ export default function DiagnosticsPage() {
           <button
             onClick={() => void load()}
             disabled={loading}
-            className="rounded-xl bg-n-4 px-4 py-2.5 text-[13px] font-black text-white disabled:opacity-50"
+            className="pressable rounded-xl bg-n-4 px-4 py-2.5 text-[13px] font-black text-white disabled:opacity-50"
           >
             {loading ? "測定中…" : "再測定"}
           </button>

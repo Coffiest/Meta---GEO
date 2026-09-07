@@ -216,7 +216,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       ) : (
         <button
           onClick={() => setShowRedeem(true)}
-          className="mt-3 text-[11.5px] font-semibold text-fg-2 underline decoration-dashed underline-offset-2"
+          className="pressable mt-3 text-[11.5px] font-semibold text-fg-2 underline decoration-dashed underline-offset-2"
         >
           {t("invite.haveCode")}
         </button>

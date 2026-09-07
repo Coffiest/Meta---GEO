@@ -121,7 +121,7 @@ export function ReviewPaywall({
             <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
           </div>
           <p className="text-fg">
-            <span className="text-[34px] font-black tabular-nums leading-none">¥980</span>
+            <span className="text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none">¥980</span>
             <span className="ml-1 text-[12px] font-bold text-fg-2">/月</span>
           </p>
         </div>
@@ -149,7 +149,7 @@ export function ReviewPaywall({
           whileTap={{ scale: 0.98 }}
           onClick={onSubscribe}
           disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent active:opacity-90 disabled:opacity-60"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
         >
           {busy ? (
             <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
