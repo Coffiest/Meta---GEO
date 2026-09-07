@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import type { ChatMessage, SeatPlayerInfo } from "@/lib/socket";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
@@ -54,9 +55,9 @@ export function ChatLogSheet({
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="flex h-[72vh] w-full max-w-md flex-col rounded-t-2xl border border-line-strong bg-surface"
+        className="flex h-[72vh] w-full max-w-md flex-col glass-sheet rounded-t-sheet shadow-e4"
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <div>

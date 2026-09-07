@@ -104,7 +104,7 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
             onClick={() => void handleEnable()}
             disabled={busy}
             aria-label={busy ? t("push.enabling") : t("push.enable")}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-on-accent transition-transform active:scale-[0.94] disabled:opacity-50"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-on-accent pressable disabled:opacity-50"
           >
             <Icon name="check" className="h-[17px] w-[17px]" weight="bold" />
           </button>

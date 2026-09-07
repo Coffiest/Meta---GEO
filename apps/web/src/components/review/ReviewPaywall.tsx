@@ -85,7 +85,7 @@ export function ReviewPaywall({
       {/* ロックされた解析のチラ見せ */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-        className="relative overflow-hidden rounded-[24px] bg-n-4 p-5 shadow-[0_8px_28px_-12px_rgba(10,10,10,0.5)]"
+        className="relative overflow-hidden rounded-[24px] bg-n-4 p-5 shadow-e2"
       >
         {/* 背面: ぼかしたスコアのプレビュー */}
         <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-between px-5 opacity-20 blur-[3px]">
@@ -113,7 +113,7 @@ export function ReviewPaywall({
       {/* プランカード(ゴールド強調) */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 rounded-[24px] border-2 border-accent bg-surface p-4 shadow-[0_8px_28px_-12px_rgba(242,169,0,0.5)]"
+        className="mt-3 rounded-[24px] border-2 border-accent bg-surface p-4 shadow-glow"
       >
         <div className="flex items-end justify-between">
           <div>
@@ -182,7 +182,7 @@ export function ReviewPaywall({
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
         <Link
           href="/"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-fg active:scale-[0.99] transition-transform"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-fg pressable"
         >
           <Icon name="user-plus" className="h-4 w-4" />
           友達を招待してクーポンを増やす

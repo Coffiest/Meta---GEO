@@ -393,7 +393,7 @@ export default function AdminPage() {
                   type="button"
                   onClick={() => void startGeoBackfill()}
                   disabled={geoBackfillBusy || geoBackfill?.running}
-                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97] disabled:opacity-40"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable disabled:opacity-40"
                 >
                   {geoBackfill?.running ? "実行中…" : "再構築"}
                 </button>
@@ -418,7 +418,7 @@ export default function AdminPage() {
                     setPosStatsOpen((v) => !v);
                     if (posStatsOpen && passcode) setPosStats(null);
                   }}
-                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable"
                 >
                   {posStatsOpen ? "閉じる" : "内訳を見る"}
                 </button>
@@ -513,7 +513,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setTrendsOpen((v) => !v)}
-                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable"
                 >
                   {trendsOpen ? "閉じる" : "開く"}
                 </button>

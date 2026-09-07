@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatAmount, formatBb, formatChips, type AmountDisplayMode } from "@/lib/format";
@@ -282,8 +283,8 @@ export function Seat({
             initial={{ opacity: 0, y: 6, scale: 0.9, x: "-50%" }}
             animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
             exit={{ opacity: 0, scale: 0.9, x: "-50%" }}
-            transition={{ type: "spring", stiffness: 480, damping: 26 }}
-            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-line-strong/[0.06] bg-surface/80 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-fg backdrop-blur-[6px] shadow-[0_10px_24px_-10px_rgba(10,10,10,0.4),0_2px_6px_-2px_rgba(10,10,10,0.16)]"
+            transition={SPRING_SNAPPY}
+            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-line-strong/[0.06] bg-surface/80 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-fg backdrop-blur-[6px] shadow-e3"
           >
             {chatBubble}
             {/* 尻尾: 本体と同じ白の菱形を回転して縁取り2辺+影で自然に接続する */}
@@ -335,7 +336,7 @@ export function Seat({
             onClick={onCardsTap}
             aria-label={showEyeIcon ? "ハンドショウを取り消す" : "このハンドをショウする"}
             aria-pressed={showEyeIcon}
-            className="appearance-none bg-transparent p-0 active:scale-[0.96] transition-transform"
+            className="appearance-none bg-transparent p-0 pressable"
           >
             {cardsInner}
           </button>
@@ -350,8 +351,8 @@ export function Seat({
           key={handRankLabel}
           initial={{ opacity: 0, y: -3, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: "spring", stiffness: 460, damping: 24 }}
-          className="z-30 -mt-0.5 rounded-full bg-n-4 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-[0_1px_4px_-1px_rgba(10,10,10,0.5)]"
+          transition={SPRING_SNAPPY}
+          className="z-30 -mt-0.5 rounded-full bg-n-4 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-e1"
         >
           {handRankLabel}
         </motion.div>
@@ -387,7 +388,7 @@ export function Seat({
           <span className="pointer-events-none absolute -top-3 left-1/2 z-40 -translate-x-1/2">
             <span
               role="status"
-              className="block animate-time-bank-badge whitespace-nowrap rounded-full bg-accent px-2 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] text-on-accent shadow-[0_2px_6px_-2px_rgba(10,10,10,0.6)]"
+              className="block animate-time-bank-badge whitespace-nowrap rounded-full bg-accent px-2 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] text-on-accent shadow-e1"
             >
               {t("seat.timeBankUsed")}
             </span>
@@ -465,7 +466,7 @@ export function Seat({
             initial={{ opacity: 0, scale: 0.5, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            transition={SPRING_SNAPPY}
             className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
             style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
           >

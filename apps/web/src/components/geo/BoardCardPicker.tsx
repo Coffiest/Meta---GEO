@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 // 白背景の4色デッキ: スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑。
@@ -56,9 +57,9 @@ export function BoardCardPicker({
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
-        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-line bg-canvas p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto glass-sheet rounded-t-sheet sm:rounded-sheet p-4 shadow-e4"
       >
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-extrabold tracking-tight text-fg">

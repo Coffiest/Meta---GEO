@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import {
   STACK_BUCKETS,
   STACK_BUCKET_LABELS,
@@ -112,9 +113,9 @@ export function GeoSettingsModal({
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
-        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-line bg-canvas p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto glass-sheet rounded-t-sheet sm:rounded-sheet p-4 shadow-e4"
       >
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-extrabold tracking-tight text-fg">詳細設定</p>

@@ -195,7 +195,7 @@ function SettingsPopover({
             onClose();
             onShowHistory();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.handHistory")}
         </button>
@@ -204,7 +204,7 @@ function SettingsPopover({
             onClose();
             onShowStructure();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.blindStructure")}
         </button>
@@ -213,7 +213,7 @@ function SettingsPopover({
             onClose();
             onShowChatLog();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.chatLog")}
         </button>
@@ -223,7 +223,7 @@ function SettingsPopover({
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
-                className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 active:scale-[0.97] transition-transform"
+                className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 pressable"
               >
                 {t("settings.leaveDo")}
               </button>
@@ -238,7 +238,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-n-2 transition-[background-color,transform] active:scale-[0.98]"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-n-2 transition-[background-color,transform] pressable"
           >
             {t("settings.leave")}
           </button>
@@ -474,7 +474,7 @@ function GameScreen({
             gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-surface text-fg border border-line-strong px-3 py-1.5 text-left active:scale-[0.97] transition-transform"
+          className="shrink-0 rounded-xl bg-surface text-fg border border-line-strong px-3 py-1.5 text-left pressable"
         >
           <div className="flex items-center gap-1.5 leading-none">
             <span className="text-[8px] font-black uppercase tracking-[0.22em] text-accent tabular-nums">Lv {level?.level ?? "-"}</span>
@@ -694,7 +694,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
@@ -751,7 +751,7 @@ function GameScreen({
             <button
               type="button"
               onClick={() => setResultReady(true)}
-              className="rounded-full bg-n-4 px-6 py-3 text-[13px] font-black text-white shadow-[0_12px_32px_-12px_rgba(10,10,10,0.6)] transition-transform active:scale-[0.97]"
+              className="rounded-full bg-n-4 px-6 py-3 text-[13px] font-black text-white shadow-e3 pressable"
             >
               結果を見る
             </button>
@@ -766,7 +766,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
               <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-fg" />
@@ -1129,7 +1129,7 @@ export default function Page() {
         <p className="text-base font-bold text-fg">{t("app.profileFetchFailed")}</p>
         <p className="max-w-xs text-sm text-n-9">{reasonMsg}</p>
         <div className="flex flex-col items-center gap-2.5">
-          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 active:scale-[0.98] transition-transform">
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 pressable">
             {t("app.retry")}
           </button>
           {reason === "unauthorized" && !embeddedAuthProblem && (

@@ -23,7 +23,7 @@ export function RRPokerPromoBanner() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
       aria-label="姉妹アプリ RRPoker のご案内"
-      className="relative overflow-hidden rounded-2xl bg-surface ring-1 ring-line-strong/10 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_26px_-16px_rgba(0,0,0,0.18)]"
+      className="relative overflow-hidden rounded-2xl bg-surface ring-1 ring-line-strong/10 shadow-e2"
     >
       {/* カード全体のタップ先(RRPoker本体)。ストレッチリンクで背面全域を覆う。 */}
       <a

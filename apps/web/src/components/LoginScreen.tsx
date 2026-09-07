@@ -246,7 +246,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   }
                 }}
                 disabled={resendState !== "idle"}
-                className="mt-5 w-full rounded-xl border border-line py-3 text-[13px] font-semibold text-fg transition-colors hover:bg-canvas active:scale-[0.98] disabled:opacity-50"
+                className="mt-5 w-full rounded-xl border border-line py-3 text-[13px] font-semibold text-fg transition-colors hover:bg-canvas pressable disabled:opacity-50"
               >
                 {resendState === "sending" ? "再送信中…" : resendState === "sent" ? "再送信しました" : "メールが届かない場合は再送信"}
               </button>
@@ -280,14 +280,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => auth.signInWithGoogle()}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-line py-3 transition-colors hover:bg-canvas active:scale-[0.97]"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-line py-3 transition-colors hover:bg-canvas pressable"
                 >
                   <GoogleIcon />
                   <span className="text-[13px] font-semibold">Google</span>
                 </button>
                 <button
                   onClick={() => auth.signInWithApple()}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 transition-transform active:scale-[0.97]"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 pressable"
                 >
                   <AppleIcon />
                   <span className="text-[13px] font-semibold text-white">Apple</span>
@@ -401,7 +401,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               (mode !== "reset" && !password) ||
               (mode === "signup" && (!confirmPassword || confirmPassword !== password))
             }
-            className="mt-5 w-full rounded-xl bg-n-4 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+            className="mt-5 w-full rounded-xl bg-n-4 py-3.5 font-semibold text-white pressable disabled:opacity-40"
           >
             {submitting ? t("login.submitting") : submitLabel}
           </button>

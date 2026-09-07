@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import { Avatar } from "./Avatar";
 import {
   PLAYER_NOTE_COLORS,
@@ -101,9 +102,9 @@ export function PlayerDetailModal({
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-t-2xl border border-line-strong bg-surface p-4 pb-8"
+        className="w-full max-w-md max-h-[88vh] overflow-y-auto glass-sheet rounded-t-sheet p-4 pb-8 shadow-e4"
       >
         {/* ヘッダー: アバター+名前+偏差値 */}
         <div className="mb-4 flex items-center gap-3">

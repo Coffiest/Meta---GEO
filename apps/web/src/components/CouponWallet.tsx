@@ -185,7 +185,7 @@ export function CouponWallet({
           <button
             onClick={() => void applyCode(codeInput, "input")}
             disabled={busy != null || codeInput.trim().length === 0}
-            className="shrink-0 rounded-xl bg-n-4 px-4 text-[13px] font-black text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+            className="shrink-0 rounded-xl bg-n-4 px-4 text-[13px] font-black text-white pressable disabled:opacity-40"
           >
             {busy === "input" ? t("coupon.applying") : t("coupon.apply")}
           </button>
@@ -253,14 +253,14 @@ function CouponRow({
           <button
             onClick={onCopy}
             aria-label={t("coupon.copy")}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-n-9 transition-transform active:scale-[0.95]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-n-9 pressable"
           >
             {copied ? <CheckGlyph className="h-4 w-4 text-accent" /> : <CopyGlyph className="h-4 w-4" />}
           </button>
           <button
             onClick={onUse}
             disabled={disabled}
-            className="shrink-0 rounded-lg bg-accent px-3 py-2 text-[12px] font-black text-on-accent transition-transform active:scale-[0.98] disabled:opacity-40"
+            className="shrink-0 rounded-lg bg-accent px-3 py-2 text-[12px] font-black text-on-accent pressable disabled:opacity-40"
           >
             {busy ? t("coupon.applying") : t("coupon.use")}
           </button>

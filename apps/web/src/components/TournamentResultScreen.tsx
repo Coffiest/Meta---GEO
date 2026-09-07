@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
@@ -251,7 +252,7 @@ export function TournamentResultScreen({
         <motion.div
           initial={{ opacity: 0, y: -12, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: "spring", stiffness: 360, damping: 22 }}
+          transition={SPRING_SNAPPY}
           className="mb-6 pt-4 text-center"
         >
           {isWin && (
@@ -356,7 +357,7 @@ export function TournamentResultScreen({
             </div>
             <button
               onClick={() => void handleMilestoneShare()}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-[14px] font-black text-on-accent transition-transform active:scale-[0.98]"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-[14px] font-black text-on-accent pressable"
             >
               {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
               <Icon name="logo-x" className="h-[15px] w-[15px]" />
@@ -369,7 +370,7 @@ export function TournamentResultScreen({
         {tournamentId && (
           <button
             onClick={() => setReviewOpen(true)}
-            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-5 text-[17px] font-black text-on-accent shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-accent-lo/40 transition-transform active:scale-[0.98]"
+            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-5 text-[17px] font-black text-on-accent shadow-glow ring-1 ring-accent-lo/40 pressable"
           >
             <Icon name="graph-up" className="h-6 w-6" />
             {t("result.reviewCta")}
@@ -381,7 +382,7 @@ export function TournamentResultScreen({
           <button
             onClick={doReEntry}
             disabled={reEntering}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-500 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] transition-transform active:scale-[0.98] disabled:opacity-90"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-500 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] pressable disabled:opacity-90"
           >
             {reEntering ? (
               <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()} …復帰中</span>
@@ -398,13 +399,13 @@ export function TournamentResultScreen({
         <div className={`grid grid-cols-2 gap-2.5 ${tournamentId || canReEntry ? "mt-3" : "mt-6"}`}>
           <button
             onClick={onExit}
-            className="rounded-2xl border border-line-strong bg-surface py-3.5 text-sm font-black text-fg transition-transform active:scale-[0.98]"
+            className="rounded-2xl border border-line-strong bg-surface py-3.5 text-sm font-black text-fg pressable"
           >
             {t("common.close")}
           </button>
           <button
             onClick={() => void handleShare()}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-n-4 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-n-4 py-3.5 text-sm font-black text-white pressable"
           >
             {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
             <Icon name="logo-x" className="h-[16px] w-[16px]" />

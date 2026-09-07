@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
@@ -66,7 +67,7 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
       className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
+      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-e1">
         <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-line text-[9px] font-black leading-none text-fg">
           D
         </span>
@@ -347,8 +348,8 @@ export function PokerTable({
               initial={{ opacity: 0, y: -6, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 520, damping: 24 }}
-              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+              transition={SPRING_SNAPPY}
+              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
@@ -377,7 +378,7 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-e0"
               >
                 <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}
@@ -488,7 +489,7 @@ export function PokerTable({
               <button
                 type="button"
                 onClick={() => onPlayerTap?.(player)}
-                className="cursor-pointer appearance-none bg-transparent p-0 active:scale-[0.97] transition-transform"
+                className="cursor-pointer appearance-none bg-transparent p-0 pressable"
                 aria-label={t("seat.detailAria", { name: player.displayName })}
               >
                 {seatNode}

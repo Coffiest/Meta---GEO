@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { bucketColor, bucketOrderIndex } from "./colors";
 import type { ActionOption } from "@/lib/geoApi";
 
@@ -75,7 +76,7 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.9, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            transition={{ type: "spring", damping: 22, stiffness: 300 }}
+            transition={SPRING_SNAPPY}
             className="shrink-0 flex items-center gap-1.5 rounded-xl border border-line bg-canvas px-2.5 py-1.5"
           >
             <span className="text-[9px] font-black tracking-widest text-accent">{STREET_LABEL[item.street]}</span>
@@ -100,7 +101,7 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", damping: 24, stiffness: 320 }}
+            transition={SPRING_SNAPPY}
             className="shrink-0 rounded-xl border-2 border-accent bg-canvas overflow-hidden min-w-[90px]"
           >
             <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-accent">{item.position}</div>
@@ -133,7 +134,7 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
-            transition={{ type: "spring", damping: 24, stiffness: 320 }}
+            transition={SPRING_SNAPPY}
             disabled={item.state === "future"}
             onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
             className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] border ${

@@ -232,7 +232,7 @@ export function Onboarding({
           <button
             onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
             disabled={!canSubmit}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-n-4 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-n-4 py-3.5 font-semibold text-white pressable disabled:opacity-40"
           >
             <span>{saving ? t("onb.saving") : submitLabel}</span>
             {!saving && (

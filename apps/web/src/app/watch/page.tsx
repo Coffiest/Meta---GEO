@@ -165,13 +165,13 @@ export default function WatchPage() {
         <div className="mt-5 grid grid-cols-2 gap-2.5">
           <Link
             href="/"
-            className="flex items-center justify-center rounded-xl bg-accent py-3.5 text-[13px] font-black text-on-accent transition-transform active:scale-[0.98]"
+            className="flex items-center justify-center rounded-xl bg-accent py-3.5 text-[13px] font-black text-on-accent pressable"
           >
             {t("watch.join")}
           </Link>
           <button
             onClick={() => void handleShare()}
-            className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3.5 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3.5 text-[13px] font-black text-white pressable"
           >
             <XLogo className="h-[15px] w-[15px]" />
             {t("watch.share")}

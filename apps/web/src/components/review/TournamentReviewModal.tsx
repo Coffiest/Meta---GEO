@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
 import {
   fetchTournamentReview,
   fetchTournamentReviewSummary,
@@ -494,8 +495,8 @@ export function TournamentReviewModal({
             key={stepIndex}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 460 }}
-            className="min-h-[76px] rounded-[20px] bg-surface px-4 py-3 flex flex-col justify-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)]"
+            transition={SPRING_MOVE}
+            className="min-h-[76px] rounded-[20px] bg-surface px-4 py-3 flex flex-col justify-center shadow-e2"
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             {step.type === "handStart" ? (
@@ -592,7 +593,7 @@ export function TournamentReviewModal({
                 whileTap={{ scale: 0.9 }}
                 onClick={() => goTo(stepIndex + 1)}
                 disabled={stepIndex >= total - 1}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-n-4 text-white shadow-[0_6px_16px_-6px_rgba(10,10,10,0.5)] disabled:opacity-30"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-n-4 text-white shadow-e2 disabled:opacity-30"
                 aria-label="次のアクション"
               >
                 <Icon name="chevron-right" className="h-5 w-5" />
@@ -623,9 +624,9 @@ export function TournamentReviewModal({
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
-          transition={{ type: "spring", damping: 30, stiffness: 300 }}
+          transition={SPRING_SHEET}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)]"
+          className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
           style={{ background: SHEET_BG }}
         >
           <div className="sticky top-0 z-10 -mx-4 px-4 pt-2.5 pb-1" style={{ background: SHEET_BG }}>
@@ -648,7 +649,7 @@ export function TournamentReviewModal({
           </div>
 
           {freeLoading ? (
-            <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
               <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
               集計中…
             </div>
@@ -657,7 +658,7 @@ export function TournamentReviewModal({
           ) : freeData ? (
             <motion.div variants={stagger} initial="hidden" animate="show">
               {/* 分類の件数(広告つき・誰でも無料で見られる範囲)。 */}
-              <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-e1">
                 {freeShown.length > 0 ? (
                   freeShown.map(({ c, n }, i) => (
                     <div
@@ -705,7 +706,7 @@ export function TournamentReviewModal({
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={openReview}
-                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(10,10,10,0.5)]"
+                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-e3"
                 >
                   <Icon name="refresh" className="h-4 w-4" />
                   局後検討
@@ -745,9 +746,9 @@ export function TournamentReviewModal({
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.3)]"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
         style={{ background: SHEET_BG }}
       >
         {/* グラバー */}
@@ -791,7 +792,7 @@ export function TournamentReviewModal({
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
             <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
             全ハンドを解析中…
           </div>
@@ -816,7 +817,7 @@ export function TournamentReviewModal({
             {/* ヒーローカード: リングゲージ + メトリクス */}
             <motion.div
               variants={riseIn}
-              className="mb-3 rounded-[24px] bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+              className="mb-3 rounded-[24px] bg-surface p-5 shadow-e1"
             >
               <div className="flex items-center gap-5">
                 <ScoreRing score={data.gtoAccuracy} />
@@ -847,7 +848,7 @@ export function TournamentReviewModal({
             </motion.div>
 
             {/* 分類リスト(iOSインセットグループ+比率バー)。発生した評価のみ表示。 */}
-            <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-e1">
               {shownClasses.length > 0 ? (
                 shownClasses.map(({ c, n }, i) => (
                   <div
@@ -878,7 +879,7 @@ export function TournamentReviewModal({
 
             {/* ワースト / ベスト ハイライト */}
             {(summary.worst || summary.best) && (
-              <motion.div variants={riseIn} className="mb-4 overflow-hidden rounded-[24px] bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <motion.div variants={riseIn} className="mb-4 overflow-hidden rounded-[24px] bg-surface shadow-e1">
                 {summary.worst && (
                   <button
                     onClick={() => jumpToDecision(summary.worst!.handId, summary.worst!.d.sequenceNumber)}
@@ -933,7 +934,7 @@ export function TournamentReviewModal({
                   setView("replay");
                 }}
                 disabled={steps.length === 0}
-                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(10,10,10,0.5)] disabled:opacity-40"
+                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-e3 disabled:opacity-40"
               >
                 <Icon name="play" className="h-4 w-4" />
                 棋譜解析を開始

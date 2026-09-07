@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import type { TimeBankInfo } from "@/lib/socket";
@@ -25,7 +26,7 @@ function Switch({ on }: { on: boolean }) {
       <motion.span
         className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-surface" : "bg-n-6"}`}
         animate={{ left: on ? 13 : 2 }}
-        transition={{ type: "spring", stiffness: 520, damping: 30 }}
+        transition={SPRING_MOVE}
       />
     </span>
   );
@@ -75,7 +76,7 @@ function P5Button({
   return (
     <motion.button
       whileTap={{ scale: 0.94, rotate: tapRotate }}
-      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      transition={SPRING_SNAPPY}
       disabled={disabled}
       aria-label={ariaLabel}
       onClick={onClick}
@@ -113,7 +114,7 @@ function P5GhostButton({
   return (
     <motion.button
       whileTap={{ scale: 0.94 }}
-      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      transition={SPRING_SNAPPY}
       onClick={onClick}
       aria-label={ariaLabel}
       className="relative min-h-[64px] flex-1"

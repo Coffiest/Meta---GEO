@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
+import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
 import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
@@ -173,25 +174,38 @@ function GameStartCards({
     <>
       <div className="grid grid-cols-2 gap-3">
         {games.map((game, i) => {
-          const accent = i === 0 ? "bg-accent" : "bg-crimson-500";
-          const accentText = i === 0 ? "text-accent" : "text-crimson-500";
+          // 種別ごとの色。カードの上辺・アイコン・入室ボタンで同じ色を使い、
+          // 「この帯の色 = この種別」という対応を一目で読ませる。
+          const barGradient = i === 0
+            ? "bg-gradient-to-r from-accent-hi via-accent to-accent-lo"
+            : "bg-gradient-to-r from-crimson-300 via-crimson-400 to-crimson-600";
+          const enterFill = i === 0 ? "bg-accent text-on-accent" : "bg-crimson-400 text-on-accent";
+          const accentText = i === 0 ? "text-accent" : "text-crimson-400";
           const soon = Boolean(game.comingSoon);
           return (
             <motion.button
               key={game.key}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.05 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ ...SPRING_MOVE, delay: 0.04 + i * 0.06 }}
               whileHover={soon ? undefined : { y: -3 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => (soon ? setComingSoonFor(game.key) : onJoin(game.key))}
               aria-label={`${game.title} — ${soon ? t("lobby.comingSoon.badge") : t("play.enter")}`}
-              className={`group relative flex flex-col items-start overflow-hidden rounded-[20px] bg-surface p-4 pt-[18px] text-left ring-1 ring-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow ${
-                soon ? "" : "hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
+              className={`group relative flex flex-col items-start overflow-hidden rounded-card bg-surface p-4 pt-[18px] text-left ring-1 ring-white/[0.07] transition-shadow ${
+                soon ? "shadow-e0 opacity-70" : "shadow-e2 hover:shadow-e3"
               }`}
             >
-              {/* 上辺アクセントバー(種別で色分け=一瞬で識別)。準備中は灰色にして「今は入れない」と分かるようにする。 */}
-              <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-n-5" : accent}`} aria-hidden />
+              {/* 上辺のアクセント帯(種別で色分け=一瞬で識別)。暗い面では落ち影が沈むので、
+                  帯の下に同色の淡い発光を敷いて、カードが光を放っているように見せる。
+                  準備中は無彩色にして「今は入れない」と分かるようにする。 */}
+              <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-n-5" : barGradient}`} aria-hidden />
+              {!soon && (
+                <span
+                  className={`pointer-events-none absolute inset-x-0 top-0 h-16 opacity-40 blur-2xl ${barGradient}`}
+                  aria-hidden
+                />
+              )}
 
               {/* 種別を示す図形(文字の代わり)。1卓=カード / 複数卓=大人数フィールド。 */}
               <span className={`${soon ? "text-fg-faint" : accentText}`}>
@@ -199,16 +213,18 @@ function GameStartCards({
               </span>
 
               {/* 略称のみ(SNG / MTT)。説明文は置かない。 */}
-              <span className={`mt-2.5 text-[22px] font-black leading-none tracking-tight ${soon ? "text-fg-3" : "text-fg"}`}>
+              {/* 画面の主役の数字/語は大きく組み、字間を詰める(大きい文字は放っておくと
+                  字間が開いて見える)。 */}
+              <span className={`mt-2.5 text-[26px] font-black leading-none tracking-[-0.03em] ${soon ? "text-fg-3" : "text-fg"}`}>
                 {game.key.toUpperCase()}
               </span>
 
-              <span className="mt-3 h-px w-full bg-n-2" aria-hidden />
+              <span className="mt-3 h-px w-full bg-white/[0.07]" aria-hidden />
 
               {/* 下段: バイイン(チップ図形+数値) と 入室(矢印のみ)。準備中は時計アイコンだけ。 */}
               <span className="mt-2.5 flex w-full items-center justify-between">
                 {soon ? (
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-n-2 text-fg-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06] text-fg-2">
                     {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
                     <Icon name="clock" className="h-4 w-4" />
                   </span>
@@ -220,7 +236,7 @@ function GameStartCards({
                         {game.buyIn.toLocaleString()}
                       </span>
                     </span>
-                    <span className={`grid h-7 w-7 place-items-center rounded-full ${accent} text-white`}>
+                    <span className={`grid h-7 w-7 place-items-center rounded-full ${enterFill} shadow-glow-sm`}>
                       <EnterArrow className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </span>
                   </>
@@ -282,9 +298,9 @@ function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock:
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 360, damping: 26 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[320px] rounded-[26px] border border-line-strong bg-surface p-6 text-center"
+        className="glass-panel w-full max-w-[320px] rounded-sheet p-6 text-center shadow-e4"
       >
         {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
         <Icon name="clock" className="mx-auto h-9 w-9 text-fg" />
@@ -293,7 +309,7 @@ function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock:
 
         <button
           onClick={onClose}
-          className="mt-5 w-full cursor-pointer rounded-2xl border border-line-strong bg-surface py-3 text-[13px] font-black text-fg transition-transform active:scale-[0.98]"
+          className="pressable mt-5 w-full cursor-pointer rounded-2xl bg-white/[0.08] py-3 text-[13px] font-black text-fg"
         >
           {t("lobby.comingSoon.close")}
         </button>
@@ -328,7 +344,7 @@ function signedClass(n: number): string {
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[20px] bg-surface ring-1 ring-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
+  return <div className="rounded-[20px] bg-surface ring-1 ring-line shadow-e1 p-4">{children}</div>;
 }
 
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
@@ -369,7 +385,7 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-surface ring-1 ring-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4"
+      className="rounded-[20px] bg-surface ring-1 ring-line shadow-e1 p-4"
     >
       {children}
     </motion.div>
@@ -460,7 +476,7 @@ function TournamentHistoryCard({
         transition={{ duration: 0.3, delay }}
         whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
-        className="w-full text-left rounded-[18px] bg-surface ring-1 ring-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5"
+        className="w-full text-left rounded-[18px] bg-surface ring-1 ring-line shadow-e1 p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
           <div className="min-w-0">
@@ -505,7 +521,7 @@ function TournamentHistoryCard({
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              transition={SPRING_SHEET}
               className="relative w-full max-w-sm rounded-t-3xl bg-surface pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1028,7 +1044,7 @@ function HamburgerMenu({
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        transition={SPRING_SHEET}
         className="relative h-full w-[82%] max-w-sm bg-n-2 ring-1 ring-line pt-6 pb-[calc(env(safe-area-inset-bottom)+20px)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1317,7 +1333,7 @@ export function Lobby({
             type="button"
             onClick={() => onJoin(activeGameKey)}
             aria-label={`${t("lobby.resume.title")} ${t("lobby.resume.cta")}`}
-            className="group flex w-full items-center gap-3 rounded-2xl bg-n-4 px-4 py-3 text-left text-white shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] ring-1 ring-accent/30 transition-transform active:scale-[0.99]"
+            className="group flex w-full items-center gap-3 rounded-2xl bg-n-4 px-4 py-3 text-left text-white shadow-e2 ring-1 ring-accent/30 pressable"
           >
             <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/15">
               <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-accent-hi/70" />
@@ -1618,7 +1634,7 @@ export function Lobby({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left transition-transform active:scale-[0.99] ${
+                          className={`flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left pressable ${
                             isYou ? "border-[1.5px] border-accent" : "border border-line"
                           }`}
                         >
@@ -1915,7 +1931,7 @@ export function Lobby({
             <Link
               href="/geo"
               onClick={() => setShowGeoToast(false)}
-              className="flex max-w-[360px] items-center gap-3 rounded-2xl border border-n-5 bg-n-4 px-4 py-3 text-left shadow-[0_10px_28px_-12px_rgba(10,10,10,0.55)]"
+              className="flex max-w-[360px] items-center gap-3 rounded-2xl border border-n-5 bg-n-4 px-4 py-3 text-left shadow-e3"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent">
                 {/* データベースアイコン(絵文字禁止のためSVG) */}

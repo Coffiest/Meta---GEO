@@ -80,7 +80,7 @@ export default function PricingPage() {
           無料プランは24時間に1回まで。加入すると、トーナメントの棋譜解析を待ち時間なく無制限に実行できます。
         </p>
 
-        <div className="mt-5 rounded-2xl border-2 border-accent bg-surface p-5 shadow-[0_10px_30px_-14px_rgba(242,169,0,0.5)]">
+        <div className="mt-5 rounded-2xl border-2 border-accent bg-surface p-5 shadow-glow">
           <div className="flex items-baseline gap-1">
             <span className="text-[40px] font-black text-fg tabular-nums leading-none">¥980</span>
             <span className="text-[13px] font-bold text-fg-2">/ 月(税込)</span>
@@ -117,7 +117,7 @@ export default function PricingPage() {
                   <button
                     onClick={handleSubscribe}
                     disabled={submitting}
-                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg active:scale-[0.99] transition-transform disabled:opacity-60"
+                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
                   >
                     {submitting ? (
                       <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
@@ -129,7 +129,7 @@ export default function PricingPage() {
               ) : (
                 <button
                   onClick={handleManage}
-                  className="mt-2 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg active:scale-[0.99] transition-transform"
+                  className="mt-2 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg pressable"
                 >
                   契約を管理する
                 </button>

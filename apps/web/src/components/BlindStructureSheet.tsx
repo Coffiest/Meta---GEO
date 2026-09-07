@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import { BLIND_STRUCTURE } from "@meta-geo/engine/src/blindStructure.js";
 import type { LevelInfo, TournamentInfo } from "@/lib/socket";
 
@@ -63,9 +64,9 @@ export function BlindStructureSheet({
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-t-2xl border border-line-strong bg-surface p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+        className="w-full max-w-md max-h-[88vh] overflow-y-auto glass-sheet rounded-t-sheet p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
       >
         {/* ヘッダー: タイトル + LEVEL + 閉じる */}
         <div className="mb-3 flex items-start justify-between">

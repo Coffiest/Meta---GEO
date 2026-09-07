@@ -167,13 +167,13 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       <div className="mt-2.5 grid grid-cols-2 gap-2">
         <button
           onClick={() => void handleCopy()}
-          className="rounded-xl border border-line-strong bg-surface py-3 text-[13px] font-black text-fg transition-transform active:scale-[0.98]"
+          className="rounded-xl border border-line-strong bg-surface py-3 text-[13px] font-black text-fg pressable"
         >
           {copied ? t("invite.copied") : t("invite.copy")}
         </button>
         <button
           onClick={() => void handleShare()}
-          className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
+          className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 text-[13px] font-black text-white pressable"
         >
           <Icon name="share" className="h-[15px] w-[15px]" />
           {t("invite.share")}
@@ -201,7 +201,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
             <button
               onClick={() => void handleRedeem()}
               disabled={redeeming || codeInput.trim().length === 0}
-              className="shrink-0 rounded-xl bg-accent px-4 text-[13px] font-black text-on-accent transition-transform active:scale-[0.98] disabled:opacity-40"
+              className="shrink-0 rounded-xl bg-accent px-4 text-[13px] font-black text-on-accent pressable disabled:opacity-40"
             >
               {redeeming ? t("invite.applying") : t("invite.apply")}
             </button>

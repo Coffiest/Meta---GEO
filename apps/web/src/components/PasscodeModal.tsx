@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { Icon } from "./Icon";
 
 /**
@@ -55,9 +56,9 @@ export function PasscodeModal({
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 360, damping: 26 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[300px] rounded-[26px] border border-line-strong bg-surface p-6"
+        className="w-full max-w-[300px] glass-panel rounded-sheet p-6 shadow-e4"
       >
         <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-fg-3">Access code</p>
         <p className="mt-1 text-center text-[15px] font-black tracking-tight text-fg">{title}</p>
