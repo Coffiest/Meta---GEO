@@ -74,7 +74,7 @@ function GtoVsGeoMini() {
         </div>
         <div className="bg-n-4 px-3 py-2.5 text-center">
           <p className="text-[14px] font-black tracking-tight text-accent">GEO</p>
-          <p className="mt-0.5 text-[9px] font-bold text-white/60">実測値</p>
+          <p className="mt-0.5 text-[9px] font-bold text-fg-2">実測値</p>
         </div>
       </div>
       {rows.map((row) => (

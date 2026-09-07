@@ -1346,7 +1346,7 @@ export function Lobby({
                   {t("lobby.resume.away")}
                 </span>
               </span>
-              <span className="mt-0.5 block truncate text-[11px] text-fg-faint">
+              <span className="mt-0.5 block truncate text-[11px] text-fg-2">
                 {activeGameKey === "mtt" ? t("lobby.resume.mtt") : t("lobby.resume.sng")} ・ {t("lobby.resume.desc")}
               </span>
             </span>

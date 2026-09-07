@@ -111,7 +111,7 @@ function StallDiagDetails({ diag, connected }: { diag: SocketDiag; connected: bo
     ["アクション", actLine],
   ];
   return (
-    <div className="mt-2 rounded-lg bg-n-4/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
+    <div className="mt-2 rounded-lg bg-white/[0.05] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
       {lines.map(([k, v]) => (
         <div key={k} className="flex gap-2">
           <span className="w-16 shrink-0 text-fg-3">{k}</span>
@@ -778,7 +778,7 @@ function GameScreen({
                 </p>
                 {/* 原因特定用の診断行: 理由コード・連続回数・最終盤面受信からの経過。 */}
                 {diag && (
-                  <div className="mt-2 rounded-lg bg-n-4/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
+                  <div className="mt-2 rounded-lg bg-white/[0.05] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
                     <div>
                       コード {diag.lastNoActiveGame?.reason ?? "-"}
                       {diag.lastNoActiveGame ? `(${diag.lastNoActiveGame.count}回)` : ""} / 接続{" "}

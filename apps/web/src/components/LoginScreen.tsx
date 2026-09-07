@@ -163,7 +163,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           animate={reduce ? undefined : { scale: [1, 1.18, 1], opacity: [0.45, 0.75, 0.45] }}
           transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
         />
-        <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-n-4/[0.04] blur-3xl" />
+        <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-accent-lo/[0.12] blur-3xl" />
       </div>
 
       {/* ホーム画面と同じ共有ヘッダー(ロゴ+ワードマーク)。右に言語切替を置き、ログイン前でも
