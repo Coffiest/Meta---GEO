@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
 import { Button } from "./ui/Button";
+import { GlareHover } from "./effects/GlareHover";
 
 const SEEN_KEY = "pokerart.tour.v1.seen";
 
@@ -164,9 +165,19 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
               transition={{ duration: 0.3 }}
               className="text-center"
             >
-              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-ink-950 text-ink-950">
+              <GlareHover
+                key={`glare-${featureIndex}`}
+                width="64px"
+                height="64px"
+                borderRadius="16px"
+                borderColor="#0a0a0a"
+                className="mx-auto !border-2 text-ink-950"
+                glareColor="#f2a900"
+                autoPlay
+                playOnce
+              >
                 {FEATURE_SLIDES[featureIndex]!.icon}
-              </span>
+              </GlareHover>
               <h2 className="mt-5 text-[22px] font-black tracking-tight text-ink-950">{FEATURE_SLIDES[featureIndex]!.title}</h2>
               <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-relaxed text-ink-600">{FEATURE_SLIDES[featureIndex]!.body}</p>
             </motion.div>

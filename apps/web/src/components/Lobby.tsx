@@ -25,6 +25,7 @@ import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
+import { SpotlightCard } from "./effects/SpotlightCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -186,10 +187,16 @@ function GameStartCards({
               whileTap={{ scale: 0.97 }}
               onClick={() => (soon ? setComingSoonFor(game.key) : onJoin(game.key))}
               aria-label={`${game.title} — ${soon ? t("lobby.comingSoon.badge") : t("play.enter")}`}
-              className={`group relative flex flex-col items-start overflow-hidden rounded-[20px] bg-white p-4 pt-[18px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow ${
+              className={`group relative overflow-hidden rounded-[20px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow ${
                 soon ? "" : "hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
               }`}
             >
+              {/* カーソル追従の淡いゴールドの光。準備中カードは触れる意味が無いので出さない。 */}
+              <SpotlightCard
+                className="!h-full !w-full !rounded-[20px] !border-0 !bg-white"
+                spotlightColor={soon ? "rgba(0,0,0,0)" : "rgba(242, 169, 0, 0.16)"}
+              >
+              <span className="flex flex-col items-start p-4 pt-[18px]">
               {/* 上辺アクセントバー(種別で色分け=一瞬で識別)。準備中は灰色にして「今は入れない」と分かるようにする。 */}
               <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-ink-300" : accent}`} aria-hidden />
 
@@ -226,6 +233,8 @@ function GameStartCards({
                   </>
                 )}
               </span>
+              </span>
+              </SpotlightCard>
             </motion.button>
           );
         })}

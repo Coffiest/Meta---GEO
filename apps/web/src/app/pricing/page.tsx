@@ -15,6 +15,8 @@ const FEATURES = [
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon, HeroIcon } from "@/components/Icon";
+import { GlareHover } from "@/components/effects/GlareHover";
+import { DigitRoll } from "@/components/effects/DigitRoll";
 
 export default function PricingPage() {
   const { session } = useAuth();
@@ -80,9 +82,17 @@ export default function PricingPage() {
           無料プランは24時間に1回まで。加入すると、トーナメントの棋譜解析を待ち時間なく無制限に実行できます。
         </p>
 
-        <div className="mt-5 rounded-2xl border-2 border-gold-500 bg-white p-5 shadow-[0_10px_30px_-14px_rgba(242,169,0,0.5)]">
+        <GlareHover
+          borderRadius="16px"
+          borderColor="#f2a900"
+          background="#ffffff"
+          className="mt-5 !border-2 shadow-[0_10px_30px_-14px_rgba(242,169,0,0.5)]"
+        >
+          <div className="w-full p-5">
           <div className="flex items-baseline gap-1">
-            <span className="text-[40px] font-black text-ink-950 tabular-nums leading-none">¥980</span>
+            {/* 桁ごとにオドメーターめくりで登場する価格。0→980円を一度だけ数え上げる。 */}
+            <span className="text-[40px] font-black text-ink-950 leading-none">¥</span>
+            <DigitRoll value={980} fontSize={40} fontWeight={900} textColor="#0a0a0a" places={[100, 10, 1]} />
             <span className="text-[13px] font-bold text-ink-500">/ 月(税込)</span>
           </div>
           <p className="mt-1 text-[11px] text-ink-500">いつでも解約可能・日割り返金はありません。</p>
@@ -154,7 +164,8 @@ export default function PricingPage() {
               <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
             </div>
           )}
-        </div>
+          </div>
+        </GlareHover>
 
         {/* 課金せずに使う手段。招待で貰ったクーポンをここでも確認・コピー・適用できる。 */}
         <div className="mt-4">
