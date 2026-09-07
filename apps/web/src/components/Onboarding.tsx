@@ -148,7 +148,7 @@ export function Onboarding({
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28, duration: 0.55, ease: EASE }}
-          className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-e2"
+          className="mt-8 rounded-2xl glass-panel p-6 shadow-e2"
         >
           {/* アバターピッカー */}
           <div className="flex flex-col items-center gap-3">
@@ -218,7 +218,7 @@ export function Onboarding({
               autoFocus={isFirstTime}
               autoComplete="off"
               enterKeyHint="go"
-              className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
+              className="w-full rounded-xl glass-panel px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
             />
           </div>
 

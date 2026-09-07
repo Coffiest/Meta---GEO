@@ -86,7 +86,7 @@ export function ChatLogSheet({
                     <span className="mb-0.5 px-1 text-[10px] font-bold text-fg-3">{name}</span>
                     <div
                       className={`max-w-[72vw] break-words rounded-2xl px-3 py-2 text-[13px] font-medium leading-snug sm:max-w-[18rem] ${
-                        mine ? "bg-n-4 text-white" : "border border-line-strong bg-surface text-fg"
+                        mine ? "bg-n-4 text-white" : "glass-panel text-fg"
                       }`}
                     >
                       {m.text}
@@ -106,7 +106,7 @@ export function ChatLogSheet({
             onChange={(e) => setDraft(e.target.value)}
             maxLength={120}
             placeholder="メッセージを入力…"
-            className="flex-1 rounded-full border border-line-strong bg-surface px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
+            className="flex-1 rounded-full glass-panel px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
           />
           <button
             type="submit"

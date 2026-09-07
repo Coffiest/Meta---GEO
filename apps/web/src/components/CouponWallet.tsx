@@ -118,7 +118,7 @@ export function CouponWallet({
     <div
       className={
         compact
-          ? "rounded-[20px] border border-line bg-surface p-3.5"
+          ? "rounded-[20px] glass-panel p-3.5"
           : "rounded-[20px] border-[1.5px] border-line-strong bg-surface p-4"
       }
     >

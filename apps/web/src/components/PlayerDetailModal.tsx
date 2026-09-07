@@ -196,7 +196,7 @@ export function PlayerDetailModal({
               maxLength={500}
               rows={3}
               placeholder="この相手の傾向・読みをメモ(自分だけに表示)"
-              className="w-full resize-none rounded-xl border border-line-strong bg-surface p-3 text-sm text-fg outline-none placeholder:text-fg-faint focus:ring-2 focus:ring-line-strong"
+              className="w-full resize-none rounded-xl glass-panel p-3 text-sm text-fg outline-none placeholder:text-fg-faint focus:ring-2 focus:ring-line-strong"
             />
 
             <button

@@ -113,7 +113,7 @@ export function ReviewPaywall({
       {/* プランカード(ゴールド強調) */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 rounded-[24px] border-2 border-accent bg-surface p-4 shadow-glow"
+        className="mt-3 glass-panel rounded-[24px] p-4 ring-2 ring-inset ring-accent shadow-glow"
       >
         <div className="flex items-end justify-between">
           <div>
@@ -182,7 +182,7 @@ export function ReviewPaywall({
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
         <Link
           href="/"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-fg pressable"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full glass-panel text-[13px] font-bold text-fg pressable"
         >
           <Icon name="user-plus" className="h-4 w-4" />
           友達を招待してクーポンを増やす

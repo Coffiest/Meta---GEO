@@ -192,7 +192,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22, duration: 0.55, ease: EASE }}
-          className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-e2"
+          className="mt-6 rounded-2xl glass-panel p-6 shadow-e2"
         >
           {confirmSentTo ? (
             /* 新規登録直後: 確認メールの手順ガイド。何をすればいいかを1ステップずつ示す。 */

@@ -83,7 +83,7 @@ export function PasscodeModal({
             <button
               key={d}
               onClick={() => pushDigit(d)}
-              className="cursor-pointer rounded-2xl border border-line-strong bg-surface py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
+              className="cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
             >
               {d}
             </button>
@@ -96,7 +96,7 @@ export function PasscodeModal({
           </button>
           <button
             onClick={() => pushDigit("0")}
-            className="cursor-pointer rounded-2xl border border-line-strong bg-surface py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
+            className="cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
           >
             0
           </button>

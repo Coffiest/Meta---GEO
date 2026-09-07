@@ -496,7 +496,7 @@ export function TournamentReviewModal({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={SPRING_MOVE}
-            className="min-h-[76px] rounded-[20px] bg-surface px-4 py-3 flex flex-col justify-center shadow-e2"
+            className="min-h-[76px] glass-panel rounded-[20px] px-4 py-3 flex flex-col justify-center shadow-e2"
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             {step.type === "handStart" ? (
@@ -543,7 +543,7 @@ export function TournamentReviewModal({
         {/* コントロール: すりガラスのバー(◀︎ ▶︎ + シークバー + 分類ピン) */}
         <div className="shrink-0 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)]">
           <div
-            className="rounded-[22px] bg-surface/80 backdrop-blur-xl px-3.5 pb-3 pt-1.5"
+            className="glass-panel rounded-[22px] px-3.5 pb-3 pt-1.5"
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             <div className="relative mx-12 h-6">
@@ -817,7 +817,7 @@ export function TournamentReviewModal({
             {/* ヒーローカード: リングゲージ + メトリクス */}
             <motion.div
               variants={riseIn}
-              className="mb-3 rounded-[24px] bg-surface p-5 shadow-e1"
+              className="mb-3 glass-panel rounded-[24px] p-5 shadow-e2"
             >
               <div className="flex items-center gap-5">
                 <ScoreRing score={data.gtoAccuracy} />

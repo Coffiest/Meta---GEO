@@ -38,7 +38,7 @@ function XLogo({ className = "h-4 w-4" }: { className?: string }) {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
+    <div className="rounded-2xl glass-panel px-4 py-3.5">
       <p className="text-[10px] font-bold tracking-wide text-fg-2">{label}</p>
       <p className="mt-1 text-[26px] font-black leading-none tabular-nums text-fg">{value}</p>
       {sub && <p className="mt-1 text-[11px] text-fg-2">{sub}</p>}
@@ -115,7 +115,7 @@ export default function WatchPage() {
         </p>
 
         {!loaded ? (
-          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface p-10 text-sm text-fg-2">
+          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl glass-panel p-10 text-sm text-fg-2">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />
             {t("watch.loading")}
           </div>
@@ -142,7 +142,7 @@ export default function WatchPage() {
               <Stat label={t("watch.prizePool")} value={live.prizePoolTotal.toLocaleString()} />
             </div>
             {live.chipLeader && (
-              <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
+              <div className="rounded-2xl glass-panel px-4 py-3.5">
                 <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("watch.chipLeader")}</p>
                 <p className="mt-1 flex items-baseline gap-2">
                   <span className="truncate text-[19px] font-black tracking-tight text-fg">
@@ -156,7 +156,7 @@ export default function WatchPage() {
             )}
           </motion.div>
         ) : (
-          <div className="mt-7 rounded-2xl border border-line bg-surface px-5 py-8 text-center">
+          <div className="mt-7 rounded-2xl glass-panel px-5 py-8 text-center">
             <p className="text-[14px] font-bold text-n-10">{t("watch.idleTitle")}</p>
             <p className="mt-2 text-[12.5px] leading-relaxed text-fg-2">{t("watch.idleBody")}</p>
           </div>

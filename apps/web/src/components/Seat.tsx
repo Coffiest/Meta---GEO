@@ -369,7 +369,7 @@ export function Seat({
             ? "bg-transparent"
             : folded
               ? "bg-surface/80 border border-line-strong/30"
-              : "bg-surface border border-line-strong"
+              : "glass-panel"
         } ${isActingSeat ? "ring-2 ring-line-strong" : ""}`}
       >
         {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
@@ -403,7 +403,7 @@ export function Seat({
             type="button"
             onClick={onChatClick}
             aria-label={t("seat.chat")}
-            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-line-strong bg-surface text-n-10 transition-transform active:scale-90"
+            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full glass-panel text-n-10 transition-transform active:scale-90"
           >
             <Icon name="chat" className="h-3.5 w-3.5" />
           </button>
@@ -483,7 +483,7 @@ export function Seat({
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.6 }}
-              className="rounded-full bg-surface border border-line-strong px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+              className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
             >
               {formatAmount(streetContribution, bigBlind, displayMode)}
             </motion.div>

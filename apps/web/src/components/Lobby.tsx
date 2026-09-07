@@ -123,23 +123,7 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 // サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
 // 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
 // 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
-const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detailKey: string; comingSoon?: boolean }[] = [
-  {
-    key: "sng",
-    title: "Sit & Go",
-    caption: "(Single table)",
-    buyIn: 1000,
-    detailKey: "lobby.game.sngDetail",
-  },
-  {
-    key: "mtt",
-    title: "MTT",
-    buyIn: 2000,
-    detailKey: "lobby.game.mttDetail",
-    // 一般公開は一旦停止(準備中)。開発者はモーダル下部の隠し導線+パスコードで入室できる。
-    comingSoon: true,
-  },
-];
+const SNG_BUY_IN = 1000;
 
 /** 準備中(MTT)の開発者向け入室パスコード。 */
 const DEV_UNLOCK_CODE = "2357";
@@ -160,169 +144,68 @@ function EnterArrow({ className }: { className?: string }) {
  *  - 下辺に区切り線を挟んで「バイイン」と「入室 →」のCTA行、
  * で構成する。装飾は上辺バーと矢印のみに限定(絵文字不使用)。
  */
-function GameStartCards({
-  games,
+/**
+ * ホームの主行動。
+ *
+ * 種別を選ばせる2枚のカードをやめ、「対局を始める」という1つの動作だけを置く。
+ * 選択肢が1つしかないところに選択のUIを出すのは、簡潔さではなく手数を増やしているだけ。
+ *
+ * MTTは一般公開前。ボタンは出さず、`?mtt=dev` で開発者向けのパスコード導線だけ開く。
+ */
+function GameStartButton({
   onJoin,
+  devMtt = false,
 }: {
-  games: typeof GAMES;
   onJoin: (key: GameKey, unlockCode?: string) => void;
+  /** `?mtt=dev` が付いていたか。クエリの読み取りは呼び出し側(Lobby)に一本化してある。 */
+  devMtt?: boolean;
 }) {
   const { t } = useI18n();
-  // 準備中カードをタップしたときに出す案内モーダル(nullなら閉じている)。
-  const [comingSoonFor, setComingSoonFor] = useState<GameKey | null>(null);
+  const [devMttOpen, setDevMttOpen] = useState(devMtt);
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        {games.map((game, i) => {
-          // 種別ごとの色。カードの上辺・アイコン・入室ボタンで同じ色を使い、
-          // 「この帯の色 = この種別」という対応を一目で読ませる。
-          const barGradient = i === 0
-            ? "bg-gradient-to-r from-accent-hi via-accent to-accent-lo"
-            : "bg-gradient-to-r from-crimson-300 via-crimson-400 to-crimson-600";
-          const enterFill = i === 0 ? "bg-accent text-on-accent" : "bg-crimson-400 text-on-accent";
-          const accentText = i === 0 ? "text-accent" : "text-crimson-300";
-          const soon = Boolean(game.comingSoon);
-          return (
-            <motion.button
-              key={game.key}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...SPRING_MOVE, delay: 0.04 + i * 0.06 }}
-              whileHover={soon ? undefined : { y: -3 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => (soon ? setComingSoonFor(game.key) : onJoin(game.key))}
-              aria-label={`${game.title} — ${soon ? t("lobby.comingSoon.badge") : t("play.enter")}`}
-              className={`group relative flex flex-col items-start overflow-hidden rounded-card bg-surface p-4 pt-[18px] text-left ring-1 ring-white/[0.07] transition-shadow ${
-                soon ? "shadow-e0 opacity-70" : "shadow-e2 hover:shadow-e3"
-              }`}
-            >
-              {/* 上辺のアクセント帯(種別で色分け=一瞬で識別)。暗い面では落ち影が沈むので、
-                  帯の下に同色の淡い発光を敷いて、カードが光を放っているように見せる。
-                  準備中は無彩色にして「今は入れない」と分かるようにする。 */}
-              <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-n-5" : barGradient}`} aria-hidden />
-              {!soon && (
-                <span
-                  className={`pointer-events-none absolute inset-x-0 top-0 h-16 opacity-40 blur-2xl ${barGradient}`}
-                  aria-hidden
-                />
-              )}
-
-              {/* 種別を示す図形(文字の代わり)。1卓=カード / 複数卓=大人数フィールド。 */}
-              <span className={`${soon ? "text-fg-faint" : accentText}`}>
-                <Icon name={i === 0 ? "cards" : "group"} className="h-10 w-10" weight="light" />
-              </span>
-
-              {/* 略称のみ(SNG / MTT)。説明文は置かない。 */}
-              {/* 画面の主役の数字/語は大きく組み、字間を詰める(大きい文字は放っておくと
-                  字間が開いて見える)。 */}
-              <span className={`mt-2.5 text-[26px] font-black leading-none tracking-[-0.03em] ${soon ? "text-fg-3" : "text-fg"}`}>
-                {game.key.toUpperCase()}
-              </span>
-
-              <span className="mt-3 h-px w-full bg-white/[0.07]" aria-hidden />
-
-              {/* 下段: バイイン(チップ図形+数値) と 入室(矢印のみ)。準備中は時計アイコンだけ。 */}
-              <span className="mt-2.5 flex w-full items-center justify-between">
-                {soon ? (
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06] text-fg-2">
-                    {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-                    <Icon name="clock" className="h-4 w-4" />
-                  </span>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1.5 text-fg">
-                      <Icon name="chip" className="h-4 w-4 text-fg-3" />
-                      <span className="text-[14px] font-black tabular-nums leading-none">
-                        {game.buyIn.toLocaleString()}
-                      </span>
-                    </span>
-                    <span className={`grid h-7 w-7 place-items-center rounded-full ${enterFill} shadow-glow-sm`}>
-                      <EnterArrow className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                    </span>
-                  </>
-                )}
-              </span>
-            </motion.button>
-          );
-        })}
-      </div>
+      <motion.button
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING_MOVE}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onJoin("sng")}
+        aria-label={t("play.enter")}
+        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo px-5 py-4 text-left text-on-accent shadow-glow"
+      >
+        {/* 上端のスペキュラ。塗りの面にも光が当たっていると読ませ、板ではなく物として見せる。 */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
+        />
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-on-accent/10">
+          <Icon name="cards" className="h-7 w-7" weight="light" />
+        </span>
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">{t("play.enter")}</span>
+          <span className="mt-1.5 flex items-center gap-1.5 text-[12px] font-bold opacity-70">
+            <Icon name="chip" className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{SNG_BUY_IN.toLocaleString()}</span>
+          </span>
+        </span>
+        <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
+      </motion.button>
 
       <AnimatePresence>
-        {comingSoonFor && (
-          <ComingSoonModal
-            onClose={() => setComingSoonFor(null)}
-            onUnlock={() => {
-              const key = comingSoonFor;
-              setComingSoonFor(null);
-              // 解錠パスコードをサーバーのMTTゲートへ渡す(クライアント判定だけでは直送で突破できるため)。
-              onJoin(key, DEV_UNLOCK_CODE);
+        {devMttOpen && (
+          <PasscodeModal
+            expected={DEV_UNLOCK_CODE}
+            title={t("lobby.comingSoon.devTitle")}
+            onSuccess={() => {
+              setDevMttOpen(false);
+              onJoin("mtt", DEV_UNLOCK_CODE);
             }}
+            onClose={() => setDevMttOpen(false)}
           />
         )}
       </AnimatePresence>
     </>
-  );
-}
-
-/**
- * 準備中の案内モーダル。中央に「準備中 / もう少しお待ちください」を出すだけの素朴な作りにし、
- * 最下部にごく控えめな「開発者の方はこちら」を置く。そこからパスコード(DEV_UNLOCK_CODE)を
- * 通した場合のみ、準備中のゲームへ実際に入室できる。
- */
-function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
-  const { t } = useI18n();
-  const [passcodeOpen, setPasscodeOpen] = useState(false);
-
-  if (passcodeOpen) {
-    return (
-      <PasscodeModal
-        expected={DEV_UNLOCK_CODE}
-        title={t("lobby.comingSoon.devTitle")}
-        onSuccess={onUnlock}
-        onClose={() => setPasscodeOpen(false)}
-      />
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-8"
-      role="dialog"
-      aria-modal="true"
-    >
-      <motion.div
-        initial={{ scale: 0.9, y: 20, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        transition={SPRING_SHEET}
-        onClick={(e) => e.stopPropagation()}
-        className="glass-panel w-full max-w-[320px] rounded-sheet p-6 text-center shadow-e4"
-      >
-        {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-        <Icon name="clock" className="mx-auto h-9 w-9 text-fg" />
-        <p className="mt-3 text-[18px] font-black tracking-tight text-fg">{t("lobby.comingSoon.title")}</p>
-        <p className="mt-2 text-[12px] leading-relaxed text-n-9">{t("lobby.comingSoon.body")}</p>
-
-        <button
-          onClick={onClose}
-          className="pressable mt-5 w-full cursor-pointer rounded-2xl bg-white/[0.08] py-3 text-[13px] font-black text-fg"
-        >
-          {t("lobby.comingSoon.close")}
-        </button>
-
-        {/* 最下部のごく控えめな開発者導線。一般ユーザーの目に留まらないよう極小・低コントラストにする。 */}
-        <button
-          onClick={() => setPasscodeOpen(true)}
-          className="mx-auto mt-4 block cursor-pointer text-[8px] font-normal tracking-wide text-fg-faint underline decoration-n-5 underline-offset-2 transition-colors hover:text-fg-2"
-        >
-          {t("lobby.comingSoon.devEntry")}
-        </button>
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -344,7 +227,7 @@ function signedClass(n: number): string {
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[20px] bg-surface ring-1 ring-line shadow-e1 p-4">{children}</div>;
+  return <div className="rounded-[20px] glass-panel shadow-e1 p-4">{children}</div>;
 }
 
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
@@ -385,7 +268,7 @@ function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; dela
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-surface ring-1 ring-line shadow-e1 p-4"
+      className="rounded-[20px] glass-panel shadow-e1 p-4"
     >
       {children}
     </motion.div>
@@ -476,7 +359,7 @@ function TournamentHistoryCard({
         transition={{ duration: 0.3, delay }}
         whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
-        className="w-full text-left rounded-[18px] bg-surface ring-1 ring-line shadow-e1 p-3.5"
+        className="w-full text-left rounded-[18px] glass-panel shadow-e1 p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
           <div className="min-w-0">
@@ -492,15 +375,15 @@ function TournamentHistoryCard({
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl border border-line bg-surface p-2 text-center">
+          <div className="rounded-xl glass-panel p-2 text-center">
             <p className="text-[9px] text-n-9 mb-0.5">{t("play.buyIn")}</p>
             <p className="text-[12px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-line bg-surface p-2 text-center">
+          <div className="rounded-xl glass-panel p-2 text-center">
             <p className="text-[9px] text-n-9 mb-0.5">{t("lobby.payout")}</p>
             <p className="text-[12px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-line bg-surface p-2 text-center">
+          <div className="rounded-xl glass-panel p-2 text-center">
             <p className="text-[9px] text-n-9 mb-0.5">{t("result.m.profit")}</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
@@ -522,7 +405,7 @@ function TournamentHistoryCard({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={SPRING_SHEET}
-              className="relative w-full max-w-sm rounded-t-3xl bg-surface pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
+              className="relative w-full max-w-sm glass-sheet rounded-t-sheet pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
@@ -536,15 +419,15 @@ function TournamentHistoryCard({
                 {point.finishPosition != null && ` ・ ${t("result.place", { n: point.finishPosition })}`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl border border-line bg-surface p-3 text-center">
+                <div className="rounded-xl glass-panel p-3 text-center">
                   <p className="text-[10px] text-n-9 mb-1">{t("play.buyIn")}</p>
                   <p className="text-[14px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-line bg-surface p-3 text-center">
+                <div className="rounded-xl glass-panel p-3 text-center">
                   <p className="text-[10px] text-n-9 mb-1">{t("lobby.payout")}</p>
                   <p className="text-[14px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-line bg-surface p-3 text-center">
+                <div className="rounded-xl glass-panel p-3 text-center">
                   <p className="text-[10px] text-n-9 mb-1">{t("result.m.profit")}</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
@@ -647,8 +530,7 @@ type StatInfoKey =
   | "pfr"
   | "threeBet"
   | "graphRoi"
-  | "graphProfit"
-  | "graphPayout";
+  | "graphProfit";
 
 type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -752,12 +634,6 @@ function buildStatInfo(key: StatInfoKey, s: PlayerStats, t: TFn): StatInfoDef {
         title: t("statinfo.graphProfit.title"),
         value: "",
         description: t("statinfo.graphProfit.desc"),
-      };
-    case "graphPayout":
-      return {
-        title: t("statinfo.graphPayout.title"),
-        value: "",
-        description: t("statinfo.graphPayout.desc"),
       };
   }
 }
@@ -1366,7 +1242,7 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
-            <GameStartCards games={GAMES} onJoin={onJoin} />
+            <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
 
             <PushOptInCard accessToken={accessToken} />
 
@@ -1501,7 +1377,6 @@ export function Lobby({
                       <div className="space-y-6">
                         <ChartSkeleton />
                         <ChartSkeleton />
-                        <ChartSkeleton />
                       </div>
                     ) : (
                       <div className="space-y-6">
@@ -1520,14 +1395,6 @@ export function Lobby({
                           baseline={0}
                           formatValue={(v) => formatSigned(v)}
                           onInfo={() => setInfoKey("graphProfit")}
-                        />
-                        <SingleLineChart
-                          title={t("stat.payouts")}
-                          color="#F5F5F7"
-                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativePayout }))}
-                          baseline={0}
-                          formatValue={(v) => v.toLocaleString()}
-                          onInfo={() => setInfoKey("graphPayout")}
                         />
                       </div>
                     )}
@@ -1782,13 +1649,13 @@ export function Lobby({
                                       }
                                     }}
                                     aria-label={`${group.tournamentLabel} ${t("lobby.reviewRowHint")}`}
-                                    className="group cursor-pointer rounded-xl border border-line bg-surface px-3 py-2.5 transition-colors hover:border-line hover:bg-canvas active:bg-n-2 focus-visible:border-line-strong"
+                                    className="group cursor-pointer rounded-xl glass-panel px-3 py-2.5 transition-colors hover:border-line hover:bg-canvas active:bg-n-2 focus-visible:border-line-strong"
                                   >
                                     <div className="flex items-center gap-2 text-[11px] text-n-9 mb-1.5">
                                       <span className="tabular-nums">
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
-                                      <span className="rounded border border-line-strong bg-surface px-1.5 py-[1px] text-[11px] text-fg font-semibold">{h.position}</span>
+                                      <span className="rounded glass-panel px-1.5 py-[1px] text-[11px] text-fg font-semibold">{h.position}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();

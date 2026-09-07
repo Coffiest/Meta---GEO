@@ -13,7 +13,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
     <div
       role="group"
       aria-label="Language"
-      className={`inline-flex items-center gap-1 rounded-full border border-line bg-surface p-0.5 ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full glass-panel p-0.5 ${className}`}
     >
       {LOCALES.map((l) => {
         const active = l.code === locale;

@@ -123,7 +123,7 @@ export function ReportErrorButton({
   }, [context, detail, message, scope]);
 
   const base = "pressable rounded-full px-3.5 py-1.5 text-[11px] font-bold";
-  const idleClass = `${base} border border-line-strong bg-surface-2 text-fg`;
+  const idleClass = `${base} glass-panel-2 text-fg`;
   const quietClass = `${base} border border-line text-fg-2`;
 
   if (state === "sent") {

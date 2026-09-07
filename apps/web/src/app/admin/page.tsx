@@ -634,7 +634,7 @@ export default function AdminPage() {
                   const label = subLabel(u.subscription);
                   const busy = busyUserId === u.id;
                   return (
-                    <div key={u.id} className="rounded-2xl border border-line bg-surface p-4">
+                    <div key={u.id} className="rounded-2xl glass-panel p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-[15px] font-black tracking-tight text-fg">{u.displayName}</p>

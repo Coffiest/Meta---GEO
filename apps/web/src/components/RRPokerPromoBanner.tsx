@@ -23,7 +23,7 @@ export function RRPokerPromoBanner() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
       aria-label="姉妹アプリ RRPoker のご案内"
-      className="relative overflow-hidden rounded-2xl bg-surface ring-1 ring-line-strong/10 shadow-e2"
+      className="relative overflow-hidden rounded-2xl glass-panel/10 shadow-e2"
     >
       {/* カード全体のタップ先(RRPoker本体)。ストレッチリンクで背面全域を覆う。 */}
       <a
@@ -40,7 +40,7 @@ export function RRPokerPromoBanner() {
       {/* 文字を極力持たない1行構成: ロゴ + ワードマーク(英字) + 遷移矢印 / Instagram の図形のみ。 */}
       <div className="pointer-events-none relative z-10 flex items-center gap-3 px-4 py-3">
         {/* リポジトリ公式アイコン(白地の黒+金のRロゴ)をそのまま掲出。 */}
-        <div className="shrink-0 grid place-items-center h-11 w-11 rounded-xl bg-surface ring-1 ring-line-strong/10 overflow-hidden">
+        <div className="shrink-0 grid place-items-center h-11 w-11 rounded-xl glass-panel/10 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logos/rrpoker-icon.png" alt="RRPoker" className="h-9 w-9 object-contain" />
         </div>

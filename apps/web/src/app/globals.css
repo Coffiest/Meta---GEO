@@ -82,49 +82,90 @@ body {
 }
 
 /* ============================================================================
-   素材(ガラス)
+   素材(リキッドグラス)
+
    ナビゲーション/シート/パネルは「不透明な帯」ではなく、下のコンテンツが透けて流れる
-   浮遊レイヤーとして作る。上端の明るい1pxは、素材が光を拾っているという表現であり、
-   ただの境界線ではない(だから下端には引かない)。
-   明るいガラスの上に明るいガラスを重ねない ― 重ねると可読性が破綻する。
+   浮遊レイヤーとして作る。ガラスらしさは3つの層の重ね合わせで出す:
+     1. 背景を屈折させる      … backdrop-filter の blur + saturate(+わずかな brightness)
+     2. 縁で光を拾う(スペキュラ) … 上端の明るい内側ハイライトと下端の暗い内側ライン
+     3. 面そのもののごく薄い着色  … 完全な透明にはせず、下の内容と分離させる
+   光は上から来るという前提を全ての面で守る。上が明るく下が暗い、を崩さない。
+
+   明るい半透明の面を明るい半透明の面に重ねない ― 重ねると可読性が破綻する。
    ============================================================================ */
+
+/* 全てのガラス面の土台。単体でも使えるし、下の各種ガラスの共通部分でもある。 */
+.glass,
+.glass-header,
+.glass-footer,
+.glass-panel,
+.glass-sheet,
+.glass-bar {
+  backdrop-filter: blur(var(--glass-blur)) saturate(190%) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(190%) brightness(1.08);
+}
+
 .glass {
   background: rgb(var(--n-2) / var(--glass-alpha));
-  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
 }
 
-/* 画面上端に貼り付くヘッダー。光は上から来るので、明るい縁は下端に置く。 */
+/* 画面上端に貼り付くヘッダー。光は上から来るので、明るい縁は上端に、
+   コンテンツと接する下端には暗い縁を置いて「厚み」を作る。 */
 .glass-header {
   background: rgb(var(--n-1) / var(--glass-alpha));
-  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35);
 }
 
-/* 画面下端に貼り付くフッター/アクションバー。上端に明るい縁を置く。 */
+/* 画面下端に貼り付くフッター/アクションバー。 */
 .glass-footer {
   background: rgb(var(--n-1) / var(--glass-alpha));
-  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  border-top: 1px solid rgb(255 255 255 / var(--glass-edge));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    0 -12px 32px -16px rgb(0 0 0 / 0.7);
+}
+
+/* 浮遊するバー(タブバー・アクションバー)。四辺すべてが縁になるので、上端の
+   スペキュラに加えて外周にも細いリングを回し、面が空中に浮いていると読ませる。 */
+.glass-bar {
+  background: rgb(var(--n-2) / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.30),
+    0 0 0 0.5px rgb(255 255 255 / 0.10),
+    0 18px 40px -14px rgb(0 0 0 / 0.75);
 }
 
 /* コンテンツ内に浮かぶパネル。面が小さいのでぼかしは弱め・縁は控えめにする
-   (大きい面ほど厚く=強いぼかしと深い影、という対応を崩さないため)。 */
+   (大きい面ほど厚い、という対応を崩さないため)。 */
 .glass-panel {
-  background: rgb(var(--n-3) / 0.62);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgb(255 255 255 / 0.07);
+  background: rgb(var(--n-3) / 0.58);
+  backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
 }
 
 /* 下から出るシート。面が最も大きいので最も厚く見せる(強いぼかし+深い影)。 */
 .glass-sheet {
-  background: rgb(var(--n-2) / 0.86);
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
-  border-top: 1px solid rgb(255 255 255 / 0.10);
+  background: rgb(var(--n-2) / 0.82);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.20),
+    0 -20px 60px -20px rgb(0 0 0 / 0.8);
+}
+
+/* ガラスの上を滑る選択インジケータ(タブバーの現在地など)。面ではなく
+   「光の当たっている部分」として描くので、塗りではなく明るいアルファで作る。 */
+.glass-indicator {
+  background: rgb(255 255 255 / 0.16);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 2px 8px -2px rgb(0 0 0 / 0.45);
 }
 
 /* 浮遊するUIとコンテンツが重なる境目は、1pxの罫線ではなくグラデーションで溶かす。
@@ -358,6 +399,10 @@ textarea:focus-visible,
     --glass-blur: 0px;
     --glass-alpha: 1;
   }
+  .glass,
+  .glass-header,
+  .glass-footer,
+  .glass-bar,
   .glass-panel,
   .glass-sheet {
     backdrop-filter: none;
@@ -366,8 +411,12 @@ textarea:focus-visible,
   .glass-panel {
     background: rgb(var(--n-3));
   }
+  .glass-bar,
   .glass-sheet {
     background: rgb(var(--n-2));
+  }
+  .glass-indicator {
+    background: rgb(var(--n-5));
   }
   .aura {
     display: none;
@@ -380,9 +429,10 @@ textarea:focus-visible,
     --glass-alpha: 0.96;
     --glass-edge: 0.24;
   }
+  .glass-bar,
   .glass-panel,
   .glass-sheet {
-    border-color: rgb(255 255 255 / 0.3);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32);
   }
   .aura {
     opacity: 0.4;

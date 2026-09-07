@@ -159,7 +159,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       </p>
 
       {/* 招待コード */}
-      <div className="mt-3.5 rounded-xl border border-line bg-surface px-3.5 py-2.5">
+      <div className="mt-3.5 rounded-xl glass-panel px-3.5 py-2.5">
         <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("invite.yourCode")}</p>
         <p className="mt-0.5 font-mono text-[22px] font-black leading-none tracking-[0.18em] text-fg">{summary.code}</p>
       </div>
@@ -167,7 +167,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       <div className="mt-2.5 grid grid-cols-2 gap-2">
         <button
           onClick={() => void handleCopy()}
-          className="rounded-xl border border-line-strong bg-surface py-3 text-[13px] font-black text-fg pressable"
+          className="rounded-xl glass-panel py-3 text-[13px] font-black text-fg pressable"
         >
           {copied ? t("invite.copied") : t("invite.copy")}
         </button>
