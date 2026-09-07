@@ -95,7 +95,7 @@ export function PlayerDetailModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70"
     >
       <motion.div
         initial={{ y: "100%" }}
@@ -103,36 +103,36 @@ export function PlayerDetailModal({
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 320 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-t-2xl border border-ink-950 bg-white p-4 pb-8"
+        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-t-2xl border border-line-strong bg-surface p-4 pb-8"
       >
         {/* ヘッダー: アバター+名前+偏差値 */}
         <div className="mb-4 flex items-center gap-3">
           <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={48} />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Player</p>
-            <h2 className="truncate text-lg font-extrabold tracking-tight text-ink-950">{target.displayName}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Player</p>
+            <h2 className="truncate text-lg font-extrabold tracking-tight text-fg">{target.displayName}</h2>
           </div>
-          <div className="shrink-0 rounded-xl border border-ink-950 px-3 py-1.5 text-center">
-            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-ink-400">偏差値</p>
+          <div className="shrink-0 rounded-xl border border-line-strong px-3 py-1.5 text-center">
+            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-fg-3">偏差値</p>
             {/* 偏差値。値が取れない相手でも枠・ラベルは必ず残し、値だけ「--」にする。 */}
-            <p className="text-lg font-black leading-none tabular-nums text-ink-950">
+            <p className="text-lg font-black leading-none tabular-nums text-fg">
               {loading || !rr || rr.rrRating == null ? "--" : rr.rrRating.toFixed(1)}
             </p>
           </div>
-          <button onClick={onClose} className="shrink-0 self-start text-[12px] font-semibold text-ink-500">
+          <button onClick={onClose} className="shrink-0 self-start text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
 
         {!hasProfile ? (
-          <p className="py-10 text-center text-sm text-ink-500">このプレイヤーの統計は取得できません。</p>
+          <p className="py-10 text-center text-sm text-fg-2">このプレイヤーの統計は取得できません。</p>
         ) : loading ? (
           <div className="space-y-2 py-8">
-            <div className="h-4 w-1/3 animate-pulse rounded bg-ink-100" />
-            <div className="h-20 animate-pulse rounded-xl bg-ink-100" />
+            <div className="h-4 w-1/3 animate-pulse rounded bg-n-2" />
+            <div className="h-20 animate-pulse rounded-xl bg-n-2" />
           </div>
         ) : !profile || !s || !rr ? (
-          <p className="py-10 text-center text-sm text-ink-500">スタッツを取得できませんでした。</p>
+          <p className="py-10 text-center text-sm text-fg-2">スタッツを取得できませんでした。</p>
         ) : (
           <>
             {/* 主要指標。どのプレイヤーでも同じ項目・同じ枠を必ず並べる。
@@ -152,16 +152,16 @@ export function PlayerDetailModal({
             </div>
 
             {/* プリフロップ傾向 */}
-            <p className="mb-2 mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Preflop tendency</p>
+            <p className="mb-2 mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Preflop tendency</p>
             <div className="grid grid-cols-3 gap-2">
               <Metric label="VPIP" value={pct(s.vpipRate)} compact />
               <Metric label="PFR" value={pct(s.pfrRate)} compact />
               <Metric label="3BET" value={pct(s.threeBetRate)} compact />
             </div>
-            <p className="mt-2 text-[11px] text-ink-400 tabular-nums">参加トーナメント数: {s.tournamentsPlayed}</p>
+            <p className="mt-2 text-[11px] text-fg-3 tabular-nums">参加トーナメント数: {s.tournamentsPlayed}</p>
 
             {/* マーキング */}
-            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Marking</p>
+            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Marking</p>
             <div className="flex items-center gap-2">
               {PLAYER_NOTE_COLORS.map((c) => {
                 const active = color === c;
@@ -171,7 +171,7 @@ export function PlayerDetailModal({
                     type="button"
                     aria-label={PLAYER_NOTE_COLOR_LABEL[c]}
                     onClick={() => setColor(active ? null : c)}
-                    className={`h-8 w-8 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-ink-950 ring-offset-2" : "ring-1 ring-ink-200"}`}
+                    className={`h-8 w-8 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-line-strong ring-offset-2" : "ring-1 ring-line"}`}
                     style={{ backgroundColor: PLAYER_NOTE_COLOR_HEX[c] }}
                   />
                 );
@@ -180,7 +180,7 @@ export function PlayerDetailModal({
                 type="button"
                 onClick={() => setColor(null)}
                 className={`ml-1 flex h-8 items-center rounded-full border px-3 text-[11px] font-bold ${
-                  color === null ? "border-ink-950 text-ink-950" : "border-ink-200 text-ink-400"
+                  color === null ? "border-line-strong text-fg" : "border-line text-fg-3"
                 }`}
               >
                 なし
@@ -188,26 +188,26 @@ export function PlayerDetailModal({
             </div>
 
             {/* メモ */}
-            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Note</p>
+            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Note</p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
               rows={3}
               placeholder="この相手の傾向・読みをメモ(自分だけに表示)"
-              className="w-full resize-none rounded-xl border border-ink-950 bg-white p-3 text-sm text-ink-950 outline-none placeholder:text-ink-300 focus:ring-2 focus:ring-ink-950"
+              className="w-full resize-none rounded-xl border border-line-strong bg-surface p-3 text-sm text-fg outline-none placeholder:text-fg-faint focus:ring-2 focus:ring-line-strong"
             />
 
             <button
               type="button"
               onClick={handleSave}
               disabled={saving || !accessToken}
-              className="mt-3 w-full rounded-xl border border-ink-950 bg-ink-950 py-3 text-sm font-black text-white transition-opacity disabled:opacity-50"
+              className="mt-3 w-full rounded-xl border border-line-strong bg-n-4 py-3 text-sm font-black text-white transition-opacity disabled:opacity-50"
             >
               {saving ? "保存中…" : savedTick ? "保存しました" : "メモ・マーキングを保存"}
             </button>
             {!accessToken && (
-              <p className="mt-2 text-center text-[11px] text-ink-400">メモの保存にはログインが必要です。</p>
+              <p className="mt-2 text-center text-[11px] text-fg-3">メモの保存にはログインが必要です。</p>
             )}
           </>
         )}
@@ -227,10 +227,10 @@ function Metric({
   accent?: "up" | "down" | "flat";
   compact?: boolean;
 }) {
-  const accentClass = accent === "up" ? "text-mint-600" : accent === "down" ? "text-crimson-600" : "text-ink-950";
+  const accentClass = accent === "up" ? "text-mint-600" : accent === "down" ? "text-crimson-600" : "text-fg";
   return (
-    <div className="rounded-xl border border-ink-200 px-3 py-2.5">
-      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-ink-400">{label}</p>
+    <div className="rounded-xl border border-line px-3 py-2.5">
+      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-fg-3">{label}</p>
       <p className={`${compact ? "text-base" : "text-lg"} font-black leading-tight tabular-nums ${accentClass}`}>{value}</p>
     </div>
   );

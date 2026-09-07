@@ -85,7 +85,7 @@ export function ReviewPaywall({
       {/* ロックされた解析のチラ見せ */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-        className="relative overflow-hidden rounded-[24px] bg-ink-950 p-5 shadow-[0_8px_28px_-12px_rgba(10,10,10,0.5)]"
+        className="relative overflow-hidden rounded-[24px] bg-n-4 p-5 shadow-[0_8px_28px_-12px_rgba(10,10,10,0.5)]"
       >
         {/* 背面: ぼかしたスコアのプレビュー */}
         <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-between px-5 opacity-20 blur-[3px]">
@@ -96,13 +96,13 @@ export function ReviewPaywall({
           </span>
         </div>
         <div className="relative flex flex-col items-center text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-500">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
             <Icon name="lock" className="h-5 w-5" />
           </span>
           <p className="mt-3 text-[17px] font-black leading-tight text-white">
             このトーナメントの解析は<br />使い放題プランで開放
           </p>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-ink-400">
+          <p className="mt-1.5 text-[12px] leading-relaxed text-fg-3">
             無料枠(24時間に1回)は使い切りました。
             {countdown ? `${countdown}。` : ""}
             <br />今すぐ全ハンドをGTO解析するには—
@@ -113,16 +113,16 @@ export function ReviewPaywall({
       {/* プランカード(ゴールド強調) */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 rounded-[24px] border-2 border-gold-500 bg-white p-4 shadow-[0_8px_28px_-12px_rgba(242,169,0,0.5)]"
+        className="mt-3 rounded-[24px] border-2 border-accent bg-surface p-4 shadow-[0_8px_28px_-12px_rgba(242,169,0,0.5)]"
       >
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">使い放題プラン</p>
-            <p className="mt-0.5 text-[13px] font-bold text-ink-950">棋譜解析 無制限</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">使い放題プラン</p>
+            <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
           </div>
-          <p className="text-ink-950">
+          <p className="text-fg">
             <span className="text-[34px] font-black tabular-nums leading-none">¥980</span>
-            <span className="ml-1 text-[12px] font-bold text-ink-500">/月</span>
+            <span className="ml-1 text-[12px] font-bold text-fg-2">/月</span>
           </p>
         </div>
 
@@ -133,12 +133,12 @@ export function ReviewPaywall({
               variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
               className="flex items-start gap-3"
             >
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink-950">
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-n-4">
                 <Icon name={b.icon} className="h-4 w-4" style={{ color: "#f7c548" }} />
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-black text-ink-950 leading-tight">{b.title}</p>
-                <p className="text-[11px] leading-snug text-ink-500">{b.desc}</p>
+                <p className="text-[13px] font-black text-fg leading-tight">{b.title}</p>
+                <p className="text-[11px] leading-snug text-fg-2">{b.desc}</p>
               </div>
             </motion.div>
           ))}
@@ -149,10 +149,10 @@ export function ReviewPaywall({
           whileTap={{ scale: 0.98 }}
           onClick={onSubscribe}
           disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-gold-500 text-[14px] font-black text-ink-950 active:opacity-90 disabled:opacity-60"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent active:opacity-90 disabled:opacity-60"
         >
           {busy ? (
-            <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+            <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
           ) : (
             <>
               使い放題プランに登録
@@ -168,10 +168,10 @@ export function ReviewPaywall({
           </div>
         )}
 
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-400">
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-fg-3">
           いつでも解約可能・クレジットカード決済(Stripe)
           <br />
-          <Link href="/legal/tokushoho" className="underline decoration-dotted underline-offset-2 hover:text-ink-600">
+          <Link href="/legal/tokushoho" className="underline decoration-dotted underline-offset-2 hover:text-n-9">
             特定商取引法に基づく表記
           </Link>
         </p>
@@ -182,7 +182,7 @@ export function ReviewPaywall({
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
         <Link
           href="/"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-ink-950 bg-white text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-fg active:scale-[0.99] transition-transform"
         >
           <Icon name="user-plus" className="h-4 w-4" />
           友達を招待してクーポンを増やす

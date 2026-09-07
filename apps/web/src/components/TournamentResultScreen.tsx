@@ -67,17 +67,17 @@ function MetricCard({
   delay: number;
 }) {
   const v = useCountUp(from, to, 1200, delay);
-  const toneClass = deltaTone === "up" ? "text-mint-600 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-600 bg-crimson-500/10" : "text-ink-500 bg-ink-100";
+  const toneClass = deltaTone === "up" ? "text-mint-600 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-600 bg-crimson-500/10" : "text-fg-2 bg-n-2";
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: delay / 1000, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-2xl border border-ink-950 bg-white p-4"
+      className="rounded-2xl border border-line-strong bg-surface p-4"
     >
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-ink-400">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-fg-3">{label}</p>
       <div className="mt-1 flex items-baseline justify-between gap-2">
-        <span className="text-[22px] font-black tabular-nums text-ink-950">{format(v)}</span>
+        <span className="text-[22px] font-black tabular-nums text-fg">{format(v)}</span>
         {delta && (
           <motion.span
             initial={{ opacity: 0, scale: 0.7 }}
@@ -244,7 +244,7 @@ export function TournamentResultScreen({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-white/97 backdrop-blur px-5 py-8"
+      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-surface/80 backdrop-blur px-5 py-8"
     >
       <div className="w-full max-w-sm">
         {/* 着順ヘッダー(上半分・超特大) */}
@@ -255,23 +255,23 @@ export function TournamentResultScreen({
           className="mb-6 pt-4 text-center"
         >
           {isWin && (
-            <Icon name="trophy" className="mx-auto mb-3 h-14 w-14 text-gold-500" />
+            <Icon name="trophy" className="mx-auto mb-3 h-14 w-14 text-accent" />
           )}
-          <p className="text-[11px] font-black uppercase tracking-[0.34em] text-ink-400">Tournament Result</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
           <p
-            className={`mt-2 font-black leading-[0.9] tracking-tight text-ink-950 tabular-nums ${
+            className={`mt-2 font-black leading-[0.9] tracking-tight text-fg tabular-nums ${
               useRatio ? "text-[64px]" : "text-[88px]"
             }`}
           >
             {rankPlain}
-            {!useRatio && pos != null && <span className="text-gold-500">.</span>}
+            {!useRatio && pos != null && <span className="text-accent">.</span>}
           </p>
           {info.yourPayout > 0 && (
             <motion.p
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.25, type: "spring", stiffness: 460, damping: 20 }}
-              className="mt-3 inline-block rounded-full bg-gold-500/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-gold-600"
+              className="mt-3 inline-block rounded-full bg-accent/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-accent"
             >
               {t("result.prizePrefix")} +{info.yourPayout.toLocaleString()}
             </motion.p>
@@ -332,7 +332,7 @@ export function TournamentResultScreen({
         ) : (
           <div className="grid grid-cols-2 gap-2.5">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-ink-100" />
+              <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-n-2" />
             ))}
           </div>
         )}
@@ -343,20 +343,20 @@ export function TournamentResultScreen({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7 }}
-            className="mt-6 rounded-2xl border border-gold-600/40 bg-gold-500/10 p-4"
+            className="mt-6 rounded-2xl border border-accent-lo/40 bg-accent/10 p-4"
           >
             <div className="flex items-center gap-3">
               {/* 勲章マーク。絵文字禁止のためSVGで実装。 */}
-              <Icon name="medal" className="h-9 w-9 shrink-0 text-gold-600" />
+              <Icon name="medal" className="h-9 w-9 shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gold-600">Milestone</p>
-                <p className="truncate text-[19px] font-black leading-tight text-ink-950">{milestone.headline}</p>
-                <p className="truncate text-[11px] font-semibold text-ink-500">{milestone.caption}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-accent">Milestone</p>
+                <p className="truncate text-[19px] font-black leading-tight text-fg">{milestone.headline}</p>
+                <p className="truncate text-[11px] font-semibold text-fg-2">{milestone.caption}</p>
               </div>
             </div>
             <button
               onClick={() => void handleMilestoneShare()}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gold-500 py-3 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-[14px] font-black text-on-accent transition-transform active:scale-[0.98]"
             >
               {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
               <Icon name="logo-x" className="h-[15px] w-[15px]" />
@@ -369,7 +369,7 @@ export function TournamentResultScreen({
         {tournamentId && (
           <button
             onClick={() => setReviewOpen(true)}
-            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gold-500 py-5 text-[17px] font-black text-white shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-gold-600/40 transition-transform active:scale-[0.98]"
+            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-5 text-[17px] font-black text-on-accent shadow-[0_10px_28px_-8px_rgba(212,145,10,0.6)] ring-1 ring-accent-lo/40 transition-transform active:scale-[0.98]"
           >
             <Icon name="graph-up" className="h-6 w-6" />
             {t("result.reviewCta")}
@@ -398,13 +398,13 @@ export function TournamentResultScreen({
         <div className={`grid grid-cols-2 gap-2.5 ${tournamentId || canReEntry ? "mt-3" : "mt-6"}`}>
           <button
             onClick={onExit}
-            className="rounded-2xl border border-ink-950 bg-white py-3.5 text-sm font-black text-ink-950 transition-transform active:scale-[0.98]"
+            className="rounded-2xl border border-line-strong bg-surface py-3.5 text-sm font-black text-fg transition-transform active:scale-[0.98]"
           >
             {t("common.close")}
           </button>
           <button
             onClick={() => void handleShare()}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-ink-950 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-n-4 py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]"
           >
             {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
             <Icon name="logo-x" className="h-[16px] w-[16px]" />

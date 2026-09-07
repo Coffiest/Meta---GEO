@@ -49,7 +49,7 @@ export function PasscodeModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-8"
     >
       <motion.div
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
@@ -57,10 +57,10 @@ export function PasscodeModal({
         exit={{ scale: 0.9, y: 20, opacity: 0 }}
         transition={{ type: "spring", stiffness: 360, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[300px] rounded-[26px] border border-ink-950 bg-white p-6"
+        className="w-full max-w-[300px] rounded-[26px] border border-line-strong bg-surface p-6"
       >
-        <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-ink-400">Access code</p>
-        <p className="mt-1 text-center text-[15px] font-black tracking-tight text-ink-950">{title}</p>
+        <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-fg-3">Access code</p>
+        <p className="mt-1 text-center text-[15px] font-black tracking-tight text-fg">{title}</p>
 
         <motion.div
           animate={wrong ? { x: [0, -10, 10, -8, 8, 0] } : { x: 0 }}
@@ -71,7 +71,7 @@ export function PasscodeModal({
             <span
               key={i}
               className={`h-3.5 w-3.5 rounded-full border ${
-                wrong ? "border-crimson-500 bg-crimson-500" : code.length > i ? "border-ink-950 bg-ink-950" : "border-ink-400 bg-transparent"
+                wrong ? "border-crimson-500 bg-crimson-500" : code.length > i ? "border-line-strong bg-n-4" : "border-line bg-transparent"
               }`}
             />
           ))}
@@ -82,27 +82,27 @@ export function PasscodeModal({
             <button
               key={d}
               onClick={() => pushDigit(d)}
-              className="cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[20px] font-black text-ink-950 transition-transform active:scale-90"
+              className="cursor-pointer rounded-2xl border border-line-strong bg-surface py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
             >
               {d}
             </button>
           ))}
           <button
             onClick={onClose}
-            className="cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-ink-500 transition-transform active:scale-90"
+            className="cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-fg-2 transition-transform active:scale-90"
           >
             閉じる
           </button>
           <button
             onClick={() => pushDigit("0")}
-            className="cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[20px] font-black text-ink-950 transition-transform active:scale-90"
+            className="cursor-pointer rounded-2xl border border-line-strong bg-surface py-3 text-[20px] font-black text-fg transition-transform active:scale-90"
           >
             0
           </button>
           <button
             onClick={() => setCode((c) => c.slice(0, -1))}
             aria-label="1文字削除"
-            className="flex cursor-pointer items-center justify-center rounded-2xl py-3 text-ink-500 transition-transform active:scale-90"
+            className="flex cursor-pointer items-center justify-center rounded-2xl py-3 text-fg-2 transition-transform active:scale-90"
           >
             <Icon name="backspace" className="h-5 w-5" />
           </button>

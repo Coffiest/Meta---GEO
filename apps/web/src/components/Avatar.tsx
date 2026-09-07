@@ -122,12 +122,12 @@ export function Avatar({
           src={avatarKey}
           alt=""
           draggable={false}
-          className="absolute rounded-full object-cover select-none ring-1 ring-black/20"
+          className="absolute rounded-full object-cover select-none ring-1 ring-white/10"
           style={innerBoxStyle}
         />
       ) : (
         <div
-          className="absolute rounded-full bg-white flex items-end justify-center select-none ring-[1.5px] ring-ink-950 text-ink-950 overflow-hidden"
+          className="absolute rounded-full bg-surface flex items-end justify-center select-none ring-[1.5px] ring-line-strong text-fg overflow-hidden"
           style={innerBoxStyle}
         >
           <Icon
@@ -141,7 +141,7 @@ export function Avatar({
       {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。
           画像/BOT/頭文字いずれのアバターでも一様に効くよう、内側ボックスに黒の半透明を重ねる。 */}
       {timer && (
-        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/40" style={innerBoxStyle} />
+        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/70" style={innerBoxStyle} />
       )}
       {/* タイムバンクで延長された手番は、金色の脈打つリングを重ねて「延長中」だと分かるようにする。
           相手が誰であっても同じ条件・同じ見た目で描画する(描画の差で相手の種別が推測できてはいけない)。 */}

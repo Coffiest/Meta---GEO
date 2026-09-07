@@ -24,9 +24,9 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
+        className="rounded-2xl border border-line bg-canvas p-6 text-center"
       >
-        <p className="text-sm text-navy-300">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
+        <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
     );
   }
@@ -36,10 +36,10 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
+        className="rounded-2xl border border-line bg-canvas p-6 text-center"
       >
-        <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase mb-1 font-bold">{node.position}</p>
-        <p className="text-sm text-navy-500">サンプルなし</p>
+        <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
+        <p className="text-sm text-fg-3">サンプルなし</p>
       </motion.div>
     );
   }
@@ -52,14 +52,14 @@ export function PositionActionRow({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl border border-ink-950 bg-white p-3"
+      className="rounded-2xl border border-line-strong bg-surface p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
-        <p className="text-[11px] tracking-[0.2em] text-ink-800 uppercase font-black">{node.position}</p>
+        <p className="text-[11px] tracking-[0.2em] text-n-10 uppercase font-black">{node.position}</p>
         {node.isGto ? (
-          <p className="text-[10px] text-gold-500 tabular-nums font-black tracking-[0.15em]">GTO</p>
+          <p className="text-[10px] text-accent tabular-nums font-black tracking-[0.15em]">GTO</p>
         ) : (
-          <p className="text-[10px] text-ink-400 tabular-nums">n={node.sampleSize}</p>
+          <p className="text-[10px] text-fg-3 tabular-nums">n={node.sampleSize}</p>
         )}
       </div>
       {/* 横スクロール1行(グリッドの折り返しに頼らない): 強→弱の順で並べているため、

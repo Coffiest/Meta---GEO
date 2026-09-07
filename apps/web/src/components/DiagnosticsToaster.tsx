@@ -47,24 +47,24 @@ export function DiagnosticsToaster() {
           e.kind === "error"
             ? "border-crimson-500 text-crimson-600"
             : e.kind === "warn"
-              ? "border-gold-600 text-gold-600"
-              : "border-ink-950 text-ink-800";
+              ? "border-accent-lo text-accent"
+              : "border-line-strong text-n-10";
         return (
           <button
             key={e.id}
             type="button"
             onClick={() => (openId === e.id ? dismissDiagnostic(e.id) : setOpenId(e.id))}
-            className={`pointer-events-auto w-full max-w-md rounded-xl border bg-white px-3 py-2 text-left ${tone}`}
+            className={`pointer-events-auto w-full max-w-md rounded-xl border bg-surface px-3 py-2 text-left ${tone}`}
           >
             <div className="flex items-center gap-2">
               <KindIcon kind={e.kind} />
               <span className="min-w-0 flex-1 text-[12px] font-bold leading-snug">{e.message}</span>
-              <span className="shrink-0 text-[10px] font-semibold text-ink-400">
+              <span className="shrink-0 text-[10px] font-semibold text-fg-3">
                 {openId === e.id ? "閉じる" : "詳細"}
               </span>
             </div>
             {openId === e.id && e.detail && (
-              <p className="mt-1.5 whitespace-pre-wrap break-all text-[10px] font-medium leading-snug text-ink-500">
+              <p className="mt-1.5 whitespace-pre-wrap break-all text-[10px] font-medium leading-snug text-fg-2">
                 {e.detail}
               </p>
             )}

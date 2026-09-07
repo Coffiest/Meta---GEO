@@ -66,8 +66,8 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
       className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-ink-950 bg-white shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
-        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-ink-400 text-[9px] font-black leading-none text-ink-950">
+      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
+        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-line text-[9px] font-black leading-none text-fg">
           D
         </span>
       </span>
@@ -100,7 +100,7 @@ function TableFelt() {
   return (
     <div
       className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
-        showFrame ? "rounded-[46%] bg-white ring-[1.5px] ring-ink-950" : ""
+        showFrame ? "rounded-[46%] bg-surface ring-[1.5px] ring-line-strong" : ""
       }`}
     >
       {!failed && (
@@ -348,16 +348,16 @@ export function PokerTable({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 520, damping: 24 }}
-              className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
-              <span className="text-[8px] font-black tracking-[0.22em] text-ink-600 uppercase">
+              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
-              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
+              <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
               {spr !== null && (
-                <span className="text-[10px] font-bold text-ink-600 tabular-nums leading-none border-l border-ink-400 pl-2">
+                <span className="text-[10px] font-bold text-n-9 tabular-nums leading-none border-l border-line pl-2">
                   SPR {spr.toFixed(1)}
                 </span>
               )}
@@ -377,12 +377,12 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1.5 rounded-full bg-white border border-ink-950 px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
               >
-                <span className="text-[8px] font-black tracking-[0.18em] text-ink-600">
+                <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}
                 </span>
-                <span className="text-[11px] font-black text-ink-950 tabular-nums leading-none">
+                <span className="text-[11px] font-black text-fg tabular-nums leading-none">
                   {formatAmount(pot.amount, bigBlind, displayMode)}
                 </span>
               </span>

@@ -63,25 +63,25 @@ function GtoVsGeoMini() {
     { label: "教えてくれること", gto: "正解の打ち方", geo: "相手のミスの突き方" },
   ];
   return (
-    <div className="mx-auto mt-6 w-full max-w-[320px] overflow-hidden rounded-[18px] border-[1.5px] border-ink-950 bg-white text-left">
+    <div className="mx-auto mt-6 w-full max-w-[320px] overflow-hidden rounded-[18px] border-[1.5px] border-line-strong bg-surface text-left">
       <div className="grid grid-cols-[1fr_auto_1fr]">
         <div className="px-3 py-2.5 text-center">
-          <p className="text-[14px] font-black tracking-tight text-ink-400">GTO</p>
-          <p className="mt-0.5 text-[9px] font-bold text-ink-400">理論値</p>
+          <p className="text-[14px] font-black tracking-tight text-fg-3">GTO</p>
+          <p className="mt-0.5 text-[9px] font-bold text-fg-3">理論値</p>
         </div>
         <div className="flex items-center">
-          <span className="rounded-full border border-ink-300 px-2 py-0.5 text-[9px] font-black text-ink-500">vs</span>
+          <span className="rounded-full border border-line px-2 py-0.5 text-[9px] font-black text-fg-2">vs</span>
         </div>
-        <div className="bg-ink-950 px-3 py-2.5 text-center">
-          <p className="text-[14px] font-black tracking-tight text-gold-500">GEO</p>
+        <div className="bg-n-4 px-3 py-2.5 text-center">
+          <p className="text-[14px] font-black tracking-tight text-accent">GEO</p>
           <p className="mt-0.5 text-[9px] font-bold text-white/60">実測値</p>
         </div>
       </div>
       {rows.map((row) => (
-        <div key={row.label} className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-ink-200">
-          <p className="px-2 py-2.5 text-center text-[11.5px] font-bold text-ink-500">{row.gto}</p>
-          <p className="w-[84px] text-center text-[9px] font-black uppercase tracking-wider text-ink-400">{row.label}</p>
-          <p className="px-2 py-2.5 text-center text-[11.5px] font-black text-ink-950">{row.geo}</p>
+        <div key={row.label} className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-line">
+          <p className="px-2 py-2.5 text-center text-[11.5px] font-bold text-fg-2">{row.gto}</p>
+          <p className="w-[84px] text-center text-[9px] font-black uppercase tracking-wider text-fg-3">{row.label}</p>
+          <p className="px-2 py-2.5 text-center text-[11.5px] font-black text-fg">{row.geo}</p>
         </div>
       ))}
     </div>
@@ -116,7 +116,7 @@ const SLIDES: Slide[] = [
       </>
     ),
     extra: (
-      <span className="mt-5 inline-block rounded-full bg-gold-500 px-3 py-1 text-[10px] font-black tracking-wide text-ink-950">
+      <span className="mt-5 inline-block rounded-full bg-accent px-3 py-1 text-[10px] font-black tracking-wide text-on-accent">
         大衆エクスプロイト戦略
       </span>
     ),
@@ -197,11 +197,11 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex flex-col bg-white"
+      className="fixed inset-0 z-[100] flex flex-col bg-surface"
     >
       {/* スキップ(押しても本体へ入れる) */}
       <div className="flex justify-end px-5 pt-[calc(env(safe-area-inset-top)+12px)]">
-        <button onClick={finish} className="cursor-pointer text-[12px] font-bold text-ink-400 active:text-ink-700">
+        <button onClick={finish} className="cursor-pointer text-[12px] font-bold text-fg-3 active:text-n-9">
           スキップ
         </button>
       </div>
@@ -209,7 +209,7 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
       {/* 進捗ドット */}
       <div className="flex justify-center gap-1.5 pt-2">
         {Array.from({ length: total }, (_, i) => (
-          <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-5 bg-gold-500" : "w-1.5 bg-ink-200"}`} />
+          <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-5 bg-accent" : "w-1.5 bg-n-4"}`} />
         ))}
       </div>
 
@@ -224,15 +224,15 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
             className="w-full max-w-[360px] text-center"
           >
             {slide.eyebrow && (
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-gold-600">{slide.eyebrow}</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-accent">{slide.eyebrow}</p>
             )}
             {slide.icon && (
-              <span className="mx-auto mt-2 flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-ink-950 text-ink-950">
+              <span className="mx-auto mt-2 flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-line-strong text-fg">
                 {slide.icon}
               </span>
             )}
-            <h2 className="mt-4 text-[22px] font-black leading-snug tracking-tight text-ink-950">{slide.title}</h2>
-            <p className="mx-auto mt-3 max-w-[320px] text-[13px] leading-relaxed text-ink-600">{slide.body}</p>
+            <h2 className="mt-4 text-[22px] font-black leading-snug tracking-tight text-fg">{slide.title}</h2>
+            <p className="mx-auto mt-3 max-w-[320px] text-[13px] leading-relaxed text-n-9">{slide.body}</p>
             {slide.extra}
           </motion.div>
         </AnimatePresence>
@@ -241,7 +241,7 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
       <div className="px-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <button
           onClick={next}
-          className="w-full cursor-pointer rounded-full bg-ink-950 py-3.5 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
+          className="w-full cursor-pointer rounded-full bg-n-4 py-3.5 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
         >
           {isLast ? "使ってみる" : "次へ"}
         </button>

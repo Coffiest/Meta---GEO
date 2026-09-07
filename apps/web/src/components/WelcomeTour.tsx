@@ -113,11 +113,11 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex flex-col bg-white"
+      className="fixed inset-0 z-[100] flex flex-col bg-surface"
     >
       {/* スキップ */}
       <div className="flex justify-end px-5 pt-[calc(env(safe-area-inset-top)+12px)]">
-        <button onClick={finish} className="cursor-pointer text-[12px] font-bold text-ink-400 active:text-ink-700">
+        <button onClick={finish} className="cursor-pointer text-[12px] font-bold text-fg-3 active:text-n-9">
           スキップ
         </button>
       </div>
@@ -125,7 +125,7 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       {/* 進捗ドット */}
       <div className="flex justify-center gap-1.5 pt-2">
         {Array.from({ length: totalSteps }, (_, i) => (
-          <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-5 bg-gold-500" : "w-1.5 bg-ink-200"}`} />
+          <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-5 bg-accent" : "w-1.5 bg-n-4"}`} />
         ))}
       </div>
 
@@ -140,13 +140,13 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
               transition={{ duration: 0.35 }}
               className="text-center"
             >
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-gold-600">Welcome</p>
-              <h1 className="mt-3 text-[28px] font-black leading-tight tracking-tight text-ink-950">
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-accent">Welcome</p>
+              <h1 className="mt-3 text-[28px] font-black leading-tight tracking-tight text-fg">
                 Poker ARTへ
                 <br />
                 ようこそ。
               </h1>
-              <p className="mt-4 text-[13px] leading-relaxed text-ink-600">
+              <p className="mt-4 text-[13px] leading-relaxed text-n-9">
                 かんたんに、どこで何ができるかご案内します。
                 <br />
                 30秒で終わります。
@@ -163,11 +163,11 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
               transition={{ duration: 0.3 }}
               className="text-center"
             >
-              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-ink-950 text-ink-950">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-line-strong text-fg">
                 {FEATURE_SLIDES[featureIndex]!.icon}
               </span>
-              <h2 className="mt-5 text-[22px] font-black tracking-tight text-ink-950">{FEATURE_SLIDES[featureIndex]!.title}</h2>
-              <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-relaxed text-ink-600">{FEATURE_SLIDES[featureIndex]!.body}</p>
+              <h2 className="mt-5 text-[22px] font-black tracking-tight text-fg">{FEATURE_SLIDES[featureIndex]!.title}</h2>
+              <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-relaxed text-n-9">{FEATURE_SLIDES[featureIndex]!.body}</p>
             </motion.div>
           )}
 
@@ -180,8 +180,8 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
               transition={{ duration: 0.3 }}
               className="w-full max-w-[320px] text-center"
             >
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-gold-600">最後に</p>
-              <h2 className="mt-2 text-[22px] font-black leading-snug tracking-tight text-ink-950">
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-accent">最後に</p>
+              <h2 className="mt-2 text-[22px] font-black leading-snug tracking-tight text-fg">
                 ホーム画面に追加すると
                 <br />
                 アプリのように使えます。
@@ -206,7 +206,7 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
                 </div>
               )}
 
-              <p className="mt-5 text-[11px] leading-relaxed text-ink-400">
+              <p className="mt-5 text-[11px] leading-relaxed text-fg-3">
                 追加すると、アドレスバーの無いアプリ画面として起動します。
               </p>
             </motion.div>
@@ -217,7 +217,7 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       <div className="px-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <button
           onClick={next}
-          className="w-full cursor-pointer rounded-full bg-ink-950 py-3.5 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
+          className="w-full cursor-pointer rounded-full bg-n-4 py-3.5 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
         >
           {isAddHome ? "はじめる" : "次へ"}
         </button>
@@ -228,10 +228,10 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
 
 function Step({ n, icon, text }: { n: string; icon?: React.ReactNode; text: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-ink-50 px-3.5 py-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950 text-[11px] font-black text-white">{n}</span>
-      {icon && <span className="text-ink-950">{icon}</span>}
-      <p className="text-[12.5px] leading-snug text-ink-800">{text}</p>
+    <div className="flex items-center gap-3 rounded-xl bg-canvas px-3.5 py-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-n-4 text-[11px] font-black text-white">{n}</span>
+      {icon && <span className="text-fg">{icon}</span>}
+      <p className="text-[12.5px] leading-snug text-n-10">{text}</p>
     </div>
   );
 }

@@ -85,18 +85,18 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] border-[1.5px] border-ink-950 bg-white px-4 py-3"
+      className="rounded-[20px] border-[1.5px] border-line-strong bg-surface px-4 py-3"
     >
       {/* 文字を極力持たない1行構成: ベル図形 + 英字の小見出し + 右端のトグル型ボタン。 */}
       <div className="flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500/15 text-gold-600">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
           <BellGlyph className="h-[18px] w-[18px]" />
         </span>
-        <p className="min-w-0 flex-1 text-[11px] font-black uppercase tracking-[0.22em] text-ink-500">Alerts</p>
+        <p className="min-w-0 flex-1 text-[11px] font-black uppercase tracking-[0.22em] text-fg-2">Alerts</p>
 
         {needsInstall ? (
           // インストールが先に必要な環境(iOSのSafariタブ等)は、共有→ホーム画面追加の図形だけ示す。
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-100 text-ink-500" aria-label={t("push.installFirst")}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-n-2 text-fg-2" aria-label={t("push.installFirst")}>
             <Icon name="share" className="h-[18px] w-[18px]" />
           </span>
         ) : (
@@ -104,7 +104,7 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
             onClick={() => void handleEnable()}
             disabled={busy}
             aria-label={busy ? t("push.enabling") : t("push.enable")}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500 text-ink-950 transition-transform active:scale-[0.94] disabled:opacity-50"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-on-accent transition-transform active:scale-[0.94] disabled:opacity-50"
           >
             <Icon name="check" className="h-[17px] w-[17px]" weight="bold" />
           </button>

@@ -24,22 +24,22 @@ const ROWS: { label: string; value: string }[] = [
 
 export default function TokushohoPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
-          <div className="text-[11px] tracking-[0.25em] text-gold-600 font-semibold">POKER ART</div>
-          <Link href="/pricing" className="text-[12px] text-ink-600 hover:text-ink-900">
+          <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>
+          <Link href="/pricing" className="text-[12px] text-n-9 hover:text-fg">
             戻る
           </Link>
         </header>
 
-        <h1 className="text-xl font-bold text-ink-950 mb-4">特定商取引法に基づく表記</h1>
+        <h1 className="text-xl font-bold text-fg mb-4">特定商取引法に基づく表記</h1>
 
-        <div className="rounded-2xl bg-ink-100 ring-1 ring-ink-300 divide-y divide-ink-300">
+        <div className="rounded-2xl bg-n-2 ring-1 ring-line divide-y divide-line">
           {ROWS.map((row) => (
             <div key={row.label} className="px-4 py-3">
-              <div className="text-[11px] text-ink-600 mb-1">{row.label}</div>
-              <div className="text-[13px] text-ink-900 leading-relaxed">{row.value}</div>
+              <div className="text-[11px] text-n-9 mb-1">{row.label}</div>
+              <div className="text-[13px] text-fg leading-relaxed">{row.value}</div>
             </div>
           ))}
         </div>

@@ -5,7 +5,7 @@
  * 「読み込み中…」というテキストよりも体感速度・完成度を高める。
  */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-ink-200 ${className}`} aria-hidden />;
+  return <div className={`animate-pulse rounded-lg bg-n-4 ${className}`} aria-hidden />;
 }
 
 /** 折れ線グラフ用スケルトン(軸ラベル風＋プロット領域)。 */
@@ -27,7 +27,7 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-2" aria-hidden>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 rounded-xl border border-ink-200 px-3 py-2.5">
+        <div key={i} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5">
           <Skeleton className="h-8 w-8 rounded-full" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3 w-1/2" />

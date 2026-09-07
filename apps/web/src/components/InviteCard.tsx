@@ -120,60 +120,60 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] border-[1.5px] border-ink-950 bg-white p-4"
+      className="rounded-[20px] border-[1.5px] border-line-strong bg-surface p-4"
     >
       <div className="flex items-center gap-2">
-        <InviteGlyph className="h-4 w-4 text-gold-600" />
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-ink-400">{t("invite.eyebrow")}</p>
+        <InviteGlyph className="h-4 w-4 text-accent" />
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-fg-3">{t("invite.eyebrow")}</p>
       </div>
-      <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-ink-950">{t("invite.title")}</h3>
-      <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">{t("invite.lead")}</p>
+      <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-fg">{t("invite.title")}</h3>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-n-9">{t("invite.lead")}</p>
 
       {/* 招待成立数と、獲得したクーポンの枚数 */}
       <div className="mt-3.5 flex items-stretch gap-2">
-        <div className="flex-1 rounded-xl bg-ink-50 px-3.5 py-2.5">
-          <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.count")}</p>
-          <p className="mt-0.5 text-[20px] font-black leading-none tabular-nums text-ink-950">
+        <div className="flex-1 rounded-xl bg-canvas px-3.5 py-2.5">
+          <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("invite.count")}</p>
+          <p className="mt-0.5 text-[20px] font-black leading-none tabular-nums text-fg">
             {summary.invitedCount}
-            <span className="ml-0.5 text-[12px] font-bold text-ink-500">{t("invite.people")}</span>
+            <span className="ml-0.5 text-[12px] font-bold text-fg-2">{t("invite.people")}</span>
           </p>
         </div>
         <div
           className={`flex-1 rounded-xl px-3.5 py-2.5 ${
-            summary.reward.couponsAvailable > 0 ? "bg-gold-500/15" : "bg-ink-50"
+            summary.reward.couponsAvailable > 0 ? "bg-accent/15" : "bg-canvas"
           }`}
         >
-          <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.rewardLabel")}</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[20px] font-black leading-none tabular-nums text-ink-950">
+          <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("invite.rewardLabel")}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[20px] font-black leading-none tabular-nums text-fg">
             <RewardGlyph
-              className={`h-4 w-4 shrink-0 ${summary.reward.couponsAvailable > 0 ? "text-gold-600" : "text-ink-300"}`}
+              className={`h-4 w-4 shrink-0 ${summary.reward.couponsAvailable > 0 ? "text-accent" : "text-fg-faint"}`}
             />
             {summary.reward.couponsEarned}
-            <span className="text-[12px] font-bold text-ink-500">{t("invite.sheets")}</span>
+            <span className="text-[12px] font-bold text-fg-2">{t("invite.sheets")}</span>
           </p>
         </div>
       </div>
 
-      <p className="mt-2 text-[11.5px] font-semibold text-gold-600">
+      <p className="mt-2 text-[11.5px] font-semibold text-accent">
         {t("invite.rewardHint", { n: String(summary.reward.monthsPerInvite) })}
       </p>
 
       {/* 招待コード */}
-      <div className="mt-3.5 rounded-xl border border-ink-300 bg-white px-3.5 py-2.5">
-        <p className="text-[10px] font-bold tracking-wide text-ink-500">{t("invite.yourCode")}</p>
-        <p className="mt-0.5 font-mono text-[22px] font-black leading-none tracking-[0.18em] text-ink-950">{summary.code}</p>
+      <div className="mt-3.5 rounded-xl border border-line bg-surface px-3.5 py-2.5">
+        <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("invite.yourCode")}</p>
+        <p className="mt-0.5 font-mono text-[22px] font-black leading-none tracking-[0.18em] text-fg">{summary.code}</p>
       </div>
 
       <div className="mt-2.5 grid grid-cols-2 gap-2">
         <button
           onClick={() => void handleCopy()}
-          className="rounded-xl border border-ink-950 bg-white py-3 text-[13px] font-black text-ink-950 transition-transform active:scale-[0.98]"
+          className="rounded-xl border border-line-strong bg-surface py-3 text-[13px] font-black text-fg transition-transform active:scale-[0.98]"
         >
           {copied ? t("invite.copied") : t("invite.copy")}
         </button>
         <button
           onClick={() => void handleShare()}
-          className="flex items-center justify-center gap-2 rounded-xl bg-ink-950 py-3 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
+          className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 text-[13px] font-black text-white transition-transform active:scale-[0.98]"
         >
           <Icon name="share" className="h-[15px] w-[15px]" />
           {t("invite.share")}
@@ -182,7 +182,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
 
       {/* 招待してくれた人 / 招待コードの手入力 */}
       {summary.invitedByDisplayName ? (
-        <p className="mt-3 text-[11.5px] text-ink-500">
+        <p className="mt-3 text-[11.5px] text-fg-2">
           {t("invite.invitedBy", { name: summary.invitedByDisplayName })}
         </p>
       ) : showRedeem ? (
@@ -196,12 +196,12 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
               maxLength={16}
               autoComplete="off"
               autoCapitalize="characters"
-              className="min-w-0 flex-1 rounded-xl border border-ink-300 px-3.5 py-2.5 font-mono text-[14px] tracking-[0.14em] text-ink-950 placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-ink-400 focus:border-ink-950 focus:outline-none"
+              className="min-w-0 flex-1 rounded-xl border border-line px-3.5 py-2.5 font-mono text-[14px] tracking-[0.14em] text-fg placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
             />
             <button
               onClick={() => void handleRedeem()}
               disabled={redeeming || codeInput.trim().length === 0}
-              className="shrink-0 rounded-xl bg-gold-500 px-4 text-[13px] font-black text-ink-950 transition-transform active:scale-[0.98] disabled:opacity-40"
+              className="shrink-0 rounded-xl bg-accent px-4 text-[13px] font-black text-on-accent transition-transform active:scale-[0.98] disabled:opacity-40"
             >
               {redeeming ? t("invite.applying") : t("invite.apply")}
             </button>
@@ -216,7 +216,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       ) : (
         <button
           onClick={() => setShowRedeem(true)}
-          className="mt-3 text-[11.5px] font-semibold text-ink-500 underline decoration-dashed underline-offset-2"
+          className="mt-3 text-[11.5px] font-semibold text-fg-2 underline decoration-dashed underline-offset-2"
         >
           {t("invite.haveCode")}
         </button>

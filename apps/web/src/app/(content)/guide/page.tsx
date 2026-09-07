@@ -34,17 +34,17 @@ export default function GuidePage() {
         <p>
           役の強さは下から順に「ハイカード → ワンペア → ツーペア → スリーカード → ストレート → フラッシュ →
           フルハウス → フォーカード → ストレートフラッシュ → ロイヤルフラッシュ」です。各役の成り立ちは
-          <Link href="/glossary" className="font-semibold text-gold-600 underline underline-offset-2">用語集</Link>で確認できます。
+          <Link href="/glossary" className="font-semibold text-accent underline underline-offset-2">用語集</Link>で確認できます。
         </p>
       </Section>
 
       <Section title="1ハンドの流れ(4つのストリート)">
         <p>1回のハンドは、カードが公開されるタイミングで4つの局面に分かれ、各局面の間にベット(賭け)ラウンドがあります。</p>
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
-          <li><strong className="text-ink-950">プリフロップ</strong>: 各自に2枚のホールカードが配られた直後。共有カードはまだ0枚。最初のベットラウンド。</li>
-          <li><strong className="text-ink-950">フロップ</strong>: 共有カードが3枚同時に公開される。2回目のベットラウンド。</li>
-          <li><strong className="text-ink-950">ターン</strong>: 4枚目の共有カードが公開される。3回目のベットラウンド。</li>
-          <li><strong className="text-ink-950">リバー</strong>: 5枚目(最後)の共有カードが公開される。最後のベットラウンド。</li>
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
+          <li><strong className="text-fg">プリフロップ</strong>: 各自に2枚のホールカードが配られた直後。共有カードはまだ0枚。最初のベットラウンド。</li>
+          <li><strong className="text-fg">フロップ</strong>: 共有カードが3枚同時に公開される。2回目のベットラウンド。</li>
+          <li><strong className="text-fg">ターン</strong>: 4枚目の共有カードが公開される。3回目のベットラウンド。</li>
+          <li><strong className="text-fg">リバー</strong>: 5枚目(最後)の共有カードが公開される。最後のベットラウンド。</li>
         </ul>
         <p>
           リバーのベットが終わっても2人以上が残っていれば<strong>ショーダウン</strong>となり、手札を見せ合って役の強い方がポットを取ります。
@@ -54,13 +54,13 @@ export default function GuidePage() {
 
       <Section title="ベットで選べるアクション">
         <p>自分の手番が回ってきたら、状況に応じて次のいずれかを選びます。画面下部のアクションバーから操作します。</p>
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
-          <li><strong className="text-ink-950">チェック</strong>: 誰もベットしていないとき、チップを出さずに次の人へ手番を回す。</li>
-          <li><strong className="text-ink-950">ベット</strong>: 誰もまだ賭けていない状況で、自分から賭ける。</li>
-          <li><strong className="text-ink-950">コール</strong>: 直前のベットと同額を支払って勝負を続ける。</li>
-          <li><strong className="text-ink-950">レイズ</strong>: 直前のベットに上乗せして賭け、相手に圧力をかける。</li>
-          <li><strong className="text-ink-950">フォールド</strong>: そのハンドを降りる。それまでに出したチップは戻らない。</li>
-          <li><strong className="text-ink-950">オールイン</strong>: 手持ちのチップ全部を賭ける。ノーリミットならいつでも可能。</li>
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
+          <li><strong className="text-fg">チェック</strong>: 誰もベットしていないとき、チップを出さずに次の人へ手番を回す。</li>
+          <li><strong className="text-fg">ベット</strong>: 誰もまだ賭けていない状況で、自分から賭ける。</li>
+          <li><strong className="text-fg">コール</strong>: 直前のベットと同額を支払って勝負を続ける。</li>
+          <li><strong className="text-fg">レイズ</strong>: 直前のベットに上乗せして賭け、相手に圧力をかける。</li>
+          <li><strong className="text-fg">フォールド</strong>: そのハンドを降りる。それまでに出したチップは戻らない。</li>
+          <li><strong className="text-fg">オールイン</strong>: 手持ちのチップ全部を賭ける。ノーリミットならいつでも可能。</li>
         </ul>
         <p>
           Poker ART は「ノーリミット」なので、レイズ額に上限はありません(下限=直前のレイズ幅以上、というルールのみ)。
@@ -91,20 +91,20 @@ export default function GuidePage() {
         </p>
         <p>
           「どのポジションからどんなハンドで参加すべきか」は戦略の中核です。考え方の理論は
-          <Link href="/strategy" className="font-semibold text-gold-600 underline underline-offset-2">GEO戦略の解説</Link>で、
+          <Link href="/strategy" className="font-semibold text-accent underline underline-offset-2">GEO戦略の解説</Link>で、
           実データに基づく傾向は GEO データベースで深掘りできます。
         </p>
       </Section>
 
       <Section title="トーナメント形式(SNG と MTT)">
         <p>Poker ART のトーナメントには2つの形式があります。</p>
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
           <li>
-            <strong className="text-ink-950">SNG(シット&ゴー)</strong>: 決まった人数が揃った時点で即スタートする短時間トーナメント。
+            <strong className="text-fg">SNG(シット&ゴー)</strong>: 決まった人数が揃った時点で即スタートする短時間トーナメント。
             さっと1試合遊びたいときに向く。人数が揃わない場合も自動で卓が埋まるため、待たされません。
           </li>
           <li>
-            <strong className="text-ink-950">MTT(マルチテーブルトーナメント)</strong>: 多数の参加者が複数テーブルに分かれて戦い、
+            <strong className="text-fg">MTT(マルチテーブルトーナメント)</strong>: 多数の参加者が複数テーブルに分かれて戦い、
             人数が減るごとにテーブルが統合されていく本格形式。入賞圏(ITM)を目指して勝ち上がります。
           </li>
         </ul>
@@ -117,9 +117,9 @@ export default function GuidePage() {
       <Section title="はじめの一歩">
         <p>
           ルールを一度に完璧に覚える必要はありません。まず1試合プレイしてみて、分からない用語が出てきたら
-          <Link href="/glossary" className="font-semibold text-gold-600 underline underline-offset-2">用語集</Link>を開く、
+          <Link href="/glossary" className="font-semibold text-accent underline underline-offset-2">用語集</Link>を開く、
           という進め方が上達の近道です。準備ができたら
-          <Link href="/" className="font-semibold text-gold-600 underline underline-offset-2">トップページからログインしてトーナメントに参加</Link>してみましょう。
+          <Link href="/" className="font-semibold text-accent underline underline-offset-2">トップページからログインしてトーナメントに参加</Link>してみましょう。
           バーチャルチップなので、何度でも気軽に挑戦できます。
         </p>
       </Section>

@@ -60,7 +60,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
   const [tooltipPos, setTooltipPos] = useState<TooltipPos | null>(null);
 
   if (points.length === 0) {
-    return <p className="text-center text-[12px] text-ink-600 py-8">参加すると記録されます</p>;
+    return <p className="text-center text-[12px] text-n-9 py-8">参加すると記録されます</p>;
   }
 
   const closeTooltip = () => {
@@ -143,7 +143,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
           {(() => {
             const p = points[selected]!;
             const date = new Date(p.finishedAt);
-            const pnlClass = p.pnl > 0 ? "text-mint-600" : p.pnl < 0 ? "text-crimson-500" : "text-ink-700";
+            const pnlClass = p.pnl > 0 ? "text-mint-600" : p.pnl < 0 ? "text-crimson-500" : "text-n-9";
             return (
               <motion.div
                 initial={{ opacity: 0, y: tooltipPos.above ? 6 : -6, scale: 0.95 }}
@@ -155,40 +155,40 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                 onClick={(e) => e.stopPropagation()}
               >
                 {!tooltipPos.above && (
-                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-white ring-1 ring-ink-300 -mb-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
+                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-surface ring-1 ring-line -mb-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
                 )}
-                <div className="rounded-2xl bg-white ring-1 ring-ink-300 shadow-[0_8px_32px_rgba(0,0,0,0.18)] overflow-hidden relative z-[2]">
-                  <div className="flex items-start justify-between px-3.5 pt-3 pb-2.5 border-b border-ink-200">
+                <div className="rounded-2xl bg-surface ring-1 ring-line shadow-[0_8px_32px_rgba(0,0,0,0.18)] overflow-hidden relative z-[2]">
+                  <div className="flex items-start justify-between px-3.5 pt-3 pb-2.5 border-b border-line">
                     <div>
-                      <p className="text-[13px] font-bold text-ink-950">{GAME_TYPE_LABEL[p.gameType] ?? p.gameType}</p>
-                      <p className="text-[10px] text-ink-600 mt-0.5">
+                      <p className="text-[13px] font-bold text-fg">{GAME_TYPE_LABEL[p.gameType] ?? p.gameType}</p>
+                      <p className="text-[10px] text-n-9 mt-0.5">
                         {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {p.seatCount}人卓
                       </p>
                     </div>
                     {p.finishPosition != null && (
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-accent-hi to-accent-lo flex items-center justify-center shrink-0">
                         <span className="text-[11px] font-black text-white">{p.finishPosition}位</span>
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-px bg-ink-200">
-                    <div className="bg-white px-1.5 py-2 text-center">
-                      <p className="text-[9px] text-ink-600 mb-0.5">バイイン</p>
-                      <p className="text-[12px] font-bold text-ink-950 tabular-nums">{p.buyIn.toLocaleString()}</p>
+                  <div className="grid grid-cols-3 gap-px bg-n-4">
+                    <div className="bg-surface px-1.5 py-2 text-center">
+                      <p className="text-[9px] text-n-9 mb-0.5">バイイン</p>
+                      <p className="text-[12px] font-bold text-fg tabular-nums">{p.buyIn.toLocaleString()}</p>
                     </div>
-                    <div className="bg-white px-1.5 py-2 text-center">
-                      <p className="text-[9px] text-ink-600 mb-0.5">獲得</p>
-                      <p className="text-[12px] font-bold text-ink-950 tabular-nums">{p.payout.toLocaleString()}</p>
+                    <div className="bg-surface px-1.5 py-2 text-center">
+                      <p className="text-[9px] text-n-9 mb-0.5">獲得</p>
+                      <p className="text-[12px] font-bold text-fg tabular-nums">{p.payout.toLocaleString()}</p>
                     </div>
-                    <div className="bg-white px-1.5 py-2 text-center">
-                      <p className="text-[9px] text-ink-600 mb-0.5">収支</p>
+                    <div className="bg-surface px-1.5 py-2 text-center">
+                      <p className="text-[9px] text-n-9 mb-0.5">収支</p>
                       <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(p.pnl)}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-3.5 py-2.5">
-                    <span className="text-[11px] font-semibold text-gold-600">トナメ偏差値</span>
+                    <span className="text-[11px] font-semibold text-accent">トナメ偏差値</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[13px] font-black text-gold-600 tabular-nums">{displayRating(p.rrRatingAfter)}</span>
+                      <span className="text-[13px] font-black text-accent tabular-nums">{displayRating(p.rrRatingAfter)}</span>
                       {p.rrRatingDelta != null && Math.abs(p.rrRatingDelta) >= 0.01 && (
                         <span
                           className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
@@ -203,7 +203,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                   </div>
                 </div>
                 {tooltipPos.above && (
-                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-white ring-1 ring-ink-300 -mt-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
+                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-surface ring-1 ring-line -mt-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
                 )}
               </motion.div>
             );
@@ -218,9 +218,9 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
 export function RuleLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="h-px flex-1 bg-ink-300" />
-      <span className="text-[11px] font-bold tracking-[0.15em] uppercase text-ink-500 shrink-0">{children}</span>
-      <div className="h-px flex-1 bg-ink-300" />
+      <div className="h-px flex-1 bg-n-5" />
+      <span className="text-[11px] font-bold tracking-[0.15em] uppercase text-fg-2 shrink-0">{children}</span>
+      <div className="h-px flex-1 bg-n-5" />
     </div>
   );
 }
@@ -261,19 +261,19 @@ export function RRRatingCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden"
+      className="rounded-[20px] bg-surface ring-1 ring-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden"
     >
       <div className="relative px-5 pt-4 pb-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <Avatar avatarKey={avatarKey} displayName={displayName} size={34} />
-            <p className="text-sm font-bold text-ink-950 truncate min-w-0">{displayName}</p>
+            <p className="text-sm font-bold text-fg truncate min-w-0">{displayName}</p>
           </div>
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setInfoOpen((v) => !v)}
             aria-label="トナメ偏差値について"
-            className="h-[22px] w-[22px] shrink-0 rounded-full border border-ink-950 flex items-center justify-center text-ink-800"
+            className="h-[22px] w-[22px] shrink-0 rounded-full border border-line-strong flex items-center justify-center text-n-10"
           >
             <Icon name="info" className="h-3 w-3" />
           </motion.button>
@@ -285,19 +285,19 @@ export function RRRatingCard({
 
         <div className="flex items-end gap-2.5 justify-center">
           {!data || data.tournamentsPlayed === 0 ? (
-            <p className="text-4xl font-black text-ink-400 tracking-tight">集計中</p>
+            <p className="text-4xl font-black text-fg-3 tracking-tight">集計中</p>
           ) : (
             <>
               <motion.p
                 key={data.rrRating}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-5xl font-black text-ink-950 tracking-tight tabular-nums"
+                className="text-5xl font-black text-fg tracking-tight tabular-nums"
               >
                 {displayRating(data.rrRating)}
               </motion.p>
               {data.nationalRank != null && (
-                <div className="mb-1.5 rounded-full bg-ink-950 px-2.5 py-1">
+                <div className="mb-1.5 rounded-full bg-n-4 px-2.5 py-1">
                   <p className="text-xs font-bold text-white">全国{data.nationalRank.toLocaleString()}位</p>
                 </div>
               )}
@@ -312,7 +312,7 @@ export function RRRatingCard({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.97 }}
               transition={{ duration: 0.2 }}
-              className="mt-3 rounded-xl bg-ink-100 border border-ink-300 p-3 text-[11px] leading-relaxed text-ink-700"
+              className="mt-3 rounded-xl bg-n-2 border border-line p-3 text-[11px] leading-relaxed text-n-9"
             >
               ROIをもとにトーナメントの実力を偏差値(平均50)で表したもの。参加数が少ないうちは変動しにくく、参加すればするほど実力に近い値になります。
             </motion.div>
@@ -321,36 +321,36 @@ export function RRRatingCard({
       </div>
 
       <div className="px-4 pb-4">
-        <div className="grid grid-cols-3 divide-x divide-ink-200 border-y border-ink-200 py-3 mb-2">
+        <div className="grid grid-cols-3 divide-x divide-line border-y border-line py-3 mb-2">
           <StatCol label="参加数" value={(data?.tournamentsPlayed ?? 0).toLocaleString()} />
           <StatCol label="コスト合計" value={totalBuyIns.toLocaleString()} />
           <StatCol label="リターン" value={totalPayouts.toLocaleString()} />
         </div>
-        <div className="grid grid-cols-2 divide-x divide-ink-200 pb-4">
+        <div className="grid grid-cols-2 divide-x divide-line pb-4">
           <StatCol label="インマネ率" value={`${(itmRate * 100).toFixed(0)}%`} />
           <StatCol label="ROI" value={`${((data?.roi ?? 0) * 100).toFixed(0)}%`} accent />
         </div>
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onViewLeaderboard}
-          className="w-full h-11 rounded-full border-[1.5px] border-ink-950 text-ink-950 text-[13px] font-bold flex items-center justify-center"
+          className="w-full h-11 rounded-full border-[1.5px] border-line-strong text-fg text-[13px] font-bold flex items-center justify-center"
         >
           ランキングを見る
         </motion.button>
       </div>
 
-      <div className="border-t border-ink-300 p-4">
+      <div className="border-t border-line p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <Icon name="trophy" className="h-4 w-4 text-ink-700" />
-            <p className="text-[13px] font-bold text-ink-950">Tournament History</p>
+            <Icon name="trophy" className="h-4 w-4 text-n-9" />
+            <p className="text-[13px] font-bold text-fg">Tournament History</p>
           </div>
-          <button onClick={onViewHistory} className="text-[11px] text-gold-600 font-semibold underline decoration-dashed underline-offset-4">
+          <button onClick={onViewHistory} className="text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
             もっと見る
           </button>
         </div>
         {history === null ? (
-          <div className="py-8 text-center text-ink-600 text-xs">読み込み中…</div>
+          <div className="py-8 text-center text-n-9 text-xs">読み込み中…</div>
         ) : (
           <TournamentHistoryChart points={history} />
         )}
@@ -362,8 +362,8 @@ export function RRRatingCard({
 function StatCol({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="text-center px-1">
-      <div className="text-[10px] text-ink-500 mb-0.5">{label}</div>
-      <div className={`text-sm font-bold tabular-nums ${accent ? "text-gold-600" : "text-ink-950"}`}>{value}</div>
+      <div className="text-[10px] text-fg-2 mb-0.5">{label}</div>
+      <div className={`text-sm font-bold tabular-nums ${accent ? "text-accent" : "text-fg"}`}>{value}</div>
     </div>
   );
 }

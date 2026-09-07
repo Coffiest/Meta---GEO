@@ -79,7 +79,7 @@ export function HandClassMatrix({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: "easeOut" }}
-        className="grid gap-[2px] rounded-lg overflow-hidden bg-navy-950 p-[2px]"
+        className="grid gap-[2px] rounded-lg overflow-hidden bg-canvas-sunken p-[2px]"
         style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}
       >
         {matrix.cells.map((row, r) =>
@@ -124,11 +124,11 @@ export function HandClassMatrix({
                 : hover.anchorBottom + 8,
               transform: "translateX(-50%)",
             }}
-            className="z-50 pointer-events-none w-64 rounded-2xl bg-navy-900 ring-1 ring-navy-600 shadow-panel p-3.5"
+            className="z-50 pointer-events-none w-64 rounded-2xl bg-canvas ring-1 ring-line-strong shadow-e2 p-3.5"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-lg font-black text-navy-50">{hover.cell.label}</span>
-              <span className="text-[10px] text-navy-500 tabular-nums">{hover.cell.count}件</span>
+              <span className="text-lg font-black text-fg">{hover.cell.label}</span>
+              <span className="text-[10px] text-fg-3 tabular-nums">{hover.cell.count}件</span>
             </div>
             <div className="space-y-1.5">
               {orderedBucketEntries(hover.cell)
@@ -140,7 +140,7 @@ export function HandClassMatrix({
                       <span className="w-[74px] shrink-0 text-[10px] font-bold text-white truncate">
                         {bucketLabels[bucket] ?? bucket}
                       </span>
-                      <div className="flex-1 h-2 rounded-full bg-navy-800 overflow-hidden">
+                      <div className="flex-1 h-2 rounded-full bg-surface overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${pct}%` }}
@@ -149,7 +149,7 @@ export function HandClassMatrix({
                           style={{ background: bucketColor(bucket) }}
                         />
                       </div>
-                      <span className="w-9 shrink-0 text-right text-[10px] font-bold text-navy-200 tabular-nums">{pct}%</span>
+                      <span className="w-9 shrink-0 text-right text-[10px] font-bold text-n-10 tabular-nums">{pct}%</span>
                     </div>
                   );
                 })}
@@ -158,9 +158,9 @@ export function HandClassMatrix({
         )}
       </AnimatePresence>
 
-      <div className="h-9 mt-2 text-[11px] text-navy-300 flex items-center">
-        {!hover && <span className="text-navy-500">セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
-        {hover && hover.cell.count === 0 && <span className="text-navy-500">{hover.cell.label} — サンプルなし</span>}
+      <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center">
+        {!hover && <span className="text-fg-3">セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
+        {hover && hover.cell.count === 0 && <span className="text-fg-3">{hover.cell.label} — サンプルなし</span>}
       </div>
     </div>
   );
