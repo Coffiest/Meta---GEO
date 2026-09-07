@@ -9,7 +9,7 @@ import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
-import { bucketColor } from "@/components/geo/colors";
+import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { Footer } from "@/components/Footer";
 
 const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
@@ -67,8 +67,8 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
               .map((a) => (
                 <div
                   key={a.bucket}
-                  className="rounded-lg px-2 py-1 text-white"
-                  style={{ background: bucketColor(a.bucket) }}
+                  className="rounded-lg px-2 py-1"
+                  style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}
                 >
                   <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
                   <span className="text-[11px] font-black tabular-nums ml-1">{Math.round(a.frequency * 100)}%</span>

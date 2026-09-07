@@ -134,7 +134,7 @@ export function ReviewPaywall({
               className="flex items-start gap-3"
             >
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-n-4">
-                <Icon name={b.icon} className="h-4 w-4" style={{ color: "#f7c548" }} />
+                <Icon name={b.icon} className="h-4 w-4" style={{ color: "#5FE0C6" }} />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-black text-fg leading-tight">{b.title}</p>

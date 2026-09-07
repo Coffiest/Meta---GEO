@@ -37,15 +37,18 @@ async function loadGoogleFont(family: string, weight: number, text: string): Pro
   }
 }
 
-const GOLD = "#d4910a";
-const GOLD_DEEP = "#a16a06";
-const INK = "#0d0d10";
-const INK_MUTED = "#9a9a9f";
-const CRIMSON = "#c23a2f";
-const BG = "#ffffff";
+const ACCENT = "#26c2a3";
+const ACCENT_HI = "#5fe0c6";
+const FG = "#f5f5f7";
+const FG_MUTED = "#8e8e93";
+const CRIMSON = "#f0595e";
+const BG = "#1c1c1e";
 
 /** 4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)。アプリ内のカード配色に合わせる。 */
-const SUIT_COLOR: Record<string, string> = { s: INK, h: "#dd4438", d: "#3a7fc4", c: "#1fae70" };
+/** カードは暗い地の上でも白いままにする(アプリのカード画像と同じ意匠)。
+    そのためカード上のインクだけは前景色ではなく、白地に載る黒として持つ。 */
+const CARD_INK = "#0e0e10";
+const SUIT_COLOR: Record<string, string> = { s: CARD_INK, h: "#dd4438", d: "#3a7fc4", c: "#1fae70" };
 
 /** スートのSVGパス(viewBox 0 0 24 24)。装飾に絵文字は使わない。 */
 const SUIT_PATH: Record<string, string> = {
@@ -62,7 +65,7 @@ function splitCard(code: string): { rank: string; suit: string } {
 
 function SuitMark({ suit, size }: { suit: string; size: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={SUIT_COLOR[suit] ?? INK}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={SUIT_COLOR[suit] ?? CARD_INK}>
       <path d={SUIT_PATH[suit] ?? SUIT_PATH.s} />
     </svg>
   );
@@ -71,7 +74,7 @@ function SuitMark({ suit, size }: { suit: string; size: number }) {
 /** カード1枚。幅を指定すると 1:1.4 の比率で描画する。 */
 function Card({ code, w }: { code: string; w: number }) {
   const { rank, suit } = splitCard(code);
-  const color = SUIT_COLOR[suit] ?? INK;
+  const color = SUIT_COLOR[suit] ?? CARD_INK;
   return (
     <div
       style={{
@@ -83,8 +86,8 @@ function Card({ code, w }: { code: string; w: number }) {
         padding: `${Math.round(w * 0.09)}px`,
         borderRadius: `${Math.round(w * 0.1)}px`,
         background: "#ffffff",
-        border: `2px solid ${INK}`,
-        boxShadow: "0 10px 24px -14px rgba(0,0,0,0.5)",
+        border: "2px solid #0e0e10",
+        boxShadow: "0 14px 30px -14px rgba(0,0,0,0.75)",
       }}
     >
       <span style={{ fontSize: `${Math.round(w * 0.4)}px`, fontWeight: 700, color, lineHeight: 1 }}>{rank}</span>
@@ -97,7 +100,7 @@ function Card({ code, w }: { code: string; w: number }) {
 
 /** ── ラベル ── 風のキッカー見出し。 */
 function Kicker({ text }: { text: string }) {
-  return <span style={{ fontSize: "20px", fontWeight: 500, letterSpacing: "6px", color: INK_MUTED }}>{text}</span>;
+  return <span style={{ fontSize: "20px", fontWeight: 500, letterSpacing: "6px", color: FG_MUTED }}>{text}</span>;
 }
 
 /** カード表記のパース。"As,Kd" → ["As","Kd"]。不正な値は落とす。 */
@@ -123,7 +126,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
   const lose = bb < 0;
   const bbAbs = Number.isInteger(bb) ? String(Math.abs(bb)) : Math.abs(bb).toFixed(1);
   const bbText = bb === 0 ? "±0" : `${win ? "+" : "-"}${bbAbs}`;
-  const accent = win ? GOLD_DEEP : lose ? CRIMSON : INK_MUTED;
+  const accent = win ? ACCENT_HI : lose ? CRIMSON : FG_MUTED;
 
   // フォントサブセットに必要な全文字を集める(表示名 + 固定ラベル + 数字 + ランク)。
   const glyphs = `${name}${bbText}このハンド全員フォールドで決着プリフロップ無料ポーカー強くなれる実力が数字に出る0123456789+-±.,/AKQJshdcbBOARDYUHNPokerART `;
@@ -151,13 +154,13 @@ export async function GET(req: Request): Promise<ImageResponse> {
         }}
       >
         {/* 上部ゴールドライン */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: GOLD, display: "flex" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + ゴールドのスペードマーク */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Kicker text="HAND OF THE GAME" />
-            {name ? <span style={{ fontSize: "36px", fontWeight: 700, color: INK, marginTop: "6px" }}>{name}</span> : null}
+            {name ? <span style={{ fontSize: "36px", fontWeight: 700, color: FG, marginTop: "6px" }}>{name}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center" }}>
             <SuitMark suit="s" size={48} />
@@ -169,7 +172,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Kicker text="YOUR HAND" />
             <div style={{ display: "flex", gap: "14px", marginTop: "10px" }}>
-              {hero.length > 0 ? hero.map((c) => <Card key={c} code={c} w={112} />) : <span style={{ fontSize: "28px", fontWeight: 500, color: INK_MUTED }}>-</span>}
+              {hero.length > 0 ? hero.map((c) => <Card key={c} code={c} w={112} />) : <span style={{ fontSize: "28px", fontWeight: 500, color: FG_MUTED }}>-</span>}
             </div>
 
             <div style={{ display: "flex", marginTop: "24px" }}>
@@ -179,7 +182,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
               {board.length > 0 ? (
                 board.map((c) => <Card key={c} code={c} w={74} />)
               ) : (
-                <span style={{ fontSize: "26px", fontWeight: 500, color: INK_MUTED, display: "flex", alignItems: "center", height: "104px" }}>
+                <span style={{ fontSize: "26px", fontWeight: 500, color: FG_MUTED, display: "flex", alignItems: "center", height: "104px" }}>
                   プリフロップ
                 </span>
               )}
@@ -198,8 +201,8 @@ export async function GET(req: Request): Promise<ImageResponse> {
                   marginTop: "18px",
                   padding: "10px 24px",
                   borderRadius: "999px",
-                  background: "rgba(212,145,10,0.14)",
-                  color: GOLD_DEEP,
+                  background: "rgba(38,194,163,0.16)",
+                  color: ACCENT_HI,
                   fontSize: "24px",
                   fontWeight: 700,
                 }}
@@ -212,10 +215,10 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
         {/* フッター: キャッチ + アプリ名/URL */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
-          <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED }}>実力が数字に出る無料ポーカー</span>
+          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>実力が数字に出る無料ポーカー</span>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "32px", fontWeight: 700, color: INK }}>Poker ART</span>
-            <span style={{ fontSize: "21px", fontWeight: 500, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
+            <span style={{ fontSize: "32px", fontWeight: 700, color: FG }}>Poker ART</span>
+            <span style={{ fontSize: "21px", fontWeight: 500, color: ACCENT_HI }}>meta-geo-poker.vercel.app</span>
           </div>
         </div>
       </div>

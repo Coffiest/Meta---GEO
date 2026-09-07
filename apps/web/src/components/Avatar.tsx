@@ -149,7 +149,7 @@ export function Avatar({
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 z-[25] animate-time-bank-ring rounded-full"
-          style={{ boxShadow: "0 0 0 2px #f2a900, 0 0 10px 2px rgba(242,169,0,0.65)" }}
+          style={{ boxShadow: "0 0 0 2px rgb(var(--accent)), 0 0 12px 2px rgb(var(--accent) / 0.6)" }}
         />
       )}
       {timer && <CountdownRing endsAt={timer.endsAt} durationMs={timer.durationMs} size={size} />}

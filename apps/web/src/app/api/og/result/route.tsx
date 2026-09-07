@@ -52,11 +52,11 @@ async function loadGoogleFont(family: string, weight: number, text: string): Pro
   }
 }
 
-const GOLD = "#d4910a";
-const GOLD_DEEP = "#a16a06";
-const INK = "#0d0d10";
-const INK_MUTED = "#9a9a9f";
-const BG = "#ffffff";
+const ACCENT = "#26c2a3";
+const ACCENT_HI = "#5fe0c6";
+const FG = "#f5f5f7";
+const FG_MUTED = "#8e8e93";
+const BG = "#1c1c1e";
 
 export async function GET(req: Request): Promise<ImageResponse> {
   const { searchParams } = new URL(req.url);
@@ -100,19 +100,19 @@ export async function GET(req: Request): Promise<ImageResponse> {
         }}
       >
         {/* 上部ゴールドライン */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: GOLD, display: "flex" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + アプリ名 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "22px", fontWeight: 500, letterSpacing: "8px", color: INK_MUTED }}>TOURNAMENT RESULT</span>
+            <span style={{ fontSize: "22px", fontWeight: 500, letterSpacing: "8px", color: FG_MUTED }}>TOURNAMENT RESULT</span>
             {name ? (
-              <span style={{ fontSize: "40px", fontWeight: 700, color: INK, marginTop: "8px" }}>{name}</span>
+              <span style={{ fontSize: "40px", fontWeight: 700, color: FG, marginTop: "8px" }}>{name}</span>
             ) : null}
           </div>
           {/* スペードのゴールドマーク */}
           <div style={{ display: "flex", alignItems: "center" }}>
-            <svg width="52" height="52" viewBox="0 0 24 24" fill={GOLD}>
+            <svg width="52" height="52" viewBox="0 0 24 24" fill={ACCENT}>
               <path d="M12 2C9 6 4 8.5 4 13a4 4 0 0 0 6.5 3.1C10 18 9 19.5 8 20.5h8c-1-1-2-2.5-2.5-4.4A4 4 0 0 0 20 13c0-4.5-5-7-8-11Z" />
             </svg>
           </div>
@@ -121,11 +121,11 @@ export async function GET(req: Request): Promise<ImageResponse> {
         {/* 中央: 着順の超特大表示 */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
           {isWin ? (
-            <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "6px", color: GOLD, marginBottom: "8px" }}>CHAMPION</span>
+            <span style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "6px", color: ACCENT, marginBottom: "8px" }}>CHAMPION</span>
           ) : null}
           <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontSize: useRatio ? "150px" : "220px", fontWeight: 700, color: INK, lineHeight: 1 }}>{rankBig}</span>
-            {!useRatio && pos != null ? <span style={{ fontSize: "120px", fontWeight: 700, color: GOLD, lineHeight: 1 }}>.</span> : null}
+            <span style={{ fontSize: useRatio ? "150px" : "220px", fontWeight: 700, color: FG, lineHeight: 1 }}>{rankBig}</span>
+            {!useRatio && pos != null ? <span style={{ fontSize: "120px", fontWeight: 700, color: ACCENT, lineHeight: 1 }}>.</span> : null}
           </div>
           {payout > 0 ? (
             <div
@@ -134,8 +134,8 @@ export async function GET(req: Request): Promise<ImageResponse> {
                 marginTop: "28px",
                 padding: "12px 34px",
                 borderRadius: "999px",
-                background: "rgba(212,145,10,0.14)",
-                color: GOLD_DEEP,
+                background: "rgba(38,194,163,0.16)",
+                color: ACCENT_HI,
                 fontSize: "40px",
                 fontWeight: 700,
               }}
@@ -150,17 +150,17 @@ export async function GET(req: Request): Promise<ImageResponse> {
           <div style={{ display: "flex", flexDirection: "column" }}>
             {rank != null ? (
               <div style={{ display: "flex", alignItems: "baseline" }}>
-                <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED, marginRight: "10px" }}>全国</span>
-                <span style={{ fontSize: "44px", fontWeight: 700, color: INK }}>{rank.toLocaleString()}</span>
-                <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED, marginLeft: "6px" }}>位</span>
+                <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED, marginRight: "10px" }}>全国</span>
+                <span style={{ fontSize: "44px", fontWeight: 700, color: FG }}>{rank.toLocaleString()}</span>
+                <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED, marginLeft: "6px" }}>位</span>
               </div>
             ) : (
-              <span style={{ fontSize: "26px", fontWeight: 500, color: INK_MUTED }}>強くなれる無料ポーカー</span>
+              <span style={{ fontSize: "26px", fontWeight: 500, color: FG_MUTED }}>強くなれる無料ポーカー</span>
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "34px", fontWeight: 700, color: INK }}>Poker ART</span>
-            <span style={{ fontSize: "22px", fontWeight: 500, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
+            <span style={{ fontSize: "34px", fontWeight: 700, color: FG }}>Poker ART</span>
+            <span style={{ fontSize: "22px", fontWeight: 500, color: ACCENT_HI }}>meta-geo-poker.vercel.app</span>
           </div>
         </div>
       </div>

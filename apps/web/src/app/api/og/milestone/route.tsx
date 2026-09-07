@@ -36,16 +36,16 @@ async function loadGoogleFont(family: string, weight: number, text: string): Pro
   }
 }
 
-const GOLD = "#d4910a";
-const GOLD_DEEP = "#a16a06";
-const INK = "#0d0d10";
-const INK_MUTED = "#9a9a9f";
-const BG = "#ffffff";
+const ACCENT = "#26c2a3";
+const ACCENT_HI = "#5fe0c6";
+const FG = "#f5f5f7";
+const FG_MUTED = "#8e8e93";
+const BG = "#1c1c1e";
 
 /** 月桂樹風の勲章マーク(絵文字は使わずSVGで描く)。 */
 function MedalMark({ size }: { size: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="9" r="5.5" />
       <path d="M9 14.2 7.5 21l4.5-2.4 4.5 2.4-1.5-6.8" />
     </svg>
@@ -98,13 +98,13 @@ export async function GET(req: Request): Promise<ImageResponse> {
         }}
       >
         {/* 上部ゴールドライン */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: GOLD, display: "flex" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + 勲章マーク */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "22px", fontWeight: 500, letterSpacing: "8px", color: INK_MUTED }}>MILESTONE</span>
-            {name ? <span style={{ fontSize: "40px", fontWeight: 700, color: INK, marginTop: "8px" }}>{name}</span> : null}
+            <span style={{ fontSize: "22px", fontWeight: 500, letterSpacing: "8px", color: FG_MUTED }}>MILESTONE</span>
+            {name ? <span style={{ fontSize: "40px", fontWeight: 700, color: FG, marginTop: "8px" }}>{name}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center" }}>
             <MedalMark size={56} />
@@ -114,8 +114,8 @@ export async function GET(req: Request): Promise<ImageResponse> {
         {/* 中央: 節目の超特大表示 */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1 }}>
           <div style={{ display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontSize: headlineSize, fontWeight: 700, color: isRank ? GOLD_DEEP : INK, lineHeight: 1 }}>{headline}</span>
-            {suffix ? <span style={{ fontSize: "72px", fontWeight: 700, color: GOLD, marginLeft: "10px" }}>{suffix}</span> : null}
+            <span style={{ fontSize: headlineSize, fontWeight: 700, color: isRank ? ACCENT_HI : FG, lineHeight: 1 }}>{headline}</span>
+            {suffix ? <span style={{ fontSize: "72px", fontWeight: 700, color: ACCENT, marginLeft: "10px" }}>{suffix}</span> : null}
           </div>
           <div
             style={{
@@ -123,8 +123,8 @@ export async function GET(req: Request): Promise<ImageResponse> {
               marginTop: "28px",
               padding: "12px 34px",
               borderRadius: "999px",
-              background: "rgba(212,145,10,0.14)",
-              color: GOLD_DEEP,
+              background: "rgba(38,194,163,0.16)",
+              color: ACCENT_HI,
               fontSize: "32px",
               fontWeight: 700,
             }}
@@ -135,10 +135,10 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
         {/* フッター: キャッチ + アプリ名/URL */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
-          <span style={{ fontSize: "24px", fontWeight: 500, color: INK_MUTED }}>実力が数字に出る無料ポーカー</span>
+          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>実力が数字に出る無料ポーカー</span>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "32px", fontWeight: 700, color: INK }}>Poker ART</span>
-            <span style={{ fontSize: "21px", fontWeight: 500, color: GOLD_DEEP }}>meta-geo-poker.vercel.app</span>
+            <span style={{ fontSize: "32px", fontWeight: 700, color: FG }}>Poker ART</span>
+            <span style={{ fontSize: "21px", fontWeight: 500, color: ACCENT_HI }}>meta-geo-poker.vercel.app</span>
           </div>
         </div>
       </div>

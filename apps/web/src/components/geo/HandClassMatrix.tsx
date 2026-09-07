@@ -11,7 +11,7 @@ function orderedBucketEntries(cell: HandClassCell): [string, number][] {
 }
 
 function cellGradient(cell: HandClassCell): string {
-  if (cell.count === 0) return "#1a2942";
+  if (cell.count === 0) return "#232326";
   const stops: string[] = [];
   let cursor = 0;
   for (const [bucket, count] of orderedBucketEntries(cell)) {
@@ -20,7 +20,7 @@ function cellGradient(cell: HandClassCell): string {
     stops.push(`${bucketColor(bucket)} ${cursor}% ${cursor + pct}%`);
     cursor += pct;
   }
-  if (stops.length === 0) return "#1a2942";
+  if (stops.length === 0) return "#232326";
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
@@ -100,8 +100,12 @@ export function HandClassMatrix({
                 }`}
                 title={`${cell.label}: ${cell.count} サンプル`}
               >
-                <span className="drop-shadow">{cell.label}</span>
-                {top && <span className="text-[7px] sm:text-[8px] lg:text-[10px] font-semibold opacity-90">{top.pct}%</span>}
+                {/* セルは複数のアクション色が横に並ぶ帯なので、文字の下だけ色を選ぶことができない。
+                    代わりに暗いハローを敷いて、どの帯の上でも白文字が読めるようにする。 */}
+                <span style={{ textShadow: "0 1px 2px rgb(0 0 0 / 0.9), 0 0 3px rgb(0 0 0 / 0.7)" }}>{cell.label}</span>
+                {top && <span className="text-[7px] font-semibold opacity-90 sm:text-[8px] lg:text-[10px]" style={{ textShadow: "0 1px 2px rgb(0 0 0 / 0.9)" }}>
+                    {top.pct}%
+                  </span>}
               </button>
             );
           }),

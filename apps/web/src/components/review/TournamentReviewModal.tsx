@@ -25,7 +25,7 @@ import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
 import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
-import { bucketColor } from "@/components/geo/colors";
+import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { useCountUp } from "@/lib/useCountUp";
 import { AdSlot } from "@/components/AdSlot";
@@ -56,7 +56,7 @@ const ACTION_KIND_LABEL: Record<string, string> = {
 };
 
 /** iOSのグループリスト背景(systemGroupedBackground)。 */
-const SHEET_BG = "#f2f2f7";
+const SHEET_BG = "#232326";
 /** iOSのヘアライン分割線。 */
 const HAIRLINE = "rgba(60,60,67,0.12)";
 
@@ -92,7 +92,7 @@ function ScoreRing({ score }: { score: number | null }) {
   return (
     <div className="relative h-[132px] w-[132px] shrink-0">
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" stroke="#e5e5ea" strokeWidth="9" />
+        <circle cx="60" cy="60" r={R} fill="none" stroke="#3A3A3C" strokeWidth="9" />
         {score !== null && (
           <motion.circle
             cx="60"
@@ -110,8 +110,8 @@ function ScoreRing({ score }: { score: number | null }) {
         )}
         <defs>
           <linearGradient id="gto-ring-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#f7c548" />
-            <stop offset="100%" stopColor="#d4910a" />
+            <stop offset="0%" stopColor="#5FE0C6" />
+            <stop offset="100%" stopColor="#1EA88C" />
           </linearGradient>
         </defs>
       </svg>
@@ -148,7 +148,7 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
       </button>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {shown.map((o) => (
-          <div key={o.bucket} className="rounded-full px-2.5 py-1 text-white" style={{ background: bucketColor(o.bucket) }}>
+          <div key={o.bucket} className="rounded-full px-2.5 py-1" style={{ background: bucketColor(o.bucket), color: bucketTextColor(bucketColor(o.bucket)) }}>
             <span className="text-[11px] font-bold">{bucketLabel(d.street, o.bucket)}</span>
             <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(o.frequency * 100)}%</span>
           </div>
@@ -200,7 +200,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
           {d.gtoActions
             .filter((a) => a.frequency > 0)
             .map((a) => (
-              <div key={a.bucket} className="rounded-full px-2.5 py-1 text-white" style={{ background: bucketColor(a.bucket) }}>
+              <div key={a.bucket} className="rounded-full px-2.5 py-1" style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}>
                 <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
                 <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(a.frequency * 100)}%</span>
                 <span className="ml-1 text-[9px] font-bold tabular-nums opacity-80">
@@ -227,7 +227,7 @@ interface Highlight {
 /** iOS風のチェブロン(リスト行の右端)。 */
 function Chevron() {
   return (
-    <Icon name="chevron-right" className="ml-auto h-4 w-4 shrink-0 text-[#c7c7cc]" />
+    <Icon name="chevron-right" className="ml-auto h-4 w-4 shrink-0 text-fg-3" />
   );
 }
 

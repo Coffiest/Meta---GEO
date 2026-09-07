@@ -570,7 +570,7 @@ function GeoDatabase() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_theme(colors.gold.500)]" />
+                  <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
                   <p className="text-[15px] font-black tracking-tight text-fg leading-none">
                     GEO<span className="text-accent"> Database</span>
                   </p>

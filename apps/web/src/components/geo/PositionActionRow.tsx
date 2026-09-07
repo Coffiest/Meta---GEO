@@ -2,13 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { TreeNode } from "@/lib/geoApi";
-import { bucketColor, bucketOrderIndex } from "./colors";
+import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
 
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
  * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
  * (強→弱、左から右。濃い色ほど左)で並べる。ジオメトリックサイズ以上のオプションは
- * 紫系の色で表示される(bucketColorがgeometricRatioを見て判定)。
+ * ティールで表示される(bucketColorがgeometricRatioを見て判定)。
  */
 export function PositionActionRow({
   node,
@@ -76,24 +76,28 @@ export function PositionActionRow({
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
               onClick={() => onSelect(opt.bucket)}
-              className="relative overflow-hidden rounded-xl p-2.5 text-left shrink-0 w-[104px]"
-              style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+              className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
+              style={{
+                background: bucketColor(opt.bucket, opt.geometricRatio),
+                // 面が明るいほど白文字が読めなくなるので、文字色は面の明るさから選び直す。
+                color: bucketTextColor(bucketColor(opt.bucket, opt.geometricRatio)),
+              }}
             >
-              <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
-              <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
+              <div className="text-[11px] font-bold leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
+              <div className="mt-0.5 text-lg font-black leading-tight tabular-nums">
                 {Math.round(opt.frequency * 100)}%
               </div>
               {node.isGto ? (
                 opt.evBb !== undefined && opt.evBb !== 0 ? (
-                  <div className="text-[9px] text-white/70 tabular-nums">
+                  <div className="text-[9px] tabular-nums opacity-75">
                     EV {opt.evBb >= 0 ? "+" : ""}
                     {opt.evBb.toFixed(2)}bb
                   </div>
                 ) : (
-                  <div className="text-[9px] text-white/40 tabular-nums">&nbsp;</div>
+                  <div className="text-[9px] tabular-nums opacity-40">&nbsp;</div>
                 )
               ) : (
-                <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
+                <div className="text-[9px] tabular-nums opacity-75">{opt.count}件</div>
               )}
             </motion.button>
           ))}
