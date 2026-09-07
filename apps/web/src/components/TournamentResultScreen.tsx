@@ -11,6 +11,7 @@ import { PROD_URL, buildMilestoneShareUrl, shareOrTweet } from "@/lib/share";
 import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 import { Icon } from "./Icon";
+import { DigitRoll } from "./effects/DigitRoll";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -181,6 +182,8 @@ export function TournamentResultScreen({
   // MTTは「着順 / 総エントリー数」、それ以外(SNG)は「1st.」風の英語序数で超特大表示する。
   const useRatio = gameKey === "mtt" && pos != null && totalEntrants != null && totalEntrants > 0;
   const rankPlain = pos == null ? t("result.finished") : useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos);
+  // 序数の接尾辞(st/nd/rd/th)だけを取り出す。数字部分はDigitRollでオドメーターめくり表示するため。
+  const rankSuffix = pos != null && !useRatio ? ordinal(pos).replace(String(pos), "") : "";
 
   // X共有カード用の共有URL(/share/result?...)を組み立てる。展開時にOGP画像として
   // /api/og/result の動的カードが表示される。表示名・着順・獲得・全国順位を載せる。
@@ -260,12 +263,20 @@ export function TournamentResultScreen({
           )}
           <p className="text-[11px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
           <p
-            className={`mt-2 font-black leading-[0.9] tracking-tight text-fg tabular-nums ${
+            className={`mt-2 flex items-center justify-center font-black leading-[0.9] text-fg ${
               useRatio ? "text-[64px] tracking-[-0.035em]" : "text-[88px] tracking-[-0.035em]"
             }`}
           >
-            {rankPlain}
-            {!useRatio && pos != null && <span className="text-accent">.</span>}
+            {!useRatio && pos != null ? (
+              // SNG: 着順の数字だけオドメーターめくりで登場させ、接尾辞(st/nd/rd/th)と「.」は静的に添える。
+              <>
+                <DigitRoll value={pos} fontSize={88} fontWeight={900} textColor="rgb(245 245 247)" gap={0} />
+                <span className="tabular-nums">{rankSuffix}</span>
+                <span className="text-accent">.</span>
+              </>
+            ) : (
+              <span className="tabular-nums">{rankPlain}</span>
+            )}
           </p>
           {info.yourPayout > 0 && (
             <motion.p

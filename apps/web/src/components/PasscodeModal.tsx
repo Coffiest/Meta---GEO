@@ -83,27 +83,27 @@ export function PasscodeModal({
             <button
               key={d}
               onClick={() => pushDigit(d)}
-              className="cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg transition-transform pressable"
+              className="pressable cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg"
             >
               {d}
             </button>
           ))}
           <button
             onClick={onClose}
-            className="cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-fg-2 transition-transform pressable"
+            className="pressable cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-fg-2"
           >
             閉じる
           </button>
           <button
             onClick={() => pushDigit("0")}
-            className="cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg transition-transform pressable"
+            className="pressable cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg"
           >
             0
           </button>
           <button
             onClick={() => setCode((c) => c.slice(0, -1))}
             aria-label="1文字削除"
-            className="flex cursor-pointer items-center justify-center rounded-2xl py-3 text-fg-2 transition-transform pressable"
+            className="pressable flex cursor-pointer items-center justify-center rounded-2xl py-3 text-fg-2"
           >
             <Icon name="backspace" className="h-5 w-5" />
           </button>

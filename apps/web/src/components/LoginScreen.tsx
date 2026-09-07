@@ -88,6 +88,7 @@ const item: Variants = {
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
 import { ReportErrorButton } from "./ReportErrorButton";
 import { Icon } from "./Icon";
+import { ParticleText } from "./effects/ParticleText";
 
 export function LoginScreen({ auth }: { auth: AuthState }) {
   const [mode, setMode] = useState<Mode>("login");
@@ -173,9 +174,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
       </div>
 
       <div className="relative mx-auto w-full max-w-md px-6 pt-6 pb-12">
-        {/* ヒーロー(コンパクトに。すぐ下に認証カードが来る) */}
+        {/* ヒーロー(コンパクトに。すぐ下に認証カードが来る)
+            粒子が集まって"Poker ART"の文字を形作る導入。ログイン前の一度きりの画面だからこそ
+            置ける演出(常時マウントされる画面ではrAFループが回りっぱなしになるため避けている)。 */}
+        <div className="mt-2 h-16">
+          <ParticleText text="Poker ART" fontSize="clamp(2rem, 11vw, 3.25rem)" fontWeight={800} density={3} />
+        </div>
         <motion.div initial="hidden" animate="show" variants={container}>
-          <motion.h1 variants={item} className="mt-4 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
+          <motion.h1 variants={item} className="mt-2 text-[38px] font-extrabold leading-[1.02] tracking-tight text-balance">
             {t("login.heroLine1")}
             <br />
             {t("login.heroLine2")}
