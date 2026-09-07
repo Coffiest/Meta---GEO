@@ -56,11 +56,11 @@ export default function StrategyPage() {
           戦略の第一歩は<strong>RFI(Raise First In)</strong>、つまり「自分が最初にレイズして参加する手札の範囲」を、
           ポジションごとに決めることです。原則は明快で、<strong>後の席ほど広く、前の席ほど狭く</strong>参加します。
         </p>
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
-          <li><strong className="text-ink-950">UTG(最前列)</strong>: 上位の強いハンドのみ。AA〜TT や AK, AQ などタイトに。</li>
-          <li><strong className="text-ink-950">CO(カットオフ)</strong>: 中位のポケットペアやスーテッドコネクターまで広げる。</li>
-          <li><strong className="text-ink-950">BTN(ボタン)</strong>: 最も広く。多くのブロードウェイやスーテッド、低いペアも参加圏内。</li>
-          <li><strong className="text-ink-950">SB(スモールブラインド)</strong>: 後ろに BB が残るため、レイズかフォールドを軸に構成する。</li>
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
+          <li><strong className="text-fg">UTG(最前列)</strong>: 上位の強いハンドのみ。AA〜TT や AK, AQ などタイトに。</li>
+          <li><strong className="text-fg">CO(カットオフ)</strong>: 中位のポケットペアやスーテッドコネクターまで広げる。</li>
+          <li><strong className="text-fg">BTN(ボタン)</strong>: 最も広く。多くのブロードウェイやスーテッド、低いペアも参加圏内。</li>
+          <li><strong className="text-fg">SB(スモールブラインド)</strong>: 後ろに BB が残るため、レイズかフォールドを軸に構成する。</li>
         </ul>
         <p>
           具体的にどのハンドがどの頻度でレイズされているか(169ハンドクラスのマトリクス)は、
@@ -90,8 +90,8 @@ export default function StrategyPage() {
         <p>
           GEO戦略の実践は、<strong>「プレイする → データで母集団の傾向を確認する → 乖離を突く調整を試す → またプレイする」</strong>という循環です。
           バーチャルチップだからこそ、この試行錯誤を金銭リスクなしに何百ハンドでも繰り返せます。まずは
-          <Link href="/guide" className="font-semibold text-gold-700 underline underline-offset-2">遊び方</Link>で基本を押さえ、
-          <Link href="/" className="font-semibold text-gold-700 underline underline-offset-2">実際のトーナメント</Link>で試し、GEOデータベースで振り返る——
+          <Link href="/guide" className="font-semibold text-accent underline underline-offset-2">遊び方</Link>で基本を押さえ、
+          <Link href="/" className="font-semibold text-accent underline underline-offset-2">実際のトーナメント</Link>で試し、GEOデータベースで振り返る——
           このループがあなたを最短で強くします。
         </p>
       </Section>

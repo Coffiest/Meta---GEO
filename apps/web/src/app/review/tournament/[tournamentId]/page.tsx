@@ -13,23 +13,23 @@ export default function ReviewTournamentPage() {
   const params = useParams();
   const router = useRouter();
   const tournamentId = String(params?.["tournamentId"] ?? "");
-  const { session, loading: authLoading } = useAuth();
+  const { accessToken, loading: authLoading } = useAuth();
 
   // Supabaseのセッション復元中は判定を保留(復元前に「ログインが必要」を誤表示しないため)。
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="h-5 w-5 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <span className="h-5 w-5 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       <AnimatePresence>
         <TournamentReviewModal
           tournamentId={tournamentId}
-          accessToken={session?.access_token}
+          accessToken={accessToken ?? undefined}
           onClose={() => router.back()}
         />
       </AnimatePresence>

@@ -2,13 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { TreeNode } from "@/lib/geoApi";
-import { bucketColor, bucketOrderIndex } from "./colors";
+import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
 
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
  * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
  * (強→弱、左から右。濃い色ほど左)で並べる。ジオメトリックサイズ以上のオプションは
- * 紫系の色で表示される(bucketColorがgeometricRatioを見て判定)。
+ * ティールで表示される(bucketColorがgeometricRatioを見て判定)。
  */
 export function PositionActionRow({
   node,
@@ -24,9 +24,9 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
+        className="rounded-2xl border border-line bg-canvas p-6 text-center"
       >
-        <p className="text-sm text-navy-300">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
+        <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
     );
   }
@@ -36,10 +36,10 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-navy-800 bg-navy-900 p-6 text-center"
+        className="rounded-2xl border border-line bg-canvas p-6 text-center"
       >
-        <p className="text-[11px] tracking-[0.2em] text-navy-400 uppercase mb-1 font-bold">{node.position}</p>
-        <p className="text-sm text-navy-500">サンプルなし</p>
+        <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
+        <p className="text-sm text-fg-3">サンプルなし</p>
       </motion.div>
     );
   }
@@ -52,14 +52,14 @@ export function PositionActionRow({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl border border-ink-950 bg-white p-3"
+      className="rounded-2xl glass-panel p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
-        <p className="text-[11px] tracking-[0.2em] text-ink-800 uppercase font-black">{node.position}</p>
+        <p className="text-[11px] tracking-[0.2em] text-n-10 uppercase font-black">{node.position}</p>
         {node.isGto ? (
-          <p className="text-[10px] text-gold-500 tabular-nums font-black tracking-[0.15em]">GTO</p>
+          <p className="text-[10px] text-accent tabular-nums font-black tracking-[0.15em]">GTO</p>
         ) : (
-          <p className="text-[10px] text-ink-400 tabular-nums">n={node.sampleSize}</p>
+          <p className="text-[10px] text-fg-3 tabular-nums">n={node.sampleSize}</p>
         )}
       </div>
       {/* 横スクロール1行(グリッドの折り返しに頼らない): 強→弱の順で並べているため、
@@ -76,24 +76,28 @@ export function PositionActionRow({
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
               onClick={() => onSelect(opt.bucket)}
-              className="relative overflow-hidden rounded-xl p-2.5 text-left shrink-0 w-[104px]"
-              style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+              className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
+              style={{
+                background: bucketColor(opt.bucket, opt.geometricRatio),
+                // 面が明るいほど白文字が読めなくなるので、文字色は面の明るさから選び直す。
+                color: bucketTextColor(bucketColor(opt.bucket, opt.geometricRatio)),
+              }}
             >
-              <div className="text-[11px] font-bold text-white leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
-              <div className="text-lg font-black text-white tabular-nums leading-tight mt-0.5">
+              <div className="text-[11px] font-bold leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
+              <div className="mt-0.5 text-lg font-black leading-tight tabular-nums">
                 {Math.round(opt.frequency * 100)}%
               </div>
               {node.isGto ? (
                 opt.evBb !== undefined && opt.evBb !== 0 ? (
-                  <div className="text-[9px] text-white/70 tabular-nums">
+                  <div className="text-[9px] tabular-nums opacity-75">
                     EV {opt.evBb >= 0 ? "+" : ""}
                     {opt.evBb.toFixed(2)}bb
                   </div>
                 ) : (
-                  <div className="text-[9px] text-white/40 tabular-nums">&nbsp;</div>
+                  <div className="text-[9px] tabular-nums opacity-40">&nbsp;</div>
                 )
               ) : (
-                <div className="text-[9px] text-white/70 tabular-nums">{opt.count}件</div>
+                <div className="text-[9px] tabular-nums opacity-75">{opt.count}件</div>
               )}
             </motion.button>
           ))}

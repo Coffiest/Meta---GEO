@@ -15,11 +15,11 @@ type Term = { term: string; desc: string };
 function Glossary({ title, terms }: { title: string; terms: Term[] }) {
   return (
     <Section title={title}>
-      <dl className="divide-y divide-ink-200 rounded-2xl bg-ink-50 ring-1 ring-ink-200">
+      <dl className="divide-y divide-line rounded-2xl bg-canvas ring-1 ring-line">
         {terms.map((t) => (
           <div key={t.term} className="px-4 py-3">
-            <dt className="text-[14px] font-extrabold text-ink-950">{t.term}</dt>
-            <dd className="mt-1 text-[13px] leading-relaxed text-ink-600">{t.desc}</dd>
+            <dt className="text-[14px] font-extrabold text-fg">{t.term}</dt>
+            <dd className="mt-1 text-[13px] leading-relaxed text-n-9">{t.desc}</dd>
           </div>
         ))}
       </dl>
@@ -89,10 +89,10 @@ export default function GlossaryPage() {
       <Glossary title="トーナメント" terms={TOURNEY} />
       <Glossary title="統計指標(GEOデータベース)" terms={STATS} />
 
-      <p className="text-[13px] text-ink-500">
+      <p className="text-[13px] text-fg-2">
         用語の使いどころは、実際のプレイで身につきます。基本の流れは
-        <Link href="/guide" className="font-semibold text-gold-700 underline underline-offset-2">遊び方</Link>、
-        戦略の考え方は<Link href="/strategy" className="font-semibold text-gold-700 underline underline-offset-2">GEO戦略</Link>で解説しています。
+        <Link href="/guide" className="font-semibold text-accent underline underline-offset-2">遊び方</Link>、
+        戦略の考え方は<Link href="/strategy" className="font-semibold text-accent underline underline-offset-2">GEO戦略</Link>で解説しています。
       </p>
     </Article>
   );

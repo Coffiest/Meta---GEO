@@ -6,8 +6,8 @@
  * `@/lib/reactBitsNotice` を参照。
  *
  * Poker ART向けの変更点:
- * - 既定の背景(#000)・枠線(#333)・グレア色(白)は、白背景のSwissデザインでは浮くため、
- *   すべて transparent / gold-500 系に変更。既存のカードに重ねて使う前提にしている。
+ * - 既定の背景(#000)・枠線(#333)・グレア色(白)を、アプリのダークテーマ配色に合わせて
+ *   すべて transparent / accent(teal) 系に変更。既存のカードに重ねて使う前提にしている。
  * - prefers-reduced-motion を尊重する(元実装は常にアニメーションする)。
  * - `autoPlay` を追加。元実装は hover 発火のみで、タッチ端末では一生グレアが出ない。
  *   モバイル中心の画面(オンボーディング等)ではマウント時に一度だけ自動再生できるようにした。
@@ -42,7 +42,7 @@ export function GlareHover({
   borderRadius = "16px",
   borderColor = "transparent",
   children,
-  glareColor = "#f2a900",
+  glareColor = "#26c2a3",
   glareOpacity = 0.35,
   glareAngle = -45,
   glareSize = 250,

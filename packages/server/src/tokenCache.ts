@@ -52,19 +52,35 @@ interface CacheEntry {
 }
 
 /**
- * JWTのexp(秒)を検証せずに読み出す。署名の検証は呼び出し先(Supabase)に任せており、
- * ここは「キャッシュを保持してよい上限時刻」を知るためだけに使う。読めなければnull。
+ * JWTのペイロードを「検証せずに」読み出す。署名の検証は呼び出し先(Supabase / Firebase)に
+ * 任せており、ここで読むのは次の2つだけ:
+ *  - exp … キャッシュを保持してよい上限時刻を知るため
+ *  - iss … どちらの発行元のトークンかを振り分けるため
+ * どちらも「信用する」情報ではない(exp は上限を狭める方向にしか使わず、iss は検証先を
+ * 選ぶだけで、選んだ先が改めて署名を検証する)。読めなければ null。
  */
-export function readTokenExpiryMs(token: string): number | null {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1];
     if (!payload) return null;
     const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
-    const exp = (JSON.parse(json) as { exp?: unknown }).exp;
-    return typeof exp === "number" && Number.isFinite(exp) ? exp * 1000 : null;
+    const parsed: unknown = JSON.parse(json);
+    return parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+}
+
+/** JWTのexp(ミリ秒)。読めなければnull。 */
+export function readTokenExpiryMs(token: string): number | null {
+  const exp = decodeJwtPayload(token)?.["exp"];
+  return typeof exp === "number" && Number.isFinite(exp) ? exp * 1000 : null;
+}
+
+/** JWTのiss(発行者)。読めなければnull。どの発行元へ検証しに行くかの振り分けに使う。 */
+export function readTokenIssuer(token: string): string | null {
+  const iss = decodeJwtPayload(token)?.["iss"];
+  return typeof iss === "string" ? iss : null;
 }
 
 /**

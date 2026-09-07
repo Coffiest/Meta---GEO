@@ -9,7 +9,7 @@ import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
-import { bucketColor } from "@/components/geo/colors";
+import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { Footer } from "@/components/Footer";
 
 const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
@@ -25,23 +25,23 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-ink-200 bg-white p-3.5"
+      className="rounded-2xl glass-panel p-3.5"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-ink-500">
+          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-fg-2">
             {STREET_LABEL[d.street] ?? d.street} · {d.heroPos}
           </span>
         </div>
         {d.classification ? (
           <ClassificationBadge classification={d.classification} showLabel size={22} />
         ) : d.outOfScopeReason === "solving" ? (
-          <span className="flex items-center gap-1.5 text-[10px] font-bold text-ink-500">
-            <span className="h-3 w-3 rounded-full border-2 border-ink-500 border-t-transparent animate-spin" />
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-fg-2">
+            <span className="h-3 w-3 rounded-full border-2 border-n-5 border-t-transparent animate-spin" />
             ソルバー解析中…
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-600">
+          <span className="inline-flex items-center gap-1 rounded-md bg-n-2 px-1.5 py-0.5 text-[10px] font-bold text-n-9">
             <Icon name="info" className="h-3 w-3 shrink-0" />
             解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
           </span>
@@ -49,26 +49,26 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
       </div>
 
       <div className="flex items-center gap-2 text-[13px]">
-        <span className="font-black text-ink-950">あなた: {d.actionName}</span>
+        <span className="font-black text-fg">あなた: {d.actionName}</span>
         {d.evLossBb !== null && d.evLossBb > 0.02 && (
-          <span className="text-[11px] font-bold text-crimson-500 tabular-nums">EV −{d.evLossBb.toFixed(2)}bb</span>
+          <span className="text-[11px] font-bold text-crimson-300 tabular-nums">EV −{d.evLossBb.toFixed(2)}bb</span>
         )}
-        <span className="ml-auto text-[10px] text-ink-400 tabular-nums">
+        <span className="ml-auto text-[10px] text-fg-3 tabular-nums">
           {d.effStackBb.toFixed(0)}bb · pot {d.potBb.toFixed(1)}bb
         </span>
       </div>
 
       {d.gtoActions && d.gtoActions.length > 0 && (
         <div className="mt-2.5">
-          <p className="text-[10px] font-bold text-ink-500 mb-1">GTO推奨</p>
+          <p className="text-[10px] font-bold text-fg-2 mb-1">GTO推奨</p>
           <div className="flex gap-1.5 flex-wrap">
             {d.gtoActions
               .filter((a) => a.frequency > 0)
               .map((a) => (
                 <div
                   key={a.bucket}
-                  className="rounded-lg px-2 py-1 text-white"
-                  style={{ background: bucketColor(a.bucket) }}
+                  className="rounded-lg px-2 py-1"
+                  style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}
                 >
                   <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
                   <span className="text-[11px] font-black tabular-nums ml-1">{Math.round(a.frequency * 100)}%</span>
@@ -92,8 +92,8 @@ export default function ReviewHandPage() {
   const params = useParams();
   const router = useRouter();
   const handId = String(params?.["handId"] ?? "");
-  const { session, loading: authLoading } = useAuth();
-  const accessToken = session?.access_token;
+  const { accessToken: accessTokenFromAuth, loading: authLoading } = useAuth();
+  const accessToken = accessTokenFromAuth ?? undefined;
 
   const [data, setData] = useState<HandReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,35 +145,35 @@ export default function ReviewHandPage() {
   const heroSeat = timeline?.seats.find((s) => s.userId === review?.heroUserId);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       <div className="max-w-3xl mx-auto px-4 pt-5 pb-28">
-        <button onClick={() => router.back()} className="text-[12px] font-bold text-ink-500 mb-3">
+        <button onClick={() => router.back()} className="pressable text-[12px] font-bold text-fg-2 mb-3">
           ← 戻る
         </button>
         <div className="flex items-center gap-2 mb-4">
-          <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-950">局後検討</p>
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-fg">局後検討</p>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-sm text-ink-500">
-            <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+          <div className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-canvas p-8 text-sm text-fg-2">
+            <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
             解析中…
           </div>
         ) : error ? (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3">
-            <p className="text-sm text-crimson-500">{error}</p>
+            <p className="text-sm text-crimson-300">{error}</p>
             <ReportErrorButton scope="review:hand" message={error} className="mt-2" />
           </div>
         ) : review && timeline ? (
           <>
             {/* サマリー(確定仕様: ハンド単位のGTO精度%と芸術的カウントは表示しない) */}
-            <div className="rounded-2xl border border-ink-950 bg-white p-4 mb-4">
+            <div className="rounded-2xl glass-panel p-4 mb-4">
               <div className="flex items-center justify-between">
-                <p className="text-[13px] font-black text-ink-950">Hand #{timeline.handNumber}</p>
+                <p className="text-[13px] font-black text-fg">Hand #{timeline.handNumber}</p>
                 {review.mistakeCount > 0 && (
-                  <p className="text-[11px] font-bold text-ink-600">
-                    ミス <span className="text-crimson-500 tabular-nums">{review.mistakeCount}</span>
+                  <p className="text-[11px] font-bold text-n-9">
+                    ミス <span className="text-crimson-300 tabular-nums">{review.mistakeCount}</span>
                   </p>
                 )}
               </div>
@@ -189,7 +189,7 @@ export default function ReviewHandPage() {
                   </div>
                 )}
                 {timeline.board.length > 0 && (
-                  <div className="flex gap-1 border-l border-ink-200 pl-3">
+                  <div className="flex gap-1 border-l border-line pl-3">
                     {timeline.board.map((c, i) => (
                       <div key={i} className="w-10">
                         <PlayingCard card={c} size="sm" />
@@ -206,11 +206,11 @@ export default function ReviewHandPage() {
                 <DecisionCard key={d.sequenceNumber} d={d} />
               ))}
               {review.decisions.length === 0 && (
-                <p className="text-sm text-ink-400 text-center py-8">このハンドにあなたの意思決定はありません。</p>
+                <p className="text-sm text-fg-3 text-center py-8">このハンドにあなたの意思決定はありません。</p>
               )}
             </div>
 
-            <p className="text-[10px] text-ink-400 mt-4 leading-relaxed">
+            <p className="text-[10px] text-fg-3 mt-4 leading-relaxed">
               v1のGTO基準はプリフロップのRFI(最初の開き)のみ対応。フェイスやポストフロップHUはソルバー実装後に解析対象になります。
               芸術的(エクスプロイト検出)は母集団データ蓄積後に解禁予定。
             </p>

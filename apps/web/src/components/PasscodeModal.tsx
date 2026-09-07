@@ -2,15 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { Icon } from "./Icon";
-import { Button } from "./ui/Button";
-
-/**
- * テンキーは3列グリッドのセルいっぱいに広がるため、Buttonの標準サイズ(左右padding付き)を
- * 使わず size="none" にして寸法をここで決める。数字は大きく、補助操作は小さく。
- */
-const KEYPAD_KEY = "w-full py-3 text-[20px] active:scale-90";
-const KEYPAD_LABEL = "w-full py-3 text-[12px] active:scale-90";
 
 /**
  * 4桁パスコード入力モーダル(GEO近日公開画面の隠しゲートと同じ意匠)。
@@ -57,18 +50,18 @@ export function PasscodeModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-8"
     >
       <motion.div
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 360, damping: 26 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[300px] rounded-[26px] border border-ink-950 bg-white p-6"
+        className="w-full max-w-[300px] glass-panel rounded-sheet p-6 shadow-e4"
       >
-        <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-ink-400">Access code</p>
-        <p className="mt-1 text-center text-[15px] font-black tracking-tight text-ink-950">{title}</p>
+        <p className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-fg-3">Access code</p>
+        <p className="mt-1 text-center text-[15px] font-black tracking-tight text-fg">{title}</p>
 
         <motion.div
           animate={wrong ? { x: [0, -10, 10, -8, 8, 0] } : { x: 0 }}
@@ -79,7 +72,7 @@ export function PasscodeModal({
             <span
               key={i}
               className={`h-3.5 w-3.5 rounded-full border ${
-                wrong ? "border-crimson-500 bg-crimson-500" : code.length > i ? "border-ink-950 bg-ink-950" : "border-ink-400 bg-transparent"
+                wrong ? "border-crimson-500 bg-crimson-500" : code.length > i ? "border-line-strong bg-n-4" : "border-line bg-transparent"
               }`}
             />
           ))}
@@ -87,25 +80,33 @@ export function PasscodeModal({
 
         <div className="mt-6 grid grid-cols-3 gap-2.5">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-            <Button key={d} onClick={() => pushDigit(d)} variant="secondary" size="none" className={KEYPAD_KEY}>
+            <button
+              key={d}
+              onClick={() => pushDigit(d)}
+              className="pressable cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg"
+            >
               {d}
-            </Button>
+            </button>
           ))}
-          <Button onClick={onClose} variant="ghost" size="none" className={KEYPAD_LABEL}>
+          <button
+            onClick={onClose}
+            className="pressable cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-fg-2"
+          >
             閉じる
-          </Button>
-          <Button onClick={() => pushDigit("0")} variant="secondary" size="none" className={KEYPAD_KEY}>
+          </button>
+          <button
+            onClick={() => pushDigit("0")}
+            className="pressable cursor-pointer rounded-2xl glass-panel py-3 text-[20px] font-black text-fg"
+          >
             0
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={() => setCode((c) => c.slice(0, -1))}
             aria-label="1文字削除"
-            variant="ghost"
-            size="none"
-            className={KEYPAD_LABEL}
+            className="pressable flex cursor-pointer items-center justify-center rounded-2xl py-3 text-fg-2"
           >
             <Icon name="backspace" className="h-5 w-5" />
-          </Button>
+          </button>
         </div>
       </motion.div>
     </motion.div>

@@ -1,24 +1,29 @@
 import { PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
 
 /**
- * アクションカラー。紫はAllinだけの特別色として予約し、ベット/レイズはサイズが大きくなるほど
- * オレンジ → 赤 → 濃い赤 → 血のような暗赤 と、赤系のまま深くなる:
- *   Fold=ブルー / Call・Check=グリーン /
- *   Small=オレンジ → Medium=レッド → Large=ダークレッド → Overbet=ブラッドレッド、
- *   Allin=ディープパープル(紫はここのみ)。
+ * アクションカラー。GTO Wizard と同じロジックで、**色相がアクション、濃淡がサイズ**を表す:
+ *   Fold=ブルー / Call・Check=グリーン / ベット・レイズ=レッド(サイズが上がるほど強い) /
+ *   Allin=パープル(紫はAllin専用で、他のどこにも使わない)。
+ *
+ * ダーク地への翻訳について。GTO Wizard は白地なので、サイズが上がるほど色を**暗く**して
+ * 背景とのコントラストを上げている。同じ「サイズが上がるほど背景から強く立ち上がる」関係を
+ * 暗い地の上で保つには、暗くするのではなく**明るく・熱く**する必要がある。
+ * 順序(単調性)と色相の意味はそのままに、進む向きだけを地に合わせて反転させてある。
+ * 旧配色は暗いままだったため、Overbet が 1.24:1、Allin が 1.55:1 と実質見えていなかった。
+ * 現在は全段が地に対して 3:1 以上ある(下のコメントの数値は #1C1C1E に対する実測値)。
  */
-const FOLD_COLOR = "#4C86C6"; // ブルー(Fold)
-const CALL_COLOR = "#57A64A"; // グリーン(Call/Check)
-const ALLIN_COLOR = "#4A1D96"; // ディープパープル(Allin専用。他では紫を使わない)
-/** ジオメトリックサイズの強調色。紫はAllin専用のため、深いティールで区別する。 */
-const GEOMETRIC_COLOR = "#0F766E";
+const FOLD_COLOR = "#5B9BD5"; // ブルー(Fold) 5.75:1
+const CALL_COLOR = "#6FBF5B"; // グリーン(Call/Check) 7.52:1
+const ALLIN_COLOR = "#A98BF5"; // パープル(Allin専用) 6.24:1
+/** ジオメトリックサイズの強調色。紫はAllin専用のため、明るいティールで区別する。 */
+const GEOMETRIC_COLOR = "#2FD3AE"; // 8.95:1
 
-// サイズ帯の色(小→大で赤が深くなる)。
-const SMALL_ORANGE = "#E8823C";
-const RAISE_RED = "#E15361";
-const MEDIUM_RED = "#C62F3B";
-const LARGE_DARK_RED = "#8E1B1B";
-const OVERBET_BLOOD_RED = "#5E0B0B";
+// サイズ帯の色(小→大で赤が強くなる)。3.87 → 8.17:1 と単調に上がる。
+const SMALL_ORANGE = "#BC5C4F"; // 3.87:1
+const RAISE_RED = "#D46752"; // 4.75:1
+const MEDIUM_RED = "#E86A50"; // 5.35:1
+const LARGE_DARK_RED = "#F4805A"; // 6.55:1
+const OVERBET_BLOOD_RED = "#FF9A6B"; // 8.17:1
 
 export const PREFLOP_BUCKET_COLOR: Record<PreflopBucket, string> = {
   fold: FOLD_COLOR,
@@ -65,4 +70,20 @@ export function bucketOrderIndex(bucket: string): number {
   const postflopIndex = (POSTFLOP_BUCKETS as string[]).indexOf(bucket);
   if (postflopIndex !== -1) return postflopIndex;
   return 999;
+}
+
+/**
+ * 塗りつぶしたセルの上に置く文字色。
+ *
+ * 明るいセル(Overbet 8.17:1、ジオメトリック 8.95:1 など)の上では白文字が 2.0〜2.3:1 まで
+ * 落ちて読めなくなる。地に対するコントラストを稼ぐほど、その上の白文字は読めなくなるという
+ * 相反があるので、セルの明るさから文字色の側を選び直す。閾値 0.35 は、この配色の全段で
+ * 4.3:1 以上になる点を実測で選んだ。
+ */
+export function bucketTextColor(hex: string): string {
+  const c = [1, 3, 5]
+    .map((i) => parseInt(hex.substr(i, 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const luminance = 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+  return luminance > 0.35 ? "#101012" : "#FFFFFF";
 }

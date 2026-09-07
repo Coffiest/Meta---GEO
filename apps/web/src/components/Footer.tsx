@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { SPRING_MOVE } from "@/lib/motion";
 import { Icon, type IconName } from "./Icon";
 
 export interface FooterNavItem {
@@ -11,58 +13,40 @@ export interface FooterNavItem {
   onClick?: () => void;
 }
 
-const FOOTER_TONE = {
-  light: {
-    bar: "footer-glass-light border-ink-300/60",
-    active: "text-ink-950",
-    activePill: "bg-ink-950/[0.06]",
-    inactive: "text-ink-500",
-    dbRing: "ring-white",
-  },
-  dark: {
-    bar: "border-navy-800 bg-navy-950/95 backdrop-blur",
-    active: "text-gold-400",
-    activePill: "bg-gold-500/10",
-    inactive: "text-navy-500",
-    dbRing: "ring-navy-950",
-  },
-} as const;
-
 /**
- * アプリ全体で共有するフッターナビ。中央にGEOデータベースへの丸ボタンを浮かせる5マス構成
- * (アイコン4つ+中央DBボタン)を、Lobbyのタブ切り替えとGEO DATABASE画面のページ遷移の
- * 両方で使い回す。カラーはink/gold(light)・navy/gold(dark、GEO DATABASE画面用)の
- * どちらでも、アクティブ色は常にgoldに統一する。
+ * アプリ全体で共有するタブバー。
+ *
+ * 画面幅いっぱいの不透明な帯ではなく、下端から浮いた1枚のリキッドグラスとして作る。
+ * コンテンツはこのバーの下を流れ続けるので、画面の下端が帯に食われない。
+ *
+ * 現在地は色ではなく「光の当たっている面」で示す。インジケータは layoutId で
+ * 項目から項目へスプリングで滑るため、どこからどこへ移ったかが動きとして読める
+ * (点いて消えるだけだと、移動した先を目で追えない)。
  */
 export function Footer({
   items,
   activeKey,
-  tone = "light",
   centerHref,
   centerActive = false,
 }: {
   /** 中央のDBボタンを除いた4項目、表示順。 */
   items: [FooterNavItem, FooterNavItem, FooterNavItem, FooterNavItem];
   activeKey: string | null;
-  tone?: "light" | "dark";
   /** 中央のGEO DATABASEボタンの遷移先。省略時はボタンを非活性(現在地)表示にする。 */
   centerHref?: string;
   /** 中央ボタンが現在地(GEO DATABASE画面を開いている)かどうか。 */
   centerActive?: boolean;
 }) {
-  const c = FOOTER_TONE[tone];
+  const slots: (FooterNavItem | null)[] = [items[0], items[1], null, items[2], items[3]];
 
   return (
-    <nav className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)] ${c.bar}`}>
-      <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-        {[items[0], items[1], null, items[2], items[3]].map((item, i) =>
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),12px)]">
+      <div className="glass-bar pointer-events-auto flex w-full max-w-md items-center justify-between rounded-full px-2 py-1.5">
+        {slots.map((item, i) =>
           item ? (
-            <FooterButton key={item.key} item={item} active={activeKey === item.key} tone={tone} />
+            <TabButton key={item.key} item={item} active={activeKey === item.key} />
           ) : (
-            <div key="db" className="relative flex justify-center">
-              <CenterButton href={centerHref} active={centerActive} ringClass={c.dbRing} />
-              <div className="h-[54px]" />
-            </div>
+            <CenterButton key="db" href={centerHref} active={centerActive} />
           ),
         )}
       </div>
@@ -70,42 +54,65 @@ export function Footer({
   );
 }
 
-function FooterButton({ item, active, tone }: { item: FooterNavItem; active: boolean; tone: "light" | "dark" }) {
-  const c = FOOTER_TONE[tone];
+/** インジケータの共有ID。全項目で同じにすることで、選択が項目間を滑って移動する。 */
+const INDICATOR_ID = "tabbar-indicator";
+
+function TabButton({ item, active }: { item: FooterNavItem; active: boolean }) {
   const content = (
     <>
-      <div className={`relative h-8 w-8 rounded-full flex items-center justify-center transition-colors ${active ? c.activePill : ""}`}>
-        <Icon name={item.icon} className="h-5 w-5" />
-        {active && <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-current" />}
-      </div>
-      <span className="text-[11px] font-semibold leading-none">{item.label}</span>
+      {active && (
+        <motion.span
+          layoutId={INDICATOR_ID}
+          transition={SPRING_MOVE}
+          className="glass-indicator absolute inset-0 rounded-full"
+          aria-hidden
+        />
+      )}
+      <span className="relative flex flex-col items-center gap-0.5">
+        <Icon name={item.icon} className="h-[22px] w-[22px]" />
+        <span className="text-[9px] font-semibold leading-none">{item.label}</span>
+      </span>
     </>
   );
-  const className = `flex min-h-[52px] flex-col items-center justify-center gap-1 py-2 transition-colors ${active ? c.active : c.inactive}`;
+  const className = `pressable relative flex h-[52px] flex-1 items-center justify-center rounded-full ${
+    active ? "text-fg" : "text-fg-3"
+  }`;
   if (item.href) {
     return (
-      <Link href={item.href} className={className}>
+      <Link href={item.href} className={className} aria-current={active ? "page" : undefined}>
         {content}
       </Link>
     );
   }
   return (
-    <button onClick={item.onClick} className={className}>
+    <button onClick={item.onClick} className={className} aria-current={active ? "page" : undefined}>
       {content}
     </button>
   );
 }
 
-function CenterButton({ href, active, ringClass }: { href?: string; active: boolean; ringClass: string }) {
-  const className = `absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-ink-800 via-ink-950 to-black ring-4 ${ringClass} shadow-panel flex flex-col items-center justify-center text-white transition-transform ${
-    active ? "scale-105" : "active:scale-95"
-  }`;
+/**
+ * GEO DATABASE への導線。バーから飛び出させず、他の項目と同じ列に置いたうえで、
+ * 中身だけをアクセント面にして「ここだけ特別」を伝える(浮かせると、ガラス1枚という
+ * 面の説明が崩れてしまう)。
+ */
+function CenterButton({ href, active }: { href?: string; active: boolean }) {
   const content = (
     <>
-      <Icon name="db" className="h-[22px] w-[22px]" />
-      <span className="text-[9px] font-bold tracking-wide mt-[1px]">DATABASE</span>
+      {active && (
+        <motion.span
+          layoutId={INDICATOR_ID}
+          transition={SPRING_MOVE}
+          className="glass-indicator absolute inset-0 rounded-full"
+          aria-hidden
+        />
+      )}
+      <span className="relative grid h-9 w-9 place-items-center rounded-full bg-gradient-to-b from-accent-hi to-accent-lo text-on-accent shadow-glow-sm">
+        <Icon name="db" className="h-5 w-5" />
+      </span>
     </>
   );
+  const className = "pressable relative flex h-[52px] flex-1 items-center justify-center rounded-full";
   if (!href || active) {
     return (
       <div className={className} aria-current={active ? "page" : undefined}>

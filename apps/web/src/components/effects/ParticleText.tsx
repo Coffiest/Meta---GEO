@@ -6,8 +6,9 @@
  * `@/lib/reactBitsNotice` を参照。アプリへの組み込み利用として許可された範囲内で使用する。
  *
  * Poker ART向けの変更点:
- * - 既定色を白文字+紫ハイライト(#8b5cf6)から、ink-950(黒)+gold-500(#f2a900)へ変更。
- *   元の配色は白背景のSwissデザインでは文字が消えてしまうため。
+ * - 既定色を白文字+紫ハイライト(#8b5cf6)から、fg(#f5f5f7 明るい前景)+accent(#26c2a3 teal)へ
+ *   変更。アプリはダークテーマ(canvas #1c1c1e)なので、白文字自体は問題ないが、
+ *   ハイライトだけはブランドのteal系アクセントに揃える。
  * - `min-h-[240px]` 固定を撤廃(呼び出し側が高さを完全に決められるようにする)。
  *   Tailwindはユーティリティクラスの勝敗をclass属性の並び順ではなく生成CSSの順で決めるため、
  *   呼び出し側から className で高さを上書きしようとしても効くかどうかを保証できない
@@ -113,8 +114,8 @@ export function ParticleText({
   text = "Poker ART",
   particleSize = 2,
   density = 4,
-  color = "#0a0a0a",
-  highlightColor = "#f2a900",
+  color = "#f5f5f7",
+  highlightColor = "#26c2a3",
   scatter = 180,
   gatherDuration = 1600,
   stagger = 420,

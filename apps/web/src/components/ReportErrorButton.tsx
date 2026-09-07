@@ -29,8 +29,6 @@ export interface ReportErrorButtonProps {
   context?: Record<string, unknown>;
   /** ログイン中なら添える(報告者の紐付け用)。未ログインでも報告はできる。 */
   accessToken?: string | undefined;
-  /** 暗い背景(GEO/レビュー画面)向けの配色に切り替える。 */
-  tone?: "light" | "dark";
   className?: string;
 }
 
@@ -58,7 +56,6 @@ export function ReportErrorButton({
   detail,
   context,
   accessToken,
-  tone = "light",
   className = "",
 }: ReportErrorButtonProps) {
   const [state, setState] = useState<SendState>("idle");
@@ -125,16 +122,13 @@ export function ReportErrorButton({
     void navigator.clipboard?.writeText(text);
   }, [context, detail, message, scope]);
 
-  const dark = tone === "dark";
-  const base = "rounded-full px-3.5 py-1.5 text-[11px] font-bold transition-colors active:translate-y-px";
-  const idleClass = dark
-    ? `${base} border border-navy-600 bg-navy-800 text-navy-100`
-    : `${base} border border-ink-950 bg-ink-950 text-white`;
-  const quietClass = dark ? `${base} border border-navy-700 text-navy-300` : `${base} border border-ink-300 text-ink-700`;
+  const base = "pressable rounded-full px-3.5 py-1.5 text-[11px] font-bold";
+  const idleClass = `${base} glass-panel-2 text-fg`;
+  const quietClass = `${base} border border-line text-fg-2`;
 
   if (state === "sent") {
     return (
-      <p className={`text-[11px] font-bold ${dark ? "text-mint-300" : "text-mint-600"} ${className}`}>
+      <p className={`text-[11px] font-bold text-mint-300 ${className}`}>
         報告しました。ありがとうございます。
       </p>
     );
@@ -150,7 +144,7 @@ export function ReportErrorButton({
           <button type="button" onClick={copyInstead} className={quietClass}>
             内容をコピー
           </button>
-          <span className={`text-[10px] ${dark ? "text-navy-400" : "text-ink-600"}`}>
+          <span className={`text-[10px] text-fg-3`}>
             送信できませんでした（{failReason ?? "原因不明"}）
           </span>
         </>

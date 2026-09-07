@@ -73,8 +73,9 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Poker ART",
-    // 白テーマに合わせ、ステータスバーは黒文字が読める明るい既定スタイルにする。
-    statusBarStyle: "default",
+    // ダークテーマなので、ステータスバーは白文字が読める黒半透明にする。
+    // black-translucent にすると内容がステータスバーの下まで回り込み、背景色が上端まで繋がる。
+    statusBarStyle: "black-translucent",
   },
   // Android(Chrome)版の「ホーム画面に追加」でもアドレスバー無しのスタンドアロン表示にする
   // 明示的なヒント。manifest.ts の display:standalone が主だが、一部Chromeはこのmetaも見る。
@@ -113,7 +114,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  // ブラウザのUI(Androidのアドレスバー等)をアプリの背景色に一致させ、画面の境目を消す。
+  themeColor: "#1C1C1E",
 };
 
 // 検索エンジンにブランド(Poker ART=ポーカーアート=POKERART)を「同一の実体」として
@@ -185,7 +187,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           html 側の指定を上書きしてしまい和文がWebフォントに到達しなくなる。
           ここでは何も指定せず、html の font-family
           (var(--font-mono) → 'JetBrains Mono' → 'M PLUS 1 Code')をそのまま継承させる。 */}
-      <body className="min-h-screen bg-ink-50 text-ink-950 antialiased">
+      <body className="min-h-screen bg-canvas text-fg antialiased">
+        {/* 環境光。個々の部品ではなく空間そのものを発光させることで、テーマの「アート」を
+            全画面に一度に効かせる。操作には干渉しない(pointer-events: none)。 */}
+        <div className="aura" aria-hidden="true" />
         {/* クローラー向けのブランド見出し。アプリ本体はクライアント描画でサーバーHTMLに本文が
             乗らないため、ブランド名(カナ・英字・大文字)と概要をサーバー描画のテキストとして必ず含める。
             視覚的には隠す(sr-only)がDOMには存在し、実体を正確に説明する正当なテキスト。 */}

@@ -6,11 +6,12 @@
  * `@/lib/reactBitsNotice` を参照。
  *
  * Poker ART向けの変更点:
- * - 既定のダークテーマ(bg-neutral-900 border-neutral-800)を、白背景のSwissデザインに合わせて
- *   白地+ink枠に変更。className側からの上書きに頼らず、この移植元でデフォルト自体を直す
- *   (Tailwindはユーティリティクラスの勝敗を並び順ではなく生成CSS順で決めるため、後から
- *   className で色を上書きできる保証が無い。詳細は components/ui/Button.tsx 参照)。
- * - 既定のスポットライト色を白(ダーク背景前提)からgold-500の淡い光に変更。
+ * - 既定のダークテーマ(bg-neutral-900 border-neutral-800)を、アプリのダークテーマ配色
+ *   (surface/#2C2C2E, line/#3A3A3C)に合わせて変更。className側からの上書きに頼らず、
+ *   この移植元でデフォルト自体を直す(Tailwindはユーティリティクラスの勝敗を並び順ではなく
+ *   生成CSS順で決めるため、後から className で色を上書きできる保証が無い。詳細は
+ *   components/ui/Button.tsx 参照)。
+ * - 既定のスポットライト色を白からアクセント(teal, #26C2A3)の淡い光に変更。
  */
 import { useRef, useState } from "react";
 import type { MouseEventHandler, PropsWithChildren } from "react";
@@ -28,7 +29,7 @@ interface SpotlightCardProps extends PropsWithChildren {
 export function SpotlightCard({
   children,
   className = "",
-  spotlightColor = "rgba(242, 169, 0, 0.16)",
+  spotlightColor = "rgba(38, 194, 163, 0.20)",
 }: SpotlightCardProps) {
   const divRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -63,7 +64,7 @@ export function SpotlightCard({
       onBlur={handleBlur}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative overflow-hidden rounded-2xl border border-ink-200 bg-white ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-line bg-surface ${className}`}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 ease-in-out"

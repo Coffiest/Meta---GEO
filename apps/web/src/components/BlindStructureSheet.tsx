@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import { BLIND_STRUCTURE } from "@meta-geo/engine/src/blindStructure.js";
 import type { LevelInfo, TournamentInfo } from "@/lib/socket";
 
@@ -27,7 +28,7 @@ function useClock(endsAt: number | null): string {
  * トーナメントクロック画面。プレイ画面左上のタイマーボタンから開く。
  * 大きなカウントダウン + BLIND/ANTE + PLAYERS(残り/総数) + AVERAGE を表示し、
  * プライズ(ペイアウト)とブラインド表はタップで開閉する。RRPokerのクロック画面を参考にした
- * 白地・黒枠線のSwissデザイン。
+ * ダークテーマのカード意匠。
  */
 export function BlindStructureSheet({
   currentLevel,
@@ -57,46 +58,46 @@ export function BlindStructureSheet({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70"
     >
       <motion.div
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-t-2xl border border-ink-950 bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+        className="w-full max-w-md max-h-[88vh] overflow-y-auto glass-sheet rounded-t-sheet p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
       >
         {/* ヘッダー: タイトル + LEVEL + 閉じる */}
         <div className="mb-3 flex items-start justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-black tracking-tight text-ink-950">{gameLabel ?? "トーナメント"}</h2>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-gold-600">LEVEL {lv}</p>
+            <h2 className="text-lg font-black tracking-tight text-fg">{gameLabel ?? "トーナメント"}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-accent">LEVEL {lv}</p>
           </div>
-          <button onClick={onClose} className="shrink-0 text-[12px] font-semibold text-ink-500">
+          <button onClick={onClose} className="pressable shrink-0 text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
 
         {/* 大きなカウントダウン */}
         <div className="text-center">
-          <span className="block font-black tabular-nums leading-none text-gold-600" style={{ fontSize: "clamp(64px, 22vw, 104px)" }}>
+          <span className="block font-black tabular-nums leading-none text-accent" style={{ fontSize: "clamp(64px, 22vw, 104px)" }}>
             {clock}
           </span>
         </div>
-        <div className="my-4 h-px bg-ink-200" />
+        <div className="my-4 h-px bg-n-4" />
 
         {/* BLIND / ANTE */}
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">Blind</p>
-            <p className="text-[26px] font-black tabular-nums leading-none text-ink-950">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Blind</p>
+            <p className="text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-fg">
               {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
             </p>
           </div>
-          <div className="border-l border-ink-200 pl-4 text-right">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">ANTE</p>
-            <p className="text-[26px] font-black tabular-nums leading-none text-ink-950">
+          <div className="border-l border-line pl-4 text-right">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">ANTE</p>
+            <p className="text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-fg">
               {level && level.bbAnte > 0 ? level.bbAnte.toLocaleString() : "—"}
             </p>
           </div>
@@ -105,34 +106,34 @@ export function BlindStructureSheet({
         {/* レジクローズまでのカウントダウン(MTT・RC前のみ)。RC後/FTのステータスも出す。 */}
         {regClose && !tournamentInfo?.registrationClosed ? (
           <div className="mt-4 flex items-center gap-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400 leading-tight">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3 leading-tight">
               Reg
               <br />
               締切
             </p>
-            <p className="text-[18px] font-black tabular-nums text-crimson-500">{regCloseClock}</p>
+            <p className="text-[18px] font-black tabular-nums text-crimson-300">{regCloseClock}</p>
           </div>
         ) : tournamentInfo?.isFinalTable ? (
           <div className="mt-4">
-            <span className="rounded-full bg-gold-500 px-3 py-1 text-[11px] font-black tracking-widest text-ink-950">FINAL TABLE</span>
+            <span className="rounded-full bg-accent px-3 py-1 text-[11px] font-black tracking-widest text-on-accent">FINAL TABLE</span>
           </div>
         ) : tournamentInfo?.registrationClosed ? (
           <div className="mt-4">
-            <span className="text-[12px] font-bold text-ink-400">レジストレーション終了</span>
+            <span className="text-[12px] font-bold text-fg-3">レジストレーション終了</span>
           </div>
         ) : null}
 
         {/* PLAYERS / AVERAGE */}
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-ink-950 px-3 py-2.5 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400">Players</p>
-            <p className="text-[22px] font-black tabular-nums leading-tight text-ink-950">
+          <div className="rounded-xl border border-line-strong px-3 py-2.5 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">Players</p>
+            <p className="text-[22px] font-black tabular-nums leading-tight text-fg">
               {tournamentInfo ? `${tournamentInfo.remaining} / ${tournamentInfo.total}` : "—"}
             </p>
           </div>
-          <div className="rounded-xl border border-ink-950 px-3 py-2.5 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400">Average</p>
-            <p className="text-[22px] font-black tabular-nums leading-tight text-ink-950">
+          <div className="rounded-xl border border-line-strong px-3 py-2.5 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">Average</p>
+            <p className="text-[22px] font-black tabular-nums leading-tight text-fg">
               {tournamentInfo ? tournamentInfo.averageStack.toLocaleString() : "—"}
             </p>
           </div>
@@ -142,24 +143,24 @@ export function BlindStructureSheet({
         <div className="mt-4 flex gap-2">
           <button
             onClick={() => setView((v) => (v === "ranking" ? "clock" : "ranking"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "ranking" ? "border-ink-950 bg-ink-950 text-white" : "border-ink-950 bg-white text-ink-950"
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+              view === "ranking" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
             順位
           </button>
           <button
             onClick={() => setView((v) => (v === "prize" ? "clock" : "prize"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "prize" ? "border-ink-950 bg-ink-950 text-white" : "border-ink-950 bg-white text-ink-950"
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+              view === "prize" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
             プライズ
           </button>
           <button
             onClick={() => setView((v) => (v === "structure" ? "clock" : "structure"))}
-            className={`flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "structure" ? "border-ink-950 bg-ink-950 text-white" : "border-ink-950 bg-white text-ink-950"
+            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
+              view === "structure" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
             }`}
           >
             ブラインド表
@@ -176,26 +177,26 @@ export function BlindStructureSheet({
               className="overflow-hidden"
             >
               <div className="mt-4">
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">Live Ranking(BB順)</p>
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">Live Ranking(BB順)</p>
                 {/* 全プレイヤーを同一の見た目で並べる。行の装飾で相手の種別が推測できてはいけない。 */}
                 {standings.length > 0 ? (
                   <ul className="space-y-1">
                     {standings.map((s) => (
                       <li
                         key={s.userId}
-                        className="flex items-center gap-2 rounded-xl border border-ink-950 px-3 py-1.5"
+                        className="flex items-center gap-2 rounded-xl border border-line-strong px-3 py-1.5"
                       >
-                        <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-gold-700">{s.rank}</span>
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink-950">{s.displayName}</span>
-                        <span className="shrink-0 text-[13px] font-black tabular-nums text-ink-950">
+                        <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-accent">{s.rank}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-fg">{s.displayName}</span>
+                        <span className="shrink-0 text-[13px] font-black tabular-nums text-fg">
                           {s.bbStack.toLocaleString()}
-                          <span className="text-[9px] text-ink-400">BB</span>
+                          <span className="text-[9px] text-fg-3">BB</span>
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="py-4 text-center text-sm text-ink-400">順位情報がありません。</p>
+                  <p className="py-4 text-center text-sm text-fg-3">順位情報がありません。</p>
                 )}
               </div>
             </motion.div>
@@ -210,27 +211,27 @@ export function BlindStructureSheet({
               className="overflow-hidden"
             >
               <div className="mt-4">
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">Prize Pool</p>
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">Prize Pool</p>
                 {/* RC後は「何位いくら」、RC前はプライズプール総額のみ(何位いくらは非公開)。 */}
                 {tournamentInfo?.registrationClosed && tournamentInfo.prizePool.length > 0 ? (
                   <ul className="space-y-1.5">
                     {tournamentInfo.prizePool.map((p) => (
-                      <li key={p.place} className="flex items-center justify-between rounded-xl border border-ink-200 px-3 py-2">
-                        <span className="text-[13px] font-black text-ink-950">{p.place}位</span>
-                        <span className="text-[14px] font-black tabular-nums text-gold-700">{p.amount.toLocaleString()}</span>
+                      <li key={p.place} className="flex items-center justify-between rounded-xl border border-line px-3 py-2">
+                        <span className="text-[13px] font-black text-fg">{p.place}位</span>
+                        <span className="text-[14px] font-black tabular-nums text-accent">{p.amount.toLocaleString()}</span>
                       </li>
                     ))}
                   </ul>
                 ) : tournamentInfo?.prizePoolTotal ? (
-                  <div className="rounded-2xl border border-ink-950 px-4 py-5 text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-400">総額</p>
-                    <p className="mt-1 text-[34px] font-black tabular-nums leading-none text-gold-600">
+                  <div className="rounded-2xl border border-line-strong px-4 py-5 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">総額</p>
+                    <p className="mt-1 text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none text-accent">
                       {tournamentInfo.prizePoolTotal.toLocaleString()}
                     </p>
-                    <p className="mt-2 text-[11px] text-ink-400">レジクローズ時に順位別ペイアウトが確定します。</p>
+                    <p className="mt-2 text-[11px] text-fg-3">レジクローズ時に順位別ペイアウトが確定します。</p>
                   </div>
                 ) : (
-                  <p className="py-4 text-center text-sm text-ink-400">プライズ情報がありません。</p>
+                  <p className="py-4 text-center text-sm text-fg-3">プライズ情報がありません。</p>
                 )}
               </div>
             </motion.div>
@@ -247,7 +248,7 @@ export function BlindStructureSheet({
               <div className="mt-4">
                 <table className="w-full text-xs tabular-nums">
                   <thead>
-                    <tr className="text-ink-400 text-[10px]">
+                    <tr className="text-fg-3 text-[10px]">
                       <th className="text-left py-1.5 font-bold">Lv</th>
                       <th className="text-right py-1.5 font-bold">SB</th>
                       <th className="text-right py-1.5 font-bold">BB</th>
@@ -258,7 +259,7 @@ export function BlindStructureSheet({
                     {BLIND_STRUCTURE.map((row) => (
                       <tr
                         key={row.level}
-                        className={`border-t border-ink-100 ${row.level === lv ? "text-gold-700 font-black" : "text-ink-700"}`}
+                        className={`border-t border-n-3 ${row.level === lv ? "text-accent font-black" : "text-n-9"}`}
                       >
                         <td className="py-1.5">{row.level === lv ? `▶ ${row.level}` : row.level}</td>
                         <td className="text-right py-1.5">{row.smallBlind.toLocaleString()}</td>
@@ -268,7 +269,7 @@ export function BlindStructureSheet({
                     ))}
                   </tbody>
                 </table>
-                <p className="mt-3 text-[11px] text-ink-400">
+                <p className="mt-3 text-[11px] text-fg-3">
                   最終レベル以降は優勝者が決まるまで同じ比率でブラインドが上がり続けます。
                 </p>
               </div>

@@ -11,7 +11,6 @@ import {
 } from "@/lib/coupons";
 import { ReportErrorButton } from "./ReportErrorButton";
 import { Icon } from "./Icon";
-import { Button, IconButton } from "./ui/Button";
 
 /** コピー用グリフ(重ねた2枚のカード)。絵文字は使わずSVGで統一する。 */
 function CopyGlyph({ className = "h-4 w-4" }: { className?: string }) {
@@ -118,31 +117,31 @@ export function CouponWallet({
     <div
       className={
         compact
-          ? "rounded-[20px] border border-ink-300 bg-white p-3.5"
-          : "rounded-[20px] border-[1.5px] border-ink-950 bg-white p-4"
+          ? "rounded-[20px] glass-panel p-3.5"
+          : "rounded-[20px] border-[1.5px] border-line-strong bg-surface p-4"
       }
     >
       <div className="flex items-center gap-2">
-        <TicketGlyph className="h-4 w-4 text-gold-600" />
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-ink-400">{t("coupon.eyebrow")}</p>
+        <TicketGlyph className="h-4 w-4 text-accent" />
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-fg-3">{t("coupon.eyebrow")}</p>
         {available.length > 0 && (
-          <span className="ml-auto rounded-full bg-gold-500 px-2 py-[2px] text-[10px] font-black tabular-nums text-ink-950">
+          <span className="ml-auto rounded-full bg-accent px-2 py-[2px] text-[10px] font-black tabular-nums text-on-accent">
             {t("coupon.availableCount", { n: String(available.length) })}
           </span>
         )}
       </div>
       {!compact && (
         <>
-          <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-ink-950">
+          <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-fg">
             {t("coupon.title")}
           </h3>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">{t("coupon.lead")}</p>
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-n-9">{t("coupon.lead")}</p>
         </>
       )}
 
       {/* いま有効な無料期間 */}
       {premium?.active && premium.expiresAt && (
-        <p className="mt-3 rounded-xl bg-gold-500/15 px-3.5 py-2.5 text-[12px] font-bold text-gold-700">
+        <p className="mt-3 rounded-xl bg-accent/15 px-3.5 py-2.5 text-[12px] font-bold text-accent">
           {t("coupon.premiumUntil", { date: formatCouponDate(premium.expiresAt) })}
         </p>
       )}
@@ -163,7 +162,7 @@ export function CouponWallet({
           ))}
         </ul>
       ) : (
-        <p className="mt-3 rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] leading-relaxed text-ink-500">
+        <p className="mt-3 rounded-xl bg-canvas px-3.5 py-3 text-[12px] leading-relaxed text-fg-2">
           {t("coupon.empty")}
         </p>
       )}
@@ -180,24 +179,20 @@ export function CouponWallet({
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            className="min-w-0 flex-1 rounded-xl border border-ink-300 px-3.5 py-2.5 font-mono text-[14px] tracking-[0.12em] text-ink-950 placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-ink-400 focus:border-ink-950 focus:outline-none"
+            className="min-w-0 flex-1 rounded-xl border border-line px-3.5 py-2.5 font-mono text-[14px] tracking-[0.12em] text-fg placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
           />
-          <Button
+          <button
             onClick={() => void applyCode(codeInput, "input")}
             disabled={busy != null || codeInput.trim().length === 0}
-            variant="primary"
-            size="none"
-            shape="rounded"
-            // 高さは隣の入力欄に揃えたいので、縦paddingではなく input と同じ行高に従わせる。
-            className="shrink-0 px-4 text-[13px]"
+            className="pressable shrink-0 rounded-xl bg-n-4 px-4 text-[13px] font-black text-white disabled:opacity-40"
           >
             {busy === "input" ? t("coupon.applying") : t("coupon.apply")}
-          </Button>
+          </button>
         </div>
         {message && (
           <div className="mt-1.5">
             <p
-              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-gold-700" : "text-crimson-500"}`}
+              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-accent" : "text-crimson-300"}`}
             >
               {message.text}
             </p>
@@ -233,18 +228,18 @@ function CouponRow({
   return (
     <li
       className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${
-        used ? "border-ink-200 bg-ink-50" : "border-ink-300 bg-white"
+        used ? "border-line bg-canvas" : "border-line bg-surface"
       }`}
     >
       <div className="min-w-0 flex-1">
         <p
           className={`font-mono text-[15px] font-black leading-none tracking-[0.1em] ${
-            used ? "text-ink-400 line-through" : "text-ink-950"
+            used ? "text-fg-3 line-through" : "text-fg"
           }`}
         >
           {coupon.code}
         </p>
-        <p className="mt-1 text-[10.5px] font-bold text-ink-500">
+        <p className="mt-1 text-[10.5px] font-bold text-fg-2">
           {used
             ? coupon.redeemedByMe
               ? t("coupon.usedByMe", { date: formatCouponDate(coupon.redeemedAt!) })
@@ -254,23 +249,20 @@ function CouponRow({
       </div>
       {!used && (
         <>
-          <IconButton
+          <button
             onClick={onCopy}
             aria-label={t("coupon.copy")}
-            variant="quiet"
-            shape="snug"
+            className="pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-n-9"
           >
-            {copied ? <CheckGlyph className="h-4 w-4 text-gold-600" /> : <CopyGlyph className="h-4 w-4" />}
-          </IconButton>
-          <Button
+            {copied ? <CheckGlyph className="h-4 w-4 text-accent" /> : <CopyGlyph className="h-4 w-4" />}
+          </button>
+          <button
             onClick={onUse}
             disabled={disabled}
-            variant="accent"
-            size="sm"
-            shape="snug"
+            className="pressable shrink-0 rounded-lg bg-accent px-3 py-2 text-[12px] font-black text-on-accent disabled:opacity-40"
           >
             {busy ? t("coupon.applying") : t("coupon.use")}
-          </Button>
+          </button>
         </>
       )}
     </li>

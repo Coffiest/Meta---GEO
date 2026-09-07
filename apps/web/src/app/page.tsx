@@ -111,10 +111,10 @@ function StallDiagDetails({ diag, connected }: { diag: SocketDiag; connected: bo
     ["アクション", actLine],
   ];
   return (
-    <div className="mt-2 rounded-lg bg-ink-950/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-500">
+    <div className="mt-2 rounded-lg bg-white/[0.05] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
       {lines.map(([k, v]) => (
         <div key={k} className="flex gap-2">
-          <span className="w-16 shrink-0 text-ink-400">{k}</span>
+          <span className="w-16 shrink-0 text-fg-3">{k}</span>
           <span className="min-w-0 break-all">{v}</span>
         </div>
       ))}
@@ -189,13 +189,13 @@ function SettingsPopover({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-white border border-ink-950 p-2 space-y-1">
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl glass-panel p-2 space-y-1">
         <button
           onClick={() => {
             onClose();
             onShowHistory();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.handHistory")}
         </button>
@@ -204,7 +204,7 @@ function SettingsPopover({
             onClose();
             onShowStructure();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.blindStructure")}
         </button>
@@ -213,23 +213,23 @@ function SettingsPopover({
             onClose();
             onShowChatLog();
           }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-ink-900 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
+          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
         >
           {t("settings.chatLog")}
         </button>
         {confirmingLeave ? (
-          <div className="rounded-xl bg-ink-100 p-3 space-y-2">
-            <p className="text-xs text-ink-600">{t("settings.leaveConfirm")}</p>
+          <div className="rounded-xl bg-n-2 p-3 space-y-2">
+            <p className="text-xs text-n-9">{t("settings.leaveConfirm")}</p>
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
-                className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 active:scale-[0.97] transition-transform"
+                className="flex-1 rounded-lg bg-crimson-600 text-white text-xs font-semibold py-2 pressable"
               >
                 {t("settings.leaveDo")}
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
-                className="flex-1 rounded-lg bg-ink-200 text-ink-800 text-xs py-2"
+                className="pressable flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
               >
                 {t("settings.leaveCancel")}
               </button>
@@ -238,7 +238,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-ink-100 transition-[background-color,transform] active:scale-[0.98]"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-300 hover:bg-n-2 transition-[background-color,transform] pressable"
           >
             {t("settings.leave")}
           </button>
@@ -449,9 +449,9 @@ function GameScreen({
   }, [showCards]);
 
   return (
-    <div className="relative isolate h-[100dvh] flex flex-col bg-white overflow-hidden">
-      {/* テーブル(黒縁)の外側に敷く背景パターン。元画像は黒地+白線のため、
-          grayscale+invertで「白地+黒線」に変換し、低不透明度で薄い灰色の柄として馴染ませる。 */}
+    <div className="relative isolate flex h-[100dvh] flex-col overflow-hidden bg-canvas">
+      {/* テーブルの外側に敷く背景パターン。元画像が黒地+白線なので、ダーク面では反転せず
+          そのまま重ねる(彩度だけ落として、卓とカードから視線を奪わない柄にする)。 */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10"
@@ -459,9 +459,9 @@ function GameScreen({
           backgroundImage: "url(/table/bg-pattern.jpeg)",
           backgroundSize: "380px auto",
           backgroundRepeat: "repeat",
-          filter: "grayscale(1) invert(1)",
-          opacity: 0.14,
-          // 発熱対策: 独立した合成レイヤーへ昇格させ、grayscale+invertのフィルタを
+          filter: "grayscale(1)",
+          opacity: 0.10,
+          // 発熱対策: 独立した合成レイヤーへ昇格させ、grayscaleフィルタを
           // 1度だけラスタライズしてキャッシュさせる(毎フレーム再適用させない)。
           transform: "translateZ(0)",
           willChange: "transform",
@@ -469,25 +469,25 @@ function GameScreen({
       />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
         {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
-            Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
+            マイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
         {/* ブラインドタイマー(トーナメントクロック)を縮小したミニ版。クロック画面と同じ意匠で、
             gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-white text-ink-950 border border-ink-950 px-3 py-1.5 text-left active:scale-[0.97] transition-transform"
+          className="glass-panel pressable shrink-0 rounded-2xl px-3 py-1.5 text-left text-fg"
         >
           <div className="flex items-center gap-1.5 leading-none">
-            <span className="text-[8px] font-black uppercase tracking-[0.22em] text-gold-600 tabular-nums">Lv {level?.level ?? "-"}</span>
+            <span className="text-[8px] font-black uppercase tracking-[0.22em] text-accent tabular-nums">Lv {level?.level ?? "-"}</span>
             {gameKey === "mtt" && (
-              <span className="rounded bg-ink-950 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
+              <span className="rounded bg-n-4 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
             )}
             {tournamentInfo?.isFinalTable && (
-              <span className="rounded bg-gold-500 px-1 py-[1px] text-[7px] font-black tracking-widest text-ink-950">FINAL TABLE</span>
+              <span className="rounded bg-accent px-1 py-[1px] text-[7px] font-black tracking-widest text-on-accent">FINAL TABLE</span>
             )}
           </div>
           <CountdownText
             endsAt={levelEndsAt}
-            className="mt-0.5 block text-[26px] font-black tabular-nums leading-none text-gold-600"
+            className="mt-0.5 block text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-accent"
           />
           {/* 生存者数。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。
               MTT・Sit&Goのどちらでも必ず出す(サーバーは両方とも remaining/total を送っている)。
@@ -495,41 +495,41 @@ function GameScreen({
           {tournamentInfo && tournamentInfo.total > 0 && (
             <div className="mt-1 flex items-baseline gap-1 leading-none">
               {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
-              <Icon name="user" className="h-3.5 w-3.5 shrink-0 self-center text-ink-700" />
-              <span className="text-[16px] font-black tabular-nums leading-none text-ink-950">
+              <Icon name="user" className="h-3.5 w-3.5 shrink-0 self-center text-n-9" />
+              <span className="text-[16px] font-black tabular-nums leading-none text-fg">
                 {tournamentInfo.remaining}
-                <span className="text-ink-500">/</span>
+                <span className="text-fg-2">/</span>
                 {tournamentInfo.total}
               </span>
-              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">残り</span>
+              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-n-9">残り</span>
             </div>
           )}
           {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
           {regClosesAt && (
             <div className="mt-0.5 flex items-center gap-1 leading-none">
-              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Reg締切</span>
-              <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-500" />
+              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Reg締切</span>
+              <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-300" />
             </div>
           )}
           <div className="mt-1 flex items-end gap-2 leading-none">
             <div>
-              <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Blind</span>
-              <span className="text-[11px] font-black tabular-nums text-ink-950">
+              <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Blind</span>
+              <span className="text-[11px] font-black tabular-nums text-fg">
                 {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
               </span>
             </div>
             {level && level.bbAnte > 0 && (
-              <div className="border-l border-ink-400 pl-2">
-                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">ANTE</span>
-                <span className="text-[11px] font-black tabular-nums text-ink-950">{level.bbAnte.toLocaleString()}</span>
+              <div className="border-l border-line pl-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">ANTE</span>
+                <span className="text-[11px] font-black tabular-nums text-fg">{level.bbAnte.toLocaleString()}</span>
               </div>
             )}
             {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
-              <div className="border-l border-ink-400 pl-2">
-                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-ink-700">Ave</span>
-                <span className="text-[11px] font-black tabular-nums text-gold-600">
+              <div className="border-l border-line pl-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Ave</span>
+                <span className="text-[11px] font-black tabular-nums text-accent">
                   {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
-                  <span className="text-[8px] text-ink-600">BB</span>
+                  <span className="text-[8px] text-n-9">BB</span>
                 </span>
               </div>
             )}
@@ -538,7 +538,7 @@ function GameScreen({
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-9 w-9 rounded-full bg-white border border-ink-950 flex items-center justify-center text-ink-800 active:scale-95 transition-transform"
+          className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
           aria-label="設定"
         >
           <Icon name="settings" className="h-[18px] w-[18px]" />
@@ -565,7 +565,7 @@ function GameScreen({
 
       <main className="flex-1 min-h-0 flex flex-col justify-center px-2 overflow-hidden">
         {spectating ? (
-          <div className="text-center text-ink-500 text-sm py-20">
+          <div className="text-center text-fg-2 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
           </div>
         ) : (
@@ -599,7 +599,7 @@ function GameScreen({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end bg-black/30"
+            className="fixed inset-0 z-50 flex items-end bg-black/50"
             onClick={() => setChatInputOpen(false)}
           >
             <motion.form
@@ -614,7 +614,7 @@ function GameScreen({
                 setChatDraft("");
                 setChatInputOpen(false);
               }}
-              className="safe-area-bottom flex w-full items-center gap-2 border-t border-ink-200 bg-white px-4 pb-6 pt-3"
+              className="glass-footer safe-area-bottom flex w-full items-center gap-2 px-4 pb-6 pt-3"
             >
               <input
                 autoFocus
@@ -622,12 +622,12 @@ function GameScreen({
                 onChange={(e) => setChatDraft(e.target.value)}
                 maxLength={120}
                 placeholder="メッセージを入力…"
-                className="flex-1 rounded-full border border-ink-950 bg-white px-4 py-2.5 text-sm text-ink-950 outline-none placeholder:text-ink-300"
+                className="flex-1 rounded-full bg-white/[0.08] px-4 py-2.5 text-sm text-fg outline-none ring-1 ring-inset ring-white/12 placeholder:text-fg-faint"
               />
               <button
                 type="submit"
                 aria-label="送信"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink-950 text-white transition-transform active:scale-90"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform pressable"
               >
                 <Icon name="arrow-right" className="h-[18px] w-[18px]" />
               </button>
@@ -643,22 +643,22 @@ function GameScreen({
             initial={{ opacity: 0, y: 12, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl bg-white border border-ink-950 p-3.5"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl glass-panel p-3.5"
           >
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
-              <div className="text-xs font-semibold text-ink-950">
+              <div className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+              <div className="text-xs font-semibold text-fg">
                 {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
             </div>
             {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。 */}
             {matching && (
-              <div className="text-[11px] text-ink-600 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
+              <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
             )}
             {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-ink-500 mt-0.5">プレイヤーが集まり次第スタートします</div>
+              <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
             )}
-            {waiting && <div className="text-[11px] text-ink-500 mt-1.5">まもなく着席します…</div>}
+            {waiting && <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -671,7 +671,7 @@ function GameScreen({
             exit={{ opacity: 0 }}
             className="mx-auto mb-2 max-w-md rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/40 px-4 py-2 text-center"
           >
-            <p className="text-xs text-crimson-600">{actionError ?? joinError}</p>
+            <p className="text-xs text-crimson-300">{actionError ?? joinError}</p>
             <ReportErrorButton
               scope={actionError ? "table:action" : "table:join"}
               message={actionError ?? joinError ?? ""}
@@ -694,17 +694,17 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-ink-950 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl glass-panel p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+              <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-black text-ink-950">
+                <p className="text-[13px] font-black text-fg">
                   {tableNotice
                     ? "サーバーからのお知らせ"
                     : STALL_INFO[diag?.stallReason ?? ""]?.title ?? "卓の進行が止まっています"}
                 </p>
-                <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
+                <p className="mt-0.5 text-[12px] leading-relaxed text-n-9">
                   {tableNotice
                     ? tableNotice.message
                     : STALL_INFO[diag?.stallReason ?? ""]?.body ??
@@ -716,7 +716,7 @@ function GameScreen({
                   <button
                     type="button"
                     onClick={resync}
-                    className="mt-2.5 w-full rounded-xl border border-ink-950 bg-white px-4 py-2 text-[12px] font-black text-ink-950 active:translate-y-px"
+                    className="pressable mt-2.5 w-full rounded-xl bg-white/[0.10] px-4 py-2 text-[12px] font-black text-fg ring-1 ring-inset ring-white/12"
                   >
                     今すぐ再同期する
                   </button>
@@ -751,7 +751,7 @@ function GameScreen({
             <button
               type="button"
               onClick={() => setResultReady(true)}
-              className="rounded-full bg-ink-950 px-6 py-3 text-[13px] font-black text-white shadow-[0_12px_32px_-12px_rgba(10,10,10,0.6)] transition-transform active:scale-[0.97]"
+              className="rounded-full bg-n-4 px-6 py-3 text-[13px] font-black text-white shadow-e3 pressable"
             >
               結果を見る
             </button>
@@ -766,19 +766,19 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-ink-950 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(10,10,10,0.4)]"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl glass-panel p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
-              <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-ink-950" />
+              <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-fg" />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-black text-ink-950">進行中の卓が見つかりません</p>
-                <p className="mt-0.5 text-[12px] leading-relaxed text-ink-600">
+                <p className="text-[13px] font-black text-fg">進行中の卓が見つかりません</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-n-9">
                   {GAME_GONE_INFO[diag?.lastNoActiveGame?.reason ?? "UNKNOWN"] ?? GAME_GONE_INFO["UNKNOWN"]}{" "}
                   自動での復帰は続けていますが、戻らない場合はホームから新しいゲームに参加してください。
                 </p>
                 {/* 原因特定用の診断行: 理由コード・連続回数・最終盤面受信からの経過。 */}
                 {diag && (
-                  <div className="mt-2 rounded-lg bg-ink-950/[0.04] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-500">
+                  <div className="mt-2 rounded-lg bg-white/[0.05] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-fg-2">
                     <div>
                       コード {diag.lastNoActiveGame?.reason ?? "-"}
                       {diag.lastNoActiveGame ? `(${diag.lastNoActiveGame.count}回)` : ""} / 接続{" "}
@@ -793,7 +793,7 @@ function GameScreen({
                 <button
                   type="button"
                   onClick={onExit}
-                  className="mt-3 w-full rounded-xl border border-ink-950 bg-ink-950 px-4 py-2 text-[13px] font-black text-white active:translate-y-px"
+                  className="pressable mt-3 w-full rounded-xl bg-accent px-4 py-2 text-[13px] font-black text-on-accent shadow-glow"
                 >
                   ホームへ戻る
                 </button>
@@ -912,21 +912,21 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
   }, []);
   const slow = seconds >= 5;
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-ink-50 px-6 text-center">
-      <div className="flex items-center gap-2 text-ink-700">
-        <span className="h-4 w-4 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
+      <div className="flex items-center gap-2 text-n-9">
+        <span className="h-4 w-4 rounded-full border-2 border-line border-t-transparent animate-spin" />
         <span className="text-sm">
-          {what}… <span className="tabular-nums text-ink-500">{seconds}秒</span>
+          {what}… <span className="tabular-nums text-fg-2">{seconds}秒</span>
         </span>
       </div>
       {slow && (
         <>
-          <p className="max-w-xs text-[12px] leading-relaxed text-ink-500">
+          <p className="max-w-xs text-[12px] leading-relaxed text-fg-2">
             通常より時間がかかっています。サーバーが混み合っているか、応答が遅れています。
           </p>
           <Link
             href="/diagnostics"
-            className="rounded-xl border border-ink-950 bg-white px-4 py-2 text-[12px] font-black text-ink-950"
+            className="pressable rounded-xl bg-white/[0.10] px-4 py-2 text-[12px] font-black text-fg ring-1 ring-inset ring-white/12"
           >
             原因を診断する
           </Link>
@@ -942,24 +942,24 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
  */
 function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: () => void }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-ink-50 px-6 text-center">
-      <div className="flex items-center gap-2 text-ink-700">
-        <span className="h-4 w-4 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-canvas px-6 text-center">
+      <div className="flex items-center gap-2 text-n-9">
+        <span className="h-4 w-4 rounded-full border-2 border-line border-t-transparent animate-spin" />
         <p className="text-sm font-medium">接続を再試行しています…</p>
       </div>
-      <p className="max-w-xs text-[13px] leading-relaxed text-ink-500">
+      <p className="max-w-xs text-[13px] leading-relaxed text-fg-2">
         サーバーに接続できません。進行中のゲームがある場合は、接続が回復すると自動的に復帰します。
       </p>
       <div className="flex items-center gap-2.5">
         <button
           onClick={onRetry}
-          className="rounded-xl bg-ink-950 px-6 py-2.5 text-sm font-semibold text-white active:opacity-80"
+          className="rounded-xl bg-n-4 px-6 py-2.5 text-sm font-semibold text-white pressable"
         >
           今すぐ再試行
         </button>
         <button
           onClick={onHome}
-          className="rounded-xl border border-ink-300 bg-white px-6 py-2.5 text-sm font-semibold text-ink-700 active:bg-ink-100"
+          className="pressable rounded-xl bg-white/[0.10] px-6 py-2.5 text-sm font-semibold text-fg-2 ring-1 ring-inset ring-white/12"
         >
           ホーム画面へ
         </button>
@@ -971,7 +971,7 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
 export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
-  const accessToken = auth.session?.access_token;
+  const accessToken = auth.accessToken ?? undefined;
   const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
@@ -1076,21 +1076,32 @@ export default function Page() {
   // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
   if (!auth.authAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-ink-50 text-ink-700 text-sm px-6 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-canvas text-n-9 text-sm px-6 text-center">
         {t("app.authUnavailable")}
       </div>
     );
   }
 
   if (auth.loading) return <LoadingScreen />;
-  if (!auth.session) return <LoginScreen auth={auth} />;
+  // 埋め込みモード(RRPokerの中)では自前のログイン画面を出さない。親アプリが既にログイン済みで、
+  // トークンは親から受け取る。まだ届いていない間は読み込み中として待つ。
+  if (auth.embedded) {
+    if (!accessToken) return <LoadingScreen />;
+  } else if (!auth.session) {
+    return <LoginScreen auth={auth} />;
+  }
   if (profileLoading) return <LoadingScreen />;
   if (!profile) {
     // 失敗理由ごとに具体的な説明を出し、原因が分かるようにする。末尾に開発者向けの技術詳細
     // (reason/HTTPステータス/サーバー本文の先頭)も小さく表示する。
     const reason = profileError?.reason;
-    const reasonMsg =
-      reason === "timeout"
+    // 埋め込みで開いているときは、認証が通らない理由が「期限切れ」ではない。トークンは
+    // 親アプリから渡されるので、この画面にログインし直す手段は無く、「ログインし直す」は
+    // 押しても何も起きない案内になってしまう。埋め込み時だけ文言と導線を差し替える。
+    const embeddedAuthProblem = auth.embedded && (reason === "unauthorized" || reason === "no-token");
+    const reasonMsg = embeddedAuthProblem
+      ? t("app.profileErr.embedUnauthorized")
+      : reason === "timeout"
         ? t("app.profileErr.timeout")
         : reason === "network"
           ? t("app.profileErr.network")
@@ -1114,27 +1125,27 @@ export default function Page() {
     if (profileError?.detail) techParts.push(profileError.detail.slice(0, 120));
     const techDetail = techParts.join(" · ");
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-ink-50 px-6 text-center">
-        <p className="text-base font-bold text-ink-900">{t("app.profileFetchFailed")}</p>
-        <p className="max-w-xs text-sm text-ink-700">{reasonMsg}</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center">
+        <p className="text-base font-bold text-fg">{t("app.profileFetchFailed")}</p>
+        <p className="max-w-xs text-sm text-n-9">{reasonMsg}</p>
         <div className="flex flex-col items-center gap-2.5">
-          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 active:scale-[0.98] transition-transform">
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-700 text-white text-sm font-semibold px-6 py-2.5 pressable">
             {t("app.retry")}
           </button>
-          {reason === "unauthorized" && (
+          {reason === "unauthorized" && !embeddedAuthProblem && (
             <button
               onClick={() => void auth.signOut()}
-              className="text-[13px] font-semibold text-ink-600 underline underline-offset-2"
+              className="pressable text-[13px] font-semibold text-n-9 underline underline-offset-2"
             >
               {t("app.profileErr.relogin")}
             </button>
           )}
         </div>
         {techDetail && (
-          <p className="mt-2 max-w-xs break-words font-mono text-[10px] leading-relaxed text-ink-400">{techDetail}</p>
+          <p className="mt-2 max-w-xs break-words font-mono text-[10px] leading-relaxed text-fg-3">{techDetail}</p>
         )}
         {/* サーバー側の詰まり(CPU飽和・DB遅延)まで踏み込んで原因を見るための導線。 */}
-        <Link href="/diagnostics" className="text-[12px] font-bold text-ink-500 underline underline-offset-2">
+        <Link href="/diagnostics" className="text-[12px] font-bold text-fg-2 underline underline-offset-2">
           サーバーの状態を診断する
         </Link>
       </div>
@@ -1211,9 +1222,11 @@ export default function Page() {
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
+  // 埋め込みモードでは親アプリのアカウントで入っているため、Supabaseのプロバイダ情報は無い。
+  const appMetadata = auth.session?.user.app_metadata;
   const providers =
-    (auth.session.user.app_metadata?.["providers"] as string[] | undefined) ??
-    (auth.session.user.app_metadata?.provider ? [auth.session.user.app_metadata.provider] : []);
+    (appMetadata?.["providers"] as string[] | undefined) ??
+    (appMetadata?.provider ? [appMetadata.provider] : []);
 
   return (
     <>

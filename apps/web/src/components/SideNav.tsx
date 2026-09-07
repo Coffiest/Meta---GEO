@@ -16,40 +16,30 @@ export interface SideNavItem {
  * PC幅では縦のサイドバーとして提供する。判定はCSSのブレークポイントのみで行うため、
  * ウィンドウ幅を変えたその場で自動的にモバイル/PCのレイアウトが切り替わる
  * (JSのUA判定はしない = SSRとクライアントで表示がズレない)。
- * ロビー(light)とGEO DATABASE(dark)の両テーマで使い回す。
  */
-const TONE = {
-  light: {
-    active: "bg-ink-950 text-white",
-    inactive: "text-ink-600 hover:bg-ink-100",
-  },
-  dark: {
-    active: "bg-gold-500 text-navy-950",
-    inactive: "text-navy-400 hover:bg-navy-900",
-  },
-} as const;
+/* 現在地はアクセント面で示す。アクセント面の上の文字は必ず on-accent(黒) ―
+   白は #26C2A3 に対して 2.25:1 で読めない。 */
+const ACTIVE_CLASS = "bg-accent text-on-accent shadow-glow-sm";
+const INACTIVE_CLASS = "text-fg-2 hover:bg-white/[0.06] hover:text-fg";
 
 export function SideNav({
   items,
   activeKey,
-  tone = "light",
   className = "lg:pt-6",
 }: {
   items: SideNavItem[];
   activeKey: string | null;
-  tone?: "light" | "dark";
   /** 画面ごとのヘッダー有無に合わせた上余白の調整用。 */
   className?: string;
 }) {
-  const c = TONE[tone];
   return (
     <nav
       className={`hidden lg:sticky lg:top-[76px] lg:flex lg:w-56 lg:shrink-0 lg:flex-col lg:gap-1 lg:self-start ${className}`}
     >
       {items.map((item) => {
         const active = activeKey === item.key;
-        const cls = `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold transition-colors ${
-          active ? c.active : c.inactive
+        const cls = `pressable flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold transition-colors ${
+          active ? ACTIVE_CLASS : INACTIVE_CLASS
         }`;
         const inner = (
           <>

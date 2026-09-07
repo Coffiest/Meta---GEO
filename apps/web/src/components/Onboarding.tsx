@@ -54,7 +54,7 @@ const NEXT_UP_KEYS = ["onb.next1", "onb.next2", "onb.next3"];
  * 初回オンボーディング / プロフィール編集画面。名前は必須、アイコンはカメラロールから
  * 選ぶ任意項目(未設定なら頭文字アバターになる)。この画面を通過しない限りロビーは
  * 描画されないため、名前設定のスキップは構造的に不可能。
- * Swiss(モノクロ + ゴールドの単一アクセント)を保ったまま、アニメーションとコピーで
+ * ダークテーマ(ティールの単一アクセント)を保ったまま、アニメーションとコピーで
  * 「これからプレイする」高揚感を演出する。
  */
 import { ReportErrorButton } from "./ReportErrorButton";
@@ -104,11 +104,11 @@ export function Onboarding({
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-ink-50 text-ink-950">
-      {/* 背景のごく淡いゴールドの光(ログイン画面と統一) */}
+    <div className="min-h-screen overflow-x-hidden bg-canvas text-fg">
+      {/* 背景のごく淡いアクセントの光(ログイン画面と統一) */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <motion.div
-          className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-gold-400/20 blur-3xl"
+          className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-accent-hi/20 blur-3xl"
           animate={reduce ? undefined : { scale: [1, 1.18, 1], opacity: [0.4, 0.7, 0.4] }}
           transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -118,12 +118,12 @@ export function Onboarding({
         {/* ブランド */}
         <motion.div initial="hidden" animate="show" variants={container}>
           <motion.div variants={item} className="flex items-center gap-2.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-gold-500" />
+            <span className="h-2.5 w-2.5 rounded-full bg-accent" />
             <span className="text-[13px] font-extrabold tracking-[0.22em] uppercase">Poker ART</span>
           </motion.div>
 
           {/* ヒーローコピー */}
-          <motion.p variants={item} className="mt-9 text-[11px] font-bold tracking-[0.22em] uppercase text-gold-600">
+          <motion.p variants={item} className="mt-9 text-[11px] font-bold tracking-[0.22em] uppercase text-accent">
             {isFirstTime ? t("onb.step") : t("onb.profile")}
           </motion.p>
           <motion.h1 variants={item} className="mt-2 text-[34px] font-extrabold leading-[1.05] tracking-tight text-balance">
@@ -132,13 +132,13 @@ export function Onboarding({
                 {t("onb.heroLine1")}
                 <br />
                 {t("onb.heroLine2")}
-                <span className="text-gold-500">.</span>
+                <span className="text-accent">.</span>
               </>
             ) : (
               title
             )}
           </motion.h1>
-          <motion.p variants={item} className="mt-3 text-[13px] leading-relaxed text-ink-600">
+          <motion.p variants={item} className="mt-3 text-[13px] leading-relaxed text-n-9">
             {isFirstTime ? t("onb.leadFirst") : t("onb.leadEdit")}
           </motion.p>
         </motion.div>
@@ -148,19 +148,19 @@ export function Onboarding({
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28, duration: 0.55, ease: EASE }}
-          className="mt-8 rounded-2xl border border-ink-200 bg-white p-6 shadow-panel"
+          className="mt-8 rounded-2xl glass-panel p-6 shadow-e2"
         >
           {/* アバターピッカー */}
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform active:scale-95"
+              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform pressable"
               aria-label="アイコン画像を選択"
             >
-              {/* ゆっくり回る破線のゴールドリング(注目を集める幾何モチーフ) */}
+              {/* ゆっくり回る破線のアクセントリング(注目を集める幾何モチーフ) */}
               <motion.svg
                 viewBox="0 0 108 108"
-                className="absolute inset-0 h-full w-full text-gold-400"
+                className="absolute inset-0 h-full w-full text-accent-hi"
                 animate={reduce ? undefined : { rotate: 360 }}
                 transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
               >
@@ -176,7 +176,7 @@ export function Onboarding({
                 />
               </motion.svg>
               <Avatar avatarKey={avatarKey} displayName={name} size={84} />
-              <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-ink-950 text-white ring-2 ring-white">
+              <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-n-4 text-white ring-2 ring-canvas">
                 <Icon name="folder" className="h-3.5 w-3.5" />
               </div>
             </button>
@@ -190,24 +190,24 @@ export function Onboarding({
             <div className="flex items-center gap-3 text-[12px]">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="font-semibold text-ink-950 underline decoration-dashed underline-offset-2"
+                className="pressable font-semibold text-fg underline decoration-dashed underline-offset-2"
               >
                 {processing ? t("onb.processing") : avatarKey ? t("onb.changePhoto") : t("onb.pickPhoto")}
               </button>
               {avatarKey && (
-                <button onClick={() => setAvatarKey(null)} className="text-ink-500">
+                <button onClick={() => setAvatarKey(null)} className="pressable text-fg-2">
                   {t("onb.delete")}
                 </button>
               )}
             </div>
-            {pickError && <p className="text-[12px] text-crimson-500">{pickError}</p>}
+            {pickError && <p className="text-[12px] text-crimson-300">{pickError}</p>}
           </div>
 
           {/* 名前入力 */}
           <div className="mt-6">
             <div className="mb-1.5 flex items-baseline justify-between">
-              <label className="text-[12px] font-semibold tracking-wide text-ink-700">{t("onb.playerName")}</label>
-              <span className="text-[11px] tabular-nums text-ink-400">{name.length}/16</span>
+              <label className="text-[12px] font-semibold tracking-wide text-n-9">{t("onb.playerName")}</label>
+              <span className="text-[11px] tabular-nums text-fg-3">{name.length}/16</span>
             </div>
             <input
               value={name}
@@ -218,13 +218,13 @@ export function Onboarding({
               autoFocus={isFirstTime}
               autoComplete="off"
               enterKeyHint="go"
-              className="w-full rounded-xl border border-ink-300 bg-white px-4 py-3 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none focus:ring-2 focus:ring-ink-950/5"
+              className="w-full rounded-xl glass-panel px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
             />
           </div>
 
           {error && (
             <div className="mt-3 px-1">
-              <p className="text-[12px] text-crimson-500">{error}</p>
+              <p className="text-[12px] text-crimson-300">{error}</p>
               <ReportErrorButton scope="onboarding" message={error} className="mt-1.5" />
             </div>
           )}
@@ -232,7 +232,7 @@ export function Onboarding({
           <button
             onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
             disabled={!canSubmit}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink-950 py-3.5 font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 font-semibold text-on-accent shadow-glow pressable disabled:opacity-40"
           >
             <span>{saving ? t("onb.saving") : submitLabel}</span>
             {!saving && (
@@ -241,7 +241,7 @@ export function Onboarding({
           </button>
 
           {onCancel && (
-            <button onClick={onCancel} className="mt-3 w-full py-1 text-[12px] text-ink-500">
+            <button onClick={onCancel} className="pressable mt-3 w-full py-1 text-[12px] text-fg-2">
               キャンセル
             </button>
           )}
@@ -255,12 +255,12 @@ export function Onboarding({
             transition={{ delay: 0.55, duration: 0.6 }}
             className="mt-8"
           >
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-ink-400">{t("onb.nextUp")}</p>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-fg-3">{t("onb.nextUp")}</p>
             <div className="flex flex-wrap gap-2">
               {NEXT_UP_KEYS.map((key) => (
                 <span
                   key={key}
-                  className="rounded-full border border-ink-300 px-3 py-1.5 text-[12px] font-semibold text-ink-700"
+                  className="rounded-full border border-line px-3 py-1.5 text-[12px] font-semibold text-n-9"
                 >
                   {t(key)}
                 </span>
@@ -269,7 +269,7 @@ export function Onboarding({
           </motion.div>
         )}
 
-        <p className="mt-auto pt-8 text-center text-[11px] tracking-wide text-ink-400">
+        <p className="mt-auto pt-8 text-center text-[11px] tracking-wide text-fg-3">
           {t("onb.footer")}
         </p>
       </div>

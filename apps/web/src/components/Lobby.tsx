@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameKey } from "@/lib/socket";
+import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
 import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
@@ -123,23 +124,7 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 // サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
 // 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
 // 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
-const GAMES: { key: GameKey; title: string; caption?: string; buyIn: number; detailKey: string; comingSoon?: boolean }[] = [
-  {
-    key: "sng",
-    title: "Sit & Go",
-    caption: "(Single table)",
-    buyIn: 1000,
-    detailKey: "lobby.game.sngDetail",
-  },
-  {
-    key: "mtt",
-    title: "MTT",
-    buyIn: 2000,
-    detailKey: "lobby.game.mttDetail",
-    // 一般公開は一旦停止(準備中)。開発者はモーダル下部の隠し導線+パスコードで入室できる。
-    comingSoon: true,
-  },
-];
+const SNG_BUY_IN = 1000;
 
 /** 準備中(MTT)の開発者向け入室パスコード。 */
 const DEV_UNLOCK_CODE = "2357";
@@ -153,169 +138,82 @@ function EnterArrow({ className }: { className?: string }) {
 
 /**
  * ホーム上部の対局スタートカード。Sit&Go / MTT を最初から横並びで見せ、ワンタップで卓へ入る。
- * 意匠はモノクロSwiss/エディトリアル:白地+黒フチ+角丸を土台に、
- *  - 上辺の極細アクセントバー(SnG=gold / MTT=crimson)で一瞬で識別、
+ * 意匠はダークテーマ:カード面+ヘアライン+角丸を土台に、
+ *  - 上辺のアクセント帯(SnG=アクセント / MTT=クリムゾン)+その下の発光で一瞬で識別、
  *  - 左肩の連番(01/02)+種別ラベルで版面のリズムを作り、
  *  - 特大タイトル+一言説明、
  *  - 下辺に区切り線を挟んで「バイイン」と「入室 →」のCTA行、
  * で構成する。装飾は上辺バーと矢印のみに限定(絵文字不使用)。
  */
-function GameStartCards({
-  games,
+/**
+ * ホームの主行動。
+ *
+ * 種別を選ばせる2枚のカードをやめ、「対局を始める」という1つの動作だけを置く。
+ * 選択肢が1つしかないところに選択のUIを出すのは、簡潔さではなく手数を増やしているだけ。
+ *
+ * MTTは一般公開前。ボタンは出さず、`?mtt=dev` で開発者向けのパスコード導線だけ開く。
+ */
+function GameStartButton({
   onJoin,
+  devMtt = false,
 }: {
-  games: typeof GAMES;
   onJoin: (key: GameKey, unlockCode?: string) => void;
+  /** `?mtt=dev` が付いていたか。クエリの読み取りは呼び出し側(Lobby)に一本化してある。 */
+  devMtt?: boolean;
 }) {
   const { t } = useI18n();
-  // 準備中カードをタップしたときに出す案内モーダル(nullなら閉じている)。
-  const [comingSoonFor, setComingSoonFor] = useState<GameKey | null>(null);
+  const [devMttOpen, setDevMttOpen] = useState(devMtt);
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        {games.map((game, i) => {
-          const accent = i === 0 ? "bg-gold-500" : "bg-crimson-500";
-          const accentText = i === 0 ? "text-gold-600" : "text-crimson-500";
-          const soon = Boolean(game.comingSoon);
-          return (
-            <motion.button
-              key={game.key}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.05 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={soon ? undefined : { y: -3 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => (soon ? setComingSoonFor(game.key) : onJoin(game.key))}
-              aria-label={`${game.title} — ${soon ? t("lobby.comingSoon.badge") : t("play.enter")}`}
-              className={`group relative overflow-hidden rounded-[20px] text-left ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow ${
-                soon ? "" : "hover:shadow-[0_10px_28px_-12px_rgba(10,10,10,0.35)]"
-              }`}
-            >
-              {/* カーソル追従の淡いゴールドの光。準備中カードは触れる意味が無いので出さない。 */}
-              <SpotlightCard
-                className="!h-full !w-full !rounded-[20px] !border-0 !bg-white"
-                spotlightColor={soon ? "rgba(0,0,0,0)" : "rgba(242, 169, 0, 0.16)"}
-              >
-              <span className="flex flex-col items-start p-4 pt-[18px]">
-              {/* 上辺アクセントバー(種別で色分け=一瞬で識別)。準備中は灰色にして「今は入れない」と分かるようにする。 */}
-              <span className={`absolute inset-x-0 top-0 h-[3px] ${soon ? "bg-ink-300" : accent}`} aria-hidden />
-
-              {/* 種別を示す図形(文字の代わり)。1卓=カード / 複数卓=大人数フィールド。 */}
-              <span className={`${soon ? "text-ink-300" : accentText}`}>
-                <Icon name={i === 0 ? "cards" : "group"} className="h-10 w-10" weight="light" />
-              </span>
-
-              {/* 略称のみ(SNG / MTT)。説明文は置かない。 */}
-              <span className={`mt-2.5 text-[22px] font-black leading-none tracking-tight ${soon ? "text-ink-400" : "text-ink-950"}`}>
-                {game.key.toUpperCase()}
-              </span>
-
-              <span className="mt-3 h-px w-full bg-ink-100" aria-hidden />
-
-              {/* 下段: バイイン(チップ図形+数値) と 入室(矢印のみ)。準備中は時計アイコンだけ。 */}
-              <span className="mt-2.5 flex w-full items-center justify-between">
-                {soon ? (
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-ink-100 text-ink-500">
-                    {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-                    <Icon name="clock" className="h-4 w-4" />
-                  </span>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1.5 text-ink-950">
-                      <Icon name="chip" className="h-4 w-4 text-ink-400" />
-                      <span className="text-[14px] font-black tabular-nums leading-none">
-                        {game.buyIn.toLocaleString()}
-                      </span>
-                    </span>
-                    <span className={`grid h-7 w-7 place-items-center rounded-full ${accent} text-white`}>
-                      <EnterArrow className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                    </span>
-                  </>
-                )}
-              </span>
-              </span>
-              </SpotlightCard>
-            </motion.button>
-          );
-        })}
-      </div>
+      <motion.button
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING_MOVE}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onJoin("sng")}
+        aria-label={t("play.enter")}
+        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo text-left text-on-accent shadow-glow"
+      >
+        {/* カーソル追従の淡い白光。既に塗り自体がアクセント色のグラデーションなので、
+            スポットライトはteal系ではなく白を選び、上端のスペキュラと役割を分ける
+            (スペキュラ=常時の質感、こちらはポインタに反応する主役の合図)。 */}
+        <SpotlightCard className="!h-full !w-full !rounded-[22px] !border-0 !bg-transparent px-5 py-4" spotlightColor="rgba(255, 255, 255, 0.28)">
+        <span className="flex w-full items-center gap-4">
+        {/* 上端のスペキュラ。塗りの面にも光が当たっていると読ませ、板ではなく物として見せる。 */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
+        />
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-on-accent/10">
+          <Icon name="cards" className="h-7 w-7" weight="light" />
+        </span>
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">{t("play.enter")}</span>
+          <span className="mt-1.5 flex items-center gap-1.5 text-[12px] font-bold opacity-70">
+            <Icon name="chip" className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{SNG_BUY_IN.toLocaleString()}</span>
+          </span>
+        </span>
+        <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
+        </span>
+        </SpotlightCard>
+      </motion.button>
 
       <AnimatePresence>
-        {comingSoonFor && (
-          <ComingSoonModal
-            onClose={() => setComingSoonFor(null)}
-            onUnlock={() => {
-              const key = comingSoonFor;
-              setComingSoonFor(null);
-              // 解錠パスコードをサーバーのMTTゲートへ渡す(クライアント判定だけでは直送で突破できるため)。
-              onJoin(key, DEV_UNLOCK_CODE);
+        {devMttOpen && (
+          <PasscodeModal
+            expected={DEV_UNLOCK_CODE}
+            title={t("lobby.comingSoon.devTitle")}
+            onSuccess={() => {
+              setDevMttOpen(false);
+              onJoin("mtt", DEV_UNLOCK_CODE);
             }}
+            onClose={() => setDevMttOpen(false)}
           />
         )}
       </AnimatePresence>
     </>
-  );
-}
-
-/**
- * 準備中の案内モーダル。中央に「準備中 / もう少しお待ちください」を出すだけの素朴な作りにし、
- * 最下部にごく控えめな「開発者の方はこちら」を置く。そこからパスコード(DEV_UNLOCK_CODE)を
- * 通した場合のみ、準備中のゲームへ実際に入室できる。
- */
-function ComingSoonModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
-  const { t } = useI18n();
-  const [passcodeOpen, setPasscodeOpen] = useState(false);
-
-  if (passcodeOpen) {
-    return (
-      <PasscodeModal
-        expected={DEV_UNLOCK_CODE}
-        title={t("lobby.comingSoon.devTitle")}
-        onSuccess={onUnlock}
-        onClose={() => setPasscodeOpen(false)}
-      />
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8"
-      role="dialog"
-      aria-modal="true"
-    >
-      <motion.div
-        initial={{ scale: 0.9, y: 20, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.9, y: 20, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 360, damping: 26 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[320px] rounded-[26px] border border-ink-950 bg-white p-6 text-center"
-      >
-        {/* 時計アイコン(準備中)。絵文字禁止のためSVGストロークで実装。 */}
-        <Icon name="clock" className="mx-auto h-9 w-9 text-ink-950" />
-        <p className="mt-3 text-[18px] font-black tracking-tight text-ink-950">{t("lobby.comingSoon.title")}</p>
-        <p className="mt-2 text-[12px] leading-relaxed text-ink-600">{t("lobby.comingSoon.body")}</p>
-
-        <button
-          onClick={onClose}
-          className="mt-5 w-full cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[13px] font-black text-ink-950 transition-transform active:scale-[0.98]"
-        >
-          {t("lobby.comingSoon.close")}
-        </button>
-
-        {/* 最下部のごく控えめな開発者導線。一般ユーザーの目に留まらないよう極小・低コントラストにする。 */}
-        <button
-          onClick={() => setPasscodeOpen(true)}
-          className="mx-auto mt-4 block cursor-pointer text-[8px] font-normal tracking-wide text-ink-300 underline decoration-ink-200 underline-offset-2 transition-colors hover:text-ink-500"
-        >
-          {t("lobby.comingSoon.devEntry")}
-        </button>
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -333,11 +231,11 @@ function formatSigned(n: number): string {
 }
 
 function signedClass(n: number): string {
-  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-400" : "text-ink-900";
+  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-300" : "text-fg";
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">{children}</div>;
+  return <div className="rounded-[20px] glass-panel shadow-e1 p-4">{children}</div>;
 }
 
 /** 棋譜解析(レビュー)導線を示すSVGグリフ。虫眼鏡+チャート。絵文字は使わずSVGで統一。 */
@@ -348,9 +246,9 @@ function ReviewGlyph({ className }: { className?: string }) {
 }
 
 /**
- * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
- * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
- * ホーム画面と同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
+ * 各タブ共通の大胆なヘッダー。アクセントのアイブロウ(マイクロラベル)+特大のタイトル+
+ * アクセントのピリオドで、Stats/History/Leaderboard を統一した見出しにする。
+ * ホーム画面と同じタイポ言語(特大・字間タイト)。 */
 function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <motion.div
@@ -360,25 +258,25 @@ function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
       className="mb-5 mt-1"
     >
       <div className="flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
-        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-ink-400">{eyebrow}</span>
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{eyebrow}</span>
       </div>
-      <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-ink-950">
+      <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-fg">
         {title}
-        <span className="text-gold-500">.</span>
+        <span className="text-accent">.</span>
       </h1>
     </motion.div>
   );
 }
 
-/** ホーム画面のRRRatingCardと同じ、黒フチ+白背景のSwissカード。フェードアップで順にstagger表示する。 */
+/** ホーム画面のRRRatingCardと同じカード意匠。フェードアップで順にstagger表示する。 */
 function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4"
+      className="rounded-[20px] glass-panel shadow-e1 p-4"
     >
       {children}
     </motion.div>
@@ -402,7 +300,7 @@ function TournamentResultsSection({
   if (!accessToken) {
     return (
       <SectionCard>
-        <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginTourneys")}</div>
+        <div className="py-10 text-center text-n-9 text-sm">{t("lobby.needLoginTourneys")}</div>
       </SectionCard>
     );
   }
@@ -459,7 +357,7 @@ function TournamentHistoryCard({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const date = new Date(point.finishedAt);
-  const pnlClass = point.pnl > 0 ? "text-mint-600" : point.pnl < 0 ? "text-crimson-500" : "text-ink-700";
+  const pnlClass = point.pnl > 0 ? "text-mint-400" : point.pnl < 0 ? "text-crimson-300" : "text-n-9";
 
   return (
     <>
@@ -469,36 +367,36 @@ function TournamentHistoryCard({
         transition={{ duration: 0.3, delay }}
         whileTap={{ scale: 0.985 }}
         onClick={() => setOpen(true)}
-        className="w-full text-left rounded-[18px] bg-white ring-1 ring-ink-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5"
+        className="w-full text-left rounded-[18px] glass-panel shadow-e1 p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
           <div className="min-w-0">
-            <p className="text-[13px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
-            <p className="text-[10px] text-ink-600 mt-0.5">
+            <p className="text-[13px] font-bold text-fg">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
+            <p className="text-[10px] text-n-9 mt-0.5">
               {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
             </p>
           </div>
           {point.finishPosition != null && (
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-accent-hi to-accent-lo flex items-center justify-center shrink-0">
               <span className="text-[11px] font-black text-white">{t("result.place", { n: point.finishPosition })}</span>
             </div>
           )}
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">{t("play.buyIn")}</p>
-            <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
+          <div className="rounded-xl glass-panel p-2 text-center">
+            <p className="text-[9px] text-n-9 mb-0.5">{t("play.buyIn")}</p>
+            <p className="text-[12px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">{t("lobby.payout")}</p>
-            <p className="text-[12px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
+          <div className="rounded-xl glass-panel p-2 text-center">
+            <p className="text-[9px] text-n-9 mb-0.5">{t("lobby.payout")}</p>
+            <p className="text-[12px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-ink-200 bg-white p-2 text-center">
-            <p className="text-[9px] text-ink-600 mb-0.5">{t("result.m.profit")}</p>
+          <div className="rounded-xl glass-panel p-2 text-center">
+            <p className="text-[9px] text-n-9 mb-0.5">{t("result.m.profit")}</p>
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
         </div>
-        <div className="text-right text-[10px] text-ink-500">{t("lobby.tapDetail")}</div>
+        <div className="text-right text-[10px] text-fg-2">{t("lobby.tapDetail")}</div>
       </motion.button>
 
       <AnimatePresence>
@@ -508,48 +406,48 @@ function TournamentHistoryCard({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/50"
+              className="absolute inset-0 bg-black/70"
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-sm rounded-t-3xl bg-white pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
+              transition={SPRING_SHEET}
+              className="relative w-full max-w-sm glass-sheet rounded-t-sheet pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <p className="text-[16px] font-bold text-ink-950">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
-                <button onClick={() => setOpen(false)} className="text-[13px] text-ink-500">
+                <p className="text-[16px] font-bold text-fg">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
+                <button onClick={() => setOpen(false)} className="pressable text-[13px] text-fg-2">
                   {t("common.close")}
                 </button>
               </div>
-              <p className="text-[12px] text-ink-600 mb-4">
+              <p className="text-[12px] text-n-9 mb-4">
                 {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
                 {point.finishPosition != null && ` ・ ${t("result.place", { n: point.finishPosition })}`}
               </p>
               <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">{t("play.buyIn")}</p>
-                  <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.buyIn.toLocaleString()}</p>
+                <div className="rounded-xl glass-panel p-3 text-center">
+                  <p className="text-[10px] text-n-9 mb-1">{t("play.buyIn")}</p>
+                  <p className="text-[14px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">{t("lobby.payout")}</p>
-                  <p className="text-[14px] font-bold text-ink-950 tabular-nums">{point.payout.toLocaleString()}</p>
+                <div className="rounded-xl glass-panel p-3 text-center">
+                  <p className="text-[10px] text-n-9 mb-1">{t("lobby.payout")}</p>
+                  <p className="text-[14px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl border border-ink-200 bg-white p-3 text-center">
-                  <p className="text-[10px] text-ink-600 mb-1">{t("result.m.profit")}</p>
+                <div className="rounded-xl glass-panel p-3 text-center">
+                  <p className="text-[10px] text-n-9 mb-1">{t("result.m.profit")}</p>
                   <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-gold-500 bg-white px-3.5 py-3">
-                <span className="text-[12px] font-semibold text-gold-700">{t("lobby.metric.rrRating")}</span>
+              <div className="flex items-center justify-between rounded-xl border border-accent bg-surface px-3.5 py-3">
+                <span className="text-[12px] font-semibold text-accent">{t("lobby.metric.rrRating")}</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
+                  <span className="text-[16px] font-black text-accent tabular-nums">{displayRating(point.rrRatingAfter)}</span>
                   {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
                     <span
                       className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                        point.rrRatingDelta >= 0 ? "text-mint-700 bg-mint-500/10" : "text-crimson-700 bg-crimson-500/10"
+                        point.rrRatingDelta >= 0 ? "text-mint-400 bg-mint-500/10" : "text-crimson-300 bg-crimson-500/10"
                       }`}
                     >
                       {point.rrRatingDelta >= 0 ? "+" : ""}
@@ -565,7 +463,7 @@ function TournamentHistoryCard({
                     setOpen(false);
                     onOpenReview(point.tournamentId);
                   }}
-                  className="mt-3 block w-full rounded-xl bg-ink-950 py-3 text-center text-[13px] font-bold text-white active:opacity-80"
+                  className="pressable mt-3 block w-full rounded-xl bg-accent py-3 text-center text-[13px] font-bold text-on-accent shadow-glow"
                 >
                   {t("result.reviewCta")}
                 </button>
@@ -606,15 +504,15 @@ function StatTile({
   const display = countTo !== undefined && format ? format(animated) : value;
   return (
     <div>
-      <div className="flex items-center gap-1 text-[11px] text-ink-700">
+      <div className="flex items-center gap-1 text-[11px] text-n-9">
         <span>{label}</span>
         {onInfo && (
-          <button onClick={onInfo} className="text-ink-600 active:text-ink-800" aria-label={t("stat.infoAria", { label })}>
+          <button onClick={onInfo} className="pressable text-n-9 active:text-n-10" aria-label={t("stat.infoAria", { label })}>
             <InfoIcon />
           </button>
         )}
       </div>
-      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-ink-950"}`}>{display}</div>
+      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-fg"}`}>{display}</div>
     </div>
   );
 }
@@ -640,8 +538,7 @@ type StatInfoKey =
   | "pfr"
   | "threeBet"
   | "graphRoi"
-  | "graphProfit"
-  | "graphPayout";
+  | "graphProfit";
 
 type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -746,12 +643,6 @@ function buildStatInfo(key: StatInfoKey, s: PlayerStats, t: TFn): StatInfoDef {
         value: "",
         description: t("statinfo.graphProfit.desc"),
       };
-    case "graphPayout":
-      return {
-        title: t("statinfo.graphPayout.title"),
-        value: "",
-        description: t("statinfo.graphPayout.desc"),
-      };
   }
 }
 
@@ -759,41 +650,41 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
   const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-md rounded-t-3xl bg-ink-100 ring-1 ring-ink-400 p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
+        className="relative w-full max-w-md rounded-t-3xl bg-n-2 ring-1 ring-line p-5 pb-[calc(env(safe-area-inset-bottom)+20px)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h2 className="text-base font-bold text-ink-950">{info.title}</h2>
-            {info.subtitle && <p className="text-[11px] text-ink-600">{info.subtitle}</p>}
+            <h2 className="text-base font-bold text-fg">{info.title}</h2>
+            {info.subtitle && <p className="text-[11px] text-n-9">{info.subtitle}</p>}
           </div>
-          <button onClick={onClose} className="text-ink-700 text-xl leading-none px-2" aria-label={t("common.close")}>
+          <button onClick={onClose} className="pressable text-n-9 text-xl leading-none px-2" aria-label={t("common.close")}>
             ×
           </button>
         </div>
 
-        {info.value && <div className="text-2xl font-bold tabular-nums text-ink-950 mb-3">{info.value}</div>}
-        <p className="text-sm text-ink-800 mb-4">{info.description}</p>
+        {info.value && <div className="text-2xl font-bold tabular-nums text-fg mb-3">{info.value}</div>}
+        <p className="text-sm text-n-10 mb-4">{info.description}</p>
 
         {info.breakdown && (
-          <div className="rounded-xl bg-ink-300/70 divide-y divide-ink-400 mb-3">
+          <div className="rounded-xl bg-n-5/70 divide-y divide-line mb-3">
             <div className="px-3 py-2.5">
               <div className="text-[11px] text-mint-400 font-semibold">{info.breakdown.execLabel}</div>
-              <div className="text-xs text-ink-800 mt-0.5">{info.breakdown.execDesc}</div>
+              <div className="text-xs text-n-10 mt-0.5">{info.breakdown.execDesc}</div>
             </div>
             <div className="px-3 py-2.5">
               <div className="text-[11px] text-mint-400 font-semibold">{info.breakdown.oppLabel}</div>
-              <div className="text-xs text-ink-800 mt-0.5">{info.breakdown.oppDesc}</div>
+              <div className="text-xs text-n-10 mt-0.5">{info.breakdown.oppDesc}</div>
             </div>
           </div>
         )}
 
         {info.notes && info.notes.length > 0 && (
-          <div className="rounded-xl bg-ink-300/40 px-3 py-2.5 space-y-1">
+          <div className="rounded-xl bg-n-5/40 px-3 py-2.5 space-y-1">
             {info.notes.map((n, i) => (
-              <p key={i} className="text-[11px] text-ink-600">
+              <p key={i} className="text-[11px] text-n-9">
                 ※ {n}
               </p>
             ))}
@@ -858,12 +749,12 @@ function SingleLineChart({
   const header = (
     <div className="flex items-center gap-1.5 mb-1">
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-      <span className="text-xs font-semibold text-ink-850">{title}</span>
+      <span className="text-xs font-semibold text-n-10">{title}</span>
       {points.length >= 2 && (
-        <span className="ml-auto text-xs font-bold tabular-nums text-ink-900">{formatValue(points[points.length - 1]!.y)}</span>
+        <span className="ml-auto text-xs font-bold tabular-nums text-fg">{formatValue(points[points.length - 1]!.y)}</span>
       )}
       {onInfo && (
-        <button onClick={onInfo} className={`text-ink-600 active:text-ink-800 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
+        <button onClick={onInfo} className={`pressable text-n-9 active:text-n-10 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
           <InfoIcon />
         </button>
       )}
@@ -874,7 +765,7 @@ function SingleLineChart({
     return (
       <div>
         {header}
-        <div className="py-6 text-center text-ink-600 text-xs">{t("lobby.chartNeedMore")}</div>
+        <div className="py-6 text-center text-n-9 text-xs">{t("lobby.chartNeedMore")}</div>
       </div>
     );
   }
@@ -923,8 +814,8 @@ function SingleLineChart({
         </defs>
         {yTicks.map((tick) => (
           <g key={tick}>
-            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-ink-400" />
-            <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-ink-600" style={{ fontSize: 8 }}>
+            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-fg-3" />
+            <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-n-9" style={{ fontSize: 8 }}>
               {formatAxisValue(tick)}
             </text>
           </g>
@@ -939,14 +830,14 @@ function SingleLineChart({
           stroke="currentColor"
           strokeWidth={1}
           strokeDasharray="3 3"
-          className="text-ink-600"
+          className="text-n-9"
         />
 
         <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
         <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
         {xTickIdx.map((i) => (
-          <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-ink-600" style={{ fontSize: 8 }}>
+          <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-n-9" style={{ fontSize: 8 }}>
             {points[i]!.x}
           </text>
         ))}
@@ -1031,53 +922,53 @@ function HamburgerMenu({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
       />
       <motion.div
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="relative h-full w-[82%] max-w-sm bg-ink-100 ring-1 ring-ink-400 pt-6 pb-[calc(env(safe-area-inset-bottom)+20px)] overflow-y-auto"
+        transition={SPRING_SHEET}
+        className="relative h-full w-[82%] max-w-sm bg-n-2 ring-1 ring-line pt-6 pb-[calc(env(safe-area-inset-bottom)+20px)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 flex items-center gap-3 mb-2">
           <Avatar avatarKey={avatarKey} displayName={displayName} size={48} />
           <div className="min-w-0">
-            <div className="text-base font-semibold text-ink-950 truncate">{displayName}</div>
+            <div className="text-base font-semibold text-fg truncate">{displayName}</div>
             {email ? (
-              <div className="text-xs text-ink-700 truncate">{email}</div>
+              <div className="text-xs text-n-9 truncate">{email}</div>
             ) : (
-              isGuest && <div className="text-xs text-ink-600">{t("lobby.guestPlaying")}</div>
+              isGuest && <div className="text-xs text-n-9">{t("lobby.guestPlaying")}</div>
             )}
             {/* どのアカウントでログイン中かを常に確認できるよう、連携済みプロバイダを明示する */}
             {providers && providers.length > 0 && (
-              <div className="text-[10px] text-ink-600 truncate">
+              <div className="text-[10px] text-n-9 truncate">
                 {t("lobby.loggedInWith", { p: providers.map((p) => providerLabel(p, t)).join(" / ") })}
               </div>
             )}
           </div>
         </div>
-        <div className="px-2 mt-2 divide-y divide-ink-300">
-          <button onClick={onEditProfile} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
-            {t("menu.editProfile")} <span className="text-ink-600">›</span>
+        <div className="px-2 mt-2 divide-y divide-line">
+          <button onClick={onEditProfile} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg">
+            {t("menu.editProfile")} <span className="text-n-9">›</span>
           </button>
           {/* GEO DATABASE の使い方(スワイプ式チュートリアル)を再表示する導線。?guide=1 で既読でも強制表示。 */}
           <Link
             href="/geo?guide=1"
             onClick={onClose}
-            className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-ink-900"
+            className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg"
           >
-            {t("menu.geoGuide")} <span className="text-ink-600">›</span>
+            {t("menu.geoGuide")} <span className="text-n-9">›</span>
           </Link>
           {/* 言語切替。ログイン後もいつでも変更できるようメニューに常設する。 */}
-          <div className="flex items-center justify-between px-3 py-3.5 text-sm text-ink-900">
+          <div className="flex items-center justify-between px-3 py-3.5 text-sm text-fg">
             <span>{t("common.language")}</span>
             <LanguageSwitcher />
           </div>
           {onSignOut && (
-            <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-400">
-              {t("menu.logout")} <span className="text-ink-600">›</span>
+            <button onClick={onSignOut} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300">
+              {t("menu.logout")} <span className="text-n-9">›</span>
             </button>
           )}
           {/* アカウントの完全削除。取り消せない操作なので、必ず確認パネルを挟む。 */}
@@ -1086,17 +977,17 @@ function HamburgerMenu({
               {!confirmingDelete ? (
                 <button
                   onClick={() => setConfirmingDelete(true)}
-                  className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-500"
+                  className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300"
                 >
-                  {t("menu.deleteAccount")} <span className="text-ink-600">›</span>
+                  {t("menu.deleteAccount")} <span className="text-n-9">›</span>
                 </button>
               ) : (
                 <div className="rounded-xl bg-crimson-500/[0.06] px-3 py-3">
-                  <p className="text-[13px] font-black text-crimson-500">{t("menu.deleteAccount.confirmTitle")}</p>
-                  <p className="mt-1 text-[11.5px] leading-relaxed text-ink-700">{t("menu.deleteAccount.confirmBody")}</p>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-ink-600">{t("menu.deleteAccount.geoNotice")}</p>
+                  <p className="text-[13px] font-black text-crimson-300">{t("menu.deleteAccount.confirmTitle")}</p>
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-n-9">{t("menu.deleteAccount.confirmBody")}</p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-n-9">{t("menu.deleteAccount.geoNotice")}</p>
                   {deleteError && (
-                    <p className="mt-2 text-[11px] font-semibold text-crimson-500">
+                    <p className="mt-2 text-[11px] font-semibold text-crimson-300">
                       {t("menu.deleteAccount.failed")}: {deleteError}
                     </p>
                   )}
@@ -1104,7 +995,7 @@ function HamburgerMenu({
                     <button
                       onClick={() => void runDelete()}
                       disabled={deleting}
-                      className="flex-1 rounded-lg bg-crimson-500 py-2 text-[12px] font-bold text-white disabled:opacity-60"
+                      className="pressable flex-1 rounded-lg bg-crimson-600 py-2 text-[12px] font-bold text-white disabled:opacity-60"
                     >
                       {deleting ? t("menu.deleteAccount.deleting") : t("menu.deleteAccount.confirm")}
                     </button>
@@ -1114,7 +1005,7 @@ function HamburgerMenu({
                         setDeleteError(null);
                       }}
                       disabled={deleting}
-                      className="flex-1 rounded-lg bg-ink-200 py-2 text-[12px] font-bold text-ink-800"
+                      className="pressable flex-1 rounded-lg bg-n-4 py-2 text-[12px] font-bold text-n-10"
                     >
                       {t("common.cancel")}
                     </button>
@@ -1128,7 +1019,7 @@ function HamburgerMenu({
         {/* 友達招待とクーポンをひとつのセクションに集約(旧ホームから移設)。 */}
         {accessToken && (
           <div className="mt-5 px-4 space-y-3">
-            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-ink-500">{t("menu.inviteCoupon")}</p>
+            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-fg-2">{t("menu.inviteCoupon")}</p>
             <InviteCard accessToken={accessToken} />
             <CouponWallet accessToken={accessToken} />
           </div>
@@ -1296,7 +1187,7 @@ export function Lobby({
   }, [tab, history, accessToken]);
 
   return (
-    <div className="min-h-screen bg-ink-50 flex flex-col">
+    <div className="min-h-screen bg-canvas flex flex-col">
       <Header
         left={<HeaderLogo />}
         right={
@@ -1326,24 +1217,24 @@ export function Lobby({
             type="button"
             onClick={() => onJoin(activeGameKey)}
             aria-label={`${t("lobby.resume.title")} ${t("lobby.resume.cta")}`}
-            className="group flex w-full items-center gap-3 rounded-2xl bg-ink-950 px-4 py-3 text-left text-white shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] ring-1 ring-gold-500/30 transition-transform active:scale-[0.99]"
+            className="group flex w-full items-center gap-3 rounded-2xl bg-n-4 px-4 py-3 text-left text-white shadow-e2 ring-1 ring-accent/30 pressable"
           >
-            <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gold-500/15">
-              <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-gold-400/70" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold-400" />
+            <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/15">
+              <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-accent-hi/70" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-hi" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
                 <span className="text-[13px] font-bold">{t("lobby.resume.title")}</span>
-                <span className="rounded-full bg-white/15 px-2 py-[1px] text-[10px] font-bold tracking-wide text-gold-300">
+                <span className="rounded-full bg-surface/80 px-2 py-[1px] text-[10px] font-bold tracking-wide text-accent-hi">
                   {t("lobby.resume.away")}
                 </span>
               </span>
-              <span className="mt-0.5 block truncate text-[11px] text-ink-300">
+              <span className="mt-0.5 block truncate text-[11px] text-fg-2">
                 {activeGameKey === "mtt" ? t("lobby.resume.mtt") : t("lobby.resume.sng")} ・ {t("lobby.resume.desc")}
               </span>
             </span>
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gold-500 px-3.5 py-2 text-[12px] font-bold text-ink-950">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-3.5 py-2 text-[12px] font-bold text-on-accent">
               {t("lobby.resume.cta")}
               <Icon name="arrow-right" className="h-3.5 w-3.5 transition-transform group-active:translate-x-0.5" />
             </span>
@@ -1359,7 +1250,7 @@ export function Lobby({
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-5"
           >
-            <GameStartCards games={GAMES} onJoin={onJoin} />
+            <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
 
             <PushOptInCard accessToken={accessToken} />
 
@@ -1378,7 +1269,7 @@ export function Lobby({
             <RRPokerPromoBanner />
 
             <div className="pt-1">
-              <p className="mt-1.5 text-center text-[10px] tabular-nums text-ink-400">
+              <p className="mt-1.5 text-center text-[10px] tabular-nums text-fg-3">
                 v{APP_VERSION} · Coffiest · © 2026 Poker ART
               </p>
             </div>
@@ -1494,13 +1385,12 @@ export function Lobby({
                       <div className="space-y-6">
                         <ChartSkeleton />
                         <ChartSkeleton />
-                        <ChartSkeleton />
                       </div>
                     ) : (
                       <div className="space-y-6">
                         <SingleLineChart
                           title={t("stat.roi")}
-                          color="#D4910A" /* 唯一のアクセントカラー使用箇所として意図的にgoldのまま */
+                          color="#26C2A3" /* テーマのアクセント。1画面に1つだけ置く「主役」の色 */
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
                           baseline={100}
                           formatValue={(v) => `${v.toFixed(1)}%`}
@@ -1508,32 +1398,24 @@ export function Lobby({
                         />
                         <SingleLineChart
                           title={t("stat.profit")}
-                          color="#0a0a0a"
+                          color="#F5F5F7"
                           points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
                           baseline={0}
                           formatValue={(v) => formatSigned(v)}
                           onInfo={() => setInfoKey("graphProfit")}
                         />
-                        <SingleLineChart
-                          title={t("stat.payouts")}
-                          color="#0a0a0a"
-                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativePayout }))}
-                          baseline={0}
-                          formatValue={(v) => v.toLocaleString()}
-                          onInfo={() => setInfoKey("graphPayout")}
-                        />
                       </div>
                     )}
 
                     <div className="flex items-center justify-center gap-1.5 mt-4">
-                      <span className="text-[10px] text-ink-600 mr-0.5">{t("lobby.recentTourneys")}</span>
+                      <span className="text-[10px] text-n-9 mr-0.5">{t("lobby.recentTourneys")}</span>
                       {TOURNEY_GRAPH_RANGES.map((r) => (
                         <motion.button
                           key={r.key}
                           whileTap={{ scale: 0.94 }}
                           onClick={() => setGraphRangeKey(r.key)}
                           className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
-                            graphRangeKey === r.key ? "bg-gold-500 text-white" : "bg-ink-300 text-ink-700"
+                            graphRangeKey === r.key ? "bg-accent text-on-accent" : "bg-n-5 text-n-9"
                           }`}
                         >
                           {r.label}
@@ -1546,7 +1428,7 @@ export function Lobby({
                 <ListSkeleton />
               )
             ) : (
-              <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginStats")}</div>
+              <div className="py-10 text-center text-n-9 text-sm">{t("lobby.needLoginStats")}</div>
             )}
           </motion.div>
         )}
@@ -1561,14 +1443,14 @@ export function Lobby({
           >
             <TabHeader eyebrow="Ranking" title="Leaderboard" />
 
-            {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}
-            <div className="mb-3 flex rounded-xl border border-ink-950 p-1">
+            {/* 期間タブ(Weekly / All Time / 直近10)。セグメント。 */}
+            <div className="mb-3 flex rounded-xl border border-line-strong p-1">
               {LB_PERIODS.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => setLbPeriod(p.key)}
-                  className={`flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
-                    lbPeriod === p.key ? "bg-ink-950 text-white" : "text-ink-600"
+                  className={`pressable flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
+                    lbPeriod === p.key ? "bg-n-4 text-white" : "text-n-9"
                   }`}
                 >
                   {t(p.labelKey)}
@@ -1582,8 +1464,8 @@ export function Lobby({
                 <button
                   key={m.key}
                   onClick={() => setLbMetric(m.key)}
-                  className={`rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
-                    lbMetric === m.key ? "border-ink-950 bg-ink-950 text-white" : "border-ink-200 text-ink-600"
+                  className={`pressable rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
+                    lbMetric === m.key ? "border-line-strong bg-n-4 text-white" : "border-line text-n-9"
                   }`}
                 >
                   {t(m.labelKey)}
@@ -1616,7 +1498,7 @@ export function Lobby({
                       const isYou = userId != null && row.userId === userId;
                       const primary = formatLbMetric(row, lbMetric);
                       const primaryClass =
-                        lbMetric === "profit" ? signedClass(row.profit) : "text-ink-950";
+                        lbMetric === "profit" ? signedClass(row.profit) : "text-fg";
                       return (
                         <motion.button
                           key={row.userId}
@@ -1627,22 +1509,22 @@ export function Lobby({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left transition-transform active:scale-[0.99] ${
-                            isYou ? "border-[1.5px] border-gold-500" : "border border-ink-200"
+                          className={`flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left pressable ${
+                            isYou ? "border-[1.5px] border-accent" : "border border-line"
                           }`}
                         >
-                          <div className="w-6 text-center text-sm font-bold tabular-nums text-ink-800">{i + 1}</div>
+                          <div className="w-6 text-center text-sm font-bold tabular-nums text-n-10">{i + 1}</div>
                           <Avatar avatarKey={row.avatarKey} size={30} />
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm text-ink-900 truncate">
+                            <div className="text-sm text-fg truncate">
                               {row.displayName}
-                              {isYou && <span className="text-gold-600 text-[10px] ml-1">{t("lobby.you")}</span>}
+                              {isYou && <span className="text-accent text-[10px] ml-1">{t("lobby.you")}</span>}
                             </div>
-                            <div className="text-[10px] text-ink-600 tabular-nums">{t("lobby.nTournaments", { n: row.tournamentsPlayed })}</div>
+                            <div className="text-[10px] text-n-9 tabular-nums">{t("lobby.nTournaments", { n: row.tournamentsPlayed })}</div>
                           </div>
                           <div className="text-right">
                             <div className={`text-sm font-bold tabular-nums ${primaryClass}`}>{primary}</div>
-                            <div className="text-[10px] text-ink-600 tabular-nums">
+                            <div className="text-[10px] text-n-9 tabular-nums">
                               {lbMetric !== "profit" && `${t("result.m.profit")} ${formatSigned(row.profit)}`}
                               {lbMetric === "profit" && `ROI ${(row.roi * 100).toFixed(0)}%`}
                             </div>
@@ -1675,8 +1557,8 @@ export function Lobby({
                 <button
                   key={v}
                   onClick={() => setHistoryView(v)}
-                  className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
-                    historyView === v ? "bg-ink-950 text-white" : "bg-ink-200 text-ink-700"
+                  className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                    historyView === v ? "bg-n-4 text-white" : "bg-n-4 text-n-9"
                   }`}
                 >
                   {label}
@@ -1688,7 +1570,7 @@ export function Lobby({
             ) : (
             <SectionCard>
               {!accessToken ? (
-                <div className="py-10 text-center text-ink-700 text-sm">{t("lobby.needLoginHistory")}</div>
+                <div className="py-10 text-center text-n-9 text-sm">{t("lobby.needLoginHistory")}</div>
               ) : history === null ? (
                 <ListSkeleton />
               ) : (
@@ -1696,16 +1578,16 @@ export function Lobby({
                   <div className="flex gap-1.5 mb-3">
                     <button
                       onClick={() => setHistorySubTab("all")}
-                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
-                        historySubTab === "all" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
+                        historySubTab === "all" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
                       }`}
                     >
                       {t("lobby.all")}
                     </button>
                     <button
                       onClick={() => setHistorySubTab("favorites")}
-                      className={`flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
-                        historySubTab === "favorites" ? "bg-gold-500 text-white" : "bg-ink-200 text-ink-700"
+                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
+                        historySubTab === "favorites" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
                       }`}
                     >
                       <Icon name="star" className="h-3.5 w-3.5" />
@@ -1741,11 +1623,11 @@ export function Lobby({
                         {groups.map((group) => (
                           <div key={group.tournamentId}>
                             <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
-                              <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-ink-600">{group.tournamentLabel}</p>
+                              <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-n-9">{group.tournamentLabel}</p>
                               {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。 */}
                               <button
                                 onClick={() => setReviewTournamentId(group.tournamentId)}
-                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-ink-950 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity active:opacity-80"
+                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-n-4 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity pressable"
                               >
                                 <ReviewGlyph className="h-3.5 w-3.5" />
                                 {t("lobby.reviewHand")}
@@ -1775,20 +1657,20 @@ export function Lobby({
                                       }
                                     }}
                                     aria-label={`${group.tournamentLabel} ${t("lobby.reviewRowHint")}`}
-                                    className="group cursor-pointer rounded-xl border border-ink-200 bg-white px-3 py-2.5 transition-colors hover:border-ink-400 hover:bg-ink-50 active:bg-ink-100 focus-visible:border-ink-950"
+                                    className="group cursor-pointer rounded-xl glass-panel px-3 py-2.5 transition-colors hover:border-line hover:bg-canvas active:bg-n-2 focus-visible:border-line-strong"
                                   >
-                                    <div className="flex items-center gap-2 text-[11px] text-ink-700 mb-1.5">
+                                    <div className="flex items-center gap-2 text-[11px] text-n-9 mb-1.5">
                                       <span className="tabular-nums">
                                         {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                       </span>
-                                      <span className="rounded border border-ink-950 bg-white px-1.5 py-[1px] text-[11px] text-ink-950 font-semibold">{h.position}</span>
+                                      <span className="rounded glass-panel px-1.5 py-[1px] text-[11px] text-fg font-semibold">{h.position}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           toggleFavorite(h.handId, !h.isFavorite);
                                         }}
                                         aria-label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
-                                        className="ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-gold-500 transition-colors hover:bg-gold-500/10"
+                                        className="pressable ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-accent transition-colors hover:bg-accent/10"
                                       >
                                         <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
                                       </button>
@@ -1806,7 +1688,7 @@ export function Lobby({
                                       <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
                                     </div>
                                     {/* 行がタップ可能=棋譜解析へ、を明示するヒント。 */}
-                                    <div className="mt-1.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-gold-600">
+                                    <div className="mt-1.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-accent">
                                       <ReviewGlyph className="h-3 w-3" />
                                       <span>{t("lobby.reviewRowHint")}</span>
                                       <Icon name="chevron-right" className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
@@ -1847,7 +1729,6 @@ export function Lobby({
       {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
       <div className="lg:hidden">
         <Footer
-          tone="light"
           activeKey={tab}
           centerHref="/geo"
           items={[
@@ -1925,9 +1806,9 @@ export function Lobby({
             <Link
               href="/geo"
               onClick={() => setShowGeoToast(false)}
-              className="flex max-w-[360px] items-center gap-3 rounded-2xl border border-ink-800 bg-ink-950 px-4 py-3 text-left shadow-[0_10px_28px_-12px_rgba(10,10,10,0.55)]"
+              className="flex max-w-[360px] items-center gap-3 rounded-2xl border border-n-5 bg-n-4 px-4 py-3 text-left shadow-e3"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gold-500 text-ink-950">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent">
                 {/* データベースアイコン(絵文字禁止のためSVG) */}
                 <Icon name="db" className="h-4 w-4" />
               </span>

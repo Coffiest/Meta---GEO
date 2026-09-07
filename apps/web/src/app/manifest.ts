@@ -14,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#ffffff",
-    theme_color: "#ffffff",
+    background_color: "#1C1C1E",
+    theme_color: "#1C1C1E",
     lang: "ja",
     // アイコンは既存ワードマークを白背景でパディングしたもの(/logos/Logo_app_icon.png)。
     // フルブリードだとiOSホーム画面で黒く沈むため、白マージンを付けて白基調のタイルにする。新規ロゴは作らない。

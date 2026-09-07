@@ -2,28 +2,207 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   デザイントークン(色の実体)
+   Tailwind側(tailwind.config.ts)はここを参照するだけで、色の値を持たない。
+   `<alpha-value>` を効かせるためスペース区切りのRGB成分で持つ。
+   ダークテーマ固定。ベースは純黒ではなくチャコール #1C1C1E で、その上に明るい面を
+   重ねて奥行きを作る(純黒だと重ねた面の明度差が付けにくく、有機ELでの黒つぶれも出る)。
+   ============================================================================ */
 :root {
-  color-scheme: light;
+  --n-0: 14 14 16; /* #0E0E10 沈み面・スクリムの下地 */
+  --n-1: 28 28 30; /* #1C1C1E アプリ背景(canvas) */
+  --n-2: 35 35 38; /* #232326 極薄フィル */
+  --n-3: 44 44 46; /* #2C2C2E カード面 L1(surface) */
+  --n-4: 58 58 60; /* #3A3A3C カード面 L2 / ヘアライン */
+  --n-5: 72 72 74; /* #48484A カード面 L3 / 強めの罫 */
+  --n-6: 110 110 115; /* #6E6E73 マイクロラベル */
+  --n-7: 142 142 147; /* #8E8E93 補助テキスト */
+  --n-8: 174 174 178; /* #AEAEB2 副次テキスト */
+  --n-9: 199 199 204; /* #C7C7CC */
+  --n-10: 229 229 234; /* #E5E5EA */
+  --n-11: 245 245 247; /* #F5F5F7 本文・見出し */
+
+  --accent-hi: 95 224 198; /* #5FE0C6 */
+  --accent-400: 58 211 180; /* #3AD3B4 */
+  --accent: 38 194 163; /* #26C2A3 テーマカラー。#1C1C1E 上で 7.56:1 */
+  --accent-lo: 30 168 140; /* #1EA88C */
+  --on-accent: 4 33 27; /* #04211B アクセント面に乗せる文字。白(2.25:1)は使えない */
+
+  /* ガラス(半透明素材)の調整値。prefers-reduced-transparency でここを差し替えるだけで
+     全てのガラス面が一斉に不透明化するよう、値を1箇所に集約している。 */
+  --glass-blur: 24px;
+  --glass-alpha: 0.72;
+  --glass-edge: 0.08;
+
+  color-scheme: dark;
 }
 
 html,
 body {
   height: 100%;
-  background: #ffffff;
+  background: rgb(var(--n-1));
+  color: rgb(var(--n-11));
 }
 
 body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
-  /* タイポグラフィの締まりを上げる: サブピクセル→グレースケール・アンチエイリアスで文字を
-     くっきり細く見せ、合字/カーニングを最適化する。Swiss/Apple寄りの端正な見え方を後押しする。 */
+  /* サブピクセル→グレースケール・アンチエイリアス。暗地に明るい文字を置くと字面が太って
+     見えるため、これを切ると全体がもったりする。合字/カーニングも最適化する。 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* a11y: キーボード操作時のみフォーカスリングを出す(マウス/タップ時は出さない)。
-   ink-950の実線リングで、どのインタラクティブ要素にも一貫して適用する。 */
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================================
+   環境光(オーラ)
+   画面全体に固定で敷く発光レイヤー。テーマの「芸術(アート)」を、個々の部品ではなく
+   空間そのもので表現する。pointer-events を切ってあるので操作には一切干渉しない。
+   ゆっくり動かすと前庭系に障るうえ発熱するため、静止したグラデーションに留めている。
+   ============================================================================ */
+.aura {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 12% -8%, rgb(var(--accent) / 0.16), transparent 70%),
+    radial-gradient(48rem 34rem at 96% 4%, rgb(var(--accent-hi) / 0.09), transparent 72%),
+    radial-gradient(70rem 50rem at 50% 108%, rgb(var(--accent-lo) / 0.10), transparent 74%);
+}
+
+/* 常時アニメーションが走る卓画面ではオーラを薄くする(GPU負荷と発熱の抑制)。 */
+.aura-dim {
+  opacity: 0.45;
+}
+
+/* ============================================================================
+   素材(リキッドグラス)
+
+   ナビゲーション/シート/パネルは「不透明な帯」ではなく、下のコンテンツが透けて流れる
+   浮遊レイヤーとして作る。ガラスらしさは3つの層の重ね合わせで出す:
+     1. 背景を屈折させる      … backdrop-filter の blur + saturate(+わずかな brightness)
+     2. 縁で光を拾う(スペキュラ) … 上端の明るい内側ハイライトと下端の暗い内側ライン
+     3. 面そのもののごく薄い着色  … 完全な透明にはせず、下の内容と分離させる
+   光は上から来るという前提を全ての面で守る。上が明るく下が暗い、を崩さない。
+
+   明るい半透明の面を明るい半透明の面に重ねない ― 重ねると可読性が破綻する。
+   ============================================================================ */
+
+/* 全てのガラス面の土台。単体でも使えるし、下の各種ガラスの共通部分でもある。 */
+.glass,
+.glass-header,
+.glass-footer,
+.glass-panel,
+.glass-sheet,
+.glass-bar {
+  backdrop-filter: blur(var(--glass-blur)) saturate(190%) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(190%) brightness(1.08);
+}
+
+.glass {
+  background: rgb(var(--n-2) / var(--glass-alpha));
+}
+
+/* 画面上端に貼り付くヘッダー。光は上から来るので、明るい縁は上端に、
+   コンテンツと接する下端には暗い縁を置いて「厚み」を作る。 */
+.glass-header {
+  background: rgb(var(--n-1) / var(--glass-alpha));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+}
+
+/* 画面下端に貼り付くフッター/アクションバー。 */
+.glass-footer {
+  background: rgb(var(--n-1) / var(--glass-alpha));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    0 -12px 32px -16px rgb(0 0 0 / 0.7);
+}
+
+/* 浮遊するバー(タブバー・アクションバー)。四辺すべてが縁になるので、上端の
+   スペキュラに加えて外周にも細いリングを回し、面が空中に浮いていると読ませる。 */
+.glass-bar {
+  background: rgb(var(--n-2) / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.30),
+    0 0 0 0.5px rgb(255 255 255 / 0.10),
+    0 18px 40px -14px rgb(0 0 0 / 0.75);
+}
+
+/* コンテンツ内に浮かぶパネル。面が小さいのでぼかしは弱め・縁は控えめにする
+   (大きい面ほど厚い、という対応を崩さないため)。 */
+.glass-panel {
+  background: rgb(var(--n-3) / 0.58);
+  backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
+}
+
+/* 下から出るシート。面が最も大きいので最も厚く見せる(強いぼかし+深い影)。 */
+.glass-sheet {
+  background: rgb(var(--n-2) / 0.82);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.20),
+    0 -20px 60px -20px rgb(0 0 0 / 0.8);
+}
+
+/* ガラスの上を滑る選択インジケータ(タブバーの現在地など)。面ではなく
+   「光の当たっている部分」として描くので、塗りではなく明るいアルファで作る。 */
+.glass-indicator {
+  background: rgb(255 255 255 / 0.16);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 2px 8px -2px rgb(0 0 0 / 0.45);
+}
+
+/* 浮遊するUIとコンテンツが重なる境目は、1pxの罫線ではなくグラデーションで溶かす。
+   罫線は「区切り」を主張しすぎ、スクロールが下に流れていく感覚を断ち切ってしまう。 */
+.scroll-edge-top {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12px);
+  mask-image: linear-gradient(to bottom, transparent, #000 12px);
+}
+.scroll-edge-bottom {
+  -webkit-mask-image: linear-gradient(to top, transparent, #000 16px);
+  mask-image: linear-gradient(to top, transparent, #000 16px);
+}
+
+/* ============================================================================
+   応答(レスポンス)
+   フィードバックは指を離した瞬間ではなく、触れた瞬間に出す。`:active` は pointer-down で
+   効くため、click を待つより体感で 100ms 以上速い。ここが遅れると直接操作感は崩壊する。
+   ============================================================================ */
+.pressable {
+  transition:
+    transform 110ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 110ms cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: manipulation; /* iOSの約300msタップ遅延を消す */
+}
+.pressable:active {
+  transform: scale(0.97);
+  filter: brightness(1.12);
+}
+/* 面の大きいカードは 0.97 だと動きすぎるので、縮小量を控えめにする。 */
+.pressable-lg:active {
+  transform: scale(0.985);
+}
+
+/* ============================================================================
+   フォーカス・スクロールバー
+   ============================================================================ */
+/* a11y: キーボード操作時のみフォーカスリングを出す(マウス/タップ時は出さない)。 */
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -31,29 +210,31 @@ select:focus-visible,
 textarea:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid #0a0a0a;
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* a11y: モーション低減設定を尊重し、アニメーション/トランジションを実質無効化する。 */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
-
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.16);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.28);
+  background-clip: content-box;
+}
 * {
-  -webkit-font-smoothing: antialiased;
-}
-
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -64,29 +245,15 @@ textarea:focus-visible,
   scrollbar-width: none;
 }
 
-/* リキッドグラス: ヘッダー/フッター共通の半透明ぼかしパネル。 */
-.header-glass-light {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52));
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 4px 18px -6px rgba(10, 10, 10, 0.12);
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-.footer-glass-light {
-  background: linear-gradient(0deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.5));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  box-shadow:
-    0 -1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 -4px 18px -6px rgba(10, 10, 10, 0.1);
-}
-
-/* ベットサイズ調整スライダー。ネイティブrange inputの見た目はブラウザ差が大きいため、
-   トラック/つまみをwebkit・moz双方で明示的にスタイルする。塗り(黒)部分は現在値の割合
-   から算出したlinear-gradientをJS側でinline styleとして与え、track疑似要素には背景を
-   設定しない(inputの背景がそのまま透けて見える)ことでクロスブラウザの塗り分けを実現する。 */
+/* ============================================================================
+   スライダー(ベット額 / GEO偏差値レンジ)
+   つまみは操作対象なので、面の中で最も明るいアクセントを与える。ドラッグ中は
+   トラックと 1:1 で追従する素の <input type=range> をそのまま使っている。
+   ============================================================================ */
 .bet-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -94,6 +261,7 @@ textarea:focus-visible,
   height: 8px;
   border-radius: 9999px;
   cursor: pointer;
+  touch-action: none;
 }
 .bet-slider::-webkit-slider-runnable-track {
   height: 8px;
@@ -106,27 +274,27 @@ textarea:focus-visible,
   height: 22px;
   margin-top: -7px;
   border-radius: 9999px;
-  background: #0a0a0a;
-  border: 3px solid #ffffff;
-  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 .bet-slider::-moz-range-track {
   height: 8px;
   border-radius: 9999px;
-  background: #d4d4d4;
+  background: rgb(var(--n-4));
 }
 .bet-slider::-moz-range-progress {
   height: 8px;
   border-radius: 9999px;
-  background: #0a0a0a;
+  background: rgb(var(--accent));
 }
 .bet-slider::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: #0a0a0a;
-  border: 3px solid #ffffff;
-  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 
 /* GEO偏差値レンジの2つまみスライダー。同じバー上に2本の<input range>を重ね、
@@ -150,9 +318,9 @@ textarea:focus-visible,
   height: 20px;
   margin-top: 2px;
   border-radius: 9999px;
-  background: #f2a900;
-  border: 3px solid #f7f9fc;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 .geo-range::-moz-range-track {
   background: transparent;
@@ -163,14 +331,17 @@ textarea:focus-visible,
   width: 20px;
   height: 20px;
   border-radius: 9999px;
-  background: #f2a900;
-  border: 3px solid #f7f9fc;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 
-/* オールイン: アバターを囲む電撃(びりびり)エフェクトのキーフレーム。回転するエネルギー弧
-   (spin)、外周グロー/縁リングの明滅(glow)、円周から放射する稲妻のランダム明滅(flick)を
-   別々に重ねる。エレクトリックシアン〜白で描き、背景色に依存しない。 */
+/* ============================================================================
+   オールイン演出
+   アバターを囲む電撃(びりびり)エフェクト。回転するエネルギー弧(spin)、外周グロー/
+   縁リングの明滅(glow)、円周から放射する稲妻のランダム明滅(flick)を別々に重ねる。
+   背景色に依存しない明度で描く。
+   ============================================================================ */
 @keyframes allin-elec-spin {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
@@ -199,23 +370,71 @@ textarea:focus-visible,
   user-select: none;
 }
 
-/* 細身で控えめなスクロールバー。太いOSデフォルトを避け、ink系でアプリのトーンに馴染ませる
-   (主にデスクトップやスクロールバー常時表示環境向け。モバイルのオーバーレイ表示には影響しない)。 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(10, 10, 10, 0.22) transparent;
+/* ============================================================================
+   アクセシビリティ
+   3つの設定に独立して応答する。モーション低減は「フィードバックを消す」ことではなく、
+   前庭系に障らない等価物(不透明度の変化)に置き換えることを意味する。
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 拡大縮小は移動を伴うので消し、明るさの変化だけを押下フィードバックとして残す。 */
+  .pressable:active,
+  .pressable-lg:active {
+    transform: none;
+    filter: brightness(1.15);
+  }
 }
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+
+/* 半透明を減らす設定: ぼかしを外し、面を不透明に寄せる。値は :root の変数を
+   差し替えるだけで、個々のガラス面には触れない。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-blur: 0px;
+    --glass-alpha: 1;
+  }
+  .glass,
+  .glass-header,
+  .glass-footer,
+  .glass-bar,
+  .glass-panel,
+  .glass-sheet {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .glass-panel {
+    background: rgb(var(--n-3));
+  }
+  .glass-bar,
+  .glass-sheet {
+    background: rgb(var(--n-2));
+  }
+  .glass-indicator {
+    background: rgb(var(--n-5));
+  }
+  .aura {
+    display: none;
+  }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background-color: rgba(10, 10, 10, 0.18);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(10, 10, 10, 0.32);
+
+/* コントラストを上げる設定: 面はほぼ不透明にし、輪郭をはっきり描く。 */
+@media (prefers-contrast: more) {
+  :root {
+    --glass-alpha: 0.96;
+    --glass-edge: 0.24;
+  }
+  .glass-bar,
+  .glass-panel,
+  .glass-sheet {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32);
+  }
+  .aura {
+    opacity: 0.4;
+  }
 }

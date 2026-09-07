@@ -6,10 +6,10 @@ import { motion } from "framer-motion";
 const SUIT_GLYPH: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 // 差し込み済みカードデザインに合わせた4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)
 const SUIT_TEXT_CLASS: Record<string, string> = {
-  s: "text-ink-900",
-  h: "text-crimson-500",
-  d: "text-azure-500",
-  c: "text-mint-500",
+  s: "text-fg",
+  h: "text-crimson-300",
+  d: "text-azure-400",
+  c: "text-mint-400",
 };
 
 /**
@@ -41,57 +41,28 @@ function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
  * 無ければ現行のCSS描画にフォールバックする。デザイン画像を後から public/cards/ に
  * 置くだけで、コード変更なしに反映される(詳細は public/cards/README.md 参照)。
  */
-/**
- * 小さく描画されるカード(席まわり)で、左上にランクとスートのインデックスを重ねる。
- * カードデザインは巨大なランクが意図的に紙面からはみ出す作りのため、小さい画面では
- * どのランクなのかが読み取りにくい。この小さなインデックスが「必ず読める」保証を担う。
- */
-function CardIndex({ rank, suit, size }: { rank: string; suit: string; size: "sm" | "md" | "xl" }) {
-  const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-ink-900";
-  const scale =
-    size === "sm"
-      ? "px-[2px] py-[1px] text-[8px]"
-      : size === "md"
-        ? "px-[3px] py-[1px] text-[10px]"
-        : "px-[3px] py-[1px] text-[11px]";
-  return (
-    <span
-      aria-hidden
-      className={`pointer-events-none absolute left-0 top-0 flex flex-col items-center rounded-tl-md rounded-br-[6px] bg-white font-black leading-[1.05] ${scale} ${suitClass}`}
-    >
-      <span>{rank}</span>
-      <span className="leading-[0.9]">{SUIT_GLYPH[suit]}</span>
-    </span>
-  );
-}
-
-function CardFace({ card, dims, size }: { card: string; dims: string; size: "sm" | "md" | "lg" | "xl" | "board" }) {
+function CardFace({ card, dims }: { card: string; dims: string }) {
   const [imgFailed, setImgFailed] = useState(false);
   const rank = card.slice(0, -1);
   const suit = card.slice(-1);
-  // 席まわりの小さなカードだけインデックスを重ねる(ボードや拡大表示は元の絵柄で十分読める)。
-  const indexSize = size === "sm" || size === "md" || size === "xl" ? size : null;
 
   if (!imgFailed) {
     return (
-      <span className="relative inline-block">
-        {/* eslint-disable-next-line @next/next/no-img-element -- 差し込みデザインは静的最適化不要な小さな画像のため素のimgでよい */}
-        <img
-          src={`/cards/${cardToAssetName(card)}.png`}
-          alt={card}
-          draggable={false}
-          onError={() => setImgFailed(true)}
-          className={`${dims} block rounded-md object-contain ring-1 ring-ink-950 select-none`}
-        />
-        {indexSize && <CardIndex rank={rank} suit={suit} size={indexSize} />}
-      </span>
+      // eslint-disable-next-line @next/next/no-img-element -- 差し込みデザインは静的最適化不要な小さな画像のため素のimgでよい
+      <img
+        src={`/cards/${cardToAssetName(card)}.png`}
+        alt={card}
+        draggable={false}
+        onError={() => setImgFailed(true)}
+        className={`${dims} block select-none rounded-md object-contain shadow-e1 ring-1 ring-black/40`}
+      />
     );
   }
 
-  const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-ink-900";
+  const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-fg";
   return (
     <div
-      className={`${dims} rounded-md bg-ink-50 ring-1 ring-ink-950 flex flex-col items-center justify-center leading-none select-none`}
+      className={`${dims} rounded-md bg-canvas ring-1 ring-line-strong flex flex-col items-center justify-center leading-none select-none`}
     >
       <span className={`font-semibold ${suitClass}`}>{rank}</span>
       <span className={suitClass}>{SUIT_GLYPH[suit]}</span>
@@ -110,15 +81,15 @@ function CardBack({ dims }: { dims: string }) {
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} rounded-md object-cover ring-1 ring-ink-950 select-none`}
+        className={`${dims} select-none rounded-md object-cover shadow-e1 ring-1 ring-black/40`}
       />
     );
   }
 
   return (
-    <div className={`${dims} rounded-md bg-gradient-to-br from-ink-700 to-ink-800 ring-1 ring-ink-950 relative overflow-hidden`}>
-      <div className="absolute inset-[3px] rounded-[5px] border border-ink-500/30" />
-      <div className="absolute inset-0 flex items-center justify-center text-ink-500/50 text-[10px] tracking-widest">♠</div>
+    <div className={`${dims} rounded-md bg-gradient-to-br from-n-5 to-n-5 ring-1 ring-line-strong relative overflow-hidden`}>
+      <div className="absolute inset-[3px] rounded-[5px] border border-n-5/30" />
+      <div className="absolute inset-0 flex items-center justify-center text-fg-2/50 text-[10px] tracking-widest">♠</div>
     </div>
   );
 }
@@ -143,7 +114,7 @@ export function PlayingCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: dealDelay, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      {faceDown || !card ? <CardBack dims={dims} /> : <CardFace card={card} dims={dims} size={size} />}
+      {faceDown || !card ? <CardBack dims={dims} /> : <CardFace card={card} dims={dims} />}
     </motion.div>
   );
 }

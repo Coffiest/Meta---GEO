@@ -8,8 +8,8 @@
  *
  * Poker ART向けの変更点:
  * - `motion/react` から `framer-motion` へ差し替え(BlurText.tsxと同じ理由)。
- * - 上下のグラデーションフェード既定色を黒(ダーク背景前提)から白へ変更。
- *   白背景のSwissデザインではフェードが暗い帯として浮いてしまうため。
+ * - 上下のグラデーションフェード既定色を黒からアプリのcanvas色(#1c1c1e)へ変更。
+ *   元の黒(#000)はcanvasより僅かに暗く、フェードの継ぎ目が薄い帯として見えてしまうため。
  *
  * 数字1桁ずつがオドメーター(自動車の走行距離計)のように回転して切り替わる。
  * `useCountUp`(単純な線形/イージング補間でテキストを書き換えるだけ)より視覚的な
@@ -132,8 +132,8 @@ export function DigitRoll({
   counterStyle,
   digitStyle,
   gradientHeight = 10,
-  gradientFrom = "white",
-  gradientTo = "rgba(255, 255, 255, 0)",
+  gradientFrom = "#1c1c1e",
+  gradientTo = "rgba(28, 28, 30, 0)",
 }: DigitRollProps) {
   const height = fontSize + padding;
 

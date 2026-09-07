@@ -36,8 +36,8 @@ export function AdSlot({ slot, label = "広告" }: { slot: string; label?: strin
   if (!clientId) return null;
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl bg-white/60" data-ad-container={uid}>
-      <p className="px-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-ink-400">{label}</p>
+    <div className="w-full overflow-hidden rounded-2xl bg-surface/80" data-ad-container={uid}>
+      <p className="px-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-fg-3">{label}</p>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- AdSenseの標準ins要素そのまま */}
       <ins
         ref={insRef}

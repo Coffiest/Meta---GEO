@@ -6,13 +6,13 @@ const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:40
 export const PLAYER_NOTE_COLORS = ["red", "orange", "yellow", "blue", "purple"] as const;
 export type PlayerNoteColor = (typeof PLAYER_NOTE_COLORS)[number];
 
-/** 各マーキング色の表示用HEX(黒枠線Swissのアクセントとして席カードに小さなドットで出す)。 */
+/** 各マーキング色の表示用HEX(席カードに小さなドットで出す)。 */
 export const PLAYER_NOTE_COLOR_HEX: Record<PlayerNoteColor, string> = {
-  red: "#e5484d",
+  red: "#f0595e",
   orange: "#f2760b",
   yellow: "#e0b400",
   blue: "#3987e5",
-  purple: "#8e4ec6",
+  purple: "#a96be0",
 };
 
 export const PLAYER_NOTE_COLOR_LABEL: Record<PlayerNoteColor, string> = {

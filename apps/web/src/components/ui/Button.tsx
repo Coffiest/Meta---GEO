@@ -14,15 +14,19 @@ import type { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode } from "reac
  *
  * 既存の見た目は変えていない。ここにある値は移行前に実際に使われていたクラス文字列から
  * 起こしたもので、この集約自体は視覚的に no-op になるようにしてある。
+ *
+ * v4.2.0のダークテーマ刷新(#217)で色トークンが ink/gold から canvas/surface/line/fg/accent
+ * (テーマカラーはteal系の#26C2A3)へ全面的に置き換わり、押下フィードバックも各所バラバラの
+ * active:scale/opacity から `.pressable`(globals.css)へ一本化された。ここもそれに追従する。
  */
 
 /** 塗り/枠線/文字色の系統。役割で選ぶ(見た目で選ばない)。 */
 export type ButtonVariant =
-  /** 主要動線。黒塗り+白文字。1画面に原則1つ。 */
+  /** 主要動線。アクセント(teal)塗り+on-accent文字+発光。1画面に原則1つ。 */
   | "primary"
-  /** 副次動線。白地+黒枠。primaryと並べても competing しない。 */
+  /** 副次動線。ガラス面+fg文字。primaryと並べても competing しない。 */
   | "secondary"
-  /** 強調動線。ゴールド。課金/特典など「得をする」導線に限定する。 */
+  /** 強調動線。primaryと同じアクセント塗りだが発光を伴わない(並置時に主役を譲る)。 */
   | "accent"
   /** 破壊的操作。crimson。退出/削除/通報など取り消せない操作。 */
   | "danger"
@@ -54,22 +58,22 @@ export type ButtonShape = "pill" | "rounded" | "snug";
 /**
  * 全variant共通の土台。
  * - `cursor-pointer`: Tailwind preflight は button のカーソルを既定に戻すため明示が要る。
- * - `active:scale-*`: タップのフィードバック。prefers-reduced-motion は globals.css で無効化済み。
+ * - `.pressable`: タップの押下フィードバック(globals.css に一本化されている)。
+ *   prefers-reduced-motion / prefers-reduced-transparency はそちら側で対応済み。
  * - `disabled:` : 押せないことを不透明度で示し、ポインタも殺す。
  */
 const BASE =
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap " +
-  "transition-transform active:scale-[0.98] " +
-  "disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100";
+  "pressable inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap " +
+  "disabled:cursor-not-allowed disabled:opacity-40";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "border border-ink-950 bg-ink-950 text-white font-black",
-  secondary: "border border-ink-950 bg-white text-ink-950 font-black",
-  accent: "border border-gold-500 bg-gold-500 text-ink-950 font-black",
-  danger: "border border-crimson-500 bg-crimson-500 text-white font-black",
+  primary: "border border-transparent bg-accent text-on-accent font-black shadow-glow",
+  secondary: "border border-line-strong bg-surface text-fg font-black",
+  accent: "border border-transparent bg-accent text-on-accent font-black",
+  danger: "border border-transparent bg-crimson-500 text-white font-black",
   // ghost だけは枠も塗りも持たない。高さを揃えるための padding だけ SIZES から受け取る。
-  ghost: "border border-transparent bg-transparent text-ink-500 font-bold",
-  quiet: "border border-ink-300 bg-white text-ink-600 font-semibold",
+  ghost: "border border-transparent bg-transparent text-fg-3 font-bold",
+  quiet: "border border-line bg-surface text-fg-2 font-semibold",
 };
 
 const SIZES: Record<ButtonSize, string> = {
