@@ -143,7 +143,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
           {(() => {
             const p = points[selected]!;
             const date = new Date(p.finishedAt);
-            const pnlClass = p.pnl > 0 ? "text-mint-600" : p.pnl < 0 ? "text-crimson-500" : "text-n-9";
+            const pnlClass = p.pnl > 0 ? "text-mint-400" : p.pnl < 0 ? "text-crimson-300" : "text-n-9";
             return (
               <motion.div
                 initial={{ opacity: 0, y: tooltipPos.above ? 6 : -6, scale: 0.95 }}
@@ -192,7 +192,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                       {p.rrRatingDelta != null && Math.abs(p.rrRatingDelta) >= 0.01 && (
                         <span
                           className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                            p.rrRatingDelta >= 0 ? "text-mint-600 bg-mint-500/10" : "text-crimson-600 bg-crimson-500/10"
+                            p.rrRatingDelta >= 0 ? "text-mint-400 bg-mint-500/10" : "text-crimson-300 bg-crimson-500/10"
                           }`}
                         >
                           {p.rrRatingDelta >= 0 ? "+" : ""}

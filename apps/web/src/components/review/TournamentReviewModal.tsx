@@ -140,7 +140,7 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
         className="flex w-full items-center gap-2 text-left"
         aria-expanded={open}
       >
-        <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-600">
+        <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-400">
           <Icon name="graph-up" className="h-3 w-3" />
           GEO解
         </span>
@@ -191,7 +191,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
         <ClassificationBadge classification={d.classification} showLabel size={24} />
         <span className="text-[14px] font-bold text-fg">{subject}: {d.actionName}</span>
         {d.evLossBb !== null && d.evLossBb > 0.02 && (
-          <span className="rounded-full bg-crimson-500/10 px-2 py-0.5 text-[11px] font-bold text-crimson-500 tabular-nums">
+          <span className="rounded-full bg-crimson-500/10 px-2 py-0.5 text-[11px] font-bold text-crimson-300 tabular-nums">
             EV −{d.evLossBb.toFixed(2)}bb
           </span>
         )}
@@ -654,7 +654,7 @@ export function TournamentReviewModal({
               集計中…
             </div>
           ) : freeError ? (
-            <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-500">{freeError}</div>
+            <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-300">{freeError}</div>
           ) : freeData ? (
             <motion.div variants={stagger} initial="hidden" animate="show">
               {/* 分類の件数(広告つき・誰でも無料で見られる範囲)。 */}
@@ -706,7 +706,7 @@ export function TournamentReviewModal({
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={openReview}
-                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-e3"
+                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-accent text-[17px] font-semibold text-on-accent shadow-glow"
                 >
                   <Icon name="refresh" className="h-4 w-4" />
                   局後検討
@@ -798,7 +798,7 @@ export function TournamentReviewModal({
           </div>
         ) : error ? (
           <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5">
-            <p className="text-[14px] font-medium text-crimson-500">{error}</p>
+            <p className="text-[14px] font-medium text-crimson-300">{error}</p>
             <ReportErrorButton scope="review:tournament" message={error} className="mt-2" />
           </div>
         ) : quota ? (
@@ -824,7 +824,7 @@ export function TournamentReviewModal({
                 <div className="min-w-0 flex-1">
                   <div className="pb-3" style={{ borderBottom: `0.5px solid ${HAIRLINE}` }}>
                     <p className="text-[11px] font-semibold text-fg-2">総ロスEV</p>
-                    <p className="text-[24px] font-bold leading-tight tracking-tight text-crimson-500 tabular-nums">
+                    <p className="text-[24px] font-bold leading-tight tracking-tight text-crimson-300 tabular-nums">
                       −{summary.totalEvLoss.toFixed(1)}
                       <span className="ml-0.5 text-[13px] font-semibold">bb</span>
                     </p>
@@ -889,11 +889,11 @@ export function TournamentReviewModal({
                       <ClassificationBadge classification={summary.worst.d.classification} size={26} />
                     )}
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-crimson-500">ワースト</p>
+                      <p className="text-[11px] font-semibold text-crimson-300">ワースト</p>
                       <p className="truncate text-[14px] font-semibold text-fg">
                         Hand #{summary.worst.handNumber} · {STREET_LABEL[summary.worst.d.street] ?? summary.worst.d.street} ·{" "}
                         {summary.worst.d.actionName}
-                        <span className="ml-1.5 text-[12px] font-bold text-crimson-500 tabular-nums">
+                        <span className="ml-1.5 text-[12px] font-bold text-crimson-300 tabular-nums">
                           −{(summary.worst.d.evLossBb ?? 0).toFixed(2)}bb
                         </span>
                       </p>
@@ -934,7 +934,7 @@ export function TournamentReviewModal({
                   setView("replay");
                 }}
                 disabled={steps.length === 0}
-                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-n-4 text-[17px] font-semibold text-white shadow-e3 disabled:opacity-40"
+                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-accent text-[17px] font-semibold text-on-accent shadow-glow disabled:opacity-40"
               >
                 <Icon name="play" className="h-4 w-4" />
                 棋譜解析を開始

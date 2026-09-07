@@ -97,7 +97,7 @@ export default function WatchPage() {
         <div className="mt-6 flex items-center gap-2">
           <p className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{t("watch.eyebrow")}</p>
           {live && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-crimson-500 px-2.5 py-1 text-[10px] font-black text-white">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-crimson-600 px-2.5 py-1 text-[10px] font-black text-white">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-surface/80" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-surface" />

@@ -200,7 +200,7 @@ export function Onboarding({
                 </button>
               )}
             </div>
-            {pickError && <p className="text-[12px] text-crimson-500">{pickError}</p>}
+            {pickError && <p className="text-[12px] text-crimson-300">{pickError}</p>}
           </div>
 
           {/* 名前入力 */}
@@ -224,7 +224,7 @@ export function Onboarding({
 
           {error && (
             <div className="mt-3 px-1">
-              <p className="text-[12px] text-crimson-500">{error}</p>
+              <p className="text-[12px] text-crimson-300">{error}</p>
               <ReportErrorButton scope="onboarding" message={error} className="mt-1.5" />
             </div>
           )}
@@ -232,7 +232,7 @@ export function Onboarding({
           <button
             onClick={() => canSubmit && onSubmit({ displayName: name.trim(), avatarKey })}
             disabled={!canSubmit}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-n-4 py-3.5 font-semibold text-white pressable disabled:opacity-40"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 font-semibold text-on-accent shadow-glow pressable disabled:opacity-40"
           >
             <span>{saving ? t("onb.saving") : submitLabel}</span>
             {!saving && (

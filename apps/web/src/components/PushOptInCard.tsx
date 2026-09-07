@@ -113,7 +113,7 @@ export function PushOptInCard({ accessToken }: { accessToken?: string }) {
 
       {error && (
         <div className="mt-2">
-          <p className="text-[11.5px] font-semibold text-crimson-500">{error}</p>
+          <p className="text-[11.5px] font-semibold text-crimson-300">{error}</p>
           <ReportErrorButton scope="push" message={error} className="mt-1.5" />
         </div>
       )}

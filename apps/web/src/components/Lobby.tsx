@@ -180,7 +180,7 @@ function GameStartCards({
             ? "bg-gradient-to-r from-accent-hi via-accent to-accent-lo"
             : "bg-gradient-to-r from-crimson-300 via-crimson-400 to-crimson-600";
           const enterFill = i === 0 ? "bg-accent text-on-accent" : "bg-crimson-400 text-on-accent";
-          const accentText = i === 0 ? "text-accent" : "text-crimson-400";
+          const accentText = i === 0 ? "text-accent" : "text-crimson-300";
           const soon = Boolean(game.comingSoon);
           return (
             <motion.button
@@ -340,7 +340,7 @@ function formatSigned(n: number): string {
 }
 
 function signedClass(n: number): string {
-  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-400" : "text-fg";
+  return n > 0 ? "text-mint-400" : n < 0 ? "text-crimson-300" : "text-fg";
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -466,7 +466,7 @@ function TournamentHistoryCard({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const date = new Date(point.finishedAt);
-  const pnlClass = point.pnl > 0 ? "text-mint-600" : point.pnl < 0 ? "text-crimson-500" : "text-n-9";
+  const pnlClass = point.pnl > 0 ? "text-mint-400" : point.pnl < 0 ? "text-crimson-300" : "text-n-9";
 
   return (
     <>
@@ -556,7 +556,7 @@ function TournamentHistoryCard({
                   {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
                     <span
                       className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                        point.rrRatingDelta >= 0 ? "text-mint-600 bg-mint-500/10" : "text-crimson-600 bg-crimson-500/10"
+                        point.rrRatingDelta >= 0 ? "text-mint-400 bg-mint-500/10" : "text-crimson-300 bg-crimson-500/10"
                       }`}
                     >
                       {point.rrRatingDelta >= 0 ? "+" : ""}
@@ -572,7 +572,7 @@ function TournamentHistoryCard({
                     setOpen(false);
                     onOpenReview(point.tournamentId);
                   }}
-                  className="mt-3 block w-full rounded-xl bg-n-4 py-3 text-center text-[13px] font-bold text-white active:opacity-80"
+                  className="pressable mt-3 block w-full rounded-xl bg-accent py-3 text-center text-[13px] font-bold text-on-accent shadow-glow"
                 >
                   {t("result.reviewCta")}
                 </button>
@@ -1083,7 +1083,7 @@ function HamburgerMenu({
             <LanguageSwitcher />
           </div>
           {onSignOut && (
-            <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-400">
+            <button onClick={onSignOut} className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300">
               {t("menu.logout")} <span className="text-n-9">›</span>
             </button>
           )}
@@ -1093,17 +1093,17 @@ function HamburgerMenu({
               {!confirmingDelete ? (
                 <button
                   onClick={() => setConfirmingDelete(true)}
-                  className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-500"
+                  className="w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300"
                 >
                   {t("menu.deleteAccount")} <span className="text-n-9">›</span>
                 </button>
               ) : (
                 <div className="rounded-xl bg-crimson-500/[0.06] px-3 py-3">
-                  <p className="text-[13px] font-black text-crimson-500">{t("menu.deleteAccount.confirmTitle")}</p>
+                  <p className="text-[13px] font-black text-crimson-300">{t("menu.deleteAccount.confirmTitle")}</p>
                   <p className="mt-1 text-[11.5px] leading-relaxed text-n-9">{t("menu.deleteAccount.confirmBody")}</p>
                   <p className="mt-1.5 text-[11px] leading-relaxed text-n-9">{t("menu.deleteAccount.geoNotice")}</p>
                   {deleteError && (
-                    <p className="mt-2 text-[11px] font-semibold text-crimson-500">
+                    <p className="mt-2 text-[11px] font-semibold text-crimson-300">
                       {t("menu.deleteAccount.failed")}: {deleteError}
                     </p>
                   )}
@@ -1111,7 +1111,7 @@ function HamburgerMenu({
                     <button
                       onClick={() => void runDelete()}
                       disabled={deleting}
-                      className="flex-1 rounded-lg bg-crimson-500 py-2 text-[12px] font-bold text-white disabled:opacity-60"
+                      className="flex-1 rounded-lg bg-crimson-600 py-2 text-[12px] font-bold text-white disabled:opacity-60"
                     >
                       {deleting ? t("menu.deleteAccount.deleting") : t("menu.deleteAccount.confirm")}
                     </button>

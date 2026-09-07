@@ -51,7 +51,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
       <div className="flex items-center gap-2 text-[13px]">
         <span className="font-black text-fg">あなた: {d.actionName}</span>
         {d.evLossBb !== null && d.evLossBb > 0.02 && (
-          <span className="text-[11px] font-bold text-crimson-500 tabular-nums">EV −{d.evLossBb.toFixed(2)}bb</span>
+          <span className="text-[11px] font-bold text-crimson-300 tabular-nums">EV −{d.evLossBb.toFixed(2)}bb</span>
         )}
         <span className="ml-auto text-[10px] text-fg-3 tabular-nums">
           {d.effStackBb.toFixed(0)}bb · pot {d.potBb.toFixed(1)}bb
@@ -162,7 +162,7 @@ export default function ReviewHandPage() {
           </div>
         ) : error ? (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3">
-            <p className="text-sm text-crimson-500">{error}</p>
+            <p className="text-sm text-crimson-300">{error}</p>
             <ReportErrorButton scope="review:hand" message={error} className="mt-2" />
           </div>
         ) : review && timeline ? (
@@ -173,7 +173,7 @@ export default function ReviewHandPage() {
                 <p className="text-[13px] font-black text-fg">Hand #{timeline.handNumber}</p>
                 {review.mistakeCount > 0 && (
                   <p className="text-[11px] font-bold text-n-9">
-                    ミス <span className="text-crimson-500 tabular-nums">{review.mistakeCount}</span>
+                    ミス <span className="text-crimson-300 tabular-nums">{review.mistakeCount}</span>
                   </p>
                 )}
               </div>

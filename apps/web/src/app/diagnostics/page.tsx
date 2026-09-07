@@ -55,7 +55,7 @@ function Row({ label, value, warn = false, hint }: { label: string; value: strin
         <p className="text-[12px] font-bold text-n-9">{label}</p>
         {hint && <p className="mt-0.5 text-[11px] leading-snug text-fg-2">{hint}</p>}
       </div>
-      <p className={`shrink-0 text-[15px] font-black tabular-nums ${warn ? "text-crimson-500" : "text-fg"}`}>{value}</p>
+      <p className={`shrink-0 text-[15px] font-black tabular-nums ${warn ? "text-crimson-300" : "text-fg"}`}>{value}</p>
     </div>
   );
 }
@@ -184,7 +184,7 @@ export default function DiagnosticsPage() {
 
         {fetchError && (
           <div className="mt-4 rounded-2xl border border-crimson-500 bg-crimson-500/10 p-4">
-            <p className="text-[13px] font-black text-crimson-500">サーバーの診断値が取得できません</p>
+            <p className="text-[13px] font-black text-crimson-300">サーバーの診断値が取得できません</p>
             <p className="mt-1 break-words text-[12px] leading-relaxed text-n-9">{fetchError}</p>
             <p className="mt-2 text-[11px] leading-relaxed text-fg-2">
               これ自体が原因の可能性があります（サーバーが落ちている / 起動中 / ネットワーク遮断）。
@@ -206,7 +206,7 @@ export default function DiagnosticsPage() {
                   <p className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">判定</p>
                   <p
                     className={`mt-1 text-[13.5px] font-bold leading-relaxed ${
-                      v.tone === "warn" ? "text-crimson-500" : "text-n-10"
+                      v.tone === "warn" ? "text-crimson-300" : "text-n-10"
                     }`}
                   >
                     {v.text}
@@ -318,7 +318,7 @@ export default function DiagnosticsPage() {
                       <span className="min-w-0 truncate font-mono text-n-9">
                         {r.method} {r.path} <span className="text-fg-3">({r.status})</span>
                       </span>
-                      <span className="shrink-0 font-black tabular-nums text-crimson-500">{r.durationMs} ms</span>
+                      <span className="shrink-0 font-black tabular-nums text-crimson-300">{r.durationMs} ms</span>
                     </li>
                   ))}
                 </ul>
@@ -334,7 +334,7 @@ export default function DiagnosticsPage() {
                   {snapshot.errors.map((e, i) => (
                     <li key={i} className="rounded-xl bg-canvas p-2.5">
                       <p className="text-[11px] font-black text-n-9">{e.scope}</p>
-                      <p className="mt-0.5 break-words font-mono text-[11px] leading-snug text-crimson-500">{e.message}</p>
+                      <p className="mt-0.5 break-words font-mono text-[11px] leading-snug text-crimson-300">{e.message}</p>
                       <p className="mt-0.5 text-[10px] text-fg-3">{e.at}</p>
                     </li>
                   ))}

@@ -182,13 +182,15 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
  * アプリの面構えを保ったまま塗りだけを色分けする。ActionBar のボタン配色と同じ言語:
  *  - コール/チェックはミント(応答)
  *  - ベット/レイズ/オールインはクリムゾン(強い意思表示)
- *  - ポット獲得はゴールド(卓上で唯一の"結果"の色。アクションではないので据え置き)
+ *  - ポット獲得はアクセント(卓上で唯一の"結果"の色。アクションではないので据え置き)
  *  - フォールドは輪郭も文字も落として静かに引く
  */
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   win: "bg-accent text-on-accent ring-line-strong",
-  raise: "bg-crimson-500 text-white ring-line-strong",
-  call: "bg-mint-500 text-white ring-line-strong",
+  // 塗りの濃さは「暗地でバッジ自体が3:1以上」かつ「その上の白文字が4.5:1以上」を
+  // 同時に満たす段を選んである(明るくすると文字が、暗くするとバッジが読めなくなる)。
+  raise: "bg-crimson-600 text-white ring-line-strong",
+  call: "bg-mint-700 text-white ring-line-strong",
   fold: "bg-surface text-fg-3 ring-line",
 };
 

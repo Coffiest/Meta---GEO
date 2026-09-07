@@ -241,7 +241,7 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
       <div className="px-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
         <button
           onClick={next}
-          className="w-full cursor-pointer rounded-full bg-n-4 py-3.5 text-[14px] font-black text-white pressable"
+          className="w-full cursor-pointer rounded-full bg-accent py-3.5 text-[14px] font-black text-on-accent shadow-glow pressable"
         >
           {isLast ? "使ってみる" : "次へ"}
         </button>

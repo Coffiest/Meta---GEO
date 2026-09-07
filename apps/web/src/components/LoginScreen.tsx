@@ -252,7 +252,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               </button>
               {error && (
                 <div className="mt-3 text-center">
-                  <p className="text-[12px] text-crimson-500">{error}</p>
+                  <p className="text-[12px] text-crimson-300">{error}</p>
                   <ReportErrorButton scope="login" message={error} className="mt-1.5 justify-center" />
                 </div>
               )}
@@ -353,7 +353,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   }`}
                 />
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="mt-1 text-[11px] text-crimson-500">{t("login.passwordMismatch")}</p>
+                  <p className="mt-1 text-[11px] text-crimson-300">{t("login.passwordMismatch")}</p>
                 )}
               </div>
             )}
@@ -379,7 +379,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           )}
 
           {auth.oauthError && (
-            <div className="mt-4 space-y-0.5 rounded-xl border border-crimson-500/30 bg-crimson-500/5 px-3.5 py-2.5 text-[12px] text-crimson-500">
+            <div className="mt-4 space-y-0.5 rounded-xl border border-crimson-500/30 bg-crimson-500/5 px-3.5 py-2.5 text-[12px] text-crimson-300">
               <p className="font-semibold">{t("login.oauthFailed")}</p>
               <p>{auth.oauthError}</p>
               {auth.oauthErrorRaw && <p className="break-all text-fg-3">{t("login.oauthDetail")}: {auth.oauthErrorRaw}</p>}
@@ -387,11 +387,11 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           )}
           {error && (
             <div className="mt-4">
-              <p className="text-[12px] text-crimson-500">{error}</p>
+              <p className="text-[12px] text-crimson-300">{error}</p>
               <ReportErrorButton scope="login" message={error} className="mt-1.5" />
             </div>
           )}
-          {info && <p className="mt-4 text-[12px] text-mint-600">{info}</p>}
+          {info && <p className="mt-4 text-[12px] text-mint-400">{info}</p>}
 
           <button
             onClick={handleSubmit}
@@ -401,7 +401,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               (mode !== "reset" && !password) ||
               (mode === "signup" && (!confirmPassword || confirmPassword !== password))
             }
-            className="mt-5 w-full rounded-xl bg-n-4 py-3.5 font-semibold text-white pressable disabled:opacity-40"
+            className="mt-5 w-full rounded-xl bg-accent py-3.5 font-semibold text-on-accent shadow-glow pressable disabled:opacity-40"
           >
             {submitting ? t("login.submitting") : submitLabel}
           </button>

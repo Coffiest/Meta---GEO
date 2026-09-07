@@ -7,9 +7,9 @@ const SUIT_GLYPH: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "�
 // 差し込み済みカードデザインに合わせた4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)
 const SUIT_TEXT_CLASS: Record<string, string> = {
   s: "text-fg",
-  h: "text-crimson-500",
-  d: "text-azure-500",
-  c: "text-mint-500",
+  h: "text-crimson-300",
+  d: "text-azure-400",
+  c: "text-mint-400",
 };
 
 /**

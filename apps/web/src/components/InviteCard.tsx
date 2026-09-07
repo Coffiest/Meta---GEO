@@ -208,7 +208,7 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
           </div>
           {redeemError && (
             <div className="mt-1.5">
-              <p className="text-[11.5px] font-semibold text-crimson-500">{redeemError}</p>
+              <p className="text-[11.5px] font-semibold text-crimson-300">{redeemError}</p>
               <ReportErrorButton scope="referral" message={redeemError} className="mt-1.5" />
             </div>
           )}

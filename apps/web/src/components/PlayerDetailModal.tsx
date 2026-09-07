@@ -203,7 +203,7 @@ export function PlayerDetailModal({
               type="button"
               onClick={handleSave}
               disabled={saving || !accessToken}
-              className="mt-3 w-full rounded-xl border border-line-strong bg-n-4 py-3 text-sm font-black text-white transition-opacity disabled:opacity-50"
+              className="pressable mt-3 w-full rounded-xl bg-accent py-3 text-sm font-black text-on-accent shadow-glow disabled:opacity-50"
             >
               {saving ? "保存中…" : savedTick ? "保存しました" : "メモ・マーキングを保存"}
             </button>
@@ -228,7 +228,7 @@ function Metric({
   accent?: "up" | "down" | "flat";
   compact?: boolean;
 }) {
-  const accentClass = accent === "up" ? "text-mint-600" : accent === "down" ? "text-crimson-600" : "text-fg";
+  const accentClass = accent === "up" ? "text-mint-400" : accent === "down" ? "text-crimson-300" : "text-fg";
   return (
     <div className="rounded-xl border border-line px-3 py-2.5">
       <p className="text-[10px] font-black uppercase tracking-[0.15em] text-fg-3">{label}</p>

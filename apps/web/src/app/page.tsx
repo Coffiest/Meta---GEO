@@ -223,7 +223,7 @@ function SettingsPopover({
             <div className="flex gap-2">
               <button
                 onClick={onLeave}
-                className="flex-1 rounded-lg bg-crimson-500 text-white text-xs font-semibold py-2 pressable"
+                className="flex-1 rounded-lg bg-crimson-600 text-white text-xs font-semibold py-2 pressable"
               >
                 {t("settings.leaveDo")}
               </button>
@@ -238,7 +238,7 @@ function SettingsPopover({
         ) : (
           <button
             onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-500 hover:bg-n-2 transition-[background-color,transform] pressable"
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-300 hover:bg-n-2 transition-[background-color,transform] pressable"
           >
             {t("settings.leave")}
           </button>
@@ -508,7 +508,7 @@ function GameScreen({
           {regClosesAt && (
             <div className="mt-0.5 flex items-center gap-1 leading-none">
               <span className="text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Reg締切</span>
-              <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-500" />
+              <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-300" />
             </div>
           )}
           <div className="mt-1 flex items-end gap-2 leading-none">
@@ -671,7 +671,7 @@ function GameScreen({
             exit={{ opacity: 0 }}
             className="mx-auto mb-2 max-w-md rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/40 px-4 py-2 text-center"
           >
-            <p className="text-xs text-crimson-600">{actionError ?? joinError}</p>
+            <p className="text-xs text-crimson-300">{actionError ?? joinError}</p>
             <ReportErrorButton
               scope={actionError ? "table:action" : "table:join"}
               message={actionError ?? joinError ?? ""}
@@ -793,7 +793,7 @@ function GameScreen({
                 <button
                   type="button"
                   onClick={onExit}
-                  className="mt-3 w-full rounded-xl border border-line-strong bg-n-4 px-4 py-2 text-[13px] font-black text-white active:translate-y-px"
+                  className="pressable mt-3 w-full rounded-xl bg-accent px-4 py-2 text-[13px] font-black text-on-accent shadow-glow"
                 >
                   ホームへ戻る
                 </button>
@@ -1129,7 +1129,7 @@ export default function Page() {
         <p className="text-base font-bold text-fg">{t("app.profileFetchFailed")}</p>
         <p className="max-w-xs text-sm text-n-9">{reasonMsg}</p>
         <div className="flex flex-col items-center gap-2.5">
-          <button onClick={() => void reload()} className="rounded-xl bg-mint-500 text-white text-sm font-semibold px-6 py-2.5 pressable">
+          <button onClick={() => void reload()} className="rounded-xl bg-mint-700 text-white text-sm font-semibold px-6 py-2.5 pressable">
             {t("app.retry")}
           </button>
           {reason === "unauthorized" && !embeddedAuthProblem && (

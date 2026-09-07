@@ -163,7 +163,7 @@ export function ReviewPaywall({
 
         {msg && (
           <div className="mt-2 text-center">
-            <p className="text-[11px] font-bold text-crimson-500">{msg}</p>
+            <p className="text-[11px] font-bold text-crimson-300">{msg}</p>
             <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
           </div>
         )}

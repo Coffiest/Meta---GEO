@@ -45,7 +45,7 @@ export function DiagnosticsToaster() {
       {entries.map((e) => {
         const tone =
           e.kind === "error"
-            ? "border-crimson-500 text-crimson-600"
+            ? "border-crimson-500 text-crimson-300"
             : e.kind === "warn"
               ? "border-accent-lo text-accent"
               : "border-line-strong text-n-10";

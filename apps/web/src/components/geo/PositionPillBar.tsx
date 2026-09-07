@@ -35,9 +35,9 @@ function suitSymbol(card: string): string {
   return s === "s" ? "♠" : s === "h" ? "♥" : s === "d" ? "♦" : "♣";
 }
 function suitTextClass(card: string): string {
-  if (card.endsWith("h")) return "text-crimson-500";
-  if (card.endsWith("d")) return "text-azure-500";
-  if (card.endsWith("c")) return "text-mint-500";
+  if (card.endsWith("h")) return "text-crimson-300";
+  if (card.endsWith("d")) return "text-azure-400";
+  if (card.endsWith("c")) return "text-mint-400";
   return "text-fg";
 }
 

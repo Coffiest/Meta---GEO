@@ -111,7 +111,7 @@ export function BlindStructureSheet({
               <br />
               締切
             </p>
-            <p className="text-[18px] font-black tabular-nums text-crimson-500">{regCloseClock}</p>
+            <p className="text-[18px] font-black tabular-nums text-crimson-300">{regCloseClock}</p>
           </div>
         ) : tournamentInfo?.isFinalTable ? (
           <div className="mt-4">

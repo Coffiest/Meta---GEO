@@ -193,7 +193,7 @@ export function CouponWallet({
         {message && (
           <div className="mt-1.5">
             <p
-              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-accent" : "text-crimson-500"}`}
+              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-accent" : "text-crimson-300"}`}
             >
               {message.text}
             </p>

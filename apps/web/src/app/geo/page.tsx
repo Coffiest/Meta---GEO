@@ -631,14 +631,14 @@ function GeoDatabase() {
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
-            <p className="text-sm text-crimson-400">{error}</p>
+            <p className="text-sm text-crimson-300">{error}</p>
             {/* 原因の技術詳細(種別・エンドポイント・HTTPステータス・所要ms)。そのまま共有できる。 */}
             {failure && <p className="mt-1 font-mono text-[10px] leading-snug text-crimson-300/70 break-all">{failure.detail}</p>}
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPollTick((t) => t + 1)}
-                className="rounded-full bg-crimson-500 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
+                className="rounded-full bg-crimson-600 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
               >
                 今すぐ再試行
               </button>

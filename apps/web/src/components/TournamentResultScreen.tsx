@@ -68,7 +68,7 @@ function MetricCard({
   delay: number;
 }) {
   const v = useCountUp(from, to, 1200, delay);
-  const toneClass = deltaTone === "up" ? "text-mint-600 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-600 bg-crimson-500/10" : "text-fg-2 bg-n-2";
+  const toneClass = deltaTone === "up" ? "text-mint-400 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-300 bg-crimson-500/10" : "text-fg-2 bg-n-2";
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -382,7 +382,7 @@ export function TournamentResultScreen({
           <button
             onClick={doReEntry}
             disabled={reEntering}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-500 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] pressable disabled:opacity-90"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-600 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] pressable disabled:opacity-90"
           >
             {reEntering ? (
               <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()} …復帰中</span>

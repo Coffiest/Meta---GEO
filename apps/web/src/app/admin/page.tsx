@@ -77,7 +77,7 @@ interface TrendRow {
 
 /** 深刻度ごとの見た目。critical は赤で最優先に見えるようにする。 */
 const SEVERITY_STYLE: Record<"critical" | "warning" | "info", { label: string; className: string }> = {
-  critical: { label: "重大", className: "bg-crimson-500 text-white" },
+  critical: { label: "重大", className: "bg-crimson-600 text-white" },
   warning: { label: "注意", className: "bg-accent text-on-accent" },
   info: { label: "軽微", className: "bg-n-4 text-n-9" },
 };
@@ -372,7 +372,7 @@ export default function AdminPage() {
                   {geoBackfill && (
                     <p className="mt-1.5 text-[11px] font-bold tabular-nums text-n-10">
                       対象 {geoBackfill.totalHands.toLocaleString()} ハンド / 未展開{" "}
-                      <span className={geoBackfill.missingHands === 0 ? "text-mint-600" : "text-crimson-500"}>
+                      <span className={geoBackfill.missingHands === 0 ? "text-mint-400" : "text-crimson-300"}>
                         {geoBackfill.missingHands.toLocaleString()}
                       </span>{" "}
                       ハンド
@@ -386,7 +386,7 @@ export default function AdminPage() {
                     </p>
                   )}
                   {geoBackfill?.error && (
-                    <p className="mt-1 text-[11px] font-bold text-crimson-500">前回の実行が失敗しました: {geoBackfill.error}</p>
+                    <p className="mt-1 text-[11px] font-bold text-crimson-300">前回の実行が失敗しました: {geoBackfill.error}</p>
                   )}
                 </div>
                 <button
@@ -461,7 +461,7 @@ export default function AdminPage() {
                                     <td
                                       key={p}
                                       className={`border-b border-n-3 px-1.5 py-1 font-bold ${
-                                        weak ? "text-crimson-500" : "text-fg"
+                                        weak ? "text-crimson-300" : "text-fg"
                                       }`}
                                     >
                                       {hands.toLocaleString()}
@@ -607,13 +607,13 @@ export default function AdminPage() {
             </div>
 
             {notice && (
-              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-600 ring-1 ring-mint-500/30">
+              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-400 ring-1 ring-mint-500/30">
                 {notice}
               </div>
             )}
             {error && (
               <div className="mt-3 rounded-xl bg-crimson-500/10 px-3.5 py-2.5 ring-1 ring-crimson-500/30">
-                <p className="text-[12px] font-bold text-crimson-500">{error}</p>
+                <p className="text-[12px] font-bold text-crimson-300">{error}</p>
                 <ReportErrorButton scope="admin" message={error} className="mt-2" />
               </div>
             )}
@@ -684,7 +684,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => void revoke(u.id)}
                             disabled={busy}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-500 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             付与を取り消す
                           </button>
@@ -741,7 +741,7 @@ export default function AdminPage() {
                           <p className="text-[11px] font-bold text-n-9 tabular-nums">
                             {u.geo.totalHands}ハンド
                             {u.geo.excludedHands > 0 && (
-                              <span className="ml-1 text-crimson-500">(除外 {u.geo.excludedHands})</span>
+                              <span className="ml-1 text-crimson-300">(除外 {u.geo.excludedHands})</span>
                             )}
                           </p>
                         </div>
@@ -749,7 +749,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => void geoDelete(u.id)}
                             disabled={busy || u.geo.totalHands === u.geo.excludedHands}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-500 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             全部削除
                           </button>
@@ -806,7 +806,7 @@ export default function AdminPage() {
                                 <button
                                   onClick={() => void geoDelete(u.id, geoFrom || undefined, geoTo || undefined)}
                                   disabled={busy || (!geoFrom && !geoTo)}
-                                  className="w-full rounded-full bg-crimson-500 px-4 py-2 text-[11px] font-black text-white active:opacity-90 disabled:opacity-40"
+                                  className="w-full rounded-full bg-crimson-600 px-4 py-2 text-[11px] font-black text-white active:opacity-90 disabled:opacity-40"
                                 >
                                   この期間のプレイラインを削除
                                 </button>

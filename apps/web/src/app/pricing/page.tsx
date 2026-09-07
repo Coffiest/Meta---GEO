@@ -150,7 +150,7 @@ export default function PricingPage() {
           )}
           {error && (
             <div className="mt-2 text-center">
-              <p className="text-[11px] font-bold text-crimson-500">{error}</p>
+              <p className="text-[11px] font-bold text-crimson-300">{error}</p>
               <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
             </div>
           )}
