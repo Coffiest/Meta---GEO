@@ -25,7 +25,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-line bg-surface p-3.5"
+      className="rounded-2xl glass-panel p-3.5"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export default function ReviewHandPage() {
   return (
     <div className="min-h-screen bg-surface">
       <div className="max-w-3xl mx-auto px-4 pt-5 pb-28">
-        <button onClick={() => router.back()} className="text-[12px] font-bold text-fg-2 mb-3">
+        <button onClick={() => router.back()} className="pressable text-[12px] font-bold text-fg-2 mb-3">
           ← 戻る
         </button>
         <div className="flex items-center gap-2 mb-4">
@@ -168,7 +168,7 @@ export default function ReviewHandPage() {
         ) : review && timeline ? (
           <>
             {/* サマリー(確定仕様: ハンド単位のGTO精度%と芸術的カウントは表示しない) */}
-            <div className="rounded-2xl border border-line-strong bg-surface p-4 mb-4">
+            <div className="rounded-2xl glass-panel p-4 mb-4">
               <div className="flex items-center justify-between">
                 <p className="text-[13px] font-black text-fg">Hand #{timeline.handNumber}</p>
                 {review.mistakeCount > 0 && (

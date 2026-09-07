@@ -189,7 +189,7 @@ function SettingsPopover({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl bg-surface border border-line-strong p-2 space-y-1">
+      <div className="absolute right-4 top-[calc(env(safe-area-inset-top)+44px)] z-50 w-60 rounded-2xl glass-panel p-2 space-y-1">
         <button
           onClick={() => {
             onClose();
@@ -229,7 +229,7 @@ function SettingsPopover({
               </button>
               <button
                 onClick={() => setConfirmingLeave(false)}
-                className="flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
+                className="pressable flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
               >
                 {t("settings.leaveCancel")}
               </button>
@@ -474,7 +474,7 @@ function GameScreen({
             gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
         <button
           onClick={() => setStructureOpen(true)}
-          className="shrink-0 rounded-xl bg-surface text-fg border border-line-strong px-3 py-1.5 text-left pressable"
+          className="glass-panel pressable shrink-0 rounded-2xl px-3 py-1.5 text-left text-fg"
         >
           <div className="flex items-center gap-1.5 leading-none">
             <span className="text-[8px] font-black uppercase tracking-[0.22em] text-accent tabular-nums">Lv {level?.level ?? "-"}</span>
@@ -487,7 +487,7 @@ function GameScreen({
           </div>
           <CountdownText
             endsAt={levelEndsAt}
-            className="mt-0.5 block text-[26px] font-black tabular-nums leading-none text-accent"
+            className="mt-0.5 block text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-accent"
           />
           {/* 生存者数。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。
               MTT・Sit&Goのどちらでも必ず出す(サーバーは両方とも remaining/total を送っている)。
@@ -538,7 +538,7 @@ function GameScreen({
 
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-9 w-9 rounded-full bg-surface border border-line-strong flex items-center justify-center text-n-10 active:scale-95 transition-transform"
+          className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
           aria-label="設定"
         >
           <Icon name="settings" className="h-[18px] w-[18px]" />
@@ -614,7 +614,7 @@ function GameScreen({
                 setChatDraft("");
                 setChatInputOpen(false);
               }}
-              className="safe-area-bottom flex w-full items-center gap-2 border-t border-line bg-surface px-4 pb-6 pt-3"
+              className="glass-footer safe-area-bottom flex w-full items-center gap-2 px-4 pb-6 pt-3"
             >
               <input
                 autoFocus
@@ -622,12 +622,12 @@ function GameScreen({
                 onChange={(e) => setChatDraft(e.target.value)}
                 maxLength={120}
                 placeholder="メッセージを入力…"
-                className="flex-1 rounded-full border border-line-strong bg-surface px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
+                className="flex-1 rounded-full bg-white/[0.08] px-4 py-2.5 text-sm text-fg outline-none ring-1 ring-inset ring-white/12 placeholder:text-fg-faint"
               />
               <button
                 type="submit"
                 aria-label="送信"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform active:scale-90"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform pressable"
               >
                 <Icon name="arrow-right" className="h-[18px] w-[18px]" />
               </button>
@@ -643,7 +643,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 12, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl bg-surface border border-line-strong p-3.5"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl glass-panel p-3.5"
           >
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
@@ -694,7 +694,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-e3"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl glass-panel p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
@@ -716,7 +716,7 @@ function GameScreen({
                   <button
                     type="button"
                     onClick={resync}
-                    className="mt-2.5 w-full rounded-xl border border-line-strong bg-surface px-4 py-2 text-[12px] font-black text-fg active:translate-y-px"
+                    className="pressable mt-2.5 w-full rounded-xl bg-white/[0.10] px-4 py-2 text-[12px] font-black text-fg ring-1 ring-inset ring-white/12"
                   >
                     今すぐ再同期する
                   </button>
@@ -766,7 +766,7 @@ function GameScreen({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl border border-line-strong bg-surface p-4 shadow-e3"
+            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl glass-panel p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
               <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-fg" />
@@ -926,7 +926,7 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
           </p>
           <Link
             href="/diagnostics"
-            className="rounded-xl border border-line-strong bg-surface px-4 py-2 text-[12px] font-black text-fg"
+            className="pressable rounded-xl bg-white/[0.10] px-4 py-2 text-[12px] font-black text-fg ring-1 ring-inset ring-white/12"
           >
             原因を診断する
           </Link>
@@ -953,13 +953,13 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
       <div className="flex items-center gap-2.5">
         <button
           onClick={onRetry}
-          className="rounded-xl bg-n-4 px-6 py-2.5 text-sm font-semibold text-white active:opacity-80"
+          className="rounded-xl bg-n-4 px-6 py-2.5 text-sm font-semibold text-white pressable"
         >
           今すぐ再試行
         </button>
         <button
           onClick={onHome}
-          className="rounded-xl border border-line bg-surface px-6 py-2.5 text-sm font-semibold text-n-9 active:bg-n-2"
+          className="pressable rounded-xl bg-white/[0.10] px-6 py-2.5 text-sm font-semibold text-fg-2 ring-1 ring-inset ring-white/12"
         >
           ホーム画面へ
         </button>
@@ -1135,7 +1135,7 @@ export default function Page() {
           {reason === "unauthorized" && !embeddedAuthProblem && (
             <button
               onClick={() => void auth.signOut()}
-              className="text-[13px] font-semibold text-n-9 underline underline-offset-2"
+              className="pressable text-[13px] font-semibold text-n-9 underline underline-offset-2"
             >
               {t("app.profileErr.relogin")}
             </button>

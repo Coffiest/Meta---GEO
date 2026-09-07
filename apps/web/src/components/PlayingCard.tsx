@@ -41,50 +41,21 @@ function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
  * 無ければ現行のCSS描画にフォールバックする。デザイン画像を後から public/cards/ に
  * 置くだけで、コード変更なしに反映される(詳細は public/cards/README.md 参照)。
  */
-/**
- * 小さく描画されるカード(席まわり)で、左上にランクとスートのインデックスを重ねる。
- * カードデザインは巨大なランクが意図的に紙面からはみ出す作りのため、小さい画面では
- * どのランクなのかが読み取りにくい。この小さなインデックスが「必ず読める」保証を担う。
- */
-function CardIndex({ rank, suit, size }: { rank: string; suit: string; size: "sm" | "md" | "xl" }) {
-  const suitClass = SUIT_TEXT_CLASS[suit] ?? "text-fg";
-  const scale =
-    size === "sm"
-      ? "px-[2px] py-[1px] text-[8px]"
-      : size === "md"
-        ? "px-[3px] py-[1px] text-[10px]"
-        : "px-[3px] py-[1px] text-[11px]";
-  return (
-    <span
-      aria-hidden
-      className={`pointer-events-none absolute left-0 top-0 flex flex-col items-center rounded-tl-md rounded-br-[6px] bg-white font-black leading-[1.05] ${scale} ${suitClass}`}
-    >
-      <span>{rank}</span>
-      <span className="leading-[0.9]">{SUIT_GLYPH[suit]}</span>
-    </span>
-  );
-}
-
-function CardFace({ card, dims, size }: { card: string; dims: string; size: "sm" | "md" | "lg" | "xl" | "board" }) {
+function CardFace({ card, dims }: { card: string; dims: string }) {
   const [imgFailed, setImgFailed] = useState(false);
   const rank = card.slice(0, -1);
   const suit = card.slice(-1);
-  // 席まわりの小さなカードだけインデックスを重ねる(ボードや拡大表示は元の絵柄で十分読める)。
-  const indexSize = size === "sm" || size === "md" || size === "xl" ? size : null;
 
   if (!imgFailed) {
     return (
-      <span className="relative inline-block">
-        {/* eslint-disable-next-line @next/next/no-img-element -- 差し込みデザインは静的最適化不要な小さな画像のため素のimgでよい */}
-        <img
-          src={`/cards/${cardToAssetName(card)}.png`}
-          alt={card}
-          draggable={false}
-          onError={() => setImgFailed(true)}
-          className={`${dims} block rounded-md object-contain ring-1 ring-line-strong select-none`}
-        />
-        {indexSize && <CardIndex rank={rank} suit={suit} size={indexSize} />}
-      </span>
+      // eslint-disable-next-line @next/next/no-img-element -- 差し込みデザインは静的最適化不要な小さな画像のため素のimgでよい
+      <img
+        src={`/cards/${cardToAssetName(card)}.png`}
+        alt={card}
+        draggable={false}
+        onError={() => setImgFailed(true)}
+        className={`${dims} block select-none rounded-md object-contain shadow-e1 ring-1 ring-black/40`}
+      />
     );
   }
 
@@ -110,7 +81,7 @@ function CardBack({ dims }: { dims: string }) {
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} rounded-md object-cover ring-1 ring-line-strong select-none`}
+        className={`${dims} select-none rounded-md object-cover shadow-e1 ring-1 ring-black/40`}
       />
     );
   }
@@ -143,7 +114,7 @@ export function PlayingCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: dealDelay, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      {faceDown || !card ? <CardBack dims={dims} /> : <CardFace card={card} dims={dims} size={size} />}
+      {faceDown || !card ? <CardBack dims={dims} /> : <CardFace card={card} dims={dims} />}
     </motion.div>
   );
 }

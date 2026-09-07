@@ -64,7 +64,7 @@ export function ChatLogSheet({
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Table chat</p>
             <h2 className="text-lg font-extrabold tracking-tight text-fg">チャットログ</h2>
           </div>
-          <button onClick={onClose} className="text-[12px] font-semibold text-fg-2">
+          <button onClick={onClose} className="pressable text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
@@ -86,7 +86,7 @@ export function ChatLogSheet({
                     <span className="mb-0.5 px-1 text-[10px] font-bold text-fg-3">{name}</span>
                     <div
                       className={`max-w-[72vw] break-words rounded-2xl px-3 py-2 text-[13px] font-medium leading-snug sm:max-w-[18rem] ${
-                        mine ? "bg-n-4 text-white" : "border border-line-strong bg-surface text-fg"
+                        mine ? "bg-n-4 text-white" : "glass-panel text-fg"
                       }`}
                     >
                       {m.text}
@@ -106,13 +106,13 @@ export function ChatLogSheet({
             onChange={(e) => setDraft(e.target.value)}
             maxLength={120}
             placeholder="メッセージを入力…"
-            className="flex-1 rounded-full border border-line-strong bg-surface px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
+            className="flex-1 rounded-full glass-panel px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
           />
           <button
             type="submit"
             disabled={!draft.trim()}
             aria-label="送信"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform active:scale-90 disabled:opacity-30"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-n-4 text-white transition-transform pressable disabled:opacity-30"
           >
             <Icon name="arrow-right" className="h-[18px] w-[18px]" />
           </button>

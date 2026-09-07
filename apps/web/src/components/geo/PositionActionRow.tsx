@@ -52,7 +52,7 @@ export function PositionActionRow({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl border border-line-strong bg-surface p-3"
+      className="rounded-2xl glass-panel p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
         <p className="text-[11px] tracking-[0.2em] text-n-10 uppercase font-black">{node.position}</p>

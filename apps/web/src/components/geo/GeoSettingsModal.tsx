@@ -119,7 +119,7 @@ export function GeoSettingsModal({
       >
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-extrabold tracking-tight text-fg">詳細設定</p>
-          <button onClick={onClose} className="text-fg-2 text-xs font-semibold">
+          <button onClick={onClose} className="pressable text-fg-2 text-xs font-semibold">
             閉じる
           </button>
         </div>
@@ -199,7 +199,7 @@ export function GeoSettingsModal({
                 {(ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX) && (
                   <button
                     onClick={() => onChangeRatingRange({ min: RATING_MIN, max: RATING_MAX })}
-                    className="text-[10px] font-bold text-fg-2 underline underline-offset-2"
+                    className="pressable text-[10px] font-bold text-fg-2 underline underline-offset-2"
                   >
                     全体に戻す
                   </button>

@@ -155,9 +155,9 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                 onClick={(e) => e.stopPropagation()}
               >
                 {!tooltipPos.above && (
-                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-surface ring-1 ring-line -mb-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
+                  <div className="mx-auto h-2.5 w-2.5 rotate-45 glass-panel -mb-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
                 )}
-                <div className="rounded-2xl bg-surface ring-1 ring-line shadow-e2 overflow-hidden relative z-[2]">
+                <div className="rounded-2xl glass-panel shadow-e2 overflow-hidden relative z-[2]">
                   <div className="flex items-start justify-between px-3.5 pt-3 pb-2.5 border-b border-line">
                     <div>
                       <p className="text-[13px] font-bold text-fg">{GAME_TYPE_LABEL[p.gameType] ?? p.gameType}</p>
@@ -203,7 +203,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                   </div>
                 </div>
                 {tooltipPos.above && (
-                  <div className="mx-auto h-2.5 w-2.5 rotate-45 bg-surface ring-1 ring-line -mt-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
+                  <div className="mx-auto h-2.5 w-2.5 rotate-45 glass-panel -mt-[7px] relative z-[1]" style={{ marginLeft: TOOLTIP_WIDTH / 2 - 5 }} />
                 )}
               </motion.div>
             );
@@ -261,7 +261,7 @@ export function RRRatingCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[20px] bg-surface ring-1 ring-line shadow-e1 overflow-hidden"
+      className="rounded-[20px] glass-panel shadow-e1 overflow-hidden"
     >
       <div className="relative px-5 pt-4 pb-5">
         <div className="flex items-center justify-between mb-4">
@@ -345,7 +345,7 @@ export function RRRatingCard({
             <Icon name="trophy" className="h-4 w-4 text-n-9" />
             <p className="text-[13px] font-bold text-fg">Tournament History</p>
           </div>
-          <button onClick={onViewHistory} className="text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
+          <button onClick={onViewHistory} className="pressable text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
             もっと見る
           </button>
         </div>

@@ -137,7 +137,7 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
     <div className="mt-2.5 rounded-2xl bg-mint-500/[0.08] px-3 py-2.5">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 text-left"
+        className="pressable flex w-full items-center gap-2 text-left"
         aria-expanded={open}
       >
         <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-400">
@@ -496,7 +496,7 @@ export function TournamentReviewModal({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={SPRING_MOVE}
-            className="min-h-[76px] rounded-[20px] bg-surface px-4 py-3 flex flex-col justify-center shadow-e2"
+            className="min-h-[76px] glass-panel rounded-[20px] px-4 py-3 flex flex-col justify-center shadow-e2"
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             {step.type === "handStart" ? (
@@ -543,7 +543,7 @@ export function TournamentReviewModal({
         {/* コントロール: すりガラスのバー(◀︎ ▶︎ + シークバー + 分類ピン) */}
         <div className="shrink-0 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)]">
           <div
-            className="rounded-[22px] bg-surface/80 backdrop-blur-xl px-3.5 pb-3 pt-1.5"
+            className="glass-panel rounded-[22px] px-3.5 pb-3 pt-1.5"
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             <div className="relative mx-12 h-6">
@@ -553,7 +553,7 @@ export function TournamentReviewModal({
                   <button
                     key={i}
                     onClick={() => goTo(pin.stepIndex)}
-                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform active:scale-125"
+                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform pressable"
                     style={{ left: `${(pin.stepIndex / (total - 1)) * 100}%` }}
                     aria-label={CLASSIFICATION_META[pin.classification as Classification]?.label ?? pin.classification}
                   >
@@ -817,7 +817,7 @@ export function TournamentReviewModal({
             {/* ヒーローカード: リングゲージ + メトリクス */}
             <motion.div
               variants={riseIn}
-              className="mb-3 rounded-[24px] bg-surface p-5 shadow-e1"
+              className="mb-3 glass-panel rounded-[24px] p-5 shadow-e2"
             >
               <div className="flex items-center gap-5">
                 <ScoreRing score={data.gtoAccuracy} />
@@ -883,7 +883,7 @@ export function TournamentReviewModal({
                 {summary.worst && (
                   <button
                     onClick={() => jumpToDecision(summary.worst!.handId, summary.worst!.d.sequenceNumber)}
-                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
+                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
                   >
                     {summary.worst.d.classification && (
                       <ClassificationBadge classification={summary.worst.d.classification} size={26} />
@@ -904,7 +904,7 @@ export function TournamentReviewModal({
                 {summary.best && (
                   <button
                     onClick={() => jumpToDecision(summary.best!.handId, summary.best!.d.sequenceNumber)}
-                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
+                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
                     style={summary.worst ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
                   >
                     {summary.best.d.classification && (

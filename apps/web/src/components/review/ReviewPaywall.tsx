@@ -113,7 +113,7 @@ export function ReviewPaywall({
       {/* プランカード(ゴールド強調) */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 rounded-[24px] border-2 border-accent bg-surface p-4 shadow-glow"
+        className="mt-3 glass-panel rounded-[24px] p-4 ring-2 ring-inset ring-accent shadow-glow"
       >
         <div className="flex items-end justify-between">
           <div>
@@ -121,7 +121,7 @@ export function ReviewPaywall({
             <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
           </div>
           <p className="text-fg">
-            <span className="text-[34px] font-black tabular-nums leading-none">¥980</span>
+            <span className="text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none">¥980</span>
             <span className="ml-1 text-[12px] font-bold text-fg-2">/月</span>
           </p>
         </div>
@@ -149,7 +149,7 @@ export function ReviewPaywall({
           whileTap={{ scale: 0.98 }}
           onClick={onSubscribe}
           disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent active:opacity-90 disabled:opacity-60"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
         >
           {busy ? (
             <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
@@ -182,7 +182,7 @@ export function ReviewPaywall({
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
         <Link
           href="/"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[13px] font-bold text-fg pressable"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full glass-panel text-[13px] font-bold text-fg pressable"
         >
           <Icon name="user-plus" className="h-4 w-4" />
           友達を招待してクーポンを増やす

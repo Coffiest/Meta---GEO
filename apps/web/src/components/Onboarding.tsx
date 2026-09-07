@@ -148,13 +148,13 @@ export function Onboarding({
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.28, duration: 0.55, ease: EASE }}
-          className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-e2"
+          className="mt-8 rounded-2xl glass-panel p-6 shadow-e2"
         >
           {/* アバターピッカー */}
           <div className="flex flex-col items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform active:scale-95"
+              className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform pressable"
               aria-label="アイコン画像を選択"
             >
               {/* ゆっくり回る破線のアクセントリング(注目を集める幾何モチーフ) */}
@@ -190,12 +190,12 @@ export function Onboarding({
             <div className="flex items-center gap-3 text-[12px]">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="font-semibold text-fg underline decoration-dashed underline-offset-2"
+                className="pressable font-semibold text-fg underline decoration-dashed underline-offset-2"
               >
                 {processing ? t("onb.processing") : avatarKey ? t("onb.changePhoto") : t("onb.pickPhoto")}
               </button>
               {avatarKey && (
-                <button onClick={() => setAvatarKey(null)} className="text-fg-2">
+                <button onClick={() => setAvatarKey(null)} className="pressable text-fg-2">
                   {t("onb.delete")}
                 </button>
               )}
@@ -218,7 +218,7 @@ export function Onboarding({
               autoFocus={isFirstTime}
               autoComplete="off"
               enterKeyHint="go"
-              className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
+              className="w-full rounded-xl glass-panel px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
             />
           </div>
 
@@ -241,7 +241,7 @@ export function Onboarding({
           </button>
 
           {onCancel && (
-            <button onClick={onCancel} className="mt-3 w-full py-1 text-[12px] text-fg-2">
+            <button onClick={onCancel} className="pressable mt-3 w-full py-1 text-[12px] text-fg-2">
               キャンセル
             </button>
           )}

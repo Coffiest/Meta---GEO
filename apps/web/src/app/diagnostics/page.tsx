@@ -173,11 +173,11 @@ export default function DiagnosticsPage() {
           <button
             onClick={() => void load()}
             disabled={loading}
-            className="rounded-xl bg-n-4 px-4 py-2.5 text-[13px] font-black text-white disabled:opacity-50"
+            className="pressable rounded-xl bg-n-4 px-4 py-2.5 text-[13px] font-black text-white disabled:opacity-50"
           >
             {loading ? "測定中…" : "再測定"}
           </button>
-          <Link href="/" className="rounded-xl border border-line-strong bg-surface px-4 py-2.5 text-[13px] font-black">
+          <Link href="/" className="rounded-xl glass-panel px-4 py-2.5 text-[13px] font-black">
             アプリへ戻る
           </Link>
         </div>
@@ -215,7 +215,7 @@ export default function DiagnosticsPage() {
               );
             })()}
 
-            <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+            <section className="mt-4 rounded-2xl glass-panel p-4">
               <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">サーバーの状態</h2>
               <div className="mt-2">
                 <Row
@@ -307,7 +307,7 @@ export default function DiagnosticsPage() {
               </div>
             </section>
 
-            <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+            <section className="mt-4 rounded-2xl glass-panel p-4">
               <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">遅いリクエスト（1秒超）</h2>
               {snapshot.slowRequests.length === 0 ? (
                 <p className="mt-2 text-[12px] text-fg-2">記録なし。APIの個別の重さは原因ではありません。</p>
@@ -325,7 +325,7 @@ export default function DiagnosticsPage() {
               )}
             </section>
 
-            <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+            <section className="mt-4 rounded-2xl glass-panel p-4">
               <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">直近のエラー</h2>
               {snapshot.errors.length === 0 ? (
                 <p className="mt-2 text-[12px] text-fg-2">記録なし。</p>
@@ -344,7 +344,7 @@ export default function DiagnosticsPage() {
           </>
         )}
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+        <section className="mt-4 rounded-2xl glass-panel p-4">
           <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">この端末からの実測</h2>
           <div className="mt-2">
             {fetchMs !== null && <Row label="診断API（往復）" value={`${fetchMs} ms`} warn={fetchMs > 1500} />}

@@ -74,7 +74,7 @@ function MetricCard({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: delay / 1000, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-2xl border border-line-strong bg-surface p-4"
+      className="rounded-2xl glass-panel p-4"
     >
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-fg-3">{label}</p>
       <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -261,7 +261,7 @@ export function TournamentResultScreen({
           <p className="text-[11px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
           <p
             className={`mt-2 font-black leading-[0.9] tracking-tight text-fg tabular-nums ${
-              useRatio ? "text-[64px]" : "text-[88px]"
+              useRatio ? "text-[64px] tracking-[-0.035em]" : "text-[88px] tracking-[-0.035em]"
             }`}
           >
             {rankPlain}
@@ -399,7 +399,7 @@ export function TournamentResultScreen({
         <div className={`grid grid-cols-2 gap-2.5 ${tournamentId || canReEntry ? "mt-3" : "mt-6"}`}>
           <button
             onClick={onExit}
-            className="rounded-2xl border border-line-strong bg-surface py-3.5 text-sm font-black text-fg pressable"
+            className="rounded-2xl glass-panel py-3.5 text-sm font-black text-fg pressable"
           >
             {t("common.close")}
           </button>

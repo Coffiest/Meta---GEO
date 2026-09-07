@@ -65,7 +65,7 @@ export function BoardCardPicker({
           <p className="text-sm font-extrabold tracking-tight text-fg">
             ボードカードを選択({selected.length}/{cardsNeeded})
           </p>
-          <button onClick={onClose} className="text-fg-2 text-xs font-semibold">
+          <button onClick={onClose} className="pressable text-fg-2 text-xs font-semibold">
             閉じる
           </button>
         </div>

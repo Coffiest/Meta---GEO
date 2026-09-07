@@ -87,7 +87,7 @@ export function PositionPillBar({
                   initial={{ opacity: 0, rotateY: 90 }}
                   animate={{ opacity: 1, rotateY: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="h-7 w-5 rounded-sm border border-line bg-surface flex flex-col items-center justify-center text-[8px] font-bold leading-none"
+                  className="h-7 w-5 rounded-sm glass-panel flex flex-col items-center justify-center text-[8px] font-bold leading-none"
                 >
                   <span className={suitTextClass(c)}>{c.slice(0, -1)}</span>
                   <span className={suitTextClass(c)}>{suitSymbol(c)}</span>
@@ -115,7 +115,7 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.bucket)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
+                    className="pressable flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"

@@ -113,11 +113,11 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex flex-col bg-surface"
+      className="fixed inset-0 z-[100] flex flex-col bg-canvas"
     >
       {/* スキップ */}
       <div className="flex justify-end px-5 pt-[calc(env(safe-area-inset-top)+12px)]">
-        <button onClick={finish} className="cursor-pointer text-[12px] font-bold text-fg-3 active:text-n-9">
+        <button onClick={finish} className="pressable cursor-pointer text-[12px] font-bold text-fg-3 active:text-n-9">
           スキップ
         </button>
       </div>

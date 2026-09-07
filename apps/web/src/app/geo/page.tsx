@@ -581,7 +581,7 @@ function GeoDatabase() {
                     <button
                       key={m}
                       onClick={() => switchMode(m)}
-                      className={`px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
+                      className={`pressable px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
                         mode === m ? "bg-accent text-on-accent" : "bg-canvas text-fg-2 active:bg-surface"
                       }`}
                     >
@@ -638,7 +638,7 @@ function GeoDatabase() {
               <button
                 type="button"
                 onClick={() => setPollTick((t) => t + 1)}
-                className="rounded-full bg-crimson-600 px-4 py-1.5 text-[12px] font-bold text-white active:translate-y-px"
+                className="rounded-full bg-crimson-600 px-4 py-1.5 text-[12px] font-bold text-white pressable"
               >
                 今すぐ再試行
               </button>
@@ -735,7 +735,7 @@ function GeoDatabase() {
         <div className="mt-10 flex justify-center">
           <button
             onClick={() => setAdminGateOpen(true)}
-            className="cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
+            className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
           >
             Poker ART v{APP_VERSION} ・ © 2026 Poker ART
           </button>
