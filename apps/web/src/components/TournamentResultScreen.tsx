@@ -67,7 +67,7 @@ function MetricCard({
   delay: number;
 }) {
   const v = useCountUp(from, to, 1200, delay);
-  const toneClass = deltaTone === "up" ? "text-mint-700 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-600 bg-crimson-500/10" : "text-ink-500 bg-ink-100";
+  const toneClass = deltaTone === "up" ? "text-mint-600 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-600 bg-crimson-500/10" : "text-ink-500 bg-ink-100";
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -271,7 +271,7 @@ export function TournamentResultScreen({
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.25, type: "spring", stiffness: 460, damping: 20 }}
-              className="mt-3 inline-block rounded-full bg-gold-500/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-gold-700"
+              className="mt-3 inline-block rounded-full bg-gold-500/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-gold-600"
             >
               {t("result.prizePrefix")} +{info.yourPayout.toLocaleString()}
             </motion.p>
@@ -349,7 +349,7 @@ export function TournamentResultScreen({
               {/* 勲章マーク。絵文字禁止のためSVGで実装。 */}
               <Icon name="medal" className="h-9 w-9 shrink-0 text-gold-600" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gold-700">Milestone</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gold-600">Milestone</p>
                 <p className="truncate text-[19px] font-black leading-tight text-ink-950">{milestone.headline}</p>
                 <p className="truncate text-[11px] font-semibold text-ink-500">{milestone.caption}</p>
               </div>

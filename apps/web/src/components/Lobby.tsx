@@ -152,7 +152,7 @@ function EnterArrow({ className }: { className?: string }) {
 
 /**
  * ホーム上部の対局スタートカード。Sit&Go / MTT を最初から横並びで見せ、ワンタップで卓へ入る。
- * 意匠はモノクロSwiss/エディトリアル:白地+黒フチ+角丸を土台に、
+ * 意匠はダークテーマ:カード面+ヘアライン+角丸を土台に、
  *  - 上辺の極細アクセントバー(SnG=gold / MTT=crimson)で一瞬で識別、
  *  - 左肩の連番(01/02)+種別ラベルで版面のリズムを作り、
  *  - 特大タイトル+一言説明、
@@ -362,7 +362,7 @@ function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-/** ホーム画面のRRRatingCardと同じ、黒フチ+白背景のSwissカード。フェードアップで順にstagger表示する。 */
+/** ホーム画面のRRRatingCardと同じカード意匠。フェードアップで順にstagger表示する。 */
 function AnimatedCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
     <motion.div
@@ -534,13 +534,13 @@ function TournamentHistoryCard({
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-gold-500 bg-white px-3.5 py-3">
-                <span className="text-[12px] font-semibold text-gold-700">{t("lobby.metric.rrRating")}</span>
+                <span className="text-[12px] font-semibold text-gold-600">{t("lobby.metric.rrRating")}</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[16px] font-black text-gold-700 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
+                  <span className="text-[16px] font-black text-gold-600 tabular-nums">{displayRating(point.rrRatingAfter)}</span>
                   {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
                     <span
                       className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                        point.rrRatingDelta >= 0 ? "text-mint-700 bg-mint-500/10" : "text-crimson-700 bg-crimson-500/10"
+                        point.rrRatingDelta >= 0 ? "text-mint-600 bg-mint-500/10" : "text-crimson-600 bg-crimson-500/10"
                       }`}
                     >
                       {point.rrRatingDelta >= 0 ? "+" : ""}
@@ -1326,7 +1326,7 @@ export function Lobby({
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
                 <span className="text-[13px] font-bold">{t("lobby.resume.title")}</span>
-                <span className="rounded-full bg-white/15 px-2 py-[1px] text-[10px] font-bold tracking-wide text-gold-300">
+                <span className="rounded-full bg-white/15 px-2 py-[1px] text-[10px] font-bold tracking-wide text-gold-400">
                   {t("lobby.resume.away")}
                 </span>
               </span>
@@ -1552,7 +1552,7 @@ export function Lobby({
           >
             <TabHeader eyebrow="Ranking" title="Leaderboard" />
 
-            {/* 期間タブ(Weekly / All Time / 直近10)。黒枠線Swissのセグメント。 */}
+            {/* 期間タブ(Weekly / All Time / 直近10)。セグメント。 */}
             <div className="mb-3 flex rounded-xl border border-ink-950 p-1">
               {LB_PERIODS.map((p) => (
                 <button

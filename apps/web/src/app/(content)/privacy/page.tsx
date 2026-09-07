@@ -44,11 +44,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           利用者は、Google の
-          <a href="https://policies.google.com/technologies/ads" className="font-semibold text-gold-700 underline underline-offset-2" rel="nofollow noopener" target="_blank">
+          <a href="https://policies.google.com/technologies/ads" className="font-semibold text-gold-600 underline underline-offset-2" rel="nofollow noopener" target="_blank">
             広告設定
           </a>
           でパーソナライズ広告を無効にできます。第三者による Cookie の使用や無効化については、
-          <a href="https://www.aboutads.info/" className="font-semibold text-gold-700 underline underline-offset-2" rel="nofollow noopener" target="_blank">
+          <a href="https://www.aboutads.info/" className="font-semibold text-gold-600 underline underline-offset-2" rel="nofollow noopener" target="_blank">
             aboutads.info
           </a>
           もあわせてご確認ください。なお、広告は十分な本文があるコンテンツページにのみ表示し、ログイン画面やゲーム卓などには表示しません。
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           事業者としての詳細な表記は
-          <Link href="/legal/tokushoho" className="font-semibold text-gold-700 underline underline-offset-2">特定商取引法に基づく表記</Link>
+          <Link href="/legal/tokushoho" className="font-semibold text-gold-600 underline underline-offset-2">特定商取引法に基づく表記</Link>
           をご覧ください。本ポリシーは必要に応じて予告なく変更されることがあり、変更後の内容は当ページに掲載した時点から効力を生じます。
         </p>
       </Section>

@@ -100,7 +100,7 @@ export default function PricingPage() {
 
           {active ? (
             <div className="mt-5">
-              <div className="flex items-center justify-center gap-1.5 rounded-full bg-gold-500/10 py-2.5 text-[13px] font-black text-gold-700">
+              <div className="flex items-center justify-center gap-1.5 rounded-full bg-gold-500/10 py-2.5 text-[13px] font-black text-gold-600">
                 <Icon name="check" className="h-4 w-4" />
                 {byCoupon ? "クーポンで無料期間中" : "使い放題プランに加入中"}
               </div>

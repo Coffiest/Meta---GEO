@@ -469,7 +469,7 @@ function GameScreen({
       />
       <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
         {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
-            Swissらしくマイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
+            マイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
         {/* ブラインドタイマー(トーナメントクロック)を縮小したミニ版。クロック画面と同じ意匠で、
             gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
         <button

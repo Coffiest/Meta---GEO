@@ -392,7 +392,7 @@ export function GameHandHistorySheet({
 
                     <span
                       className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-black tabular-nums ${
-                        win ? "bg-mint-500/10 text-mint-700" : lose ? "bg-crimson-500/10 text-crimson-600" : "bg-ink-100 text-ink-500"
+                        win ? "bg-mint-500/10 text-mint-600" : lose ? "bg-crimson-500/10 text-crimson-600" : "bg-ink-100 text-ink-500"
                       }`}
                     >
                       {formatSignedBb(row.delta, bigBlind)}

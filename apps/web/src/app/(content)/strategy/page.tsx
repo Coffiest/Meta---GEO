@@ -90,8 +90,8 @@ export default function StrategyPage() {
         <p>
           GEO戦略の実践は、<strong>「プレイする → データで母集団の傾向を確認する → 乖離を突く調整を試す → またプレイする」</strong>という循環です。
           バーチャルチップだからこそ、この試行錯誤を金銭リスクなしに何百ハンドでも繰り返せます。まずは
-          <Link href="/guide" className="font-semibold text-gold-700 underline underline-offset-2">遊び方</Link>で基本を押さえ、
-          <Link href="/" className="font-semibold text-gold-700 underline underline-offset-2">実際のトーナメント</Link>で試し、GEOデータベースで振り返る——
+          <Link href="/guide" className="font-semibold text-gold-600 underline underline-offset-2">遊び方</Link>で基本を押さえ、
+          <Link href="/" className="font-semibold text-gold-600 underline underline-offset-2">実際のトーナメント</Link>で試し、GEOデータベースで振り返る——
           このループがあなたを最短で強くします。
         </p>
       </Section>

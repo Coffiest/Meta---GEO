@@ -27,7 +27,7 @@ function useClock(endsAt: number | null): string {
  * トーナメントクロック画面。プレイ画面左上のタイマーボタンから開く。
  * 大きなカウントダウン + BLIND/ANTE + PLAYERS(残り/総数) + AVERAGE を表示し、
  * プライズ(ペイアウト)とブラインド表はタップで開閉する。RRPokerのクロック画面を参考にした
- * 白地・黒枠線のSwissデザイン。
+ * ダークテーマのカード意匠。
  */
 export function BlindStructureSheet({
   currentLevel,
@@ -185,7 +185,7 @@ export function BlindStructureSheet({
                         key={s.userId}
                         className="flex items-center gap-2 rounded-xl border border-ink-950 px-3 py-1.5"
                       >
-                        <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-gold-700">{s.rank}</span>
+                        <span className="w-6 shrink-0 text-[12px] font-black tabular-nums text-gold-600">{s.rank}</span>
                         <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink-950">{s.displayName}</span>
                         <span className="shrink-0 text-[13px] font-black tabular-nums text-ink-950">
                           {s.bbStack.toLocaleString()}
@@ -217,7 +217,7 @@ export function BlindStructureSheet({
                     {tournamentInfo.prizePool.map((p) => (
                       <li key={p.place} className="flex items-center justify-between rounded-xl border border-ink-200 px-3 py-2">
                         <span className="text-[13px] font-black text-ink-950">{p.place}位</span>
-                        <span className="text-[14px] font-black tabular-nums text-gold-700">{p.amount.toLocaleString()}</span>
+                        <span className="text-[14px] font-black tabular-nums text-gold-600">{p.amount.toLocaleString()}</span>
                       </li>
                     ))}
                   </ul>
@@ -258,7 +258,7 @@ export function BlindStructureSheet({
                     {BLIND_STRUCTURE.map((row) => (
                       <tr
                         key={row.level}
-                        className={`border-t border-ink-100 ${row.level === lv ? "text-gold-700 font-black" : "text-ink-700"}`}
+                        className={`border-t border-ink-100 ${row.level === lv ? "text-gold-600 font-black" : "text-ink-700"}`}
                       >
                         <td className="py-1.5">{row.level === lv ? `▶ ${row.level}` : row.level}</td>
                         <td className="text-right py-1.5">{row.smallBlind.toLocaleString()}</td>

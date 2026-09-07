@@ -91,8 +91,8 @@ export default function GlossaryPage() {
 
       <p className="text-[13px] text-ink-500">
         用語の使いどころは、実際のプレイで身につきます。基本の流れは
-        <Link href="/guide" className="font-semibold text-gold-700 underline underline-offset-2">遊び方</Link>、
-        戦略の考え方は<Link href="/strategy" className="font-semibold text-gold-700 underline underline-offset-2">GEO戦略</Link>で解説しています。
+        <Link href="/guide" className="font-semibold text-gold-600 underline underline-offset-2">遊び方</Link>、
+        戦略の考え方は<Link href="/strategy" className="font-semibold text-gold-600 underline underline-offset-2">GEO戦略</Link>で解説しています。
       </p>
     </Article>
   );

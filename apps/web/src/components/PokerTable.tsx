@@ -336,7 +336,7 @@ export function PokerTable({
       <TableFelt />
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
-          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
+          カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
       <div className="absolute inset-x-0 top-[33%] flex flex-col items-center gap-1">

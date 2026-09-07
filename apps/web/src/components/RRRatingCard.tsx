@@ -186,13 +186,13 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-3.5 py-2.5">
-                    <span className="text-[11px] font-semibold text-gold-700">トナメ偏差値</span>
+                    <span className="text-[11px] font-semibold text-gold-600">トナメ偏差値</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[13px] font-black text-gold-700 tabular-nums">{displayRating(p.rrRatingAfter)}</span>
+                      <span className="text-[13px] font-black text-gold-600 tabular-nums">{displayRating(p.rrRatingAfter)}</span>
                       {p.rrRatingDelta != null && Math.abs(p.rrRatingDelta) >= 0.01 && (
                         <span
                           className={`text-[10px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                            p.rrRatingDelta >= 0 ? "text-mint-700 bg-mint-500/10" : "text-crimson-700 bg-crimson-500/10"
+                            p.rrRatingDelta >= 0 ? "text-mint-600 bg-mint-500/10" : "text-crimson-600 bg-crimson-500/10"
                           }`}
                         >
                           {p.rrRatingDelta >= 0 ? "+" : ""}
@@ -214,7 +214,7 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
   );
 }
 
-/** 見出しの左右に細い罫線を添えるラベル(例: ── トナメ偏差値 ──)。Swissデザインのkicker表現。 */
+/** 見出しの左右に細い罫線を添えるラベル(例: ── トナメ偏差値 ──)。kicker表現。 */
 export function RuleLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -229,7 +229,7 @@ export function RuleLabel({ children }: { children: React.ReactNode }) {
  * 「トナメ偏差値」(RRRating)カード。RRPokerのホーム画面ヒーローカードと同じ構成
  * (アバター/名前の識別行→ヒーロー部の偏差値→参加数/コスト合計/リターン+インマネ率/ROIの
  * 統計グリッド→ランキングを見るボタン→Tournament History折れ線グラフ)を、モノクロ+ゴールド
- * アクセント(ROIのみ)のSwissデザインで表示する。
+ * アクセント(ROIのみ)で表示する。
  * 計算ロジックはpackages/db/src/rrRating.tsでRRPokerの実装と全く同じ式を再現している。
  */
 export function RRRatingCard({

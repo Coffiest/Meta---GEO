@@ -372,7 +372,7 @@ export default function AdminPage() {
                   {geoBackfill && (
                     <p className="mt-1.5 text-[11px] font-bold tabular-nums text-ink-800">
                       対象 {geoBackfill.totalHands.toLocaleString()} ハンド / 未展開{" "}
-                      <span className={geoBackfill.missingHands === 0 ? "text-mint-700" : "text-crimson-500"}>
+                      <span className={geoBackfill.missingHands === 0 ? "text-mint-600" : "text-crimson-500"}>
                         {geoBackfill.missingHands.toLocaleString()}
                       </span>{" "}
                       ハンド
@@ -607,7 +607,7 @@ export default function AdminPage() {
             </div>
 
             {notice && (
-              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-700 ring-1 ring-mint-500/30">
+              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-600 ring-1 ring-mint-500/30">
                 {notice}
               </div>
             )}

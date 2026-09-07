@@ -7,7 +7,7 @@ import { Icon } from "./Icon";
  * 姉妹アプリ「RRPoker」の告知バナー(PokerARTホームに掲出)。
  *
  * 白背景のカードに、RRPokerの公式アイコン(/logos/rrpoker-icon.png)とアンバーゴールドの
- * アクセントを合わせた、PokerARTのSwiss/エディトリアルなトーンに馴染む意匠。
+ * アクセントを合わせた、PokerARTのダークトーンに馴染む意匠。
  *
  * タップ動線:
  *  - カード全体 → RRPoker 本体(https://rrpoker.vercel.app/)。ストレッチリンクで実装。

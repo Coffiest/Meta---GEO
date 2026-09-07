@@ -17,7 +17,7 @@ import {
 
 /** 対戦相手をタップしたときに開くプレイヤー詳細モーダル。
  * 公開スタッツ(収支/ROI/インマネ率/VPIP/PFR/3bet/偏差値/全国順位)+ 5色マーキング + 自由メモ。
- * 黒枠線Swissデザイン、アイコンは全てSVG(絵文字不使用)。 */
+ * ダークテーマ、アイコンは全てSVG(絵文字不使用)。 */
 export function PlayerDetailModal({
   target,
   accessToken,
@@ -227,7 +227,7 @@ function Metric({
   accent?: "up" | "down" | "flat";
   compact?: boolean;
 }) {
-  const accentClass = accent === "up" ? "text-mint-700" : accent === "down" ? "text-crimson-600" : "text-ink-950";
+  const accentClass = accent === "up" ? "text-mint-600" : accent === "down" ? "text-crimson-600" : "text-ink-950";
   return (
     <div className="rounded-xl border border-ink-200 px-3 py-2.5">
       <p className="text-[10px] font-black uppercase tracking-[0.15em] text-ink-400">{label}</p>

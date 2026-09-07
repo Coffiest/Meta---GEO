@@ -658,7 +658,7 @@ function GeoDatabase() {
         {node && !node.isGto && node.sampleSize > 0 && node.sampleSize < 5000 && (
           <div className="mt-1 flex items-start gap-2.5 rounded-2xl border border-gold-500/40 bg-gold-500/10 px-4 py-3">
             <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0 text-gold-500" />
-            <p className="text-[12px] leading-snug text-gold-100">
+            <p className="text-[12px] leading-snug text-gold-400">
               このノードはサンプル数が少なめです（n={node.sampleSize.toLocaleString()}）。レンジ表として不十分なため、参考程度にご覧ください。
             </p>
           </div>

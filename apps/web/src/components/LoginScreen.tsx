@@ -40,7 +40,7 @@ function AppleIcon() {
   );
 }
 
-/** 機能アイコン(モノクロ・ストローク。Swissらしく最小限の線で構成)。 */
+/** 機能アイコン(ストローク。最小限の線で構成)。 */
 function TrophyIcon() {
   return (
     <Icon name="trophy" className="h-5 w-5" />
@@ -82,7 +82,7 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
 };
 
-/** ログイン / 新規登録画面。Swiss(モノクロ + ゴールドの単一アクセント)を保ったまま、
+/** ログイン / 新規登録画面。ダークテーマ(ティールの単一アクセント)を保ったまま、
  * ヒーロー見出しの直下に認証カードを置き、スクロールせずログインできるようにしている。
  * その下に流れるキーワード帯・機能インデックスでアプリの価値を提示する。
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
@@ -156,7 +156,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
   return (
     <div className="min-h-screen bg-ink-50 text-ink-950 overflow-x-hidden">
-      {/* 背景のごく淡いゴールドの光。ゆっくり呼吸させて動きを添える(Swissの静けさは崩さない)。 */}
+      {/* 背景のごく淡いアクセントの光。ゆっくり呼吸させて動きを添える(静けさは崩さない)。 */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <motion.div
           className="absolute -top-40 -right-28 h-80 w-80 rounded-full bg-gold-400/20 blur-3xl"
@@ -391,7 +391,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               <ReportErrorButton scope="login" message={error} className="mt-1.5" />
             </div>
           )}
-          {info && <p className="mt-4 text-[12px] text-mint-700">{info}</p>}
+          {info && <p className="mt-4 text-[12px] text-mint-600">{info}</p>}
 
           <button
             onClick={handleSubmit}

@@ -48,7 +48,7 @@ function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-/** ペルソナ5風のアクションボタン。斜めに歪んだ平行四辺形+黒のハードなオフセット影+
+/** アクションボタン。斜めに歪んだ平行四辺形+黒のハードなオフセット影+
  * 太いイタリック体で、押すと影へスラムする(translate)攻めた見た目にする。中身は逆方向に
  * カウンタースキューして水平に保つ。tone=fold(青)/call(緑)/raise(赤)で意味を色分けする。 */
 const P5_TONE_CLASS: Record<"fold" | "call" | "raise", string> = {
@@ -456,7 +456,7 @@ export function ActionBar({
 
         {/* 行4: ボタン行(常に min-h-[64px])。
             手番待ち: 左=x/f予約、中央=非活性プレースホルダ、右=離席トグル(枠線のみのゴースト)。
-            手番: 左=フォールド、中央=コール/チェック、右=ベット/レイズ(P5風の色付きボタン)。 */}
+            手番: 左=フォールド、中央=コール/チェック、右=ベット/レイズ(色付きボタン)。 */}
         {isYourTurn ? (
           <div className="flex gap-3">
             {!canCheck && (

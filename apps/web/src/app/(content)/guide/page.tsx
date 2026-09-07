@@ -34,7 +34,7 @@ export default function GuidePage() {
         <p>
           役の強さは下から順に「ハイカード → ワンペア → ツーペア → スリーカード → ストレート → フラッシュ →
           フルハウス → フォーカード → ストレートフラッシュ → ロイヤルフラッシュ」です。各役の成り立ちは
-          <Link href="/glossary" className="font-semibold text-gold-700 underline underline-offset-2">用語集</Link>で確認できます。
+          <Link href="/glossary" className="font-semibold text-gold-600 underline underline-offset-2">用語集</Link>で確認できます。
         </p>
       </Section>
 
@@ -91,7 +91,7 @@ export default function GuidePage() {
         </p>
         <p>
           「どのポジションからどんなハンドで参加すべきか」は戦略の中核です。考え方の理論は
-          <Link href="/strategy" className="font-semibold text-gold-700 underline underline-offset-2">GEO戦略の解説</Link>で、
+          <Link href="/strategy" className="font-semibold text-gold-600 underline underline-offset-2">GEO戦略の解説</Link>で、
           実データに基づく傾向は GEO データベースで深掘りできます。
         </p>
       </Section>
@@ -117,9 +117,9 @@ export default function GuidePage() {
       <Section title="はじめの一歩">
         <p>
           ルールを一度に完璧に覚える必要はありません。まず1試合プレイしてみて、分からない用語が出てきたら
-          <Link href="/glossary" className="font-semibold text-gold-700 underline underline-offset-2">用語集</Link>を開く、
+          <Link href="/glossary" className="font-semibold text-gold-600 underline underline-offset-2">用語集</Link>を開く、
           という進め方が上達の近道です。準備ができたら
-          <Link href="/" className="font-semibold text-gold-700 underline underline-offset-2">トップページからログインしてトーナメントに参加</Link>してみましょう。
+          <Link href="/" className="font-semibold text-gold-600 underline underline-offset-2">トップページからログインしてトーナメントに参加</Link>してみましょう。
           バーチャルチップなので、何度でも気軽に挑戦できます。
         </p>
       </Section>

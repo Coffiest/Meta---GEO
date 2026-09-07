@@ -16,7 +16,7 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   /* タイポグラフィの締まりを上げる: サブピクセル→グレースケール・アンチエイリアスで文字を
-     くっきり細く見せ、合字/カーニングを最適化する。Swiss/Apple寄りの端正な見え方を後押しする。 */
+     くっきり細く見せ、合字/カーニングを最適化する。Apple寄りの端正な見え方を後押しする。 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

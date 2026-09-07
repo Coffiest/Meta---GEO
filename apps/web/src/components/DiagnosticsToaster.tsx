@@ -47,7 +47,7 @@ export function DiagnosticsToaster() {
           e.kind === "error"
             ? "border-crimson-500 text-crimson-600"
             : e.kind === "warn"
-              ? "border-gold-600 text-gold-700"
+              ? "border-gold-600 text-gold-600"
               : "border-ink-950 text-ink-800";
         return (
           <button

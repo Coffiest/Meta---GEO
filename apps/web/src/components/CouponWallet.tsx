@@ -142,7 +142,7 @@ export function CouponWallet({
 
       {/* いま有効な無料期間 */}
       {premium?.active && premium.expiresAt && (
-        <p className="mt-3 rounded-xl bg-gold-500/15 px-3.5 py-2.5 text-[12px] font-bold text-gold-700">
+        <p className="mt-3 rounded-xl bg-gold-500/15 px-3.5 py-2.5 text-[12px] font-bold text-gold-600">
           {t("coupon.premiumUntil", { date: formatCouponDate(premium.expiresAt) })}
         </p>
       )}
@@ -193,7 +193,7 @@ export function CouponWallet({
         {message && (
           <div className="mt-1.5">
             <p
-              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-gold-700" : "text-crimson-500"}`}
+              className={`text-[11.5px] font-semibold ${message.tone === "ok" ? "text-gold-600" : "text-crimson-500"}`}
             >
               {message.text}
             </p>
