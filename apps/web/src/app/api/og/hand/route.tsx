@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 /**
  * 「このハンド」単体のX共有カード(OGP画像)を動的生成する。
- * 白 + ゴールドのミニマルデザイン。自分のホールカードとボードを実カードの絵で描き、
+ * ダーク + アクセントのミニマルデザイン。自分のホールカードとボードを実カードの絵で描き、
  * 収支(bb)を主役に据える。スートは絵文字ではなくSVGパスで描画する。
  *
  * 例: /api/og/hand?name=たこやき&h=As,Kd&b=Ah,7c,2d,Kh&bb=42.5
@@ -63,9 +63,11 @@ function splitCard(code: string): { rank: string; suit: string } {
   return { rank: code.slice(0, -1), suit: code.slice(-1) };
 }
 
-function SuitMark({ suit, size }: { suit: string; size: number }) {
+/** スートの記号。カードの上に描く場合は白地に載る色(SUIT_COLOR)、カードの外に
+ *  ウォーターマークとして置く場合は暗い地の上で見える色を明示的に渡す。 */
+function SuitMark({ suit, size, color }: { suit: string; size: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={SUIT_COLOR[suit] ?? CARD_INK}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color ?? SUIT_COLOR[suit] ?? CARD_INK}>
       <path d={SUIT_PATH[suit] ?? SUIT_PATH.s} />
     </svg>
   );
@@ -153,17 +155,17 @@ export async function GET(req: Request): Promise<ImageResponse> {
           padding: "56px 72px",
         }}
       >
-        {/* 上部ゴールドライン */}
+        {/* 上端のアクセント帯 */}
         <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
-        {/* ヘッダー: 表示名 + ゴールドのスペードマーク */}
+        {/* ヘッダー: 表示名 + アクセントのスペードマーク */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Kicker text="HAND OF THE GAME" />
             {name ? <span style={{ fontSize: "36px", fontWeight: 700, color: FG, marginTop: "6px" }}>{name}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center" }}>
-            <SuitMark suit="s" size={48} />
+            <SuitMark suit="s" size={48} color={ACCENT} />
           </div>
         </div>
 

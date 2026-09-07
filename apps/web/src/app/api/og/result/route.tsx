@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 /**
  * トーナメント結果のX共有カード(OGP画像)を動的生成する。
- * 白 + ゴールドのミニマルデザイン。着順を主役に、獲得プライズ・全国順位・表示名を添える。
+ * ダーク + アクセントのミニマルデザイン。着順を主役に、獲得プライズ・全国順位・表示名を添える。
  *
  * 例: /api/og/result?name=たこやき&pos=1&payout=12000&rank=234&mode=sng
  *     /api/og/result?name=Goma&pos=6&entrants=521&payout=8000&mode=mtt
@@ -99,7 +99,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
           padding: "64px 72px",
         }}
       >
-        {/* 上部ゴールドライン */}
+        {/* 上端のアクセント帯 */}
         <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + アプリ名 */}
@@ -110,7 +110,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
               <span style={{ fontSize: "40px", fontWeight: 700, color: FG, marginTop: "8px" }}>{name}</span>
             ) : null}
           </div>
-          {/* スペードのゴールドマーク */}
+          {/* アクセントのスペードマーク */}
           <div style={{ display: "flex", alignItems: "center" }}>
             <svg width="52" height="52" viewBox="0 0 24 24" fill={ACCENT}>
               <path d="M12 2C9 6 4 8.5 4 13a4 4 0 0 0 6.5 3.1C10 18 9 19.5 8 20.5h8c-1-1-2-2.5-2.5-4.4A4 4 0 0 0 20 13c0-4.5-5-7-8-11Z" />

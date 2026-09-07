@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 /**
  * マイルストーン(節目到達)のX共有カード(OGP画像)を動的生成する。
- * 白 + ゴールドのミニマルデザイン。到達した節目そのものを主役に据える。
+ * ダーク + アクセントのミニマルデザイン。到達した節目そのものを主役に据える。
  *
  * 例: /api/og/milestone?name=たこやき&kind=tournaments&n=100
  *     /api/og/milestone?name=Goma&kind=rank&n=10&total=1240
@@ -97,7 +97,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
           padding: "56px 72px",
         }}
       >
-        {/* 上部ゴールドライン */}
+        {/* 上端のアクセント帯 */}
         <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + 勲章マーク */}
