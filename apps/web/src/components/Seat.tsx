@@ -286,14 +286,13 @@ export function Seat({
             animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
             exit={{ opacity: 0, scale: 0.9, x: "-50%" }}
             transition={SPRING_SNAPPY}
-            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-line-strong/[0.06] bg-surface/80 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-fg backdrop-blur-[6px] shadow-e3"
+            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words glass-panel rounded-[14px] px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-fg shadow-e3"
           >
             {chatBubble}
-            {/* 尻尾: 本体と同じ白の菱形を回転して縁取り2辺+影で自然に接続する */}
+            {/* 尻尾: 本体と同じガラスの菱形を回転して、吹き出しの下端に自然に接続する */}
             <span
               aria-hidden
-              className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px] border-b border-r border-line-strong/[0.06] bg-surface/80"
-              style={{ boxShadow: "4px 4px 8px -4px rgba(10,10,10,0.24)" }}
+              className="glass-panel absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px]"
             />
           </motion.div>
         )}

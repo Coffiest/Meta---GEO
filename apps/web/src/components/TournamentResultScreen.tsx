@@ -245,7 +245,7 @@ export function TournamentResultScreen({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-surface/80 backdrop-blur px-5 py-8"
+      className="glass fixed inset-0 z-30 flex items-center justify-center overflow-y-auto px-5 py-8"
     >
       <div className="w-full max-w-sm">
         {/* 着順ヘッダー(上半分・超特大) */}
