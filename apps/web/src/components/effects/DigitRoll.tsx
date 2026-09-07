@@ -10,6 +10,11 @@
  * - `motion/react` から `framer-motion` へ差し替え(BlurText.tsxと同じ理由)。
  * - 上下のグラデーションフェード既定色を黒からアプリのcanvas色(#1c1c1e)へ変更。
  *   元の黒(#000)はcanvasより僅かに暗く、フェードの継ぎ目が薄い帯として見えてしまうため。
+ * - `from` を追加した。元実装は `useSpring(valueRoundedToPlace)` で初期値を「目標値」に
+ *   設定しており、マウント直後のuseEffectが同じ値を`.set()`するだけなので実際には
+ *   何も動かない(値が後から変わったときだけ、めくり演出が起きる)。このアプリでは
+ *   「マウント時に一度だけめくって見せる」用途で使うため、初期値を`from`(既定0)にして
+ *   マウント後に目標値へ`.set()`することで、その差分がそのまま初回のめくり演出になる。
  *
  * 数字1桁ずつがオドメーター(自動車の走行距離計)のように回転して切り替わる。
  * `useCountUp`(単純な線形/イージング補間でテキストを書き換えるだけ)より視覚的な
@@ -55,11 +60,14 @@ function getValueRoundedToPlace(value: number, place: number): number {
 function Digit({
   place,
   value,
+  from,
   height,
   digitStyle,
 }: {
   place: PlaceValue;
   value: number;
+  /** マウント直後の初期表示値。ここと`value`の差分が初回のめくり演出になる。 */
+  from: number;
   height: number;
   digitStyle?: CSSProperties;
 }) {
@@ -72,10 +80,13 @@ function Digit({
   }
 
   const valueRoundedToPlace = getValueRoundedToPlace(value, place);
-  const animatedValue = useSpring(valueRoundedToPlace);
+  // 初期値は from 側で作る。mount直後にvalue側へ.set()するので、from !== value なら
+  // その1回だけ必ずスプリングが動く(値が同じなら静止したままで正しい)。
+  const animatedValue = useSpring(getValueRoundedToPlace(from, place));
 
   useEffect(() => {
     animatedValue.set(valueRoundedToPlace);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fromは初期値にのみ使い、以後の変化には反応させない
   }, [animatedValue, valueRoundedToPlace]);
 
   const defaultStyle: CSSProperties = {
@@ -96,6 +107,8 @@ function Digit({
 
 interface DigitRollProps {
   value: number;
+  /** マウント時の初期値。既定は0(=ゼロから目標値までめくって見せる)。 */
+  from?: number;
   fontSize?: number;
   padding?: number;
   places?: PlaceValue[];
@@ -114,6 +127,7 @@ interface DigitRollProps {
 
 export function DigitRoll({
   value,
+  from = 0,
   fontSize = 40,
   padding = 0,
   places = [...value.toString()].map((ch, i, a) => {
@@ -170,7 +184,7 @@ export function DigitRoll({
       <span style={{ ...defaultCounterStyle, ...counterStyle }}>
         {places.map((place, i) => (
           // eslint-disable-next-line react/no-array-index-key -- 桁位置は再配列されないためindexで安定
-          <Digit key={i} place={place} value={value} height={height} digitStyle={digitStyle} />
+          <Digit key={i} place={place} value={value} from={from} height={height} digitStyle={digitStyle} />
         ))}
       </span>
       <span style={gradientContainerStyle}>
