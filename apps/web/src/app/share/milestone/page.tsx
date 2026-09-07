@@ -74,8 +74,8 @@ export default function ShareMilestonePage({ searchParams }: { searchParams: SP 
         justifyContent: "center",
         gap: "28px",
         padding: "40px 20px",
-        background: "#ffffff",
-        color: "#0d0d10",
+        background: "#1c1c1e",
+        color: "#f5f5f7",
       }}
     >
       <div style={{ width: "100%", maxWidth: "560px", display: "flex", flexDirection: "column", gap: "24px", alignItems: "center" }}>
@@ -86,9 +86,9 @@ export default function ShareMilestonePage({ searchParams }: { searchParams: SP 
           alt="マイルストーン共有カード"
           width={1200}
           height={630}
-          style={{ width: "100%", height: "auto", borderRadius: "20px", border: "1px solid #ececec", boxShadow: "0 24px 60px -30px rgba(0,0,0,0.35)" }}
+          style={{ width: "100%", height: "auto", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 60px -24px rgba(0,0,0,0.75)" }}
         />
-        <p style={{ fontSize: "17px", fontWeight: 700, textAlign: "center", color: "#4a4a50", lineHeight: 1.6, margin: 0 }}>
+        <p style={{ fontSize: "17px", fontWeight: 700, textAlign: "center", color: "#aeaeb2", lineHeight: 1.6, margin: 0 }}>
           Poker ART（ポーカーアート）は、課金なしで実力が数値に出る無料オンラインポーカー。
           <br />
           あなたも全国順位を上げにいこう。
@@ -103,12 +103,12 @@ export default function ShareMilestonePage({ searchParams }: { searchParams: SP 
             maxWidth: "360px",
             padding: "18px 24px",
             borderRadius: "16px",
-            background: "#d4910a",
-            color: "#ffffff",
+            background: "#26c2a3",
+            color: "#04211b",
             fontSize: "18px",
             fontWeight: 900,
             textDecoration: "none",
-            boxShadow: "0 14px 34px -12px rgba(212,145,10,0.6)",
+            boxShadow: "0 14px 34px -10px rgba(38,194,163,0.55)",
           }}
         >
           無料でプレイする

@@ -77,9 +77,9 @@ interface TrendRow {
 
 /** 深刻度ごとの見た目。critical は赤で最優先に見えるようにする。 */
 const SEVERITY_STYLE: Record<"critical" | "warning" | "info", { label: string; className: string }> = {
-  critical: { label: "重大", className: "bg-crimson-500 text-white" },
-  warning: { label: "注意", className: "bg-gold-500 text-ink-950" },
-  info: { label: "軽微", className: "bg-ink-200 text-ink-700" },
+  critical: { label: "重大", className: "bg-crimson-600 text-white" },
+  warning: { label: "注意", className: "bg-accent text-on-accent" },
+  info: { label: "軽微", className: "bg-n-4 text-n-9" },
 };
 
 /** 人数ごとに、その卓で成立しうるポジションを前(早い)から順に並べたもの。 */
@@ -345,15 +345,15 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       {/* PC(lg)では幅を広げ、プレイヤーカードを2カラムに並べる(モバイルは従来の1カラム)。 */}
       <div className="mx-auto max-w-md px-4 pb-24 lg:max-w-5xl lg:px-8">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gold-600">Admin</p>
-            <h1 className="text-xl font-black tracking-tight text-ink-950">プレイヤー管理</h1>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Admin</p>
+            <h1 className="text-xl font-black tracking-tight text-fg">プレイヤー管理</h1>
           </div>
-          <Link href="/" className="text-[12px] font-bold text-ink-600 underline underline-offset-2">
+          <Link href="/" className="text-[12px] font-bold text-n-9 underline underline-offset-2">
             アプリへ戻る
           </Link>
         </header>
@@ -361,18 +361,18 @@ export default function AdminPage() {
         {passcode && (
           <>
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
-            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+            <div className="mb-4 rounded-xl border border-line p-3.5">
               <div className="flex items-start gap-2.5">
-                <Icon name="db" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
+                <Icon name="db" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-black text-ink-950">GEO集計テーブルの再構築</p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                  <p className="text-[13px] font-black text-fg">GEO集計テーブルの再構築</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
                     過去のハンドをGEOの高速集計用に展開します。未展開が0件になるまでGEOは従来の集計経路で動きます。
                   </p>
                   {geoBackfill && (
-                    <p className="mt-1.5 text-[11px] font-bold tabular-nums text-ink-800">
+                    <p className="mt-1.5 text-[11px] font-bold tabular-nums text-n-10">
                       対象 {geoBackfill.totalHands.toLocaleString()} ハンド / 未展開{" "}
-                      <span className={geoBackfill.missingHands === 0 ? "text-mint-700" : "text-crimson-500"}>
+                      <span className={geoBackfill.missingHands === 0 ? "text-mint-400" : "text-crimson-300"}>
                         {geoBackfill.missingHands.toLocaleString()}
                       </span>{" "}
                       ハンド
@@ -386,14 +386,14 @@ export default function AdminPage() {
                     </p>
                   )}
                   {geoBackfill?.error && (
-                    <p className="mt-1 text-[11px] font-bold text-crimson-500">前回の実行が失敗しました: {geoBackfill.error}</p>
+                    <p className="mt-1 text-[11px] font-bold text-crimson-300">前回の実行が失敗しました: {geoBackfill.error}</p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => void startGeoBackfill()}
                   disabled={geoBackfillBusy || geoBackfill?.running}
-                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97] disabled:opacity-40"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable disabled:opacity-40"
                 >
                   {geoBackfill?.running ? "実行中…" : "再構築"}
                 </button>
@@ -401,12 +401,12 @@ export default function AdminPage() {
             </div>
 
             {/* ポジション別の集まり具合。「UTGばかり集まる」の原因切り分け用。 */}
-            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+            <div className="mb-4 rounded-xl border border-line p-3.5">
               <div className="flex items-start gap-2.5">
-                <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
+                <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-black text-ink-950">ポジション別の集まり具合</p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                  <p className="text-[13px] font-black text-fg">ポジション別の集まり具合</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
                     プリフロップの意思決定を、卓の人数×ポジションで数えます。人数ごとに横並びの数字が
                     おおむね揃っていれば母集団は健全です。特定のポジションだけ極端に少なければ、
                     席の割り当てかボタン回転を疑います。
@@ -418,13 +418,13 @@ export default function AdminPage() {
                     setPosStatsOpen((v) => !v);
                     if (posStatsOpen && passcode) setPosStats(null);
                   }}
-                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable"
                 >
                   {posStatsOpen ? "閉じる" : "内訳を見る"}
                 </button>
               </div>
 
-              {posStatsOpen && !posStats && <p className="mt-2.5 text-[11px] text-ink-600">読み込み中…</p>}
+              {posStatsOpen && !posStats && <p className="mt-2.5 text-[11px] text-n-9">読み込み中…</p>}
 
               {posStatsOpen && posStats && (
                 <div className="mt-3 space-y-3">
@@ -438,13 +438,13 @@ export default function AdminPage() {
                     const max = Math.max(...rows.map((r) => r.hands), 1);
                     return (
                       <div key={pc}>
-                        <p className="mb-1 text-[11px] font-black text-ink-800">{pc}人卓</p>
+                        <p className="mb-1 text-[11px] font-black text-n-10">{pc}人卓</p>
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[380px] border-collapse text-[11px] tabular-nums">
                             <thead>
-                              <tr className="text-ink-500">
+                              <tr className="text-fg-2">
                                 {columns.map((p) => (
-                                  <th key={p} className="border-b border-ink-200 px-1.5 py-1 text-left font-bold">
+                                  <th key={p} className="border-b border-line px-1.5 py-1 text-left font-bold">
                                     {p}
                                   </th>
                                 ))}
@@ -460,8 +460,8 @@ export default function AdminPage() {
                                   return (
                                     <td
                                       key={p}
-                                      className={`border-b border-ink-100 px-1.5 py-1 font-bold ${
-                                        weak ? "text-crimson-500" : "text-ink-900"
+                                      className={`border-b border-n-3 px-1.5 py-1 font-bold ${
+                                        weak ? "text-crimson-300" : "text-fg"
                                       }`}
                                     >
                                       {hands.toLocaleString()}
@@ -476,8 +476,8 @@ export default function AdminPage() {
                     );
                   })}
 
-                  <div className="rounded-lg bg-ink-100 p-2.5 text-[11px] leading-relaxed text-ink-700">
-                    <p className="font-bold text-ink-900">母数の内訳</p>
+                  <div className="rounded-lg bg-n-2 p-2.5 text-[11px] leading-relaxed text-n-9">
+                    <p className="font-bold text-fg">母数の内訳</p>
                     <p className="mt-0.5">
                       席 {posStats.seats.total.toLocaleString()}（うち自動 {posStats.seats.bot.toLocaleString()} /
                       実プレイヤー {posStats.seats.human.toLocaleString()}）
@@ -500,12 +500,12 @@ export default function AdminPage() {
             </div>
 
             {/* ④⑨ SNSのトレンド収集とネガティブ検知。日次のGitHub Actionsが集めたものを見る。 */}
-            <div className="mb-4 rounded-xl border border-ink-300 p-3.5">
+            <div className="mb-4 rounded-xl border border-line p-3.5">
               <div className="flex items-start gap-2.5">
-                <Icon name="bell" className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" />
+                <Icon name="bell" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-black text-ink-950">SNS・話題の監視</p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-600">
+                  <p className="text-[13px] font-black text-fg">SNS・話題の監視</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
                     ポーカー関連のニュース・トレンドを毎日集め、ネガティブな言及を検知します。
                     重大なものは赤で出ます。確認したら「確認済み」で一覧から外せます。
                   </p>
@@ -513,7 +513,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setTrendsOpen((v) => !v)}
-                  className="shrink-0 rounded-lg bg-ink-950 px-3 py-2 text-[12px] font-black text-white transition-transform active:scale-[0.97]"
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable"
                 >
                   {trendsOpen ? "閉じる" : "開く"}
                 </button>
@@ -525,22 +525,22 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => setOnlyFlagged(true)}
-                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${onlyFlagged ? "bg-ink-950 text-white" : "bg-ink-100 text-ink-700"}`}
+                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
                     >
                       要対応のみ
                     </button>
                     <button
                       type="button"
                       onClick={() => setOnlyFlagged(false)}
-                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${!onlyFlagged ? "bg-ink-950 text-white" : "bg-ink-100 text-ink-700"}`}
+                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${!onlyFlagged ? "bg-n-4 text-white" : "bg-n-2 text-n-9"}`}
                     >
                       軽微も含む
                     </button>
                   </div>
 
-                  {trends === null && <p className="text-[11px] text-ink-600">読み込み中…</p>}
+                  {trends === null && <p className="text-[11px] text-n-9">読み込み中…</p>}
                   {trends !== null && trends.length === 0 && (
-                    <p className="text-[11px] text-ink-600">
+                    <p className="text-[11px] text-n-9">
                       該当なし。まだ一度も収集していない場合は、日次の収集(毎朝9時)を待つか
                       Actions から Marketing を手動実行してください。
                     </p>
@@ -548,7 +548,7 @@ export default function AdminPage() {
 
                   <ul className="space-y-2">
                     {(trends ?? []).map((t) => (
-                      <li key={t.id} className="rounded-lg border border-ink-200 p-2.5">
+                      <li key={t.id} className="rounded-lg border border-line p-2.5">
                         <div className="flex items-start gap-2">
                           {t.severity && (
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black ${SEVERITY_STYLE[t.severity].className}`}>
@@ -560,11 +560,11 @@ export default function AdminPage() {
                               href={t.link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block text-[12px] font-bold leading-snug text-ink-950 underline decoration-dotted underline-offset-2"
+                              className="block text-[12px] font-bold leading-snug text-fg underline decoration-dotted underline-offset-2"
                             >
                               {t.title}
                             </a>
-                            <p className="mt-0.5 text-[10px] text-ink-500">
+                            <p className="mt-0.5 text-[10px] text-fg-2">
                               {t.sourceLabel} · {fmtDate(t.createdAt)}
                               {t.severityTerms.length > 0 && ` · 検知語: ${t.severityTerms.join(", ")}`}
                             </p>
@@ -582,7 +582,7 @@ export default function AdminPage() {
                                   .then(() => loadTrends(passcode, onlyFlagged))
                                   .catch(() => setError("確認済みにできませんでした。"));
                               }}
-                              className="shrink-0 rounded border border-ink-300 px-2 py-1 text-[10px] font-bold text-ink-700"
+                              className="shrink-0 rounded border border-line px-2 py-1 text-[10px] font-bold text-n-9"
                             >
                               確認済み
                             </button>
@@ -597,23 +597,23 @@ export default function AdminPage() {
 
             {/* 検索 */}
             <div className="relative">
-              <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+              <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-3" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="プレイヤー名・ID・メールアドレスで検索"
-                className="w-full rounded-xl border border-ink-300 py-3 pl-10 pr-3.5 text-sm text-ink-950 placeholder:text-ink-400 focus:border-ink-950 focus:outline-none"
+                className="w-full rounded-xl border border-line py-3 pl-10 pr-3.5 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
               />
             </div>
 
             {notice && (
-              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-700 ring-1 ring-mint-500/30">
+              <div className="mt-3 rounded-xl bg-mint-500/10 px-3.5 py-2.5 text-[12px] font-bold text-mint-400 ring-1 ring-mint-500/30">
                 {notice}
               </div>
             )}
             {error && (
               <div className="mt-3 rounded-xl bg-crimson-500/10 px-3.5 py-2.5 ring-1 ring-crimson-500/30">
-                <p className="text-[12px] font-bold text-crimson-500">{error}</p>
+                <p className="text-[12px] font-bold text-crimson-300">{error}</p>
                 <ReportErrorButton scope="admin" message={error} className="mt-2" />
               </div>
             )}
@@ -621,12 +621,12 @@ export default function AdminPage() {
             {/* 結果リスト */}
             <div className="mt-4 space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {loading && users.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 p-8 text-sm text-ink-500">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-950 border-t-transparent" />
+                <div className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-canvas p-8 text-sm text-fg-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />
                   読み込み中…
                 </div>
               ) : users.length === 0 ? (
-                <p className="rounded-2xl border border-ink-200 bg-ink-50 p-8 text-center text-sm text-ink-500">
+                <p className="rounded-2xl border border-line bg-canvas p-8 text-center text-sm text-fg-2">
                   該当するプレイヤーがいません。
                 </p>
               ) : (
@@ -634,21 +634,21 @@ export default function AdminPage() {
                   const label = subLabel(u.subscription);
                   const busy = busyUserId === u.id;
                   return (
-                    <div key={u.id} className="rounded-2xl border border-ink-200 bg-white p-4">
+                    <div key={u.id} className="rounded-2xl border border-line bg-surface p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-[15px] font-black tracking-tight text-ink-950">{u.displayName}</p>
-                          <p className="truncate text-[11px] text-ink-500">{u.email ?? "メール未登録"}</p>
-                          <p className="mt-0.5 truncate text-[9px] text-ink-400">ID: {u.id}</p>
-                          <p className="mt-0.5 text-[10px] text-ink-400">登録日 {fmtDate(u.createdAt)}</p>
+                          <p className="truncate text-[15px] font-black tracking-tight text-fg">{u.displayName}</p>
+                          <p className="truncate text-[11px] text-fg-2">{u.email ?? "メール未登録"}</p>
+                          <p className="mt-0.5 truncate text-[9px] text-fg-3">ID: {u.id}</p>
+                          <p className="mt-0.5 text-[10px] text-fg-3">登録日 {fmtDate(u.createdAt)}</p>
                         </div>
                         <span
                           className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
                             label.tone === "active"
-                              ? "bg-ink-950 text-gold-500"
+                              ? "bg-n-4 text-accent"
                               : label.tone === "comp"
-                              ? "bg-gold-500 text-ink-950"
-                              : "bg-ink-100 text-ink-500"
+                              ? "bg-accent text-on-accent"
+                              : "bg-n-2 text-fg-2"
                           }`}
                         >
                           {label.text}
@@ -660,14 +660,14 @@ export default function AdminPage() {
                         <button
                           onClick={() => void grant(u.id, "week", 1)}
                           disabled={busy}
-                          className="rounded-full border border-ink-950 px-3.5 py-1.5 text-[11px] font-black text-ink-950 transition-colors active:bg-ink-50 disabled:opacity-40"
+                          className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                         >
                           1週間 無料
                         </button>
                         <button
                           onClick={() => void grant(u.id, "month", 1)}
                           disabled={busy}
-                          className="rounded-full border border-ink-950 px-3.5 py-1.5 text-[11px] font-black text-ink-950 transition-colors active:bg-ink-50 disabled:opacity-40"
+                          className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                         >
                           1ヶ月 無料
                         </button>
@@ -675,7 +675,7 @@ export default function AdminPage() {
                           onClick={() => setCustomFor(customFor === u.id ? null : u.id)}
                           disabled={busy}
                           className={`rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
-                            customFor === u.id ? "bg-ink-950 text-white" : "border border-ink-300 text-ink-600 active:bg-ink-50"
+                            customFor === u.id ? "bg-n-4 text-white" : "border border-line text-n-9 active:bg-canvas"
                           }`}
                         >
                           期間を指定
@@ -684,12 +684,12 @@ export default function AdminPage() {
                           <button
                             onClick={() => void revoke(u.id)}
                             disabled={busy}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-500 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             付与を取り消す
                           </button>
                         )}
-                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-ink-950 border-t-transparent" />}
+                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />}
                       </div>
 
                       {/* 任意期間の入力(N週間/Nヶ月) */}
@@ -701,19 +701,19 @@ export default function AdminPage() {
                             exit={{ opacity: 0, height: 0 }}
                             className="overflow-hidden"
                           >
-                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-ink-50 p-2.5">
+                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-canvas p-2.5">
                               <input
                                 value={customAmount}
                                 onChange={(e) => setCustomAmount(e.target.value.replace(/[^0-9]/g, ""))}
                                 inputMode="numeric"
-                                className="w-16 rounded-lg border border-ink-300 px-2.5 py-2 text-center text-sm font-bold text-ink-950 focus:border-ink-950 focus:outline-none"
+                                className="w-16 rounded-lg border border-line px-2.5 py-2 text-center text-sm font-bold text-fg focus:border-line-strong focus:outline-none"
                               />
-                              <div className="flex overflow-hidden rounded-lg border border-ink-300 text-[11px] font-black">
+                              <div className="flex overflow-hidden rounded-lg border border-line text-[11px] font-black">
                                 {(["week", "month"] as const).map((unitKey) => (
                                   <button
                                     key={unitKey}
                                     onClick={() => setCustomUnit(unitKey)}
-                                    className={`px-3 py-2 ${customUnit === unitKey ? "bg-ink-950 text-white" : "bg-white text-ink-500"}`}
+                                    className={`px-3 py-2 ${customUnit === unitKey ? "bg-n-4 text-white" : "bg-surface text-fg-2"}`}
                                   >
                                     {unitKey === "week" ? "週間" : "ヶ月"}
                                   </button>
@@ -725,7 +725,7 @@ export default function AdminPage() {
                                   if (n > 0) void grant(u.id, customUnit, n);
                                 }}
                                 disabled={busy || !customAmount || Number(customAmount) <= 0}
-                                className="ml-auto rounded-full bg-gold-500 px-4 py-2 text-[11px] font-black text-ink-950 active:opacity-90 disabled:opacity-40"
+                                className="ml-auto rounded-full bg-accent px-4 py-2 text-[11px] font-black text-on-accent active:opacity-90 disabled:opacity-40"
                               >
                                 無料付与
                               </button>
@@ -735,13 +735,13 @@ export default function AdminPage() {
                       </AnimatePresence>
 
                       {/* GEOプレイラインデータの管理(論理削除/復元) */}
-                      <div className="mt-3 border-t border-ink-100 pt-3">
+                      <div className="mt-3 border-t border-n-3 pt-3">
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-400">GEOデータ</p>
-                          <p className="text-[11px] font-bold text-ink-700 tabular-nums">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">GEOデータ</p>
+                          <p className="text-[11px] font-bold text-n-9 tabular-nums">
                             {u.geo.totalHands}ハンド
                             {u.geo.excludedHands > 0 && (
-                              <span className="ml-1 text-crimson-500">(除外 {u.geo.excludedHands})</span>
+                              <span className="ml-1 text-crimson-300">(除外 {u.geo.excludedHands})</span>
                             )}
                           </p>
                         </div>
@@ -749,7 +749,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => void geoDelete(u.id)}
                             disabled={busy || u.geo.totalHands === u.geo.excludedHands}
-                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-500 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                            className="rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             全部削除
                           </button>
@@ -757,7 +757,7 @@ export default function AdminPage() {
                             onClick={() => setGeoRangeFor(geoRangeFor === u.id ? null : u.id)}
                             disabled={busy}
                             className={`rounded-full px-3.5 py-1.5 text-[11px] font-black transition-colors disabled:opacity-40 ${
-                              geoRangeFor === u.id ? "bg-ink-950 text-white" : "border border-ink-300 text-ink-600 active:bg-ink-50"
+                              geoRangeFor === u.id ? "bg-n-4 text-white" : "border border-line text-n-9 active:bg-canvas"
                             }`}
                           >
                             期間を指定して削除
@@ -766,7 +766,7 @@ export default function AdminPage() {
                             <button
                               onClick={() => void geoRestore(u.id)}
                               disabled={busy}
-                              className="rounded-full border border-ink-950 px-3.5 py-1.5 text-[11px] font-black text-ink-950 transition-colors active:bg-ink-50 disabled:opacity-40"
+                              className="rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg transition-colors active:bg-canvas disabled:opacity-40"
                             >
                               除外を全解除
                             </button>
@@ -781,32 +781,32 @@ export default function AdminPage() {
                               exit={{ opacity: 0, height: 0 }}
                               className="overflow-hidden"
                             >
-                              <div className="mt-3 space-y-2 rounded-xl bg-ink-50 p-2.5">
+                              <div className="mt-3 space-y-2 rounded-xl bg-canvas p-2.5">
                                 <div className="flex items-center gap-2">
-                                  <label className="w-8 text-[10px] font-bold text-ink-500">から</label>
+                                  <label className="w-8 text-[10px] font-bold text-fg-2">から</label>
                                   <input
                                     type="date"
                                     value={geoFrom}
                                     onChange={(e) => setGeoFrom(e.target.value)}
-                                    className="flex-1 rounded-lg border border-ink-300 px-2.5 py-2 text-[12px] font-bold text-ink-950 focus:border-ink-950 focus:outline-none"
+                                    className="flex-1 rounded-lg border border-line px-2.5 py-2 text-[12px] font-bold text-fg focus:border-line-strong focus:outline-none"
                                   />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <label className="w-8 text-[10px] font-bold text-ink-500">まで</label>
+                                  <label className="w-8 text-[10px] font-bold text-fg-2">まで</label>
                                   <input
                                     type="date"
                                     value={geoTo}
                                     onChange={(e) => setGeoTo(e.target.value)}
-                                    className="flex-1 rounded-lg border border-ink-300 px-2.5 py-2 text-[12px] font-bold text-ink-950 focus:border-ink-950 focus:outline-none"
+                                    className="flex-1 rounded-lg border border-line px-2.5 py-2 text-[12px] font-bold text-fg focus:border-line-strong focus:outline-none"
                                   />
                                 </div>
-                                <p className="text-[10px] leading-relaxed text-ink-400">
+                                <p className="text-[10px] leading-relaxed text-fg-3">
                                   片方だけの指定も可能(「から」のみ=それ以降すべて、「まで」のみ=それ以前すべて)。
                                 </p>
                                 <button
                                   onClick={() => void geoDelete(u.id, geoFrom || undefined, geoTo || undefined)}
                                   disabled={busy || (!geoFrom && !geoTo)}
-                                  className="w-full rounded-full bg-crimson-500 px-4 py-2 text-[11px] font-black text-white active:opacity-90 disabled:opacity-40"
+                                  className="w-full rounded-full bg-crimson-600 px-4 py-2 text-[11px] font-black text-white active:opacity-90 disabled:opacity-40"
                                 >
                                   この期間のプレイラインを削除
                                 </button>

@@ -23,11 +23,11 @@ export function EmptyState({
       transition={{ duration: 0.4 }}
       className="flex flex-col items-center justify-center px-6 py-12 text-center"
     >
-      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-ink-950 text-ink-800">
+      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-line-strong text-n-10">
         <EmptyIcon name={icon} />
       </div>
-      <p className="text-[15px] font-black tracking-tight text-ink-950">{title}</p>
-      {subtitle && <p className="mt-1 max-w-[16rem] text-[12px] leading-relaxed text-ink-500">{subtitle}</p>}
+      <p className="text-[15px] font-black tracking-tight text-fg">{title}</p>
+      {subtitle && <p className="mt-1 max-w-[16rem] text-[12px] leading-relaxed text-fg-2">{subtitle}</p>}
     </motion.div>
   );
 }

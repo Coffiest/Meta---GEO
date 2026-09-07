@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
-// 白背景の4色デッキ: スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑。
-// (suit-s トークンは暗色背景用の薄いグレーで白地では読めないため、スペードのみ黒に上書き)
+// 4色デッキ: スペード=前景色, ハート=赤, ダイヤ=青, クラブ=緑。
+// (スペードだけは suit-s トークンではなく前景色を使う。暗い面では前景色の方がはっきり出る)
 const SUITS: { key: string; symbol: string; colorClass: string }[] = [
-  { key: "s", symbol: "♠", colorClass: "text-ink-900" },
+  { key: "s", symbol: "♠", colorClass: "text-fg" },
   { key: "h", symbol: "♥", colorClass: "text-suit-h" },
   { key: "d", symbol: "♦", colorClass: "text-suit-d" },
   { key: "c", symbol: "♣", colorClass: "text-suit-c" },
@@ -50,21 +51,21 @@ export function BoardCardPicker({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70"
     >
       <motion.div
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
-        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-navy-700 bg-navy-900 p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto glass-sheet rounded-t-sheet sm:rounded-sheet p-4 shadow-e4"
       >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-extrabold tracking-tight text-navy-50">
+          <p className="text-sm font-extrabold tracking-tight text-fg">
             ボードカードを選択({selected.length}/{cardsNeeded})
           </p>
-          <button onClick={onClose} className="text-navy-400 text-xs font-semibold">
+          <button onClick={onClose} className="text-fg-2 text-xs font-semibold">
             閉じる
           </button>
         </div>
@@ -86,10 +87,10 @@ export function BoardCardPicker({
                     onClick={() => toggle(card)}
                     className={`aspect-[3/4] rounded flex flex-col items-center justify-center text-[10px] font-bold transition-colors border ${
                       isUsed
-                        ? "bg-navy-800 text-navy-600 border-navy-700 cursor-not-allowed"
+                        ? "bg-surface text-fg-faint border-line cursor-not-allowed"
                         : isSelected
-                          ? "bg-gold-500 text-navy-950 border-gold-500"
-                          : "bg-white border-ink-300 " + suit.colorClass
+                          ? "bg-accent text-on-accent border-accent"
+                          : "bg-surface border-line " + suit.colorClass
                     }`}
                   >
                     <span>{rank}</span>
@@ -105,7 +106,7 @@ export function BoardCardPicker({
           whileTap={selected.length === cardsNeeded ? { scale: 0.97 } : undefined}
           onClick={() => selected.length === cardsNeeded && onConfirm(selected)}
           disabled={selected.length !== cardsNeeded}
-          className="w-full mt-4 rounded-xl bg-gold-500 text-navy-950 font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
+          className="w-full mt-4 rounded-xl bg-accent text-on-accent font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
         >
           確定
         </motion.button>

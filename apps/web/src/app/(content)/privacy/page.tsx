@@ -19,7 +19,7 @@ export default function PrivacyPage() {
     >
       <Section title="取得する情報">
         <p>当サイトは、サービス提供に必要な範囲で以下の情報を取得することがあります。</p>
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
           <li>アカウント登録情報(メールアドレス、表示名、選択したアバターなど。認証は Supabase Auth を利用します)。</li>
           <li>ゲームのプレイ記録(ハンド履歴、アクション、成績などの統計データ)。</li>
           <li>有料プランをご利用の場合の決済関連情報(決済は Stripe が処理し、当サイトはカード番号を保持しません)。</li>
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="利用目的">
-        <ul className="list-disc space-y-2 pl-5 text-ink-700">
+        <ul className="list-disc space-y-2 pl-5 text-n-9">
           <li>ログイン・プロフィール管理などサービスの提供および運営のため。</li>
           <li>ゲーム結果の記録、および GEO戦略データベースにおける統計の集計・可視化のため。</li>
           <li>有料プラン(棋譜解析 使い放題)の提供および課金管理のため。</li>
@@ -44,11 +44,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           利用者は、Google の
-          <a href="https://policies.google.com/technologies/ads" className="font-semibold text-gold-700 underline underline-offset-2" rel="nofollow noopener" target="_blank">
+          <a href="https://policies.google.com/technologies/ads" className="font-semibold text-accent underline underline-offset-2" rel="nofollow noopener" target="_blank">
             広告設定
           </a>
           でパーソナライズ広告を無効にできます。第三者による Cookie の使用や無効化については、
-          <a href="https://www.aboutads.info/" className="font-semibold text-gold-700 underline underline-offset-2" rel="nofollow noopener" target="_blank">
+          <a href="https://www.aboutads.info/" className="font-semibold text-accent underline underline-offset-2" rel="nofollow noopener" target="_blank">
             aboutads.info
           </a>
           もあわせてご確認ください。なお、広告は十分な本文があるコンテンツページにのみ表示し、ログイン画面やゲーム卓などには表示しません。
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           事業者としての詳細な表記は
-          <Link href="/legal/tokushoho" className="font-semibold text-gold-700 underline underline-offset-2">特定商取引法に基づく表記</Link>
+          <Link href="/legal/tokushoho" className="font-semibold text-accent underline underline-offset-2">特定商取引法に基づく表記</Link>
           をご覧ください。本ポリシーは必要に応じて予告なく変更されることがあり、変更後の内容は当ページに掲載した時点から効力を生じます。
         </p>
       </Section>

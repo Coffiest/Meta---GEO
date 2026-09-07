@@ -9,7 +9,7 @@ TDAルール準拠のノーリミットホールデム・トーナメントエ�
 packages/engine   純粋なポーカールールエンジン(TypeScript, DB/ネットワーク非依存)
 packages/db       Prismaスキーマ + ハンド記録ロジック(GEO戦略DBの実体)
 packages/server   Socket.IO対戦サーバー + ルールベースBOT
-apps/web          Next.js製のスマホ縦画面クライアント(Ten Four Poker風UI)
+apps/web          Next.js製のスマホ縦画面クライアント(ダークテーマ)
 docs/             ルール調査メモ・ソロテスト手順など
 ```
 

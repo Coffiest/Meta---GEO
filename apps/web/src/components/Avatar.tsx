@@ -88,8 +88,8 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
   );
 }
 
-/** アイコン未設定(BOT含む)のプレイヤー用のモノクロ人型シルエット。
- * 白背景・黒(ink-950)の人アイコンで、頭文字やBOTキャラは使わず全員この共通アイコンにする。
+/** アイコン未設定のプレイヤー用の人型シルエット。頭文字や個体別のキャラは使わず、
+ * 全員この共通アイコンにする(誰であるかを見た目で推測させないため)。
  * 円形コンテナ(overflow-hidden)で肩の両端が自然にトリミングされ、胸像風のアバターになる。 */
 /**
  * ユーザーのアイコン表示。カメラロールから選んだ画像(data URI)が設定されていればそれを、
@@ -122,12 +122,12 @@ export function Avatar({
           src={avatarKey}
           alt=""
           draggable={false}
-          className="absolute rounded-full object-cover select-none ring-1 ring-black/20"
+          className="absolute rounded-full object-cover select-none ring-1 ring-white/10"
           style={innerBoxStyle}
         />
       ) : (
         <div
-          className="absolute rounded-full bg-white flex items-end justify-center select-none ring-[1.5px] ring-ink-950 text-ink-950 overflow-hidden"
+          className="absolute rounded-full bg-surface flex items-end justify-center select-none ring-[1.5px] ring-line-strong text-fg overflow-hidden"
           style={innerBoxStyle}
         >
           <Icon
@@ -141,7 +141,7 @@ export function Avatar({
       {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。
           画像/BOT/頭文字いずれのアバターでも一様に効くよう、内側ボックスに黒の半透明を重ねる。 */}
       {timer && (
-        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/40" style={innerBoxStyle} />
+        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/70" style={innerBoxStyle} />
       )}
       {/* タイムバンクで延長された手番は、金色の脈打つリングを重ねて「延長中」だと分かるようにする。
           相手が誰であっても同じ条件・同じ見た目で描画する(描画の差で相手の種別が推測できてはいけない)。 */}
@@ -149,7 +149,7 @@ export function Avatar({
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 z-[25] animate-time-bank-ring rounded-full"
-          style={{ boxShadow: "0 0 0 2px #f2a900, 0 0 10px 2px rgba(242,169,0,0.65)" }}
+          style={{ boxShadow: "0 0 0 2px rgb(var(--accent)), 0 0 12px 2px rgb(var(--accent) / 0.6)" }}
         />
       )}
       {timer && <CountdownRing endsAt={timer.endsAt} durationMs={timer.durationMs} size={size} />}

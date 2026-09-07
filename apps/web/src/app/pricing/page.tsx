@@ -59,38 +59,38 @@ export default function PricingPage() {
     byCoupon && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
-          <div className="text-[11px] tracking-[0.25em] text-gold-600 font-semibold">POKER ART</div>
-          <Link href="/" className="text-[12px] text-ink-600 hover:text-ink-900">
+          <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>
+          <Link href="/" className="text-[12px] text-n-9 hover:text-fg">
             戻る
           </Link>
         </header>
 
         {/* 見出しの主張を1段上げるための大きめアイコン。ここだけ Hugeicons(面のある絵柄)を使う。 */}
-        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-950 text-gold-500">
+        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-n-4 text-accent">
           <HeroIcon name="graph-up" size={30} />
         </span>
-        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gold-600">Subscription</p>
-        <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-ink-950">
-          棋譜解析 使い放題プラン<span className="text-gold-500">.</span>
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-accent">Subscription</p>
+        <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-fg">
+          棋譜解析 使い放題プラン<span className="text-accent">.</span>
         </h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-600">
+        <p className="mt-2 text-[13px] leading-relaxed text-n-9">
           無料プランは24時間に1回まで。加入すると、トーナメントの棋譜解析を待ち時間なく無制限に実行できます。
         </p>
 
-        <div className="mt-5 rounded-2xl border-2 border-gold-500 bg-white p-5 shadow-[0_10px_30px_-14px_rgba(242,169,0,0.5)]">
+        <div className="mt-5 rounded-2xl border-2 border-accent bg-surface p-5 shadow-glow">
           <div className="flex items-baseline gap-1">
-            <span className="text-[40px] font-black text-ink-950 tabular-nums leading-none">¥980</span>
-            <span className="text-[13px] font-bold text-ink-500">/ 月(税込)</span>
+            <span className="text-[40px] font-black text-fg tabular-nums leading-none">¥980</span>
+            <span className="text-[13px] font-bold text-fg-2">/ 月(税込)</span>
           </div>
-          <p className="mt-1 text-[11px] text-ink-500">いつでも解約可能・日割り返金はありません。</p>
+          <p className="mt-1 text-[11px] text-fg-2">いつでも解約可能・日割り返金はありません。</p>
 
           <ul className="mt-5 space-y-3">
             {FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-2.5 text-[13px] font-medium text-ink-800">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold-500">
+              <li key={f} className="flex items-start gap-2.5 text-[13px] font-medium text-n-10">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent">
                   <Icon name="check" className="h-3 w-3" />
                 </span>
                 {f}
@@ -100,27 +100,27 @@ export default function PricingPage() {
 
           {active ? (
             <div className="mt-5">
-              <div className="flex items-center justify-center gap-1.5 rounded-full bg-gold-500/10 py-2.5 text-[13px] font-black text-gold-700">
+              <div className="flex items-center justify-center gap-1.5 rounded-full bg-accent/10 py-2.5 text-[13px] font-black text-accent">
                 <Icon name="check" className="h-4 w-4" />
                 {byCoupon ? "クーポンで無料期間中" : "使い放題プランに加入中"}
               </div>
               {byCoupon ? (
                 <>
                   {couponUntil && (
-                    <p className="mt-2 text-center text-[12px] font-bold text-ink-600 tabular-nums">
+                    <p className="mt-2 text-center text-[12px] font-bold text-n-9 tabular-nums">
                       {couponUntil} まで無料でご利用いただけます
                     </p>
                   )}
-                  <p className="mt-1 text-center text-[11px] leading-relaxed text-ink-500">
+                  <p className="mt-1 text-center text-[11px] leading-relaxed text-fg-2">
                     クーポンを追加で適用すると、この無料期間がさらに1ヶ月ずつ延びます。
                   </p>
                   <button
                     onClick={handleSubscribe}
                     disabled={submitting}
-                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-ink-950 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform disabled:opacity-60"
+                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
                   >
                     {submitting ? (
-                      <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+                      <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
                     ) : (
                       "期間終了後も続けて使う(月額に登録)"
                     )}
@@ -129,7 +129,7 @@ export default function PricingPage() {
               ) : (
                 <button
                   onClick={handleManage}
-                  className="mt-2 w-full rounded-full border border-ink-950 py-3 text-[13px] font-bold text-ink-950 active:scale-[0.99] transition-transform"
+                  className="mt-2 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg pressable"
                 >
                   契約を管理する
                 </button>
@@ -139,10 +139,10 @@ export default function PricingPage() {
             <button
               onClick={handleSubscribe}
               disabled={submitting}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-gold-500 text-[14px] font-black text-ink-950 active:opacity-90 transition disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent active:opacity-90 transition disabled:opacity-60"
             >
               {submitting ? (
-                <span className="h-4 w-4 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+                <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
               ) : (
                 "使い放題プランに登録"
               )}
@@ -150,7 +150,7 @@ export default function PricingPage() {
           )}
           {error && (
             <div className="mt-2 text-center">
-              <p className="text-[11px] font-bold text-crimson-500">{error}</p>
+              <p className="text-[11px] font-bold text-crimson-300">{error}</p>
               <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
             </div>
           )}
@@ -161,11 +161,11 @@ export default function PricingPage() {
           <CouponWallet accessToken={accessToken} onRedeemed={() => void reload()} />
         </div>
 
-        <p className="mt-4 text-[11px] leading-relaxed text-ink-500">
+        <p className="mt-4 text-[11px] leading-relaxed text-fg-2">
           決済はStripeを通じて安全に処理され、解約・支払い方法の変更はいつでも契約管理ページから行えます。
           本アプリはバーチャルチップ専用で、チップの購入・換金や実際の金銭を賭けることは一切できません。
         </p>
-        <Link href="/legal/tokushoho" className="mt-2 inline-block text-[11px] text-ink-500 underline decoration-dotted underline-offset-2">
+        <Link href="/legal/tokushoho" className="mt-2 inline-block text-[11px] text-fg-2 underline decoration-dotted underline-offset-2">
           特定商取引法に基づく表記
         </Link>
       </div>

@@ -3,37 +3,23 @@
 import { Icon } from "./Icon";
 
 /**
- * アプリ全体で共有するヘッダー。RRPoker(components/HomeHeader.tsx)のヘッダーと
- * 全く同じ寸法・デザインパターンに揃えている: sticky+リキッドグラス(背景ぼかし+彩度強調)の
- * バー、min-h-[64px]・px-5 py-3、左に60x60のロゴ+ワードマーク、右に円形(h-10 w-10)の
- * ボーダーのみアイコンボタン列。色調だけは画面のテーマ(light/dark)に応じて出し分ける
- * (テーブルプレイ画面のような紺基調の画面に白いバーを強制すると浮いてしまうため)。
+ * アプリ全体で共有するヘッダー。sticky + ガラス(背景ぼかし+彩度強調)のバーで、下の
+ * コンテンツはこの下を流れていく(不透明な帯で画面上端を消費しない)。min-h-[64px]・
+ * px-5 py-3、左にロゴ+ワードマーク、右に円形のボーダーのみアイコンボタン列。
+ * 全画面が同一のダークテーマなので、画面ごとの色調の出し分けは持たない。
  */
-const BAR_TONE_CLASS: Record<"light" | "dark", string> = {
-  light: "header-glass-light border-ink-300/60",
-  dark: "border-navy-800 bg-navy-950/80 backdrop-blur-sm",
-};
-
-const WORDMARK_TONE_CLASS: Record<"light" | "dark", string> = {
-  light: "text-ink-950",
-  dark: "text-navy-50",
-};
-
 export function Header({
   left,
   right,
-  tone = "light",
   widthClass = "max-w-3xl",
 }: {
   left: React.ReactNode;
   right?: React.ReactNode;
-  /** テーブルプレイ画面等、既存のnavyダークテーマを維持する画面向け。 */
-  tone?: "light" | "dark";
   /** バー内側の最大幅。PC(lg)で本文を広く使う画面(GEO DATABASE)はここを広げて本文と幅を揃える。 */
   widthClass?: string;
 }) {
   return (
-    <header className={`sticky top-0 z-20 border-b ${BAR_TONE_CLASS[tone]}`}>
+    <header className="glass-header sticky top-0 z-30">
       <div className={`mx-auto flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 ${widthClass}`}>
         <div className="flex items-center min-w-0 flex-1">{left}</div>
         {right && <div className="flex items-center gap-2 shrink-0">{right}</div>}
@@ -46,22 +32,17 @@ export function Header({
 const LOGO_SRC = "/logos/Logo_s.png";
 
 /** RRPokerのロゴ(60x60画像+ワードマーク)と全く同じ寸法のロゴ枠。 */
-export function HeaderLogo({ tone = "light" }: { tone?: "light" | "dark" }) {
+export function HeaderLogo() {
   return (
-    <div className={`flex items-center gap-2 text-[18px] font-semibold ${WORDMARK_TONE_CLASS[tone]}`}>
+    <div className="flex items-center gap-2 text-[18px] font-semibold tracking-tight text-fg">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={LOGO_SRC} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
       <span>
-        Poker<span className="text-ink-950">ART</span>
+        Poker<span className="text-accent">ART</span>
       </span>
     </div>
   );
 }
-
-const ICON_BUTTON_TONE_CLASS: Record<"light" | "dark", string> = {
-  light: "border-ink-950/15 bg-white/55 text-ink-800 backdrop-blur-[10px] hover:border-ink-950/30",
-  dark: "border-navy-700 text-navy-200 hover:border-navy-500",
-};
 
 /** RRPokerのアイコンボタンと同じ寸法(h-10 w-10の円形、ボーダーのみ・塗りつぶしなし)。 */
 export function HeaderIconButton({
@@ -69,15 +50,14 @@ export function HeaderIconButton({
   ariaLabel,
   children,
   href,
-  tone = "light",
 }: {
   onClick?: () => void;
   ariaLabel: string;
   children: React.ReactNode;
   href?: string;
-  tone?: "light" | "dark";
 }) {
-  const className = `relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${ICON_BUTTON_TONE_CLASS[tone]}`;
+  const className =
+    "pressable relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-n-10";
   if (href) {
     return (
       <a href={href} aria-label={ariaLabel} className={className}>

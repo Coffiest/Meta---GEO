@@ -56,6 +56,11 @@ jobs:
       - name: Test engine, db, server
         run: pnpm -r --filter=./packages/* run test
 
+      # 未定義のTailwindクラスはビルドも型チェックも素通りし、色が出ないだけになる。
+      # 旧パレット(ink/navy/gold/felt/rose)の再混入は grep でしか止められないため、ここで落とす。
+      - name: Check design tokens
+        run: pnpm --filter @meta-geo/web run lint:tokens
+
       - name: Build web
         run: pnpm --filter @meta-geo/web run build
         env:

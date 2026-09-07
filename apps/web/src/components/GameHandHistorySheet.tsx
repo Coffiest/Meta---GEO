@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import { PlayingCard } from "./PlayingCard";
 import { formatAmount, formatSignedBb, type AmountDisplayMode } from "@/lib/format";
 import { buildHandShareText, buildHandShareUrl, shareOrTweet, toBbValue } from "@/lib/share";
@@ -80,16 +81,16 @@ function HandTimelineDetail({
   );
 
   return (
-    <div className="mt-2 space-y-2.5 border-t border-ink-200 pt-2.5">
+    <div className="mt-2 space-y-2.5 border-t border-line pt-2.5">
       {/* 参加席: ポジション・名前・開始スタック・ホールカード(記録済みの全席分) */}
       <div className="space-y-1">
         {timeline.seats.map((s) => (
           <div key={s.seatIndex} className="flex items-center gap-2">
-            <span className="w-9 shrink-0 rounded bg-ink-950 px-1 py-[1px] text-center text-[9px] font-bold uppercase tracking-wide text-white">
+            <span className="w-9 shrink-0 rounded bg-n-4 px-1 py-[1px] text-center text-[9px] font-bold uppercase tracking-wide text-white">
               {positionLabel(s.seatIndex, timeline.buttonFixedPos)}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-ink-900">{s.user.displayName}</span>
-            <span className="shrink-0 text-[10px] font-semibold tabular-nums text-ink-600">
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-fg">{s.user.displayName}</span>
+            <span className="shrink-0 text-[10px] font-semibold tabular-nums text-n-9">
               {formatAmount(s.startingStack, bigBlind, displayMode)}
             </span>
             <span className="flex shrink-0 gap-0.5">
@@ -115,7 +116,7 @@ function HandTimelineDetail({
         return (
           <div key={street}>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-ink-600">
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-n-9">
                 {STREET_LABEL[street] ?? street}
               </span>
               {boardCount > 0 && (
@@ -126,7 +127,7 @@ function HandTimelineDetail({
                 </span>
               )}
               {street !== "preflop" && (
-                <span className="ml-auto text-[10px] font-semibold tabular-nums text-ink-600">
+                <span className="ml-auto text-[10px] font-semibold tabular-nums text-n-9">
                   ポット {formatAmount(potAtStart, bigBlind, displayMode)}
                 </span>
               )}
@@ -136,11 +137,11 @@ function HandTimelineDetail({
                 const seat = seatByIndex.get(a.seatIndex);
                 return (
                   <div key={a.sequenceNumber} className="flex items-center gap-2 text-[11px]">
-                    <span className="w-9 shrink-0 text-center text-[9px] font-bold uppercase text-ink-500">
+                    <span className="w-9 shrink-0 text-center text-[9px] font-bold uppercase text-fg-2">
                       {positionLabel(a.seatIndex, timeline.buttonFixedPos)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-ink-800">{seat?.user.displayName ?? "-"}</span>
-                    <span className="shrink-0 font-semibold text-ink-950">
+                    <span className="min-w-0 flex-1 truncate text-n-10">{seat?.user.displayName ?? "-"}</span>
+                    <span className="shrink-0 font-semibold text-fg">
                       {ACTION_KIND_LABEL[a.kind] ?? a.kind}
                       {a.toAmount !== null && a.toAmount > 0 && a.kind !== "fold" && a.kind !== "check" && (
                         <span className="ml-1 tabular-nums">{formatAmount(a.toAmount, bigBlind, displayMode)}</span>
@@ -155,8 +156,8 @@ function HandTimelineDetail({
       })}
 
       {/* 最終ボード(オールインランアウト等でアクション無しに開いた分も含めて全公開分)+最終ポット */}
-      <div className="flex items-center gap-2 border-t border-ink-200 pt-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-ink-600">結果</span>
+      <div className="flex items-center gap-2 border-t border-line pt-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-n-9">結果</span>
         {timeline.board.length > 0 && (
           <span className="flex gap-0.5">
             {timeline.board.map((c, i) => (
@@ -164,7 +165,7 @@ function HandTimelineDetail({
             ))}
           </span>
         )}
-        <span className="ml-auto text-[11px] font-black tabular-nums text-ink-950">
+        <span className="ml-auto text-[11px] font-black tabular-nums text-fg">
           ポット {formatAmount(timeline.potTotal, bigBlind, displayMode)}
         </span>
       </div>
@@ -312,30 +313,30 @@ export function GameHandHistorySheet({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70"
     >
       <motion.div
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
+        transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[82vh] overflow-y-auto rounded-t-2xl border border-ink-950 bg-white p-4 pb-8"
+        className="w-full max-w-md max-h-[82vh] overflow-y-auto glass-sheet rounded-t-sheet p-4 pb-8 shadow-e4"
       >
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-ink-500">This tournament</p>
-            <h2 className="text-lg font-extrabold tracking-tight text-ink-950">ハンド履歴</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-2">This tournament</p>
+            <h2 className="text-lg font-extrabold tracking-tight text-fg">ハンド履歴</h2>
           </div>
-          <button onClick={onClose} className="text-[12px] font-semibold text-ink-500">
+          <button onClick={onClose} className="text-[12px] font-semibold text-fg-2">
             閉じる
           </button>
         </div>
 
         {rows.length === 0 ? (
-          <p className="py-12 text-center text-sm text-ink-500">まだ記録されたハンドがありません。</p>
+          <p className="py-12 text-center text-sm text-fg-2">まだ記録されたハンドがありません。</p>
         ) : (
-          <p className="mb-3 text-[11px] font-semibold leading-relaxed text-ink-500">
+          <p className="mb-3 text-[11px] font-semibold leading-relaxed text-fg-2">
             {canExpand && restRows ? "行をタップするとアクション経過と公開ハンドを確認できます。" : ""}
             右端のボタンで、その1ハンドをカード画像付きでシェアできます。
           </p>
@@ -354,7 +355,7 @@ export function GameHandHistorySheet({
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                  className="rounded-xl border border-ink-200 px-3 py-2.5"
+                  className="rounded-xl border border-line px-3 py-2.5"
                 >
                   <div
                     role={expandable ? "button" : undefined}
@@ -369,7 +370,7 @@ export function GameHandHistorySheet({
                     }
                     className={`flex items-center gap-3 ${expandable ? "cursor-pointer" : ""}`}
                   >
-                    <span className="w-8 shrink-0 text-[10px] font-bold tabular-nums text-ink-500">{row.label}</span>
+                    <span className="w-8 shrink-0 text-[10px] font-bold tabular-nums text-fg-2">{row.label}</span>
 
                     <div className="flex shrink-0 gap-1">
                       {row.heroCards.length === 2 ? (
@@ -386,13 +387,13 @@ export function GameHandHistorySheet({
                       {row.board.length > 0 ? (
                         row.board.map((c, j) => <PlayingCard key={j} card={c} size="sm" />)
                       ) : (
-                        <span className="text-[11px] text-ink-500">プリフロップ</span>
+                        <span className="text-[11px] text-fg-2">プリフロップ</span>
                       )}
                     </div>
 
                     <span
                       className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-black tabular-nums ${
-                        win ? "bg-mint-500/10 text-mint-700" : lose ? "bg-crimson-500/10 text-crimson-600" : "bg-ink-100 text-ink-500"
+                        win ? "bg-mint-500/10 text-mint-400" : lose ? "bg-crimson-500/10 text-crimson-300" : "bg-n-2 text-fg-2"
                       }`}
                     >
                       {formatSignedBb(row.delta, bigBlind)}
@@ -405,12 +406,12 @@ export function GameHandHistorySheet({
                         void shareHand(row);
                       }}
                       aria-label={`ハンド${row.label}を共有`}
-                      className="shrink-0 rounded-lg border border-ink-200 p-1.5 text-ink-500 transition-colors active:bg-ink-100"
+                      className="shrink-0 rounded-lg border border-line p-1.5 text-fg-2 transition-colors active:bg-n-2"
                     >
                       <XLogo className="h-3.5 w-3.5" />
                     </button>
 
-                    {expandable && <Chevron open={isOpen} className="h-3.5 w-3.5 shrink-0 text-ink-500" />}
+                    {expandable && <Chevron open={isOpen} className="h-3.5 w-3.5 shrink-0 text-fg-2" />}
                   </div>
 
                   <AnimatePresence initial={false}>
@@ -425,12 +426,12 @@ export function GameHandHistorySheet({
                         {row.handId && timelines[row.handId] ? (
                           <HandTimelineDetail timeline={timelines[row.handId]!} displayMode={displayMode} />
                         ) : loadingHandId === row.handId ? (
-                          <div className="flex items-center gap-2 border-t border-ink-200 pt-2.5 mt-2 text-[11px] text-ink-500">
-                            <span className="h-3 w-3 shrink-0 rounded-full border-2 border-ink-950 border-t-transparent animate-spin" />
+                          <div className="flex items-center gap-2 border-t border-line pt-2.5 mt-2 text-[11px] text-fg-2">
+                            <span className="h-3 w-3 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
                             詳細を読み込み中…
                           </div>
                         ) : (
-                          <p className="border-t border-ink-200 pt-2.5 mt-2 text-[11px] text-ink-500">
+                          <p className="border-t border-line pt-2.5 mt-2 text-[11px] text-fg-2">
                             {detailError ?? "詳細を取得できませんでした。"}
                           </p>
                         )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
@@ -60,14 +61,14 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
     <motion.div
       // key を固定して同一要素として扱わせることで、position の変化が layout で補間される。
       layout={!reduced}
-      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
+      transition={reduced ? { duration: 0 } : SPRING_MOVE}
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
       className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-ink-950 bg-white shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
-        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-ink-400 text-[9px] font-black leading-none text-ink-950">
+      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-e1">
+        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-line text-[9px] font-black leading-none text-fg">
           D
         </span>
       </span>
@@ -81,7 +82,7 @@ const TABLE_IMAGE_SRC = "/table/table_v2.png";
 
 /**
  * `public/table/table_v2.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ
- * 白地+黒枠のフォールバック描画にする(詳細は public/table/README.md 参照)。
+ * カード面+輪郭のフォールバック描画にする(詳細は public/table/README.md 参照)。
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -100,7 +101,7 @@ function TableFelt() {
   return (
     <div
       className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
-        showFrame ? "rounded-[46%] bg-white ring-[1.5px] ring-ink-950" : ""
+        showFrame ? "rounded-[46%] bg-surface ring-[1.5px] ring-line-strong" : ""
       }`}
     >
       {!failed && (
@@ -336,7 +337,7 @@ export function PokerTable({
       <TableFelt />
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
-          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
+          カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
       <div className="absolute inset-x-0 top-[33%] flex flex-col items-center gap-1">
@@ -347,17 +348,17 @@ export function PokerTable({
               initial={{ opacity: 0, y: -6, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 520, damping: 24 }}
-              className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+              transition={SPRING_SNAPPY}
+              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
-              <span className="text-[8px] font-black tracking-[0.22em] text-ink-600 uppercase">
+              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
-              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
+              <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
               {spr !== null && (
-                <span className="text-[10px] font-bold text-ink-600 tabular-nums leading-none border-l border-ink-400 pl-2">
+                <span className="text-[10px] font-bold text-n-9 tabular-nums leading-none border-l border-line pl-2">
                   SPR {spr.toFixed(1)}
                 </span>
               )}
@@ -365,7 +366,7 @@ export function PokerTable({
           )}
         </AnimatePresence>
         {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示)。
-            合計のPOT枠と同じ意匠(白地+黒枠+グレーのラベル/黒太字の金額)の枠を1ポットにつき
+            合計のPOT枠と同じ意匠(カード面+輪郭+くすんだラベル/明るい太字の金額)の枠を1ポットにつき
             1つ並べる。ラベルと金額を書体・色で明確に分離し、「サイド1 2bb」が「サイド12bb」に
             読めてしまう誤読を防ぐ。 */}
         {state && state.pots.length > 1 && (
@@ -377,12 +378,12 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1.5 rounded-full bg-white border border-ink-950 px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-e0"
               >
-                <span className="text-[8px] font-black tracking-[0.18em] text-ink-600">
+                <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}
                 </span>
-                <span className="text-[11px] font-black text-ink-950 tabular-nums leading-none">
+                <span className="text-[11px] font-black text-fg tabular-nums leading-none">
                   {formatAmount(pot.amount, bigBlind, displayMode)}
                 </span>
               </span>
@@ -488,7 +489,7 @@ export function PokerTable({
               <button
                 type="button"
                 onClick={() => onPlayerTap?.(player)}
-                className="cursor-pointer appearance-none bg-transparent p-0 active:scale-[0.97] transition-transform"
+                className="cursor-pointer appearance-none bg-transparent p-0 pressable"
                 aria-label={t("seat.detailAria", { name: player.displayName })}
               >
                 {seatNode}

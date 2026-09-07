@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import type { TimeBankInfo } from "@/lib/socket";
@@ -13,19 +14,19 @@ interface Preset {
   toAmount: number;
 }
 
-/** iOS風のトグルスイッチ(黒枠線・非シェーディング)。ON時は黒トラック+白ノブが右へ、
- * OFF時は白トラック+グレーノブが左。補助機能のON/OFFを一目で分かるようにする。 */
+/** iOS風のトグルスイッチ。ON時はアクセントのトラック+明るいノブが右へ、OFF時は暗い
+ * トラック+くすんだノブが左。補助機能のON/OFFを一目で分かるようにする。 */
 function Switch({ on }: { on: boolean }) {
   return (
     <span
       className={`relative h-4 w-7 shrink-0 rounded-full border transition-colors ${
-        on ? "border-ink-950 bg-ink-950" : "border-ink-500 bg-white"
+        on ? "border-line-strong bg-n-4" : "border-n-5 bg-surface"
       }`}
     >
       <motion.span
-        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-white" : "bg-ink-500"}`}
+        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-surface" : "bg-n-6"}`}
         animate={{ left: on ? 13 : 2 }}
-        transition={{ type: "spring", stiffness: 520, damping: 30 }}
+        transition={SPRING_MOVE}
       />
     </span>
   );
@@ -48,7 +49,7 @@ function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-/** ペルソナ5風のアクションボタン。斜めに歪んだ平行四辺形+黒のハードなオフセット影+
+/** アクションボタン。斜めに歪んだ平行四辺形+黒のハードなオフセット影+
  * 太いイタリック体で、押すと影へスラムする(translate)攻めた見た目にする。中身は逆方向に
  * カウンタースキューして水平に保つ。tone=fold(青)/call(緑)/raise(赤)で意味を色分けする。 */
 const P5_TONE_CLASS: Record<"fold" | "call" | "raise", string> = {
@@ -75,20 +76,20 @@ function P5Button({
   return (
     <motion.button
       whileTap={{ scale: 0.94, rotate: tapRotate }}
-      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      transition={SPRING_SNAPPY}
       disabled={disabled}
       aria-label={ariaLabel}
       onClick={onClick}
       className="group relative min-h-[64px] flex-1 disabled:pointer-events-none disabled:opacity-30"
     >
       {/* 黒のオフセット影(平行四辺形)。押下時は影へ重なるようにフェイスがずれる。 */}
-      <span aria-hidden className="absolute inset-0 bg-ink-950" style={{ transform: "translate(5px, 5px) skewX(-9deg)" }} />
+      <span aria-hidden className="absolute inset-0 bg-n-4" style={{ transform: "translate(5px, 5px) skewX(-9deg)" }} />
       <span
-        className={`absolute inset-0 flex flex-col items-center justify-center overflow-hidden border-[2.5px] border-ink-950 text-white ${P5_TONE_CLASS[tone]}`}
+        className={`absolute inset-0 flex flex-col items-center justify-center overflow-hidden border-[2.5px] border-line-strong text-white ${P5_TONE_CLASS[tone]}`}
         style={{ transform: "skewX(-9deg)" }}
       >
         {/* 左肩の白いスリット(P5的なエッジハイライト) */}
-        <span aria-hidden className="absolute left-0 top-0 h-full w-7 bg-white/15" style={{ transform: "skewX(-9deg) translateX(-6px)" }} />
+        <span aria-hidden className="absolute left-0 top-0 h-full w-7 bg-surface/80" style={{ transform: "skewX(-9deg) translateX(-6px)" }} />
         <span className="flex flex-col items-center leading-none" style={{ transform: "skewX(9deg)" }}>
           {children}
         </span>
@@ -113,14 +114,14 @@ function P5GhostButton({
   return (
     <motion.button
       whileTap={{ scale: 0.94 }}
-      transition={{ type: "spring", stiffness: 600, damping: 18 }}
+      transition={SPRING_SNAPPY}
       onClick={onClick}
       aria-label={ariaLabel}
       className="relative min-h-[64px] flex-1"
     >
       <span
         className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 overflow-hidden border-2 transition-colors ${
-          active ? "border-ink-950 bg-ink-950 text-white" : "border-ink-500 bg-white text-ink-600"
+          active ? "border-line-strong bg-n-4 text-white" : "border-n-5 bg-surface text-n-9"
         }`}
         style={{ transform: "skewX(-9deg)" }}
       >
@@ -302,17 +303,17 @@ export function ActionBar({
       animate={{ opacity: 1, scale: 1 }}
       whileTap={{ scale: 0.96 }}
       onClick={onToggleTimeBank}
-      className="flex items-center gap-2 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
+      className="flex items-center gap-2 rounded-full border border-line-strong bg-surface pl-2 pr-3 h-9 text-[11px] font-bold text-fg shrink-0"
     >
       <Switch on={timeBank.armed} />
       <span>{t("action.timeBank")}</span>
-      <span className="flex items-center gap-1 border-l border-ink-400 pl-2">
+      <span className="flex items-center gap-1 border-l border-line pl-2">
         {timeBank.cards > 0 ? (
           Array.from({ length: timeBank.cards }).map((_, i) => (
-            <span key={i} className="h-1.5 w-1.5 rounded-full bg-ink-950" />
+            <span key={i} className="h-1.5 w-1.5 rounded-full bg-n-4" />
           ))
         ) : (
-          <span className="text-[11px] text-ink-600">{t("action.remaining0")}</span>
+          <span className="text-[11px] text-n-9">{t("action.remaining0")}</span>
         )}
       </span>
     </motion.button>
@@ -331,7 +332,7 @@ export function ActionBar({
           return next;
         })
       }
-      className="flex items-center gap-1.5 rounded-full border border-ink-950 bg-white pl-2 pr-3 h-9 text-[11px] font-bold text-ink-900 shrink-0"
+      className="flex items-center gap-1.5 rounded-full border border-line-strong bg-surface pl-2 pr-3 h-9 text-[11px] font-bold text-fg shrink-0"
     >
       <Switch on={away} />
       {t("action.away")}
@@ -379,7 +380,7 @@ export function ActionBar({
   // 常に同一の4行構造(トグル行/プリセット行/スライダー行/ボタン行)を同じ高さで描画し、
   // 状態(手番待ち/手番/レイズ不可)では中身だけを差し替える。行の増減は絶対にしない。
   return (
-    <div className="safe-area-bottom px-4 pb-10 pt-3 bg-white border-t border-ink-400">
+    <div className="safe-area-bottom px-4 pb-10 pt-3 bg-surface border-t border-line">
       <div className="mx-auto max-w-md space-y-2.5">
         {/* 行1: トグル行(常に h-9)。タイムバンク未提供の卓でも高さは保つ。 */}
         <div className="flex h-9 items-center gap-2 overflow-x-auto no-scrollbar">
@@ -399,8 +400,8 @@ export function ActionBar({
                 }}
                 className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold tabular-nums border transition-colors ${
                   raiseTo === preset.toAmount
-                    ? "bg-ink-950 text-white border-ink-950"
-                    : "bg-white text-ink-800 border-ink-950"
+                    ? "bg-n-4 text-white border-line-strong"
+                    : "bg-surface text-n-10 border-line-strong"
                 }`}
               >
                 {preset.label}
@@ -421,13 +422,13 @@ export function ActionBar({
             }}
             aria-label={t("action.betAmount")}
             className="bet-slider min-w-0 flex-1"
-            style={{ background: `linear-gradient(to right, #0a0a0a ${sliderPct}%, #d4d4d4 ${sliderPct}%)` }}
+            style={{ background: `linear-gradient(to right, rgb(var(--accent)) ${sliderPct}%, rgb(var(--n-4)) ${sliderPct}%)` }}
           />
           <button
             type="button"
             onClick={() => stepRaise(-1)}
             aria-label={t("action.betMinus")}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-fg transition-transform active:scale-95"
           >
             <Icon name="minus" className="h-4 w-4" />
           </button>
@@ -442,13 +443,13 @@ export function ActionBar({
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
             aria-label={t("action.betAmount")}
-            className="h-11 w-20 shrink-0 rounded-xl border border-ink-950 bg-white text-center text-base font-semibold tabular-nums text-ink-950"
+            className="h-11 w-20 shrink-0 rounded-xl border border-line-strong bg-surface text-center text-base font-semibold tabular-nums text-fg"
           />
           <button
             type="button"
             onClick={() => stepRaise(1)}
             aria-label={t("action.betPlus")}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-950 bg-white text-ink-950 transition-transform active:scale-95"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-fg transition-transform active:scale-95"
           >
             <Icon name="plus" className="h-4 w-4" />
           </button>
@@ -456,7 +457,7 @@ export function ActionBar({
 
         {/* 行4: ボタン行(常に min-h-[64px])。
             手番待ち: 左=x/f予約、中央=非活性プレースホルダ、右=離席トグル(枠線のみのゴースト)。
-            手番: 左=フォールド、中央=コール/チェック、右=ベット/レイズ(P5風の色付きボタン)。 */}
+            手番: 左=フォールド、中央=コール/チェック、右=ベット/レイズ(色付きボタン)。 */}
         {isYourTurn ? (
           <div className="flex gap-3">
             {!canCheck && (
@@ -501,14 +502,14 @@ export function ActionBar({
             {/* 中央: 手番待ちの非活性プレースホルダ(押せない) */}
             <div className="relative min-h-[64px] flex-1">
               <span
-                className="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-ink-400 bg-white text-ink-500"
+                className="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-line bg-surface text-fg-2"
                 style={{ transform: "skewX(-9deg)" }}
               >
                 <span className="flex gap-1" style={{ transform: "skewX(9deg)" }}>
                   {[0, 1, 2].map((i) => (
                     <motion.span
                       key={i}
-                      className="h-1.5 w-1.5 rounded-full bg-ink-500"
+                      className="h-1.5 w-1.5 rounded-full bg-n-6"
                       animate={{ opacity: [0.3, 1, 0.3] }}
                       transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
                     />

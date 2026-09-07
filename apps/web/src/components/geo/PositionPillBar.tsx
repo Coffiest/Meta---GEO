@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { bucketColor, bucketOrderIndex } from "./colors";
 import type { ActionOption } from "@/lib/geoApi";
 
@@ -34,10 +35,10 @@ function suitSymbol(card: string): string {
   return s === "s" ? "♠" : s === "h" ? "♥" : s === "d" ? "♦" : "♣";
 }
 function suitTextClass(card: string): string {
-  if (card.endsWith("h")) return "text-crimson-500";
-  if (card.endsWith("d")) return "text-azure-500";
-  if (card.endsWith("c")) return "text-mint-500";
-  return "text-ink-950";
+  if (card.endsWith("h")) return "text-crimson-300";
+  if (card.endsWith("d")) return "text-azure-400";
+  if (card.endsWith("c")) return "text-mint-400";
+  return "text-fg";
 }
 
 /**
@@ -75,10 +76,10 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.9, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="shrink-0 flex items-center gap-1.5 rounded-xl border border-navy-700 bg-navy-900 px-2.5 py-1.5"
+            transition={SPRING_SNAPPY}
+            className="shrink-0 flex items-center gap-1.5 rounded-xl border border-line bg-canvas px-2.5 py-1.5"
           >
-            <span className="text-[9px] font-black tracking-widest text-gold-500">{STREET_LABEL[item.street]}</span>
+            <span className="text-[9px] font-black tracking-widest text-accent">{STREET_LABEL[item.street]}</span>
             <div className="flex gap-0.5">
               {item.cards.map((c) => (
                 <motion.div
@@ -86,7 +87,7 @@ export function PositionPillBar({
                   initial={{ opacity: 0, rotateY: 90 }}
                   animate={{ opacity: 1, rotateY: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="h-7 w-5 rounded-sm border border-ink-300 bg-white flex flex-col items-center justify-center text-[8px] font-bold leading-none"
+                  className="h-7 w-5 rounded-sm border border-line bg-surface flex flex-col items-center justify-center text-[8px] font-bold leading-none"
                 >
                   <span className={suitTextClass(c)}>{c.slice(0, -1)}</span>
                   <span className={suitTextClass(c)}>{suitSymbol(c)}</span>
@@ -100,12 +101,12 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", damping: 24, stiffness: 320 }}
-            className="shrink-0 rounded-xl border-2 border-gold-500 bg-navy-900 overflow-hidden min-w-[90px]"
+            transition={SPRING_SNAPPY}
+            className="shrink-0 rounded-xl border-2 border-accent bg-canvas overflow-hidden min-w-[90px]"
           >
-            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-gold-500">{item.position}</div>
+            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-accent">{item.position}</div>
             {sortedActiveOptions.length === 0 ? (
-              <div className="px-2.5 pb-1.5 text-[11px] font-medium text-navy-500">
+              <div className="px-2.5 pb-1.5 text-[11px] font-medium text-fg-3">
                 {activeSampleSize === 0 ? "サンプルなし" : "…"}
               </div>
             ) : (
@@ -114,7 +115,7 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.bucket)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-navy-50 truncate hover:bg-navy-800 active:bg-navy-700"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -133,18 +134,18 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
-            transition={{ type: "spring", damping: 24, stiffness: 320 }}
+            transition={SPRING_SNAPPY}
             disabled={item.state === "future"}
             onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
             className={`shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] border ${
               item.state === "decided"
-                ? "bg-navy-900 border-navy-600"
-                : "bg-navy-950 border-navy-800 opacity-50"
+                ? "bg-canvas border-line-strong"
+                : "bg-canvas-sunken border-line opacity-50"
             }`}
           >
-            <div className="text-[9px] font-black tracking-wide text-navy-400">{item.position}</div>
+            <div className="text-[9px] font-black tracking-wide text-fg-2">{item.position}</div>
             {item.state === "decided" ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-navy-50 truncate max-w-[90px]">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-fg truncate max-w-[90px]">
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ background: bucketColor(item.bucket ?? "", item.geometricRatio) }}
@@ -152,7 +153,7 @@ export function PositionPillBar({
                 {item.actionLabel}
               </div>
             ) : (
-              <div className="text-[11px] font-medium text-navy-600">—</div>
+              <div className="text-[11px] font-medium text-fg-faint">—</div>
             )}
           </motion.button>
         ),

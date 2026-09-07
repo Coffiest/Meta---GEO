@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import {
   STACK_BUCKETS,
   STACK_BUCKET_LABELS,
@@ -30,15 +31,15 @@ function RatingRangeSlider({
   const rightPct = ((range.max - RATING_MIN) / span) * 100;
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-[12px] font-black tabular-nums text-navy-50">
+      <div className="mb-2 flex items-center justify-between text-[12px] font-black tabular-nums text-fg">
         <span>{range.min.toFixed(0)}</span>
-        <span className="text-[10px] font-bold text-navy-500">〜</span>
+        <span className="text-[10px] font-bold text-fg-3">〜</span>
         <span>{range.max.toFixed(0)}</span>
       </div>
       <div className="relative h-6">
         {/* トラック(ダーク・ゴールドの選択帯) */}
-        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-navy-800" />
-        <div className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-gold-500" style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }} />
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-surface" />
+        <div className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }} />
         <input
           type="range"
           min={RATING_MIN}
@@ -106,25 +107,25 @@ export function GeoSettingsModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70"
     >
       <motion.div
         initial={{ opacity: 0, y: 40, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 40, scale: 0.97 }}
-        transition={{ type: "spring", damping: 28, stiffness: 320 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-navy-700 bg-navy-900 p-4"
+        className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto glass-sheet rounded-t-sheet sm:rounded-sheet p-4 shadow-e4"
       >
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-extrabold tracking-tight text-navy-50">詳細設定</p>
-          <button onClick={onClose} className="text-navy-400 text-xs font-semibold">
+          <p className="text-sm font-extrabold tracking-tight text-fg">詳細設定</p>
+          <button onClick={onClose} className="text-fg-2 text-xs font-semibold">
             閉じる
           </button>
         </div>
 
         <div className={isGto ? "" : "mb-5"}>
-          <p className="text-[11px] tracking-wide text-navy-400 uppercase font-bold mb-2">エフェクティブスタック</p>
+          <p className="text-[11px] tracking-wide text-fg-2 uppercase font-bold mb-2">エフェクティブスタック</p>
           {isGto ? (
             <div className="flex flex-wrap gap-1.5">
               {GTO_STACKS.map((bb) => (
@@ -133,7 +134,7 @@ export function GeoSettingsModal({
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onChangeGtoStackBb(bb)}
                   className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    gtoStackBb === bb ? "bg-gold-500 text-navy-950 border-gold-500" : "bg-navy-950 text-navy-300 border-navy-700"
+                    gtoStackBb === bb ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
                   }`}
                 >
                   {GTO_STACK_LABELS[bb]}
@@ -148,7 +149,7 @@ export function GeoSettingsModal({
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onChangeStackBucket(bucket)}
                   className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    stackBucket === bucket ? "bg-gold-500 text-navy-950 border-gold-500" : "bg-navy-950 text-navy-300 border-navy-700"
+                    stackBucket === bucket ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
                   }`}
                 >
                   {STACK_BUCKET_LABELS[bucket]}
@@ -157,14 +158,14 @@ export function GeoSettingsModal({
             </div>
           )}
           {isGto && (
-            <p className="mt-1.5 text-[10px] text-navy-500">選んだスタック深度のGTO混合戦略(RFI/ディフェンス/3bet)を表示します。</p>
+            <p className="mt-1.5 text-[10px] text-fg-3">選んだスタック深度のGTO混合戦略(RFI/ディフェンス/3bet)を表示します。</p>
           )}
         </div>
 
         {/* 人数(2〜6)。GEOは実測ハンドの参加人数(必ず1つ選ぶ)、
             GTOは少人数卓(アーリーポジションがフォールド済みのツリー)の表示。 */}
         <div className={isGto ? "mt-5" : "mb-5"}>
-          <p className="text-[11px] tracking-wide text-navy-400 uppercase font-bold mb-2">人数</p>
+          <p className="text-[11px] tracking-wide text-fg-2 uppercase font-bold mb-2">人数</p>
           <div className="flex flex-wrap gap-1.5">
             {[2, 3, 4, 5, 6].map((n) => {
               const selected = isGto ? gtoPlayerCount === n : playerCount === n;
@@ -174,7 +175,7 @@ export function GeoSettingsModal({
                   whileTap={{ scale: 0.94 }}
                   onClick={() => (isGto ? onChangeGtoPlayerCount(n) : onChangePlayerCount(n))}
                   className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    selected ? "bg-gold-500 text-navy-950 border-gold-500" : "bg-navy-950 text-navy-300 border-navy-700"
+                    selected ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
                   }`}
                 >
                   {n}人
@@ -182,7 +183,7 @@ export function GeoSettingsModal({
               );
             })}
           </div>
-          <p className="mt-1.5 text-[10px] text-navy-500">
+          <p className="mt-1.5 text-[10px] text-fg-3">
             {isGto
               ? "少人数はアーリーポジションがフォールドした局面のGTO戦略を表示します。"
               : "その人数でプレイされたハンドだけを集計します(変更するとラインはリセット)。人数が違うとアクション順そのものが変わる(6人のHJ・5人のCO・4人のBTNは同じ順番)ため、人数はまとめずに1つ選びます。"}
@@ -194,22 +195,22 @@ export function GeoSettingsModal({
           <>
             <div className="mb-5">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[11px] tracking-wide text-navy-400 uppercase font-bold">トナメ偏差値レンジ</p>
+                <p className="text-[11px] tracking-wide text-fg-2 uppercase font-bold">トナメ偏差値レンジ</p>
                 {(ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX) && (
                   <button
                     onClick={() => onChangeRatingRange({ min: RATING_MIN, max: RATING_MAX })}
-                    className="text-[10px] font-bold text-navy-400 underline underline-offset-2"
+                    className="text-[10px] font-bold text-fg-2 underline underline-offset-2"
                   >
                     全体に戻す
                   </button>
                 )}
               </div>
               <RatingRangeSlider range={ratingRange} onChange={onChangeRatingRange} />
-              <p className="mt-1.5 text-[10px] text-navy-500">この偏差値帯のプレイヤーの意思決定だけを集計します。</p>
+              <p className="mt-1.5 text-[10px] text-fg-3">この偏差値帯のプレイヤーの意思決定だけを集計します。</p>
             </div>
 
             <div>
-              <p className="text-[11px] tracking-wide text-navy-400 uppercase font-bold mb-2">ICM設定(インマネまでの残り人数)</p>
+              <p className="text-[11px] tracking-wide text-fg-2 uppercase font-bold mb-2">ICM設定(インマネまでの残り人数)</p>
               <div className="flex flex-wrap gap-1.5">
                 {BUBBLE_STAGES.map((stage) => (
                   <motion.button
@@ -217,7 +218,7 @@ export function GeoSettingsModal({
                     whileTap={{ scale: 0.94 }}
                     onClick={() => onChangeBubbleStage(stage)}
                     className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
-                      bubbleStage === stage ? "bg-gold-500 text-navy-950 border-gold-500" : "bg-navy-950 text-navy-300 border-navy-700"
+                      bubbleStage === stage ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
                     }`}
                   >
                     {BUBBLE_STAGE_LABELS[stage]}
