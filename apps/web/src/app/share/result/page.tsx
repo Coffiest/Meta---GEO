@@ -4,7 +4,7 @@ import Link from "next/link";
 /**
  * Xの intent ツイートから開かれる「トーナメント結果」共有ランディング。
  * OGP画像に動的生成カード(/api/og/result)を指定し、タイムライン上でリッチカードとして展開させる。
- * ページ本体は白+ゴールドのミニマルなカードプレビュー + 「無料でプレイ」CTA。
+ * ページ本体はミニマルなカードプレビュー + 「無料でプレイ」CTA。
  */
 
 const SITE_URL = "https://meta-geo-poker.vercel.app";

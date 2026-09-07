@@ -105,7 +105,7 @@ export function Onboarding({
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-canvas text-fg">
-      {/* 背景のごく淡いゴールドの光(ログイン画面と統一) */}
+      {/* 背景のごく淡いアクセントの光(ログイン画面と統一) */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <motion.div
           className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-accent-hi/20 blur-3xl"
@@ -157,7 +157,7 @@ export function Onboarding({
               className="relative flex h-[108px] w-[108px] items-center justify-center transition-transform active:scale-95"
               aria-label="アイコン画像を選択"
             >
-              {/* ゆっくり回る破線のゴールドリング(注目を集める幾何モチーフ) */}
+              {/* ゆっくり回る破線のアクセントリング(注目を集める幾何モチーフ) */}
               <motion.svg
                 viewBox="0 0 108 108"
                 className="absolute inset-0 h-full w-full text-accent-hi"

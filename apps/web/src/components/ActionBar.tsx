@@ -14,8 +14,8 @@ interface Preset {
   toAmount: number;
 }
 
-/** iOS風のトグルスイッチ(黒枠線・非シェーディング)。ON時は黒トラック+白ノブが右へ、
- * OFF時は白トラック+グレーノブが左。補助機能のON/OFFを一目で分かるようにする。 */
+/** iOS風のトグルスイッチ。ON時はアクセントのトラック+明るいノブが右へ、OFF時は暗い
+ * トラック+くすんだノブが左。補助機能のON/OFFを一目で分かるようにする。 */
 function Switch({ on }: { on: boolean }) {
   return (
     <span

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { SPRING_SNAPPY } from "@/lib/motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
@@ -61,7 +61,7 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
     <motion.div
       // key を固定して同一要素として扱わせることで、position の変化が layout で補間される。
       layout={!reduced}
-      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
+      transition={reduced ? { duration: 0 } : SPRING_MOVE}
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
@@ -82,7 +82,7 @@ const TABLE_IMAGE_SRC = "/table/table_v2.png";
 
 /**
  * `public/table/table_v2.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ
- * 白地+黒枠のフォールバック描画にする(詳細は public/table/README.md 参照)。
+ * カード面+輪郭のフォールバック描画にする(詳細は public/table/README.md 参照)。
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -366,7 +366,7 @@ export function PokerTable({
           )}
         </AnimatePresence>
         {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示)。
-            合計のPOT枠と同じ意匠(白地+黒枠+グレーのラベル/黒太字の金額)の枠を1ポットにつき
+            合計のPOT枠と同じ意匠(カード面+輪郭+くすんだラベル/明るい太字の金額)の枠を1ポットにつき
             1つ並べる。ラベルと金額を書体・色で明確に分離し、「サイド1 2bb」が「サイド12bb」に
             読めてしまう誤読を防ぐ。 */}
         {state && state.pots.length > 1 && (

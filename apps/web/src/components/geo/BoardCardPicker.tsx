@@ -5,8 +5,8 @@ import { motion } from "framer-motion";
 import { SPRING_SNAPPY } from "@/lib/motion";
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
-// 白背景の4色デッキ: スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑。
-// (suit-s トークンは暗色背景用の薄いグレーで白地では読めないため、スペードのみ黒に上書き)
+// 4色デッキ: スペード=前景色, ハート=赤, ダイヤ=青, クラブ=緑。
+// (スペードだけは suit-s トークンではなく前景色を使う。暗い面では前景色の方がはっきり出る)
 const SUITS: { key: string; symbol: string; colorClass: string }[] = [
   { key: "s", symbol: "♠", colorClass: "text-fg" },
   { key: "h", symbol: "♥", colorClass: "text-suit-h" },

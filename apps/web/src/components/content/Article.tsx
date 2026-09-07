@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * コンテンツ記事の本文コンテナ。@tailwindcss/typography は未導入のため、
- * 見出し・段落・リストのスタイルをここで一元的に与える(白基調・ゴールドアクセント)。
+ * 見出し・段落・リストのスタイルをここで一元的に与える。
  */
 export function Article({
   eyebrow,

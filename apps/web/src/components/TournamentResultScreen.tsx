@@ -183,7 +183,7 @@ export function TournamentResultScreen({
   const rankPlain = pos == null ? t("result.finished") : useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos);
 
   // X共有カード用の共有URL(/share/result?...)を組み立てる。展開時にOGP画像として
-  // /api/og/result の動的カード(白+ゴールド)が表示される。表示名・着順・獲得・全国順位を載せる。
+  // /api/og/result の動的カードが表示される。表示名・着順・獲得・全国順位を載せる。
   function buildShareUrl(): string {
     const p = new URLSearchParams();
     if (displayName) p.set("name", displayName);

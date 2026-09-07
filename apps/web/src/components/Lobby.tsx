@@ -154,7 +154,7 @@ function EnterArrow({ className }: { className?: string }) {
 /**
  * ホーム上部の対局スタートカード。Sit&Go / MTT を最初から横並びで見せ、ワンタップで卓へ入る。
  * 意匠はダークテーマ:カード面+ヘアライン+角丸を土台に、
- *  - 上辺の極細アクセントバー(SnG=gold / MTT=crimson)で一瞬で識別、
+ *  - 上辺のアクセント帯(SnG=アクセント / MTT=クリムゾン)+その下の発光で一瞬で識別、
  *  - 左肩の連番(01/02)+種別ラベルで版面のリズムを作り、
  *  - 特大タイトル+一言説明、
  *  - 下辺に区切り線を挟んで「バイイン」と「入室 →」のCTA行、
@@ -355,9 +355,9 @@ function ReviewGlyph({ className }: { className?: string }) {
 }
 
 /**
- * 各タブ共通の大胆なヘッダー。ゴールドのアイブロウ(マイクロラベル)+特大の黒タイトル+
- * ゴールドのピリオドで、Stats/History/Leaderboard を統一した商業レベルの見出しにする。
- * ホーム画面と同じタイポ言語(黒特大・字間タイト・北欧/Apple風)。 */
+ * 各タブ共通の大胆なヘッダー。アクセントのアイブロウ(マイクロラベル)+特大のタイトル+
+ * アクセントのピリオドで、Stats/History/Leaderboard を統一した見出しにする。
+ * ホーム画面と同じタイポ言語(特大・字間タイト)。 */
 function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <motion.div
