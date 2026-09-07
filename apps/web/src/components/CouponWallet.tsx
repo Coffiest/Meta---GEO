@@ -9,6 +9,9 @@ import {
   type CouponCode,
   type CouponWallet as Wallet,
 } from "@/lib/coupons";
+import { ReportErrorButton } from "./ReportErrorButton";
+import { Icon } from "./Icon";
+import { Button, IconButton } from "./ui/Button";
 
 /** コピー用グリフ(重ねた2枚のカード)。絵文字は使わずSVGで統一する。 */
 function CopyGlyph({ className = "h-4 w-4" }: { className?: string }) {
@@ -41,9 +44,6 @@ function TicketGlyph({ className = "h-4 w-4" }: { className?: string }) {
  * `onRedeemed` は適用が成功したときに呼ばれる。ペイウォールから使ったとき、その場で
  * 解析を再取得するために使う。
  */
-import { ReportErrorButton } from "./ReportErrorButton";
-import { Icon } from "./Icon";
-
 export function CouponWallet({
   accessToken,
   onRedeemed,
@@ -182,13 +182,17 @@ export function CouponWallet({
             spellCheck={false}
             className="min-w-0 flex-1 rounded-xl border border-ink-300 px-3.5 py-2.5 font-mono text-[14px] tracking-[0.12em] text-ink-950 placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-ink-400 focus:border-ink-950 focus:outline-none"
           />
-          <button
+          <Button
             onClick={() => void applyCode(codeInput, "input")}
             disabled={busy != null || codeInput.trim().length === 0}
-            className="shrink-0 rounded-xl bg-ink-950 px-4 text-[13px] font-black text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+            variant="primary"
+            size="none"
+            shape="rounded"
+            // 高さは隣の入力欄に揃えたいので、縦paddingではなく input と同じ行高に従わせる。
+            className="shrink-0 px-4 text-[13px]"
           >
             {busy === "input" ? t("coupon.applying") : t("coupon.apply")}
-          </button>
+          </Button>
         </div>
         {message && (
           <div className="mt-1.5">
@@ -250,20 +254,23 @@ function CouponRow({
       </div>
       {!used && (
         <>
-          <button
+          <IconButton
             onClick={onCopy}
             aria-label={t("coupon.copy")}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-300 text-ink-600 transition-transform active:scale-[0.95]"
+            variant="quiet"
+            shape="snug"
           >
             {copied ? <CheckGlyph className="h-4 w-4 text-gold-600" /> : <CopyGlyph className="h-4 w-4" />}
-          </button>
-          <button
+          </IconButton>
+          <Button
             onClick={onUse}
             disabled={disabled}
-            className="shrink-0 rounded-lg bg-gold-500 px-3 py-2 text-[12px] font-black text-ink-950 transition-transform active:scale-[0.98] disabled:opacity-40"
+            variant="accent"
+            size="sm"
+            shape="snug"
           >
             {busy ? t("coupon.applying") : t("coupon.use")}
-          </button>
+          </Button>
         </>
       )}
     </li>

@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "./Icon";
+import { Button } from "./ui/Button";
+
+/**
+ * テンキーは3列グリッドのセルいっぱいに広がるため、Buttonの標準サイズ(左右padding付き)を
+ * 使わず size="none" にして寸法をここで決める。数字は大きく、補助操作は小さく。
+ */
+const KEYPAD_KEY = "w-full py-3 text-[20px] active:scale-90";
+const KEYPAD_LABEL = "w-full py-3 text-[12px] active:scale-90";
 
 /**
  * 4桁パスコード入力モーダル(GEO近日公開画面の隠しゲートと同じ意匠)。
@@ -79,33 +87,25 @@ export function PasscodeModal({
 
         <div className="mt-6 grid grid-cols-3 gap-2.5">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-            <button
-              key={d}
-              onClick={() => pushDigit(d)}
-              className="cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[20px] font-black text-ink-950 transition-transform active:scale-90"
-            >
+            <Button key={d} onClick={() => pushDigit(d)} variant="secondary" size="none" className={KEYPAD_KEY}>
               {d}
-            </button>
+            </Button>
           ))}
-          <button
-            onClick={onClose}
-            className="cursor-pointer rounded-2xl py-3 text-[12px] font-bold text-ink-500 transition-transform active:scale-90"
-          >
+          <Button onClick={onClose} variant="ghost" size="none" className={KEYPAD_LABEL}>
             閉じる
-          </button>
-          <button
-            onClick={() => pushDigit("0")}
-            className="cursor-pointer rounded-2xl border border-ink-950 bg-white py-3 text-[20px] font-black text-ink-950 transition-transform active:scale-90"
-          >
+          </Button>
+          <Button onClick={() => pushDigit("0")} variant="secondary" size="none" className={KEYPAD_KEY}>
             0
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setCode((c) => c.slice(0, -1))}
             aria-label="1文字削除"
-            className="flex cursor-pointer items-center justify-center rounded-2xl py-3 text-ink-500 transition-transform active:scale-90"
+            variant="ghost"
+            size="none"
+            className={KEYPAD_LABEL}
           >
             <Icon name="backspace" className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
       </motion.div>
     </motion.div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
+import { Button } from "./ui/Button";
 
 const SEEN_KEY = "pokerart.tour.v1.seen";
 
@@ -215,12 +216,9 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="px-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-        <button
-          onClick={next}
-          className="w-full cursor-pointer rounded-full bg-ink-950 py-3.5 text-[14px] font-black text-white transition-transform active:scale-[0.98]"
-        >
+        <Button onClick={next} variant="primary" size="lg" shape="pill" block>
           {isAddHome ? "はじめる" : "次へ"}
-        </button>
+        </Button>
       </div>
     </motion.div>
   );
