@@ -221,53 +221,67 @@ function SettingsPopover({
 
 /**
  * チップを破棄してゲームから離脱するボタン。設定メニューの中の1項目だと破壊的操作が
- * 他の閲覧系メニューと同列になり誤タップしやすいため、設定ボタンの隣に独立したボタンと
- * して切り出した。通常は丸いアイコンのみ、ホバー/フォーカスで横に伸びてラベルが現れる
- * (出典: uiverse.io by AKAspidey01)。
- * 卓画面が暗地に戻ったので、面はガラス、文字は暗地でも読める crimson-300 にしてある
- * (crimson-500 は星空の上でコントラストが足りない)。
+ * 他の閲覧系メニューと同列になり誤タップしやすいため、設定ボタンの隣に独立した丸アイコン
+ * ボタンとして切り出した(設定ボタンと同じ寸法・意匠)。タップで即、画面中央にスクリム付きの
+ * 確認モーダルを表示する(このアプリの他の確認モーダル=PasscodeModalと同じ構成: 全画面スクリム
+ * +中央カード)。
+ *
+ * 以前はホバーで横に伸びてラベルが現れる演出(出典: uiverse.io by AKAspidey01)だったが、
+ * タッチ操作では機能しない ―― タップ後もフォーカスが残って伸びたまま固定され、ラベルの
+ * 「チップを破棄して離脱」が幅いっぱいで見切れる不具合になっていた。ホバー前提の演出を
+ * タッチ主体の画面へ持ち込んだのが原因のため、展開演出そのものをやめて常時アイコンのみ+
+ * 通常の確認モーダルへ変更した。
  */
 function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="relative shrink-0">
+    <>
       <button
         type="button"
-        onClick={() => setConfirming((v) => !v)}
+        onClick={() => setConfirming(true)}
         aria-label={t("settings.leave")}
-        className="group pressable relative flex h-9 w-9 items-center overflow-hidden rounded-full glass-panel text-crimson-300 transition-[width] duration-500 hover:w-32 focus-visible:w-32"
+        className="pressable shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-crimson-300"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center">
-          <Icon name="chevron-left" className="h-4 w-4" />
-        </span>
-        <span className="whitespace-nowrap pr-3 text-[11px] font-bold leading-none opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
-          {t("settings.leave")}
-        </span>
+        <Icon name="chevron-left" className="h-4 w-4" />
       </button>
-      {confirming && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setConfirming(false)} />
-          <div className="absolute right-0 top-11 z-50 w-64 space-y-2 rounded-2xl glass-panel p-3">
-            <p className="text-xs text-n-9">{t("settings.leaveConfirm")}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={onLeave}
-                className="flex-1 rounded-lg bg-crimson-600 text-white text-xs font-semibold py-2 pressable"
-              >
-                {t("settings.leaveDo")}
-              </button>
-              <button
-                onClick={() => setConfirming(false)}
-                className="pressable flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
-              >
-                {t("settings.leaveCancel")}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+      <AnimatePresence>
+        {confirming && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setConfirming(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-8"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 34 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[300px] rounded-2xl glass-panel p-5 shadow-e4"
+            >
+              <p className="text-center text-sm leading-relaxed text-fg">{t("settings.leaveConfirm")}</p>
+              <div className="mt-4 flex gap-2.5">
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="pressable flex-1 rounded-xl bg-n-4 text-n-10 text-sm font-bold py-2.5"
+                >
+                  {t("settings.leaveCancel")}
+                </button>
+                <button
+                  onClick={onLeave}
+                  className="pressable flex-1 rounded-xl bg-crimson-600 text-white text-sm font-bold py-2.5"
+                >
+                  {t("settings.leaveDo")}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
