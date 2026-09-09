@@ -121,11 +121,6 @@ interface HistoryRow {
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
-// サーバー側(packages/server/src/lobby.ts)のGAME_CONFIGSと一致させてある表示用の定義。
-// 実際に使われる金額はサーバー側の許可リストが常に正となる(クライアント側の値は表示のみ)。
-// 「SNG」は分かりづらいため、表記は常に「Sit & Go (Single table)」に統一する。
-const SNG_BUY_IN = 1000;
-
 /** 準備中(MTT)の開発者向け入室パスコード。 */
 const DEV_UNLOCK_CODE = "2357";
 
@@ -185,15 +180,18 @@ function GameStartButton({
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
         />
-        <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-on-accent/10">
-          <Icon name="cards" className="h-7 w-7" weight="light" />
+        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、ホバーで
+            わずかに拡大+起こして「物」として反応させる
+            (出典: uiverse.io by barisdogansutcu。オリジナルのキャラクターSVGを
+            アプリに既に存在するトランプ画像へ置き換え、寸法をこのボタンに合わせて調整)。 */}
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-on-accent/10">
+          <span className="transition-transform duration-500 ease-out group-hover:-rotate-6 group-hover:scale-110">
+            <PlayingCard card="As" size="sm" />
+          </span>
         </span>
         <span className="relative min-w-0 flex-1">
-          <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">{t("play.enter")}</span>
-          <span className="mt-1.5 flex items-center gap-1.5 text-[12px] font-bold opacity-70">
-            <Icon name="chip" className="h-3.5 w-3.5" />
-            <span className="tabular-nums">{SNG_BUY_IN.toLocaleString()}</span>
-          </span>
+          <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
+          <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
         </span>
         <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
         </span>
