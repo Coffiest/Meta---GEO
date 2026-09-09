@@ -9,6 +9,8 @@ import {
   type CouponCode,
   type CouponWallet as Wallet,
 } from "@/lib/coupons";
+import { ReportErrorButton } from "./ReportErrorButton";
+import { Icon } from "./Icon";
 
 /** コピー用グリフ(重ねた2枚のカード)。絵文字は使わずSVGで統一する。 */
 function CopyGlyph({ className = "h-4 w-4" }: { className?: string }) {
@@ -41,9 +43,6 @@ function TicketGlyph({ className = "h-4 w-4" }: { className?: string }) {
  * `onRedeemed` は適用が成功したときに呼ばれる。ペイウォールから使ったとき、その場で
  * 解析を再取得するために使う。
  */
-import { ReportErrorButton } from "./ReportErrorButton";
-import { Icon } from "./Icon";
-
 export function CouponWallet({
   accessToken,
   onRedeemed,
@@ -185,7 +184,7 @@ export function CouponWallet({
           <button
             onClick={() => void applyCode(codeInput, "input")}
             disabled={busy != null || codeInput.trim().length === 0}
-            className="shrink-0 rounded-xl bg-n-4 px-4 text-[13px] font-black text-white pressable disabled:opacity-40"
+            className="pressable shrink-0 rounded-xl bg-n-4 px-4 text-[13px] font-black text-white disabled:opacity-40"
           >
             {busy === "input" ? t("coupon.applying") : t("coupon.apply")}
           </button>
@@ -253,14 +252,14 @@ function CouponRow({
           <button
             onClick={onCopy}
             aria-label={t("coupon.copy")}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-n-9 pressable"
+            className="pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-n-9"
           >
             {copied ? <CheckGlyph className="h-4 w-4 text-accent" /> : <CopyGlyph className="h-4 w-4" />}
           </button>
           <button
             onClick={onUse}
             disabled={disabled}
-            className="shrink-0 rounded-lg bg-accent px-3 py-2 text-[12px] font-black text-on-accent pressable disabled:opacity-40"
+            className="pressable shrink-0 rounded-lg bg-accent px-3 py-2 text-[12px] font-black text-on-accent disabled:opacity-40"
           >
             {busy ? t("coupon.applying") : t("coupon.use")}
           </button>

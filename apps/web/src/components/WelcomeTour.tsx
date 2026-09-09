@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
+import { Button } from "./ui/Button";
+import { GlareHover } from "./effects/GlareHover";
 
 const SEEN_KEY = "pokerart.tour.v1.seen";
 
@@ -163,9 +165,18 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
               transition={{ duration: 0.3 }}
               className="text-center"
             >
-              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-line-strong text-fg">
+              <GlareHover
+                key={`glare-${featureIndex}`}
+                width="64px"
+                height="64px"
+                borderRadius="16px"
+                borderColor="rgb(72 72 74)"
+                className="mx-auto !border-2 text-fg"
+                autoPlay
+                playOnce
+              >
                 {FEATURE_SLIDES[featureIndex]!.icon}
-              </span>
+              </GlareHover>
               <h2 className="mt-5 text-[22px] font-black tracking-tight text-fg">{FEATURE_SLIDES[featureIndex]!.title}</h2>
               <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-relaxed text-n-9">{FEATURE_SLIDES[featureIndex]!.body}</p>
             </motion.div>
@@ -215,12 +226,9 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="px-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-        <button
-          onClick={next}
-          className="w-full cursor-pointer rounded-full bg-accent py-3.5 text-[14px] font-black text-on-accent shadow-glow pressable"
-        >
+        <Button onClick={next} variant="primary" size="lg" shape="pill" block>
           {isAddHome ? "はじめる" : "次へ"}
-        </button>
+        </Button>
       </div>
     </motion.div>
   );

@@ -26,6 +26,7 @@ import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
+import { SpotlightCard } from "./effects/SpotlightCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -172,8 +173,13 @@ function GameStartButton({
         whileTap={{ scale: 0.98 }}
         onClick={() => onJoin("sng")}
         aria-label={t("play.enter")}
-        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo px-5 py-4 text-left text-on-accent shadow-glow"
+        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo text-left text-on-accent shadow-glow"
       >
+        {/* カーソル追従の淡い白光。既に塗り自体がアクセント色のグラデーションなので、
+            スポットライトはteal系ではなく白を選び、上端のスペキュラと役割を分ける
+            (スペキュラ=常時の質感、こちらはポインタに反応する主役の合図)。 */}
+        <SpotlightCard className="!h-full !w-full !rounded-[22px] !border-0 !bg-transparent px-5 py-4" spotlightColor="rgba(255, 255, 255, 0.28)">
+        <span className="flex w-full items-center gap-4">
         {/* 上端のスペキュラ。塗りの面にも光が当たっていると読ませ、板ではなく物として見せる。 */}
         <span
           aria-hidden
@@ -190,6 +196,8 @@ function GameStartButton({
           </span>
         </span>
         <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
+        </span>
+        </SpotlightCard>
       </motion.button>
 
       <AnimatePresence>
