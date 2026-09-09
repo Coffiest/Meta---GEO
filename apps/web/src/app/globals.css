@@ -257,6 +257,8 @@ textarea:focus-visible,
    つまみは操作対象なので、面の中で最も明るいアクセントを与える。ドラッグ中は
    トラックと 1:1 で追従する素の <input type=range> をそのまま使っている。
    ============================================================================ */
+/* ベット額スライダー。卓画面(白基調・刷新の対象外)専用なので、つまみ・トラックとも
+   刷新前の白地向けの配色をそのまま維持する。アプリ内で唯一ここだけが旧配色を使う。 */
 .bet-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -277,27 +279,27 @@ textarea:focus-visible,
   height: 22px;
   margin-top: -7px;
   border-radius: 9999px;
-  background: rgb(var(--accent));
-  border: 3px solid rgb(var(--n-1));
-  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
+  background: #0a0a0a;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
 }
 .bet-slider::-moz-range-track {
   height: 8px;
   border-radius: 9999px;
-  background: rgb(var(--n-4));
+  background: #d4d4d4;
 }
 .bet-slider::-moz-range-progress {
   height: 8px;
   border-radius: 9999px;
-  background: rgb(var(--accent));
+  background: #0a0a0a;
 }
 .bet-slider::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: rgb(var(--accent));
-  border: 3px solid rgb(var(--n-1));
-  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
+  background: #0a0a0a;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
 }
 
 /* GEO偏差値レンジの2つまみスライダー。同じバー上に2本の<input range>を重ね、

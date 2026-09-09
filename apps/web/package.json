@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint:tokens": "! grep -rnE '(bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|placeholder|caret|shadow|accent)-(ink|navy|gold|felt|rose)-' src --include='*.ts' --include='*.tsx'"
+    "lint:tokens": "! grep -rnE '(bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|placeholder|caret|shadow|accent)-(ink|navy|gold|felt|rose)-' src --include='*.ts' --include='*.tsx' --exclude-dir=node_modules | grep -vE '^src/(app/page\\.tsx|components/(PokerTable|Seat|ActionBar)\\.tsx):'"
   },
   "dependencies": {
     "@meta-geo/engine": "workspace:*",
