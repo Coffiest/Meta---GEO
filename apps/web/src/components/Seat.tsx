@@ -33,37 +33,19 @@ export interface SeatBadge {
   tone: SeatBadgeTone;
 }
 
-// オールインの「電撃(びりびり)」エフェクト用: アバターの円周に沿って放射する稲妻の
-// 角度・長さ・明滅タイミングを決定論的な擬似乱数で生成する。値はアバター直径に対する比率。
-function elecSeed(n: number): number {
-  const x = Math.sin(n * 127.1) * 43758.5453;
-  return x - Math.floor(x);
-}
-const ELECTRIC_BOLTS = (() => {
-  const N = 10;
-  const out: { ang: number; len: number; dur: number; delay: number; flip: boolean }[] = [];
-  for (let i = 0; i < N; i++) {
-    const ang = (360 / N) * i + (elecSeed(i + 5) * 2 - 1) * 12;
-    const len = 0.16 + elecSeed(i + 3) * 0.16;
-    const dur = 0.5 + elecSeed(i + 7) * 0.5;
-    const delay = -elecSeed(i + 2) * 1.2;
-    out.push({ ang, len, dur, delay, flip: elecSeed(i) > 0.5 });
-  }
-  return out;
-})();
-
 /**
- * オールイン中のアバターを囲む「電撃リング」。回転するエネルギー弧(conic)、外周の青白い
- * グロー、円周から放射しランダムに明滅する稲妻(=びりびり)、縁の高輝度リングを重ねる。
- * 稲妻/グローは背面(z-0)、縁のリングは前面(z-20)に置き、プレイヤーの顔は隠さない。炎(赤)を
- * 廃し、エレクトリックシアン〜白で高エネルギーをモダンに表現する。背景色に依存しない色で描く。
+ * オールイン中のアバターを囲む発光リング。紫→シアンのグラデーションが回転する円環(背面)+
+ * 外周のグロー+縁の高輝度リング(前面)の3層構成。グロー/回転リングは背面(z-0)、縁の
+ * リングは前面(z-20)に置き、プレイヤーの顔は隠さない。
+ * (出典: uiverse.io by xXJollyHAKERXx。紫(#BA42FF)→シアン(#00E1FF)の回転グラデーションを
+ * リング状にマスクして移植。回転そのものは既存の allin-elec-spin キーフレームを流用)
  */
 function AllInElectric({ size }: { size: number }) {
-  const ringThickness = Math.max(2, size * 0.06);
+  const ringThickness = Math.max(3, size * 0.16);
   const ringMask = `radial-gradient(farthest-side, transparent calc(100% - ${ringThickness}px), #000 calc(100% - ${ringThickness}px))`;
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
-      {/* 外周の青白いグロー(背面) */}
+      {/* 外周の紫→シアングロー(背面) */}
       <div
         className="absolute left-1/2 top-1/2 rounded-full"
         style={{
@@ -72,67 +54,33 @@ function AllInElectric({ size }: { size: number }) {
           zIndex: 0,
           transform: "translate(-50%, -50%)",
           background:
-            "radial-gradient(circle, rgba(56,189,248,0.5) 40%, rgba(37,99,235,0.24) 54%, rgba(37,99,235,0) 72%)",
+            "radial-gradient(circle, rgba(186,66,255,0.45) 40%, rgba(0,225,255,0.22) 58%, rgba(0,225,255,0) 74%)",
           filter: `blur(${Math.max(2, size * 0.05)}px)`,
           animation: "allin-elec-glow 0.9s ease-in-out infinite",
         }}
       />
-      {/* 回転するエネルギー弧(背面) */}
+      {/* 回転する紫→シアンのグラデーションリング(背面) */}
       <div
         className="absolute left-1/2 top-1/2 rounded-full"
         style={{
-          width: size * 1.26,
-          height: size * 1.26,
+          width: size * 1.3,
+          height: size * 1.3,
           zIndex: 0,
-          background:
-            "conic-gradient(from 0deg, rgba(125,211,252,0) 0deg, rgba(125,211,252,0.9) 42deg, rgba(255,255,255,0.98) 60deg, rgba(125,211,252,0) 120deg, rgba(56,189,248,0) 190deg, rgba(125,211,252,0.85) 232deg, rgba(255,255,255,0.95) 250deg, rgba(125,211,252,0) 310deg)",
+          transform: "translate(-50%, -50%)",
+          backgroundImage: "linear-gradient(rgb(186, 66, 255) 35%, rgb(0, 225, 255))",
           WebkitMask: ringMask,
           mask: ringMask,
-          filter: `drop-shadow(0 0 ${size * 0.06}px rgba(56,189,248,0.85))`,
-          animation: "allin-elec-spin 0.8s linear infinite",
+          filter: "blur(1px)",
+          boxShadow: "0 -5px 20px 0 rgba(186,66,255,0.55), 0 5px 20px 0 rgba(0,225,255,0.55)",
+          animation: "allin-elec-spin 1.7s linear infinite",
         }}
       />
-      {/* 円周から放射する稲妻(背面・ランダム明滅) */}
-      <div className="absolute left-1/2 top-1/2" style={{ width: 0, height: 0, zIndex: 0 }}>
-        {ELECTRIC_BOLTS.map((b, i) => (
-          <span
-            key={i}
-            className="absolute left-0 top-0"
-            style={{ transform: `rotate(${b.ang}deg) translateY(${-0.5 * size}px)` }}
-          >
-            <svg
-              width={size * 0.22}
-              height={size * b.len * 2.6}
-              viewBox="0 0 10 26"
-              style={{
-                position: "absolute",
-                left: -(size * 0.22) / 2,
-                top: 0,
-                transform: b.flip ? "scaleX(-1)" : undefined,
-                overflow: "visible",
-                filter: "drop-shadow(0 0 1.4px rgba(125,211,252,0.95))",
-                animation: `allin-elec-flick ${b.dur}s linear infinite`,
-                animationDelay: `${b.delay}s`,
-              }}
-            >
-              <polyline
-                points="5,0 3,6 6.5,11 3.5,17 6,26"
-                fill="none"
-                stroke="#eafaff"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-        ))}
-      </div>
       {/* 縁の高輝度リング(前面) */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
           zIndex: 20,
-          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(56,189,248,0.9), inset 0 0 ${size * 0.09}px 0 rgba(191,240,255,0.65)`,
+          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(0,225,255,0.85), inset 0 0 ${size * 0.09}px 0 rgba(230,190,255,0.6)`,
           animation: "allin-elec-glow 0.5s ease-in-out infinite",
         }}
       />

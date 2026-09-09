@@ -14,17 +14,19 @@ interface Preset {
 }
 
 /** iOS風のトグルスイッチ(黒枠線・非シェーディング)。ON時は黒トラック+白ノブが右へ、
- * OFF時は白トラック+グレーノブが左。補助機能のON/OFFを一目で分かるようにする。 */
+ * OFF時は白トラック+グレーノブが左。ノブはトラックの高さいっぱいの円で、常にどちらかの
+ * 端に触れた状態でスライドする。補助機能のON/OFFを一目で分かるようにする。
+ * (出典: uiverse.io by faxriddin20。配色はこの画面の白基調(ink/白)のまま変更しない) */
 function Switch({ on }: { on: boolean }) {
   return (
     <span
-      className={`relative h-4 w-7 shrink-0 rounded-full border transition-colors ${
+      className={`relative inline-block h-5 w-9 shrink-0 rounded-full border transition-colors ${
         on ? "border-ink-950 bg-ink-950" : "border-ink-500 bg-white"
       }`}
     >
       <motion.span
-        className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${on ? "bg-white" : "bg-ink-500"}`}
-        animate={{ left: on ? 13 : 2 }}
+        className={`absolute top-0 h-[18px] w-[18px] rounded-full shadow-[0_4px_10px_rgba(0,0,0,0.35)] ${on ? "bg-white" : "bg-ink-400"}`}
+        animate={{ left: on ? 16 : 0 }}
         transition={{ type: "spring", stiffness: 520, damping: 30 }}
       />
     </span>
