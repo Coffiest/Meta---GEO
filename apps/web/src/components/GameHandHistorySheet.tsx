@@ -14,6 +14,7 @@ import {
   type LiveHandHistoryRow,
 } from "@/lib/reviewApi";
 import { Icon } from "./Icon";
+import { Loader } from "./ui/Loader";
 
 /** Xのロゴ(絵文字は使わずSVGで描画する)。 */
 function XLogo({ className }: { className?: string }) {
@@ -427,7 +428,7 @@ export function GameHandHistorySheet({
                           <HandTimelineDetail timeline={timelines[row.handId]!} displayMode={displayMode} />
                         ) : loadingHandId === row.handId ? (
                           <div className="flex items-center gap-2 border-t border-line pt-2.5 mt-2 text-[11px] text-fg-2">
-                            <span className="h-3 w-3 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+                            <Loader size="sm" />
                             詳細を読み込み中…
                           </div>
                         ) : (

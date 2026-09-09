@@ -43,6 +43,7 @@ function nextFreeText(nextFreeAt: string | null): string | null {
 
 import { ReportErrorButton } from "../ReportErrorButton";
 import { Icon, type IconName } from "../Icon";
+import { Loader } from "../ui/Loader";
 
 export function ReviewPaywall({
   tournamentId,
@@ -152,7 +153,7 @@ export function ReviewPaywall({
           className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
         >
           {busy ? (
-            <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+            <Loader size="sm" />
           ) : (
             <>
               使い放題プランに登録

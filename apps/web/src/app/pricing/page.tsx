@@ -17,6 +17,7 @@ import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon, HeroIcon } from "@/components/Icon";
 import { GlareHover } from "@/components/effects/GlareHover";
 import { DigitRoll } from "@/components/effects/DigitRoll";
+import { Loader } from "@/components/ui/Loader";
 
 export default function PricingPage() {
   const { accessToken: accessTokenFromAuth } = useAuth();
@@ -140,7 +141,7 @@ export default function PricingPage() {
                     className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
                   >
                     {submitting ? (
-                      <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+                      <Loader size="sm" />
                     ) : (
                       "期間終了後も続けて使う(月額に登録)"
                     )}
@@ -162,7 +163,7 @@ export default function PricingPage() {
               className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable transition disabled:opacity-60"
             >
               {submitting ? (
-                <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+                <Loader size="sm" />
               ) : (
                 "使い放題プランに登録"
               )}

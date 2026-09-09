@@ -15,6 +15,7 @@ import {
   type PlayerNoteColor,
   type PublicPlayerProfile,
 } from "@/lib/playerNotes";
+import { LoaderBlock } from "./ui/Loader";
 
 /** 対戦相手をタップしたときに開くプレイヤー詳細モーダル。
  * 公開スタッツ(収支/ROI/インマネ率/VPIP/PFR/3bet/偏差値/全国順位)+ 5色マーキング + 自由メモ。
@@ -128,10 +129,7 @@ export function PlayerDetailModal({
         {!hasProfile ? (
           <p className="py-10 text-center text-sm text-fg-2">このプレイヤーの統計は取得できません。</p>
         ) : loading ? (
-          <div className="space-y-2 py-8">
-            <div className="h-4 w-1/3 animate-pulse rounded bg-n-2" />
-            <div className="h-20 animate-pulse rounded-xl bg-n-2" />
-          </div>
+          <LoaderBlock size="md" label="スタッツを読み込み中" className="py-10" />
         ) : !profile || !s || !rr ? (
           <p className="py-10 text-center text-sm text-fg-2">スタッツを取得できませんでした。</p>
         ) : (

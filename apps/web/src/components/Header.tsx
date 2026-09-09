@@ -72,8 +72,12 @@ export function HeaderIconButton({
   );
 }
 
-export function HamburgerIcon({ className = "h-4 w-4" }: { className?: string }) {
+export function HamburgerIcon({ open = false, className = "" }: { open?: boolean; className?: string }) {
   return (
-    <Icon name="menu" className={className} />
+    <span aria-hidden="true" data-open={open} className={`hamburger ${className}`}>
+      <span className="bar bar-top" />
+      <span className="bar bar-mid" />
+      <span className="bar bar-bottom" />
+    </span>
   );
 }

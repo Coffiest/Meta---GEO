@@ -170,7 +170,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
     if (d.outOfScopeReason === "solving") {
       return (
         <div className="flex items-center gap-2 text-[13px] font-semibold text-fg-2">
-          <span className="h-3.5 w-3.5 rounded-full border-2 border-n-5 border-t-transparent animate-spin" />
+          <Loader size="sm" />
           ソルバー解析中… 自動で反映されます
         </div>
       );
@@ -234,6 +234,7 @@ function Chevron() {
 
 import { ReportErrorButton } from "../ReportErrorButton";
 import { Icon } from "../Icon";
+import { Loader } from "../ui/Loader";
 
 export function TournamentReviewModal({
   tournamentId,
@@ -649,7 +650,7 @@ export function TournamentReviewModal({
 
           {freeLoading ? (
             <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
-              <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+              <Loader size="sm" />
               集計中…
             </div>
           ) : freeError ? (
@@ -688,7 +689,7 @@ export function TournamentReviewModal({
 
               {freeData.solving && (
                 <motion.p variants={riseIn} className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-2">
-                  <span className="h-3 w-3 rounded-full border-2 border-n-5 border-t-transparent animate-spin" />
+                  <Loader size="sm" />
                   ソルバー解析中… 件数は自動で更新されます
                 </motion.p>
               )}
@@ -792,7 +793,7 @@ export function TournamentReviewModal({
 
         {loading ? (
           <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
-            <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+            <Loader size="sm" />
             全ハンドを解析中…
           </div>
         ) : error ? (
@@ -840,7 +841,7 @@ export function TournamentReviewModal({
               </div>
               {data.solving && (
                 <p className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-2">
-                  <span className="h-3 w-3 rounded-full border-2 border-n-5 border-t-transparent animate-spin" />
+                  <Loader size="sm" />
                   ソルバー解析中… 結果は自動で反映されます
                 </p>
               )}

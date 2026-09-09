@@ -23,6 +23,7 @@ import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
+import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
@@ -1192,7 +1193,7 @@ export function Lobby({
         left={<HeaderLogo />}
         right={
           <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel={t("lobby.menuOpen")}>
-            <HamburgerIcon />
+            <HamburgerIcon open={menuOpen} />
           </HeaderIconButton>
         }
       />
@@ -1407,20 +1408,14 @@ export function Lobby({
                       </div>
                     )}
 
-                    <div className="flex items-center justify-center gap-1.5 mt-4">
-                      <span className="text-[10px] text-n-9 mr-0.5">{t("lobby.recentTourneys")}</span>
-                      {TOURNEY_GRAPH_RANGES.map((r) => (
-                        <motion.button
-                          key={r.key}
-                          whileTap={{ scale: 0.94 }}
-                          onClick={() => setGraphRangeKey(r.key)}
-                          className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold ${
-                            graphRangeKey === r.key ? "bg-accent text-on-accent" : "bg-n-5 text-n-9"
-                          }`}
-                        >
-                          {r.label}
-                        </motion.button>
-                      ))}
+                    <div className="mt-4 flex flex-col items-center gap-1.5">
+                      <span className="text-[10px] text-n-9">{t("lobby.recentTourneys")}</span>
+                      <SegmentedTabs
+                        ariaLabel={t("lobby.recentTourneys")}
+                        items={TOURNEY_GRAPH_RANGES.map((r) => ({ key: r.key, label: r.label }))}
+                        value={graphRangeKey}
+                        onChange={setGraphRangeKey}
+                      />
                     </div>
                   </AnimatedCard>
                 </>
@@ -1443,35 +1438,23 @@ export function Lobby({
           >
             <TabHeader eyebrow="Ranking" title="Leaderboard" />
 
-            {/* 期間タブ(Weekly / All Time / 直近10)。セグメント。 */}
-            <div className="mb-3 flex rounded-xl border border-line-strong p-1">
-              {LB_PERIODS.map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => setLbPeriod(p.key)}
-                  className={`pressable flex-1 rounded-lg py-1.5 text-[12px] font-bold transition-colors ${
-                    lbPeriod === p.key ? "bg-n-4 text-white" : "text-n-9"
-                  }`}
-                >
-                  {t(p.labelKey)}
-                </button>
-              ))}
-            </div>
+            {/* 期間タブ(Weekly / All Time / 直近10)。 */}
+            <SegmentedTabs
+              className="mb-3"
+              ariaLabel="集計期間"
+              items={LB_PERIODS.map((p) => ({ key: p.key, label: t(p.labelKey) }))}
+              value={lbPeriod}
+              onChange={setLbPeriod}
+            />
 
             {/* 指標セレクタ(収支 / ROI / 偏差値 / インマネ率)。 */}
-            <div className="mb-4 grid grid-cols-4 gap-1.5">
-              {LB_METRICS.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => setLbMetric(m.key)}
-                  className={`pressable rounded-lg border py-1.5 text-[11px] font-bold transition-colors ${
-                    lbMetric === m.key ? "border-line-strong bg-n-4 text-white" : "border-line text-n-9"
-                  }`}
-                >
-                  {t(m.labelKey)}
-                </button>
-              ))}
-            </div>
+            <SegmentedTabs
+              className="mb-4"
+              ariaLabel="ランキング指標"
+              items={LB_METRICS.map((m) => ({ key: m.key, label: t(m.labelKey) }))}
+              value={lbMetric}
+              onChange={setLbMetric}
+            />
 
             <SectionCard>
               {(() => {
@@ -1575,25 +1558,16 @@ export function Lobby({
                 <ListSkeleton />
               ) : (
                 <>
-                  <div className="flex gap-1.5 mb-3">
-                    <button
-                      onClick={() => setHistorySubTab("all")}
-                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
-                        historySubTab === "all" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
-                      }`}
-                    >
-                      {t("lobby.all")}
-                    </button>
-                    <button
-                      onClick={() => setHistorySubTab("favorites")}
-                      className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1 transition-colors ${
-                        historySubTab === "favorites" ? "bg-accent text-on-accent" : "bg-n-4 text-n-9"
-                      }`}
-                    >
-                      <Icon name="star" className="h-3.5 w-3.5" />
-                      {t("lobby.favorites")}
-                    </button>
-                  </div>
+                  <SegmentedTabs
+                    className="mb-3"
+                    ariaLabel="履歴の絞り込み"
+                    items={[
+                      { key: "all", label: t("lobby.all") },
+                      { key: "favorites", label: t("lobby.favorites") },
+                    ]}
+                    value={historySubTab}
+                    onChange={setHistorySubTab}
+                  />
 
                   {(() => {
                     const rows = historySubTab === "favorites" ? history.filter((h) => h.isFavorite) : history;

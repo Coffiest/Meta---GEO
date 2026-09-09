@@ -257,8 +257,7 @@ textarea:focus-visible,
    つまみは操作対象なので、面の中で最も明るいアクセントを与える。ドラッグ中は
    トラックと 1:1 で追従する素の <input type=range> をそのまま使っている。
    ============================================================================ */
-/* ベット額スライダー。卓画面(白基調・刷新の対象外)専用なので、つまみ・トラックとも
-   刷新前の白地向けの配色をそのまま維持する。アプリ内で唯一ここだけが旧配色を使う。 */
+/* ベット額スライダー。つまみは操作対象なので面の中で最も明るいアクセントを与える。 */
 .bet-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -279,27 +278,27 @@ textarea:focus-visible,
   height: 22px;
   margin-top: -7px;
   border-radius: 9999px;
-  background: #0a0a0a;
-  border: 3px solid #ffffff;
-  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 .bet-slider::-moz-range-track {
   height: 8px;
   border-radius: 9999px;
-  background: #d4d4d4;
+  background: rgb(var(--n-4));
 }
 .bet-slider::-moz-range-progress {
   height: 8px;
   border-radius: 9999px;
-  background: #0a0a0a;
+  background: rgb(var(--accent));
 }
 .bet-slider::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  background: #0a0a0a;
-  border: 3px solid #ffffff;
-  box-shadow: 0 1px 4px rgba(10, 10, 10, 0.35);
+  background: rgb(var(--accent));
+  border: 3px solid rgb(var(--n-1));
+  box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 
 /* GEO偏差値レンジの2つまみスライダー。同じバー上に2本の<input range>を重ね、
@@ -442,4 +441,815 @@ textarea:focus-visible,
   .aura {
     opacity: 0.4;
   }
+}
+
+/* ============================================================================
+   Uiverse.io 由来のデザイン移植(色はPoker ARTの意味論トークンへ再マッピング)
+   ============================================================================ */
+
+/* ── ローディング(跳ねる3つの玉) ───────────────────────────────────
+   出典: uiverse.io by mobinkakei。
+   玉の色は `currentColor` にしてあるので、置き場所の文字色に自動で追従する
+   (暗い画面では明るい玉、白い卓画面では暗い玉になる)。
+   原寸は 200×60。`--loader-scale` で相似縮小し、外枠の寸法もそれに追従させる
+   ―― キーフレームが px 直書きなので、比率を保つには全体を拡縮するしかない。 */
+.loader {
+  --loader-scale: 1;
+  width: calc(200px * var(--loader-scale));
+  height: calc(66px * var(--loader-scale));
+}
+.loader-stage {
+  position: relative;
+  z-index: 1;
+  width: 200px;
+  height: 60px;
+  transform: scale(var(--loader-scale));
+  transform-origin: top left;
+}
+.loader-ball {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: currentColor;
+  transform-origin: 50%;
+  animation: loader-bounce 0.5s alternate infinite ease;
+}
+.loader-ball:nth-of-type(1) { left: 15%; }
+.loader-ball:nth-of-type(2) { left: 45%; animation-delay: 0.2s; }
+.loader-ball:nth-of-type(3) { right: 15%; animation-delay: 0.3s; }
+
+.loader-shadow {
+  position: absolute;
+  top: 62px;
+  z-index: -1;
+  width: 20px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: rgb(0 0 0 / 0.55);
+  transform-origin: 50%;
+  filter: blur(1px);
+  animation: loader-shadow 0.5s alternate infinite ease;
+}
+.loader-shadow:nth-of-type(4) { left: 15%; }
+.loader-shadow:nth-of-type(5) { left: 45%; animation-delay: 0.2s; }
+.loader-shadow:nth-of-type(6) { right: 15%; animation-delay: 0.3s; }
+
+@keyframes loader-bounce {
+  0% {
+    top: 60px;
+    height: 5px;
+    border-radius: 50px 50px 25px 25px;
+    transform: scaleX(1.7);
+  }
+  40% {
+    height: 20px;
+    border-radius: 50%;
+    transform: scaleX(1);
+  }
+  100% {
+    top: 0%;
+  }
+}
+@keyframes loader-shadow {
+  0% { transform: scaleX(1.5); }
+  40% { transform: scaleX(1); opacity: 0.7; }
+  100% { transform: scaleX(0.2); opacity: 0.4; }
+}
+
+/* モーション低減時は跳ねさせない。読み込み中であることは、玉の明滅だけで伝える。 */
+@media (prefers-reduced-motion: reduce) {
+  .loader-ball {
+    top: 20px;
+    animation: loader-fade 1.1s ease-in-out infinite !important;
+  }
+  .loader-shadow { display: none; }
+  @keyframes loader-fade {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+}
+
+/* ── セグメント切り替え(下を滑るグライダー) ───────────────────────
+   出典: uiverse.io by Pradeepsaranbishnoi。
+   原案は radio + CSS だけで位置を出しているが、項目数が可変なので
+   グライダーの幅と移動量は React 側から比率で渡す。
+   選択状態は「色が変わる」ではなく「面が滑ってくる」ことで示す
+   ―― どこから来てどこへ行ったかを目で追えるようにするため。 */
+.segmented {
+  position: relative;
+  display: flex;
+  padding: 0.3rem;
+  border-radius: 99px;
+  background: rgb(var(--n-2) / 0.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+}
+.segmented > * {
+  position: relative;
+  z-index: 2;
+}
+.segmented-glider {
+  position: absolute;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  left: 0.3rem;
+  z-index: 1;
+  border-radius: 99px;
+  background: linear-gradient(180deg, rgb(var(--accent-hi)), rgb(var(--accent-lo)));
+  box-shadow: 0 2px 10px -2px rgb(var(--accent) / 0.5);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .segmented-glider { transition: none; }
+}
+
+/* ── プレイ画面の背景(星空) ─────────────────────────────────────
+   出典: uiverse.io by amir_6539。
+   3層の星を別々の速度で上へ流し、各層は :after で 2000px 下に同じ点群を複製することで
+   途切れなくループさせる。点は box-shadow の集合なので DOM は3要素しか増えない。
+
+   全画面がゆっくり動き続けるのは前庭系に障るため、モーション低減時は流れを止めて
+   静止した星空にする(星そのものは消さない ― 場所の手がかりとして残す)。 */
+.starfield {
+  background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+  overflow: hidden;
+}
+.starfield-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: transparent;
+  will-change: transform;
+}
+.starfield-layer::after {
+  content: " ";
+  position: absolute;
+  top: 2000px;
+  background: transparent;
+}
+
+.starfield-1,
+.starfield-1::after {
+  width: 1px;
+  height: 1px;
+  box-shadow:
+    185px 135px #fff,
+    328px 1583px #fff,
+    1111px 254px #fff,
+    967px 26px #fff,
+    592px 1385px #fff,
+    1443px 5px #fff,
+    487px 1386px #fff,
+    1733px 1535px #fff,
+    1208px 966px #fff,
+    1576px 786px #fff,
+    927px 1822px #fff,
+    400px 325px #fff,
+    586px 742px #fff,
+    1500px 1587px #fff,
+    890px 400px #fff,
+    31px 1020px #fff,
+    1825px 1697px #fff,
+    904px 1178px #fff,
+    482px 741px #fff,
+    1032px 497px #fff,
+    967px 1806px #fff,
+    1827px 1782px #fff,
+    1099px 1001px #fff,
+    406px 1506px #fff,
+    1334px 493px #fff,
+    127px 353px #fff,
+    1862px 124px #fff,
+    931px 632px #fff,
+    1232px 1257px #fff,
+    1143px 990px #fff,
+    1591px 1665px #fff,
+    1526px 18px #fff,
+    82px 1608px #fff,
+    1443px 273px #fff,
+    1904px 1759px #fff,
+    1715px 191px #fff,
+    1587px 74px #fff,
+    366px 261px #fff,
+    1813px 1024px #fff,
+    977px 233px #fff,
+    889px 1631px #fff,
+    1102px 1864px #fff,
+    1335px 1253px #fff,
+    750px 1019px #fff,
+    116px 201px #fff,
+    475px 642px #fff,
+    576px 1824px #fff,
+    1342px 697px #fff,
+    1781px 697px #fff,
+    420px 888px #fff,
+    373px 548px #fff,
+    1832px 1046px #fff,
+    1096px 1636px #fff,
+    1837px 444px #fff,
+    1345px 621px #fff,
+    484px 1149px #fff,
+    975px 458px #fff,
+    542px 1994px #fff,
+    1102px 1225px #fff,
+    1501px 1458px #fff,
+    756px 505px #fff,
+    424px 262px #fff,
+    1035px 15px #fff,
+    801px 1014px #fff,
+    321px 1370px #fff,
+    1718px 1555px #fff,
+    1383px 1464px #fff,
+    673px 1687px #fff,
+    1786px 1708px #fff,
+    23px 1360px #fff,
+    795px 816px #fff,
+    545px 1267px #fff,
+    1983px 1059px #fff,
+    1036px 1868px #fff,
+    166px 103px #fff,
+    909px 1002px #fff,
+    404px 569px #fff,
+    238px 1294px #fff,
+    421px 457px #fff,
+    561px 1968px #fff,
+    1151px 214px #fff,
+    340px 1938px #fff,
+    741px 393px #fff,
+    1059px 983px #fff,
+    1519px 269px #fff,
+    1015px 309px #fff,
+    1551px 403px #fff,
+    849px 1775px #fff,
+    1878px 1726px #fff,
+    981px 1563px #fff,
+    1401px 753px #fff,
+    1717px 635px #fff,
+    922px 1460px #fff,
+    142px 1066px #fff,
+    297px 1582px #fff,
+    751px 962px #fff,
+    938px 1900px #fff,
+    571px 1203px #fff,
+    266px 1506px #fff,
+    288px 1352px #fff,
+    1909px 1752px #fff,
+    168px 96px #fff,
+    242px 945px #fff,
+    406px 1986px #fff,
+    542px 1544px #fff,
+    1570px 1066px #fff,
+    793px 1243px #fff,
+    1219px 1489px #fff,
+    1640px 363px #fff,
+    621px 781px #fff,
+    551px 1270px #fff,
+    1989px 69px #fff,
+    447px 934px #fff,
+    453px 1770px #fff,
+    870px 1670px #fff,
+    796px 357px #fff,
+    1637px 707px #fff,
+    66px 130px #fff,
+    447px 696px #fff,
+    1005px 1920px #fff,
+    466px 262px #fff,
+    435px 66px #fff,
+    368px 715px #fff,
+    1302px 1127px #fff,
+    27px 1420px #fff,
+    122px 913px #fff,
+    1235px 611px #fff,
+    959px 774px #fff,
+    1246px 751px #fff,
+    961px 128px #fff,
+    1576px 30px #fff,
+    769px 1957px #fff,
+    1916px 1771px #fff,
+    1009px 673px #fff,
+    26px 535px #fff,
+    1220px 961px #fff,
+    1px 185px #fff,
+    1365px 27px #fff,
+    1726px 1353px #fff,
+    1000px 769px #fff,
+    525px 429px #fff,
+    507px 54px #fff,
+    386px 768px #fff,
+    1774px 1394px #fff,
+    1960px 854px #fff,
+    1363px 323px #fff,
+    1281px 418px #fff,
+    1048px 17px #fff,
+    139px 896px #fff,
+    548px 1165px #fff,
+    891px 1147px #fff,
+    1025px 1828px #fff,
+    163px 1916px #fff,
+    1326px 1767px #fff,
+    1606px 707px #fff,
+    961px 1861px #fff,
+    690px 54px #fff,
+    273px 1624px #fff,
+    831px 800px #fff,
+    669px 420px #fff,
+    297px 163px #fff,
+    1324px 1069px #fff,
+    1850px 1258px #fff,
+    792px 1967px #fff,
+    1723px 677px #fff,
+    1303px 1535px #fff,
+    1924px 1700px #fff,
+    1733px 586px #fff,
+    1651px 1808px #fff,
+    222px 970px #fff,
+    684px 578px #fff,
+    623px 1252px #fff,
+    135px 597px #fff,
+    460px 1855px #fff,
+    598px 637px #fff,
+    232px 1584px #fff,
+    1320px 1861px #fff,
+    1521px 1139px #fff,
+    1431px 639px #fff,
+    1417px 212px #fff,
+    411px 1001px #fff,
+    590px 518px #fff,
+    602px 1757px #fff,
+    1356px 395px #fff,
+    259px 1525px #fff,
+    1290px 1417px #fff,
+    1074px 883px #fff,
+    807px 1513px #fff,
+    927px 21px #fff,
+    1692px 1855px #fff,
+    828px 408px #fff,
+    375px 1320px #fff,
+    347px 830px #fff,
+    715px 1164px #fff,
+    1977px 79px #fff,
+    167px 1011px #fff,
+    1751px 1845px #fff,
+    1595px 1359px #fff,
+    1317px 1744px #fff,
+    997px 1796px #fff,
+    1489px 1048px #fff,
+    1524px 1208px #fff,
+    613px 1284px #fff,
+    1697px 1688px #fff,
+    281px 1305px #fff,
+    256px 1843px #fff,
+    1140px 1244px #fff,
+    279px 208px #fff,
+    700px 74px #fff,
+    678px 1345px #fff,
+    1843px 1406px #fff,
+    133px 296px #fff,
+    740px 478px #fff,
+    331px 201px #fff,
+    1196px 450px #fff,
+    374px 1530px #fff,
+    1071px 181px #fff,
+    816px 1788px #fff,
+    1828px 1253px #fff,
+    1020px 72px #fff,
+    932px 638px #fff,
+    1297px 849px #fff,
+    364px 736px #fff,
+    1559px 287px #fff,
+    930px 964px #fff,
+    935px 1904px #fff,
+    189px 520px #fff,
+    363px 1164px #fff,
+    195px 1107px #fff,
+    25px 634px #fff,
+    1051px 1120px #fff,
+    1610px 1125px #fff,
+    274px 370px #fff,
+    245px 191px #fff,
+    1192px 658px #fff,
+    1600px 808px #fff,
+    1737px 1558px #fff,
+    182px 471px #fff,
+    1642px 227px #fff,
+    1786px 1175px #fff,
+    1138px 972px #fff,
+    707px 363px #fff,
+    5px 1739px #fff,
+    1325px 21px #fff,
+    1544px 1347px #fff,
+    1552px 211px #fff,
+    935px 693px #fff,
+    1971px 792px #fff,
+    1831px 739px #fff,
+    1399px 1512px #fff,
+    945px 198px #fff,
+    38px 1376px #fff,
+    398px 713px #fff,
+    887px 1083px #fff,
+    325px 1552px #fff,
+    1896px 184px #fff,
+    959px 1653px #fff,
+    1505px 1713px #fff,
+    856px 944px #fff,
+    1567px 1467px #fff,
+    742px 1041px #fff,
+    1335px 228px #fff,
+    194px 394px #fff,
+    1204px 537px #fff,
+    35px 823px #fff,
+    1110px 690px #fff,
+    1214px 1006px #fff,
+    1552px 406px #fff,
+    1614px 1407px #fff,
+    537px 195px #fff,
+    204px 1155px #fff,
+    1136px 215px #fff,
+    1943px 1360px #fff,
+    751px 1457px #fff,
+    887px 68px #fff,
+    1113px 1988px #fff,
+    1356px 993px #fff,
+    103px 1335px #fff,
+    262px 542px #fff,
+    186px 428px #fff,
+    722px 1623px #fff,
+    1630px 1692px #fff,
+    692px 1722px #fff,
+    1666px 519px #fff,
+    674px 1248px #fff,
+    772px 379px #fff,
+    1535px 1550px #fff,
+    1119px 799px #fff,
+    454px 1674px #fff,
+    1679px 1136px #fff,
+    1465px 871px #fff,
+    598px 826px #fff,
+    1477px 345px #fff,
+    766px 520px #fff,
+    183px 1799px #fff,
+    1392px 963px #fff,
+    568px 1718px #fff,
+    1546px 686px #fff,
+    1467px 1262px #fff,
+    1451px 997px #fff,
+    1164px 1899px #fff,
+    1865px 1405px #fff,
+    931px 1914px #fff,
+    790px 444px #fff,
+    765px 340px #fff,
+    1101px 206px #fff,
+    1908px 849px #fff,
+    111px 1636px #fff,
+    1606px 935px #fff,
+    641px 1459px #fff,
+    1129px 1407px #fff,
+    1561px 1505px #fff,
+    1553px 1566px #fff,
+    1921px 420px #fff,
+    1081px 1864px #fff,
+    650px 1037px #fff,
+    1403px 1439px #fff,
+    1169px 716px #fff,
+    1278px 1570px #fff,
+    672px 1701px #fff;
+}
+.starfield-1 { animation: starfield-drift 50s linear infinite; }
+
+.starfield-2,
+.starfield-2::after {
+  width: 2px;
+  height: 2px;
+  box-shadow:
+    669px 62px #fff,
+    883px 364px #fff,
+    1368px 1535px #fff,
+    1015px 1105px #fff,
+    420px 353px #fff,
+    322px 1101px #fff,
+    958px 170px #fff,
+    1137px 1348px #fff,
+    878px 1996px #fff,
+    765px 1612px #fff,
+    1396px 1662px #fff,
+    1161px 543px #fff,
+    355px 1636px #fff,
+    1101px 1814px #fff,
+    1102px 1582px #fff,
+    705px 246px #fff,
+    397px 1670px #fff,
+    740px 1767px #fff,
+    35px 245px #fff,
+    668px 1356px #fff,
+    1421px 1913px #fff,
+    798px 523px #fff,
+    623px 875px #fff,
+    540px 925px #fff,
+    1262px 51px #fff,
+    283px 1565px #fff,
+    983px 444px #fff,
+    1681px 1057px #fff,
+    199px 173px #fff,
+    1504px 569px #fff,
+    888px 1959px #fff,
+    205px 1756px #fff,
+    1949px 1892px #fff,
+    1158px 642px #fff,
+    734px 972px #fff,
+    1194px 649px #fff,
+    79px 1982px #fff,
+    1712px 1228px #fff,
+    109px 1661px #fff,
+    1447px 300px #fff,
+    100px 476px #fff,
+    1098px 1524px #fff,
+    711px 46px #fff,
+    101px 1315px #fff,
+    711px 1426px #fff,
+    434px 603px #fff,
+    1810px 541px #fff,
+    1757px 147px #fff,
+    1523px 542px #fff,
+    1743px 510px #fff,
+    1261px 1784px #fff,
+    55px 778px #fff,
+    142px 257px #fff,
+    1396px 124px #fff,
+    39px 1405px #fff,
+    1963px 971px #fff,
+    1107px 772px #fff,
+    832px 832px #fff,
+    152px 1163px #fff,
+    1513px 1108px #fff,
+    948px 1008px #fff,
+    805px 390px #fff,
+    690px 356px #fff,
+    1396px 1146px #fff,
+    1609px 80px #fff,
+    753px 337px #fff,
+    1038px 829px #fff,
+    1326px 1637px #fff,
+    1360px 531px #fff,
+    890px 1803px #fff,
+    1427px 847px #fff,
+    1866px 284px #fff,
+    1825px 209px #fff,
+    1746px 258px #fff,
+    817px 443px #fff,
+    731px 909px #fff,
+    1678px 1447px #fff,
+    1360px 1023px #fff,
+    8px 472px #fff,
+    268px 1174px #fff,
+    1390px 1377px #fff,
+    889px 1829px #fff,
+    771px 1569px #fff,
+    334px 989px #fff,
+    838px 1326px #fff,
+    1739px 623px #fff,
+    777px 306px #fff,
+    788px 72px #fff,
+    1182px 1798px #fff,
+    1514px 949px #fff,
+    908px 1715px #fff,
+    814px 1153px #fff,
+    513px 562px #fff,
+    1405px 1642px #fff,
+    901px 1656px #fff,
+    503px 1710px #fff,
+    221px 1235px #fff,
+    1487px 324px #fff,
+    656px 1650px #fff,
+    1356px 1827px #fff,
+    1022px 1847px #fff,
+    719px 195px #fff,
+    584px 1307px #fff,
+    1572px 26px #fff,
+    679px 1860px #fff,
+    962px 1023px #fff,
+    435px 1240px #fff,
+    412px 878px #fff,
+    1121px 1497px #fff,
+    146px 230px #fff,
+    274px 1562px #fff,
+    1758px 1585px #fff,
+    339px 144px #fff,
+    1637px 989px #fff,
+    461px 552px #fff,
+    255px 763px #fff,
+    195px 108px #fff,
+    1922px 815px #fff,
+    1718px 69px #fff,
+    1235px 436px #fff,
+    377px 1802px #fff,
+    1492px 224px #fff,
+    542px 1117px #fff,
+    1848px 1168px #fff,
+    997px 312px #fff,
+    1508px 928px #fff,
+    247px 1527px #fff,
+    359px 1652px #fff,
+    834px 1100px #fff,
+    893px 1910px #fff,
+    1898px 1921px #fff,
+    399px 1519px #fff,
+    480px 322px #fff,
+    1410px 845px #fff,
+    786px 1027px #fff,
+    1488px 1748px #fff,
+    1602px 1216px #fff,
+    69px 1390px #fff,
+    587px 164px #fff,
+    585px 1681px #fff,
+    400px 178px #fff,
+    1054px 1185px #fff,
+    409px 1211px #fff,
+    1429px 1732px #fff,
+    1010px 1238px #fff,
+    1386px 455px #fff,
+    1779px 562px #fff,
+    1723px 1446px #fff,
+    601px 1494px #fff,
+    1680px 1236px #fff;
+}
+.starfield-2 { animation: starfield-drift 100s linear infinite; }
+
+.starfield-3,
+.starfield-3::after {
+  width: 3px;
+  height: 3px;
+  box-shadow:
+    796px 1927px #fff,
+    1813px 408px #fff,
+    1264px 502px #fff,
+    1387px 530px #fff,
+    1050px 591px #fff,
+    720px 236px #fff,
+    510px 1524px #fff,
+    681px 452px #fff,
+    1681px 288px #fff,
+    1625px 1134px #fff,
+    956px 152px #fff,
+    953px 1348px #fff,
+    175px 1713px #fff,
+    1320px 938px #fff,
+    976px 169px #fff,
+    957px 1979px #fff,
+    277px 53px #fff,
+    337px 285px #fff,
+    1536px 103px #fff,
+    395px 1240px #fff,
+    1037px 1325px #fff,
+    605px 1482px #fff,
+    1523px 1582px #fff,
+    906px 566px #fff,
+    1284px 1567px #fff,
+    75px 1772px #fff,
+    283px 1648px #fff,
+    1365px 1632px #fff,
+    82px 775px #fff,
+    1765px 1533px #fff,
+    443px 948px #fff,
+    1683px 906px #fff,
+    1552px 781px #fff,
+    1880px 1243px #fff,
+    242px 1492px #fff,
+    773px 343px #fff,
+    722px 1741px #fff,
+    975px 1656px #fff,
+    1668px 480px #fff,
+    1610px 1053px #fff,
+    321px 41px #fff,
+    1636px 1357px #fff,
+    389px 514px #fff,
+    796px 1824px #fff,
+    1158px 16px #fff,
+    347px 509px #fff,
+    1250px 1333px #fff,
+    315px 1614px #fff,
+    1818px 73px #fff,
+    1164px 460px #fff,
+    838px 782px #fff,
+    1293px 296px #fff,
+    1956px 687px #fff,
+    1875px 715px #fff,
+    805px 1571px #fff,
+    435px 1997px #fff,
+    754px 1323px #fff,
+    318px 1753px #fff,
+    603px 1919px #fff,
+    928px 1467px #fff,
+    510px 1735px #fff,
+    1905px 721px #fff,
+    1405px 1170px #fff,
+    15px 236px #fff,
+    1007px 1206px #fff,
+    412px 1382px #fff,
+    256px 198px #fff,
+    367px 207px #fff,
+    606px 1349px #fff,
+    475px 1659px #fff;
+}
+.starfield-3 { animation: starfield-drift 150s linear infinite; }
+
+@keyframes starfield-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-2000px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starfield-1,
+  .starfield-2,
+  .starfield-3 {
+    animation: none !important;
+  }
+}
+
+/* ── チェックボックス(レ点を描き進める) ───────────────────────────
+   出典: uiverse.io by PriyanshuGupta28。
+   ONになった瞬間にレ点のパスを stroke-dashoffset で描き進める。塗りの切り替えではなく
+   「今この場で書かれた」ように見せることで、自分の操作が効いたことが伝わる。
+   色は currentColor なので、置き場所の文字色に追従する。 */
+.check-mark {
+  display: inline-block;
+  vertical-align: middle;
+}
+.check-mark .box {
+  stroke: currentColor;
+  opacity: 0.45;
+}
+.check-mark .tick {
+  stroke: currentColor;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  opacity: 0;
+  transition:
+    stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.15s ease-out;
+}
+.check-mark[data-on="true"] .box {
+  opacity: 1;
+}
+.check-mark[data-on="true"] .tick {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .check-mark .tick { transition: opacity 0.15s ease-out; stroke-dashoffset: 0; }
+}
+
+/* ── ハンバーガー(3本線 ↔ ×) ──────────────────────────────────
+   出典: uiverse.io by vinodjangid07。原案の紫は使わず currentColor にして、
+   置き場所の文字色に追従させる。開くと全体が180度回り、上下の線が交差して×になる。 */
+.hamburger {
+  position: relative;
+  display: flex;
+  height: 18px;
+  width: 20px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hamburger .bar {
+  height: 2px;
+  width: 70%;
+  border-radius: 2px;
+  background-color: currentColor;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hamburger .bar-mid {
+  width: 100%;
+  transition-duration: 0.8s;
+}
+.hamburger[data-open="true"] { transform: rotate(180deg); }
+.hamburger[data-open="true"] .bar { position: absolute; }
+.hamburger[data-open="true"] .bar-mid { transform: scaleX(0); }
+.hamburger[data-open="true"] .bar-top { width: 100%; transform: rotate(45deg); }
+.hamburger[data-open="true"] .bar-bottom { width: 100%; transform: rotate(-45deg); }
+@media (prefers-reduced-motion: reduce) {
+  .hamburger, .hamburger .bar { transition: none; }
+}
+
+/* ── 自分の手札をタップしたときの発光 ─────────────────────────────
+   出典: uiverse.io by Tiagoadag のグラデーション枠+グロー。
+   ハンド終了時にショウする意思がONであることを、カード束の周囲の発光で示す。
+   カード自体には触れないので、絵柄の見え方は変わらない。 */
+.hand-show-glow {
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: 14px;
+  background-image: linear-gradient(163deg, #00ff75 0%, #3700ff 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+.hand-show-glow[data-on="true"] {
+  opacity: 1;
+  box-shadow: 0 0 30px 1px rgb(0 255 117 / 0.3);
 }

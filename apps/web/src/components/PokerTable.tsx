@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
@@ -17,6 +18,43 @@ import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
 // 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
 // 一致させることで、画像自体の形がそのままテーブルの形になり、余白や別枠のクロップが生じない。
+/* 卓の設計寸法。座席・ボード・ポットの位置は全てこの箱に対する%で書かれているので、
+   この比率が崩れると卓画像と座席がズレる。
+
+   以前は `w-full max-w-md max-h-full aspect-[3/4]` で組んでいたが、`aspect-ratio` と
+   `max-height` を同時に効かせると**高さだけが切り詰められて幅は保たれる**。
+   結果、比率の崩れた箱の中で座席は横に広がり、卓画像は object-contain で高さに合わせて
+   縮むため、卓だけが小さくなって座席がその外へはみ出していた
+   (実機で 414×552 になるはずが 414×333 になっていた)。
+
+   そこで、設計寸法のまま描画して、空いている領域に収まる倍率で全体を縮小する。
+   中の固定pxも一緒に縮むので、卓・座席・カード・文字の相対関係が設計どおりに保たれる。
+   CSSだけでは「幅と高さの両方に収まる倍率」を書けない(zoom に
+   min(100cqw/448, 100cqh/597) は渡せない)ため、実測して倍率を出す。 */
+const DESIGN_WIDTH = 448;
+const DESIGN_HEIGHT = 597; // 448 * 4 / 3
+
+/** 親の大きさを測り、設計寸法が収まる倍率を返す(拡大はしない)。 */
+function useFitScale(ref: React.RefObject<HTMLElement>): number {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const apply = (w: number, h: number) => {
+      if (w <= 0 || h <= 0) return;
+      setScale(Math.min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT, 1));
+    };
+    apply(el.clientWidth, el.clientHeight);
+    const ro = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      apply(entry.contentRect.width, entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return scale;
+}
+
 const FELT_BOX = "inset-x-[18%] top-[10%] bottom-[18%]";
 
 // 画像内のロゴ帯(上部 約5-31%)・破線カードスロット帯(約44-56%)・ワードマーク/下部ロゴ帯
@@ -60,14 +98,14 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
     <motion.div
       // key を固定して同一要素として扱わせることで、position の変化が layout で補間される。
       layout={!reduced}
-      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
+      transition={reduced ? { duration: 0 } : SPRING_MOVE}
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
       className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-ink-950 bg-white shadow-[0_2px_4px_-1px_rgba(10,10,10,0.35)]">
-        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-ink-400 text-[9px] font-black leading-none text-ink-950">
+      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-e1">
+        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-line text-[9px] font-black leading-none text-fg">
           D
         </span>
       </span>
@@ -76,12 +114,18 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
 }
 
 // テーブルデザイン画像。felt.pngと同一比率(1000×1500=2:3)・同一内部レイアウトで、
-// 実線の外枠を追加したtable_v2.pngへ差し替え(座席/ボード/ポットの位置校正はそのまま合う)。
-const TABLE_IMAGE_SRC = "/table/table_v2.png";
+/* 卓画像。黒地に白い輪郭で描かれた、暗い背景に置く前提の絵(1024×1536 = 2:3)。
+   比率が table_v2.png と同じなので、座席・ボード・ポットの%配置は再調整不要。 */
+const TABLE_IMAGE_SRC = "/table/table_v3.png";
 
 /**
- * `public/table/table_v2.png` が存在すればそれをテーブルの形そのものとして描画し、無ければ
- * 白地+黒枠のフォールバック描画にする(詳細は public/table/README.md 参照)。
+ * 卓面。`public/table/table_v3.png` を卓の形そのものとして描画する。
+ *
+ * 画像はアルファを持たない**不透明な黒い台紙**なので、そのまま重ねると星空の上に
+ * 黒い長方形が乗ってしまう。`mix-blend-mode: screen` で合成すると **黒が透過として
+ * 扱われる**ため、台紙が完全に消えて白い輪郭と "Poker Art" だけが残り、背景の星空が
+ * 卓の内側まで繋がる。画像自体には一切手を加えない。
+ * (地は実測で隅 #000000 / 中央 #010100。ほぼ純黒なので残渣は出ない。)
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -100,7 +144,7 @@ function TableFelt() {
   return (
     <div
       className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
-        showFrame ? "rounded-[46%] bg-white ring-[1.5px] ring-ink-950" : ""
+        showFrame ? "rounded-[46%] bg-surface ring-[1.5px] ring-line-strong" : ""
       }`}
     >
       {!failed && (
@@ -112,8 +156,8 @@ function TableFelt() {
           draggable={false}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
-          style={{ opacity: loaded ? 1 : 0 }}
+          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
+          style={{ opacity: loaded ? 1 : 0, mixBlendMode: "screen" }}
         />
       )}
     </div>
@@ -328,15 +372,30 @@ export function PokerTable({
   // ポジション名はブラインド位置基準(BTN/SB/BB/UTG...)。ハンド不参加の席はラベルなし。
   const positionLabels = state ? positionLabelsForState(state, seatCount) : null;
 
+  // 卓は設計寸法のまま描き、空いている領域に収まる倍率で全体を縮小する。
+  const fitRef = useRef<HTMLDivElement>(null);
+  const fitScale = useFitScale(fitRef);
+
   return (
-    <div
-      className="no-image-actions relative w-full max-w-md max-h-full aspect-[3/4] mx-auto"
-      onContextMenu={(e) => e.preventDefault()}
-    >
+    <div ref={fitRef} className="relative flex h-full w-full items-center justify-center">
+      <div
+        className="no-image-actions relative"
+        style={{
+          width: DESIGN_WIDTH,
+          height: DESIGN_HEIGHT,
+          // 縮小に transform ではなく zoom を使う。transform は**合成の文脈(stacking context)を
+          // 作ってしまう**ため、中の卓画像の mix-blend-mode: screen が背景の星空ではなく
+          // この箱の中だけを相手に合成され、黒い台紙が消えなくなる。
+          // zoom は文脈を作らないので、画像は素直にページの背景と合成される。
+          // レイアウト上の寸法も縮むので、flex の中央寄せがそのまま効く。
+          zoom: fitScale,
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
       <TableFelt />
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
-          白地+黒枠線のSwiss統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
+          カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
       <div className="absolute inset-x-0 top-[33%] flex flex-col items-center gap-1">
@@ -347,17 +406,17 @@ export function PokerTable({
               initial={{ opacity: 0, y: -6, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 520, damping: 24 }}
-              className="flex items-center gap-2 rounded-full bg-white border border-ink-950 pl-3 pr-3.5 py-1.5 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+              transition={SPRING_SNAPPY}
+              className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
-              <span className="text-[8px] font-black tracking-[0.22em] text-ink-600 uppercase">
+              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
-              <span className="text-[13px] font-black text-ink-950 tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
+              <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
               {spr !== null && (
-                <span className="text-[10px] font-bold text-ink-600 tabular-nums leading-none border-l border-ink-400 pl-2">
+                <span className="text-[10px] font-bold text-n-9 tabular-nums leading-none border-l border-line pl-2">
                   SPR {spr.toFixed(1)}
                 </span>
               )}
@@ -365,7 +424,7 @@ export function PokerTable({
           )}
         </AnimatePresence>
         {/* サイドポットの内訳(オールインが絡み2本以上に分かれたときだけ表示)。
-            合計のPOT枠と同じ意匠(白地+黒枠+グレーのラベル/黒太字の金額)の枠を1ポットにつき
+            合計のPOT枠と同じ意匠(カード面+輪郭+くすんだラベル/明るい太字の金額)の枠を1ポットにつき
             1つ並べる。ラベルと金額を書体・色で明確に分離し、「サイド1 2bb」が「サイド12bb」に
             読めてしまう誤読を防ぐ。 */}
         {state && state.pots.length > 1 && (
@@ -377,12 +436,12 @@ export function PokerTable({
             {state.pots.map((pot, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1.5 rounded-full bg-white border border-ink-950 px-2.5 py-1 shadow-[0_1px_0_rgba(10,10,10,0.04)]"
+                className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-e0"
               >
-                <span className="text-[8px] font-black tracking-[0.18em] text-ink-600">
+                <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}
                 </span>
-                <span className="text-[11px] font-black text-ink-950 tabular-nums leading-none">
+                <span className="text-[11px] font-black text-fg tabular-nums leading-none">
                   {formatAmount(pot.amount, bigBlind, displayMode)}
                 </span>
               </span>
@@ -488,7 +547,7 @@ export function PokerTable({
               <button
                 type="button"
                 onClick={() => onPlayerTap?.(player)}
-                className="cursor-pointer appearance-none bg-transparent p-0 active:scale-[0.97] transition-transform"
+                className="cursor-pointer appearance-none bg-transparent p-0 pressable"
                 aria-label={t("seat.detailAria", { name: player.displayName })}
               >
                 {seatNode}
@@ -504,6 +563,7 @@ export function PokerTable({
       <AnimatePresence>
         {allInFxId !== null && <AllInBurst key={allInFxId} reduced={reducedMotion} />}
       </AnimatePresence>
+      </div>
     </div>
   );
 }

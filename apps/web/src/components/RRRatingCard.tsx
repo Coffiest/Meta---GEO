@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+import { LoaderBlock } from "./ui/Loader";
 
 export interface RRRatingData {
   rrRating: number;
@@ -350,7 +351,7 @@ export function RRRatingCard({
           </button>
         </div>
         {history === null ? (
-          <div className="py-8 text-center text-n-9 text-xs">読み込み中…</div>
+          <LoaderBlock size="md" label="推移を読み込み中" className="py-8" />
         ) : (
           <TournamentHistoryChart points={history} />
         )}

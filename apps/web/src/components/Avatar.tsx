@@ -58,7 +58,7 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
   return (
     <>
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(10,10,10,0.12)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} />
         <circle
           ref={arcRef}
           cx={size / 2}

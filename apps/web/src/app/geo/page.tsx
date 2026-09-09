@@ -34,6 +34,8 @@ import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
+import { Loader } from "@/components/ui/Loader";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
 const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
@@ -576,19 +578,15 @@ function GeoDatabase() {
                   </p>
                 </div>
                 {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
-                <div className="flex rounded-lg border border-line overflow-hidden text-[10px] font-black">
-                  {(["geo", "gto"] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => switchMode(m)}
-                      className={`pressable px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
-                        mode === m ? "bg-accent text-on-accent" : "bg-canvas text-fg-2 active:bg-surface"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedTabs
+                  ariaLabel="データ源"
+                  items={[
+                    { key: "geo", label: "GEO" },
+                    { key: "gto", label: "GTO" },
+                  ]}
+                  value={mode}
+                  onChange={switchMode}
+                />
               </div>
               {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
               <div className="flex items-stretch gap-2.5">
@@ -670,7 +668,7 @@ function GeoDatabase() {
           {loading || solving ? (
             <div className="rounded-2xl border border-line bg-canvas p-8 text-center text-sm text-fg-2">
               <div className="flex items-center justify-center gap-2">
-                <span className="h-4 w-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <Loader size="sm" />
                 {solving ? (
                   "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
                 ) : reconnecting ? (
