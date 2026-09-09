@@ -443,3 +443,48 @@ textarea:focus-visible,
     opacity: 0.4;
   }
 }
+/* ローディング画面のトランプ3Dリング(CardRingSpinner)。カードごとの角度は
+   `360deg / 枚数 × index` をCSS変数から算出するため、疑似要素+
+   transform-style:preserve-3d のこの効果はTailwindユーティリティで表現できない。
+   (出典: uiverse.io by ilkhoeri) */
+.card-ring-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.card-ring-inner {
+  --card-ring-perspective: 900px;
+  --card-ring-rotate-x: -15deg;
+  --card-ring-translate-z: calc(var(--card-ring-w) + var(--card-ring-h));
+  position: relative;
+  width: var(--card-ring-w);
+  height: var(--card-ring-h);
+  transform-style: preserve-3d;
+  transform: perspective(var(--card-ring-perspective));
+  animation: card-ring-spin 14s linear infinite;
+}
+@keyframes card-ring-spin {
+  from {
+    transform: perspective(var(--card-ring-perspective)) rotateX(var(--card-ring-rotate-x)) rotateY(0);
+  }
+  to {
+    transform: perspective(var(--card-ring-perspective)) rotateX(var(--card-ring-rotate-x)) rotateY(1turn);
+  }
+}
+.card-ring-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.5);
+  transform: rotateY(calc((360deg / var(--card-ring-quantity)) * var(--card-ring-index)))
+    translateZ(var(--card-ring-translate-z));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-ring-inner {
+    animation: none;
+    transform: perspective(var(--card-ring-perspective)) rotateX(var(--card-ring-rotate-x));
+  }
+}
