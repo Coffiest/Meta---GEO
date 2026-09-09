@@ -59,7 +59,7 @@ const ACTION_KIND_LABEL: Record<string, string> = {
 /** iOSのグループリスト背景(systemGroupedBackground)。 */
 const SHEET_BG = "#232326";
 /** iOSのヘアライン分割線。 */
-const HAIRLINE = "rgba(60,60,67,0.12)";
+const HAIRLINE = "rgba(255,255,255,0.10)";
 
 /** 無料要約画面の広告枠スロットID。未設定の間はAdSlot自体が非表示になる。 */
 const ADSENSE_REVIEW_SLOT = process.env["NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID"];
@@ -456,8 +456,7 @@ export function TournamentReviewModal({
       >
         {/* すりガラスのナビゲーションバー */}
         <header
-          className="shrink-0 flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5 bg-surface/80 backdrop-blur-xl"
-          style={{ borderBottom: `0.5px solid ${HAIRLINE}` }}
+          className="glass-header shrink-0 flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5"
         >
           <motion.button
             whileTap={{ scale: 0.9 }}
