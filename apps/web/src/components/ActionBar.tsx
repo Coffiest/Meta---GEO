@@ -56,6 +56,9 @@ function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
  * 面は水平のまま(斜めに歪ませない)。立体は、塗りの上下グラデーションと上端の
  * スペキュラ ―― 光が上から当たっている、という一貫した説明だけで作る。
  * 押下は .pressable が触れた瞬間に返すので、影へスラムするような演出は要らない。
+ * ホバー/フォーカスでは、白い円が `mix-blend-mode: difference` で走り抜ける
+ * (`.action-btn-sweep`)演出を重ねる(出典: uiverse.io by vinodjangid07。
+ * ダーク単色地の演出を、既存の質感言語の上に追加する形で移植)。
  *
  * 色は意味に対応させる: フォールド=青(降りる) / チェック・コール=緑(応答) /
  * ベット・レイズ=赤(強い意思表示)。塗りの濃さは、その上の白文字が読める段を選んである。
@@ -85,11 +88,11 @@ function ActionButton({
       disabled={disabled}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`pressable relative flex h-[62px] flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl text-white shadow-e2 disabled:pointer-events-none disabled:opacity-30 ${ACTION_TONE_CLASS[tone]}`}
+      className={`action-btn-sweep pressable relative flex h-[62px] flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl text-white shadow-e2 disabled:pointer-events-none disabled:opacity-30 ${ACTION_TONE_CLASS[tone]}`}
     >
       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/22 to-transparent" />
       <span aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/15" />
-      <span className="relative flex flex-col items-center leading-none">{children}</span>
+      <span className="relative z-10 flex flex-col items-center leading-none">{children}</span>
     </button>
   );
 }
@@ -97,7 +100,9 @@ function ActionButton({
 /**
  * 手番待ち中の予約系ボタン(チェック/フォールド予約・離席)。
  * アクションボタンと同じ寸法・同じ角丸のまま、塗りを持たないガラス面にして
- * 「今は主役ではない」ことを示す。ONの間だけアクセントの縁が点く。
+ * 「今は主役ではない」ことを示す。ONの間だけアクセントの縁が点き、中央上の
+ * ガラス質チェックボックス(`.toggle-check`)にチェックマークが弾んで現れる
+ * (出典: uiverse.io by Shammy2002。配色はPoker ARTの意味論トークンへ再マッピング)。
  */
 function StandbyButton({
   active,
@@ -122,6 +127,9 @@ function StandbyButton({
           : "bg-white/[0.06] text-fg-2 ring-1 ring-inset ring-white/10"
       }`}
     >
+      {/* 状態バッジ(隅)。中央のアイコン+ラベルは動かさず、ON/OFFはここのチェック
+          マーク描画で示す(本体側の縁・塗りの変化と二重化)。 */}
+      <span className="toggle-check absolute right-1.5 top-1.5" data-on={active} aria-hidden="true" />
       {children}
     </button>
   );
