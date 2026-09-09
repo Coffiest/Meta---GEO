@@ -175,17 +175,14 @@ function SettingsPopover({
   onShowStructure,
   onShowHistory,
   onShowChatLog,
-  onLeave,
   onClose,
 }: {
   onShowStructure: () => void;
   onShowHistory: () => void;
   onShowChatLog: () => void;
-  onLeave: () => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [confirmingLeave, setConfirmingLeave] = useState(false);
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
@@ -217,8 +214,41 @@ function SettingsPopover({
         >
           {t("settings.chatLog")}
         </button>
-        {confirmingLeave ? (
-          <div className="rounded-xl bg-n-2 p-3 space-y-2">
+      </div>
+    </>
+  );
+}
+
+/**
+ * チップを破棄してゲームから離脱するボタン。設定メニューの中の1項目だと破壊的操作が
+ * 他の閲覧系メニューと同列になり誤タップしやすいため、設定ボタンの隣に独立したボタンと
+ * して切り出した。通常は丸いアイコンのみ、ホバー/フォーカスで横に伸びてラベルが現れる
+ * (出典: uiverse.io by AKAspidey01)。
+ * 卓画面が暗地に戻ったので、面はガラス、文字は暗地でも読める crimson-300 にしてある
+ * (crimson-500 は星空の上でコントラストが足りない)。
+ */
+function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
+  const { t } = useI18n();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setConfirming((v) => !v)}
+        aria-label={t("settings.leave")}
+        className="group pressable relative flex h-9 w-9 items-center overflow-hidden rounded-full glass-panel text-crimson-300 transition-[width] duration-500 hover:w-32 focus-visible:w-32"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center">
+          <Icon name="chevron-left" className="h-4 w-4" />
+        </span>
+        <span className="whitespace-nowrap pr-3 text-[11px] font-bold leading-none opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+          {t("settings.leave")}
+        </span>
+      </button>
+      {confirming && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setConfirming(false)} />
+          <div className="absolute right-0 top-11 z-50 w-64 space-y-2 rounded-2xl glass-panel p-3">
             <p className="text-xs text-n-9">{t("settings.leaveConfirm")}</p>
             <div className="flex gap-2">
               <button
@@ -228,23 +258,16 @@ function SettingsPopover({
                 {t("settings.leaveDo")}
               </button>
               <button
-                onClick={() => setConfirmingLeave(false)}
+                onClick={() => setConfirming(false)}
                 className="pressable flex-1 rounded-lg bg-n-4 text-n-10 text-xs py-2"
               >
                 {t("settings.leaveCancel")}
               </button>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setConfirmingLeave(true)}
-            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-crimson-300 hover:bg-n-2 transition-[background-color,transform] pressable"
-          >
-            {t("settings.leave")}
-          </button>
-        )}
-      </div>
-    </>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -526,18 +549,8 @@ function GameScreen({
           </div>
         </button>
 
-        <button
-          onClick={() => setSettingsOpen((v) => !v)}
-          className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
-          aria-label="設定"
-        >
-          <Icon name="settings" className="h-[18px] w-[18px]" />
-        </button>
-        {settingsOpen && (
-          <SettingsPopover
-            onShowStructure={() => setStructureOpen(true)}
-            onShowHistory={() => setHistoryOpen(true)}
-            onShowChatLog={() => setChatLogOpen(true)}
+        <div className="flex shrink-0 items-center gap-2">
+          <LeaveTableButton
             onLeave={() => {
               // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
               setLeftResult({
@@ -546,8 +559,21 @@ function GameScreen({
                 yourPayout: 0,
               });
               leaveGame();
-              setSettingsOpen(false);
             }}
+          />
+          <button
+            onClick={() => setSettingsOpen((v) => !v)}
+            className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
+            aria-label="設定"
+          >
+            <Icon name="settings" className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+        {settingsOpen && (
+          <SettingsPopover
+            onShowStructure={() => setStructureOpen(true)}
+            onShowHistory={() => setHistoryOpen(true)}
+            onShowChatLog={() => setChatLogOpen(true)}
             onClose={() => setSettingsOpen(false)}
           />
         )}

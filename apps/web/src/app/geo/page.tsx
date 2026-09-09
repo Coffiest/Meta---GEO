@@ -34,8 +34,8 @@ import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
-import { Loader } from "@/components/ui/Loader";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
+import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
 const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
@@ -667,8 +667,8 @@ function GeoDatabase() {
         <div className="mt-3 lg:mt-1">
           {loading || solving ? (
             <div className="rounded-2xl border border-line bg-canvas p-8 text-center text-sm text-fg-2">
-              <div className="flex items-center justify-center gap-2">
-                <Loader size="sm" />
+              <div className="flex flex-col items-center justify-center gap-2">
+                <CardRingSpinner size={32} />
                 {solving ? (
                   "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
                 ) : reconnecting ? (
