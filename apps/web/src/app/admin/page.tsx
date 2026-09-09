@@ -39,6 +39,7 @@ function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active
  */
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon } from "@/components/Icon";
+import { Loader } from "@/components/ui/Loader";
 
 /** GEO集計テーブルの再構築状況(サーバーの /api/admin/geo-backfill の応答)。 */
 interface GeoBackfillStatus {
@@ -622,7 +623,7 @@ export default function AdminPage() {
             <div className="mt-4 space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {loading && users.length === 0 ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-canvas p-8 text-sm text-fg-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />
+                  <Loader size="sm" />
                   読み込み中…
                 </div>
               ) : users.length === 0 ? (
@@ -689,7 +690,7 @@ export default function AdminPage() {
                             付与を取り消す
                           </button>
                         )}
-                        {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />}
+                        {busy && <Loader size="sm" />}
                       </div>
 
                       {/* 任意期間の入力(N週間/Nヶ月) */}

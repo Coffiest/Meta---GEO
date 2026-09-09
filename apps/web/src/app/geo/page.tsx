@@ -34,6 +34,7 @@ import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
@@ -577,19 +578,15 @@ function GeoDatabase() {
                   </p>
                 </div>
                 {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
-                <div className="flex rounded-lg border border-line overflow-hidden text-[10px] font-black">
-                  {(["geo", "gto"] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => switchMode(m)}
-                      className={`pressable px-2.5 py-1 uppercase tracking-[0.15em] transition-colors ${
-                        mode === m ? "bg-accent text-on-accent" : "bg-canvas text-fg-2 active:bg-surface"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedTabs
+                  ariaLabel="データ源"
+                  items={[
+                    { key: "geo", label: "GEO" },
+                    { key: "gto", label: "GTO" },
+                  ]}
+                  value={mode}
+                  onChange={switchMode}
+                />
               </div>
               {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
               <div className="flex items-stretch gap-2.5">

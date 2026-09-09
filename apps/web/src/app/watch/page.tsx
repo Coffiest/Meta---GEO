@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { APP_VERSION } from "@/lib/version";
 import { Icon } from "@/components/Icon";
 import { PROD_URL, shareOrTweet } from "@/lib/share";
+import { Loader } from "@/components/ui/Loader";
 
 /**
  * 観戦(配信者)ページ。ログイン不要で「いま何人が戦っているのか」が見られる。
@@ -116,7 +117,7 @@ export default function WatchPage() {
 
         {!loaded ? (
           <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl glass-panel p-10 text-sm text-fg-2">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-transparent" />
+            <Loader size="sm" />
             {t("watch.loading")}
           </div>
         ) : live ? (

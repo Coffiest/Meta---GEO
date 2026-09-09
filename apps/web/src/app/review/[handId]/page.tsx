@@ -37,7 +37,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
           <ClassificationBadge classification={d.classification} showLabel size={22} />
         ) : d.outOfScopeReason === "solving" ? (
           <span className="flex items-center gap-1.5 text-[10px] font-bold text-fg-2">
-            <span className="h-3 w-3 rounded-full border-2 border-n-5 border-t-transparent animate-spin" />
+            <Loader size="sm" />
             ソルバー解析中…
           </span>
         ) : (
@@ -87,6 +87,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon } from "@/components/Icon";
+import { Loader } from "@/components/ui/Loader";
 
 export default function ReviewHandPage() {
   const params = useParams();
@@ -157,7 +158,7 @@ export default function ReviewHandPage() {
 
         {loading ? (
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-canvas p-8 text-sm text-fg-2">
-            <span className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+            <Loader size="sm" />
             解析中…
           </div>
         ) : error ? (

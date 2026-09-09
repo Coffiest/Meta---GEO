@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/useAuth";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
+import { Loader } from "@/components/ui/Loader";
 
 /**
  * トーナメント棋譜解析の直接URL(ブックマーク/外部リンク後方互換)。
@@ -19,7 +20,7 @@ export default function ReviewTournamentPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
-        <span className="h-5 w-5 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+        <Loader size="sm" />
       </div>
     );
   }

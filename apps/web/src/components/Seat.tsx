@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatAmount, formatBb, formatChips, type AmountDisplayMode } from "@/lib/format";
@@ -125,18 +126,20 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
 
 /**
  * 卓上バッジの配色。プレイヤーが行ったアクションは色で意味を分ける(オーナー指示により、
- * 一度モノクロへ統一したものを元の配色へ戻した)。黒フチ(ring-ink-950)は全バッジ共通で、
+ * 一度無彩色へ統一したものを元の配色へ戻した)。輪郭(ring-line-strong)は全バッジ共通で、
  * アプリの面構えを保ったまま塗りだけを色分けする。ActionBar のボタン配色と同じ言語:
  *  - コール/チェックはミント(応答)
  *  - ベット/レイズ/オールインはクリムゾン(強い意思表示)
- *  - ポット獲得はゴールド(卓上で唯一の"結果"の色。アクションではないので据え置き)
+ *  - ポット獲得はアクセント(卓上で唯一の"結果"の色。アクションではないので据え置き)
  *  - フォールドは輪郭も文字も落として静かに引く
  */
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
-  win: "bg-gold-500 text-ink-950 ring-ink-950",
-  raise: "bg-crimson-500 text-white ring-ink-950",
-  call: "bg-mint-500 text-white ring-ink-950",
-  fold: "bg-white text-ink-400 ring-ink-300",
+  win: "bg-accent text-on-accent ring-line-strong",
+  // 塗りの濃さは「暗地でバッジ自体が3:1以上」かつ「その上の白文字が4.5:1以上」を
+  // 同時に満たす段を選んである(明るくすると文字が、暗くするとバッジが読めなくなる)。
+  raise: "bg-crimson-600 text-white ring-line-strong",
+  call: "bg-mint-700 text-white ring-line-strong",
+  fold: "bg-surface text-fg-3 ring-line",
 };
 
 /** ポット獲得バッジに添えるチップのグリフ(重なった2枚)。絵文字は使わずSVGで描く。 */
@@ -230,14 +233,14 @@ export function Seat({
             initial={{ opacity: 0, y: 6, scale: 0.9, x: "-50%" }}
             animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
             exit={{ opacity: 0, scale: 0.9, x: "-50%" }}
-            transition={{ type: "spring", stiffness: 480, damping: 26 }}
-            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-ink-950/[0.06] bg-white/95 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-ink-950 backdrop-blur-[6px] shadow-[0_10px_24px_-10px_rgba(10,10,10,0.4),0_2px_6px_-2px_rgba(10,10,10,0.16)]"
+            transition={SPRING_SNAPPY}
+            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-[170px] break-words rounded-[14px] border border-line-strong/[0.06] bg-surface/80 px-3 py-1.5 text-center text-[12px] font-semibold leading-[1.35] text-fg backdrop-blur-[6px] shadow-e3"
           >
             {chatBubble}
             {/* 尻尾: 本体と同じ白の菱形を回転して縁取り2辺+影で自然に接続する */}
             <span
               aria-hidden
-              className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px] border-b border-r border-ink-950/[0.06] bg-white/95"
+              className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px] border-b border-r border-line-strong/[0.06] bg-surface/80"
               style={{ boxShadow: "4px 4px 8px -4px rgba(10,10,10,0.24)" }}
             />
           </motion.div>
@@ -263,13 +266,17 @@ export function Seat({
                   />
                 ),
               )}
-            {/* ハンドショウ意思ON: カードに小さな目のアイコンを重ねる。 */}
+            {/* ハンドショウ意思ON: カード束の周囲が光る。ハンド終了時に全員へ見せる、という
+                予約が効いていることを、押した本人にだけ分かる形で示す
+                (相手には何も伝わらない ― 意思は終了時にまとめて公開される)。 */}
+            {showEyeIcon && showCards && <span aria-hidden data-on="true" className="hand-show-glow" />}
+            {/* 補助として小さな目のアイコンも残す(発光だけだと色覚や輝度の環境差で拾えない)。 */}
             {showEyeIcon && showCards && (
               <motion.span
                 aria-hidden
                 initial={{ opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="pointer-events-none absolute -top-1.5 -right-1.5 z-40 flex h-5 w-5 items-center justify-center rounded-full bg-ink-950 text-white ring-2 ring-white"
+                className="pointer-events-none absolute -top-1.5 -right-1.5 z-40 flex h-5 w-5 items-center justify-center rounded-full bg-n-4 text-white ring-2 ring-canvas"
               >
                 <Icon name="eye" className="h-3 w-3" />
               </motion.span>
@@ -283,7 +290,7 @@ export function Seat({
             onClick={onCardsTap}
             aria-label={showEyeIcon ? "ハンドショウを取り消す" : "このハンドをショウする"}
             aria-pressed={showEyeIcon}
-            className="appearance-none bg-transparent p-0 active:scale-[0.96] transition-transform"
+            className="appearance-none bg-transparent p-0 pressable"
           >
             {cardsInner}
           </button>
@@ -298,8 +305,8 @@ export function Seat({
           key={handRankLabel}
           initial={{ opacity: 0, y: -3, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: "spring", stiffness: 460, damping: 24 }}
-          className="z-30 -mt-0.5 rounded-full bg-ink-950 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-[0_1px_4px_-1px_rgba(10,10,10,0.5)]"
+          transition={SPRING_SNAPPY}
+          className="z-30 -mt-0.5 rounded-full bg-n-4 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-e1"
         >
           {handRankLabel}
         </motion.div>
@@ -313,16 +320,16 @@ export function Seat({
           isEmpty
             ? "bg-transparent"
             : folded
-              ? "bg-white/50 border border-ink-950/30"
-              : "bg-white border border-ink-950"
-        } ${isActingSeat ? "ring-2 ring-ink-950" : ""}`}
+              ? "bg-surface/80 border border-line-strong/30"
+              : "glass-panel"
+        } ${isActingSeat ? "ring-2 ring-line-strong" : ""}`}
       >
         {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
             CSSキーフレームで動かす(コンポジタで完結し、端末の発熱を抑える)。 */}
         {isActingSeat && (
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-ink-950"
+            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-line-strong"
           />
         )}
 
@@ -335,7 +342,7 @@ export function Seat({
           <span className="pointer-events-none absolute -top-3 left-1/2 z-40 -translate-x-1/2">
             <span
               role="status"
-              className="block animate-time-bank-badge whitespace-nowrap rounded-full bg-gold-500 px-2 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] text-ink-950 shadow-[0_2px_6px_-2px_rgba(10,10,10,0.6)]"
+              className="block animate-time-bank-badge whitespace-nowrap rounded-full bg-accent px-2 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] text-on-accent shadow-e1"
             >
               {t("seat.timeBankUsed")}
             </span>
@@ -348,7 +355,7 @@ export function Seat({
             type="button"
             onClick={onChatClick}
             aria-label={t("seat.chat")}
-            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-ink-950 bg-white text-ink-800 transition-transform active:scale-90"
+            className="absolute left-full top-1/2 z-40 ml-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full glass-panel text-n-10 transition-transform pressable"
           >
             <Icon name="chat" className="h-3.5 w-3.5" />
           </button>
@@ -363,18 +370,18 @@ export function Seat({
               {markingColor && (
                 <span
                   aria-hidden
-                  className="absolute -top-0.5 -right-0.5 z-20 h-3 w-3 rounded-full ring-[1.5px] ring-white"
+                  className="absolute -top-0.5 -right-0.5 z-20 h-3 w-3 rounded-full ring-[1.5px] ring-canvas"
                   style={{ backgroundColor: markingColor }}
                 />
               )}
             </div>
             <div className="text-left min-w-0">
-              <div className={`${size === "lg" ? "text-[13px] max-w-[84px]" : "text-[11px] max-w-[40px]"} font-medium truncate text-ink-950`}>
+              <div className={`${size === "lg" ? "text-[13px] max-w-[84px]" : "text-[11px] max-w-[40px]"} font-medium truncate text-fg`}>
                 {name}
               </div>
               <div className="flex min-w-0 items-center gap-1 mt-[1px]">
                 {position && (
-                  <span className="shrink-0 rounded bg-ink-950 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
+                  <span className="shrink-0 rounded bg-n-4 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
                     {position}
                   </span>
                 )}
@@ -384,20 +391,20 @@ export function Seat({
                     type="button"
                     onClick={onStackTap}
                     aria-label={displayMode === "chips" ? "bb表示に切り替える" : "点数表示に切り替える"}
-                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-ink-800 tabular-nums underline decoration-ink-300 decoration-dotted underline-offset-2 transition-transform active:scale-95`}
+                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-n-10 tabular-nums underline decoration-fg-faint decoration-dotted underline-offset-2 transition-transform pressable`}
                   >
                     {compactStack(stack, bigBlind, displayMode)}
                   </button>
                 ) : (
-                  <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-ink-800 tabular-nums`}>
+                  <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-n-10 tabular-nums`}>
                     {compactStack(stack, bigBlind, displayMode)}
                   </span>
                 )}
               </div>
-              {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-ink-950">All in</div>}
+              {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fg">All in</div>}
               {away && status !== "allIn" && (
-                <div className="flex items-center gap-1 text-[9px] font-bold text-ink-500">
-                  <span className="h-1.5 w-1.5 rounded-full bg-ink-400" />
+                <div className="flex items-center gap-1 text-[9px] font-bold text-fg-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-n-5" />
                   {t("seat.away")}
                 </div>
               )}
@@ -413,7 +420,7 @@ export function Seat({
             initial={{ opacity: 0, scale: 0.5, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            transition={SPRING_SNAPPY}
             className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
             style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
           >
@@ -428,7 +435,7 @@ export function Seat({
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.6 }}
-              className="rounded-full bg-white border border-ink-950 px-2.5 py-0.5 text-[10px] font-semibold text-ink-800 tabular-nums"
+              className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
             >
               {formatAmount(streetContribution, bigBlind, displayMode)}
             </motion.div>
