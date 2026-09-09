@@ -438,3 +438,73 @@ textarea:focus-visible,
     opacity: 0.4;
   }
 }
+
+/* ===== Uiverse.io由来のデザイン移植(色はPoker ARTの意味論トークンへ再マッピング) ===== */
+
+/* アクションボタン(Fold/Call/Raise)のホバー円スイープ。
+   中心から白い円をmix-blend-mode:differenceで走らせて色を反転させる演出。
+   疑似要素+mix-blend-modeはTailwindユーティリティで表現できないためここに定義する。
+   押下フィードバックは併用する `.pressable` 側に一本化し、ここでは:activeを持たない。
+   (出典: uiverse.io by vinodjangid07) */
+.action-btn-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 140%;
+  aspect-ratio: 1;
+  left: -70%;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #ffffff;
+  border-radius: 9999px;
+  mix-blend-mode: difference;
+  transition: transform 0.35s ease, border-radius 0.35s ease;
+  pointer-events: none;
+}
+.action-btn-sweep:hover::before,
+.action-btn-sweep:focus-visible::before {
+  transform: translate(190%, -50%);
+  border-radius: 0;
+}
+
+/* 離席/チェックフォールド予約のチェックボックス(ガラス質+チェックマーク描画)。
+   OFF: 中立トーン(nランプ)の半透明+ぼかし。ON: アクセント地へ切り替わり、
+   on-accent(アクセント上で規定の高コントラスト文字色)のチェックマークが弾んで出現する。
+   (出典: uiverse.io by Shammy2002。配色はPoker ARTの意味論トークンへ再マッピング) */
+.toggle-check {
+  position: relative;
+  height: 1.5rem;
+  width: 1.5rem;
+  border-radius: 40%;
+  background: rgb(var(--n-4) / 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgb(var(--n-5));
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toggle-check[data-on="true"] {
+  border-color: rgb(var(--accent));
+  background: linear-gradient(145deg, rgb(var(--accent-hi)) 0%, rgb(var(--accent-lo)) 75%);
+  transform: scale(1.08);
+  box-shadow: 0 0 0 1px rgb(var(--accent) / 0.35), 0 4px 14px -4px rgb(var(--accent) / 0.5);
+}
+.toggle-check::after {
+  content: "";
+  position: absolute;
+  left: 0.48em;
+  top: 0.26em;
+  width: 0.34em;
+  height: 0.62em;
+  border: solid rgb(var(--on-accent));
+  border-width: 0 0.15em 0.15em 0;
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.3);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toggle-check[data-on="true"]::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
