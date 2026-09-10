@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SPRING_SNAPPY } from "@/lib/motion";
 import { PlayingCard } from "./PlayingCard";
@@ -185,6 +186,8 @@ export interface SeatViewProps {
   displayMode?: AmountDisplayMode;
   /** 自席のスタック表示をタップしたとき(bb/点数の切り替え)。自席にだけ渡す。 */
   onStackTap?: () => void;
+  /** 席ピルの左外に積む補助操作(タイムバンク・離席)。自席にだけ渡す。 */
+  aside?: ReactNode;
 }
 
 export function Seat({
@@ -212,6 +215,7 @@ export function Seat({
   onCardsTap,
   displayMode = "bb",
   onStackTap,
+  aside = null,
 }: SeatViewProps) {
   const { t } = useI18n();
   const isEmpty = status === "empty";
@@ -347,6 +351,16 @@ export function Seat({
               {t("seat.timeBankUsed")}
             </span>
           </span>
+        )}
+
+        {/* 自分の席: 席ピルの左外に、タイムバンクと離席のトグルを縦に積む。
+            以前はアクションバーに専用の行を持っていたが、その1行(36px)がそのまま卓の
+            大きさを削っていた。自分だけに関わる補助操作なので、自分の席の横が本来の居場所。
+            右外のチャットボタンと対称の位置になる。 */}
+        {aside && (
+          <div className="absolute right-full top-1/2 z-40 mr-1.5 flex -translate-y-1/2 flex-col items-end gap-1">
+            {aside}
+          </div>
         )}
 
         {/* 自分の席: カード右側の丸いチャット入力ボタン。 */}

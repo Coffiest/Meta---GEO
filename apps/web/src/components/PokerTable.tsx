@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
@@ -113,19 +113,27 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
   );
 }
 
-// テーブルデザイン画像。felt.pngと同一比率(1000×1500=2:3)・同一内部レイアウトで、
 /* 卓画像。黒地に白い輪郭で描かれた、暗い背景に置く前提の絵(1024×1536 = 2:3)。
-   比率が table_v2.png と同じなので、座席・ボード・ポットの%配置は再調整不要。 */
-const TABLE_IMAGE_SRC = "/table/table_v3.png";
+   比率が table_v2.png と同じなので、座席・ボード・ポットの%配置は再調整不要。
+
+   読むのは支給された `table_v3.png` そのものではなく、そこから生成した透過版
+   (`scripts/table-alpha.py`)。支給ファイルは黒地が不透明なまま残してある。 */
+const TABLE_IMAGE_SRC = "/table/table_v3_alpha.png";
 
 /**
- * 卓面。`public/table/table_v3.png` を卓の形そのものとして描画する。
+ * 卓面。卓画像を卓の形そのものとして描画する。
  *
- * 画像はアルファを持たない**不透明な黒い台紙**なので、そのまま重ねると星空の上に
- * 黒い長方形が乗ってしまう。`mix-blend-mode: screen` で合成すると **黒が透過として
- * 扱われる**ため、台紙が完全に消えて白い輪郭と "Poker Art" だけが残り、背景の星空が
- * 卓の内側まで繋がる。画像自体には一切手を加えない。
- * (地は実測で隅 #000000 / 中央 #010100。ほぼ純黒なので残渣は出ない。)
+ * 支給画像はアルファを持たない**不透明な黒い台紙**なので、そのまま重ねると星空の上に
+ * 黒い長方形が乗る。以前は `mix-blend-mode: screen`(黒を透過として扱う)で消していたが、
+ * **実機の WebKit では効かなかった**。mix-blend-mode は同じ合成の文脈の中の背面としか
+ * 混ざらないところ、卓を縮小している `zoom` の箱が WebKit では文脈を作ってしまい、
+ * 合成の相手が星空ではなく「何も無い箱の中」になっていたため(Blink の標準化後の zoom は
+ * 文脈を作らないので Chromium では消えており、それで見落とした)。
+ *
+ * 合成に頼るのをやめ、同じ結果を画像のアルファへ焼き込んである。無彩色の画素では
+ * アルファ合成の結果は screen 合成と数学的に一致する(実測の差は丸めの 1/255 のみ)。
+ * これでブラウザごとの合成の違いに一切依存しなくなった。**この img に
+ * `mix-blend-mode` を足し直さないこと。**
  */
 function TableFelt() {
   const [loaded, setLoaded] = useState(false);
@@ -157,7 +165,7 @@ function TableFelt() {
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
           className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
-          style={{ opacity: loaded ? 1 : 0, mixBlendMode: "screen" }}
+          style={{ opacity: loaded ? 1 : 0 }}
         />
       )}
     </div>
@@ -301,6 +309,7 @@ export function PokerTable({
   onToggleHeroShow,
   displayMode = "bb",
   onToggleDisplayMode,
+  heroAside,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -328,6 +337,8 @@ export function PokerTable({
   displayMode?: AmountDisplayMode;
   /** 自席スタックのタップで表示モードを切り替えるハンドラ。 */
   onToggleDisplayMode?: () => void;
+  /** 自席の席ピルの左外に積む補助操作(タイムバンク・離席)。 */
+  heroAside?: ReactNode;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -383,11 +394,11 @@ export function PokerTable({
         style={{
           width: DESIGN_WIDTH,
           height: DESIGN_HEIGHT,
-          // 縮小に transform ではなく zoom を使う。transform は**合成の文脈(stacking context)を
-          // 作ってしまう**ため、中の卓画像の mix-blend-mode: screen が背景の星空ではなく
-          // この箱の中だけを相手に合成され、黒い台紙が消えなくなる。
-          // zoom は文脈を作らないので、画像は素直にページの背景と合成される。
-          // レイアウト上の寸法も縮むので、flex の中央寄せがそのまま効く。
+          // 縮小には transform ではなく zoom を使う。transform はレイアウト上の寸法を変えないので、
+          // 箱は 448×597 のまま親をはみ出し、flex の中央寄せが効かなくなる。zoom は寸法ごと縮む。
+          // (なお zoom が合成の文脈を作るかはエンジンによって違う。以前は「作らない」前提で
+          //  卓画像の mix-blend-mode を効かせていたが、WebKit では作るため実機で破綻した。
+          //  今は画像側にアルファを持たせていて合成に依存しないので、この差は無害。)
           zoom: fitScale,
         }}
         onContextMenu={(e) => e.preventDefault()}
@@ -530,6 +541,7 @@ export function PokerTable({
             away={player?.away ?? false}
             displayMode={displayMode}
             onStackTap={isHero ? onToggleDisplayMode : undefined}
+            aside={isHero ? heroAside : undefined}
             badge={badgeForSeat({
               seatIndex,
               seatStatus: status,
