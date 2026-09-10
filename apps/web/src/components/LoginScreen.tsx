@@ -40,6 +40,72 @@ function AppleIcon() {
   );
 }
 
+/**
+ * フローティングラベル入力欄。値が空(=placeholderが見えている)の間はラベルが入力欄の中央に
+ * 大きく座り、フォーカスまたは入力ありで小さなピルへ浮き上がる(出典: uiverse.io by JkHuger。
+ * 地色#e3e3e3のニューモーフィズムをこのアプリのダークテーマへ再配色し、浮き上がったラベルは
+ * 単色の黒ではなくアクセントの中段運用(bg-accent/15 + ring-accent)にして、送信ボタン1つに
+ * 強アクセントを残す)。
+ *
+ * CSSのみで実装(:placeholder-shown / :focus の2状態をpeerで拾う)。`peer-placeholder-shown`
+ * (空欄時=大きく中央)がデフォルトを上書きし、`peer-focus`(フォーカス時=常に浮く)がさらに
+ * それを上書きする ―― Tailwindのvariant適用順序が focus > placeholder-shown のため、
+ * 「空欄でもフォーカス中は浮く」「入力があれば常に浮く」の両方が両立する。
+ */
+function FloatingField({
+  id,
+  label,
+  value,
+  onChange,
+  onKeyDown,
+  type = "text",
+  inputMode,
+  autoComplete,
+  enterKeyHint,
+  invalid = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  type?: string;
+  inputMode?: "email" | "text";
+  autoComplete?: string;
+  enterKeyHint?: "next" | "go" | "send" | "done";
+  invalid?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint={enterKeyHint}
+        placeholder=" "
+        className={`peer w-full rounded-xl border-2 bg-transparent px-3.5 pb-2.5 pt-4 text-sm text-fg placeholder-transparent transition-colors focus:outline-none ${
+          invalid ? "border-crimson-500" : "border-line focus:border-accent"
+        }`}
+      />
+      <label
+        htmlFor={id}
+        className={`pointer-events-none absolute left-3 top-0 -translate-y-1/2 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] transition-all duration-300 ${
+          invalid ? "bg-crimson-500/15 text-crimson-300" : "bg-accent/15 text-accent"
+        } peer-placeholder-shown:top-1/2 peer-placeholder-shown:translate-x-1.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0 peer-placeholder-shown:text-fg-3 peer-focus:top-0 peer-focus:translate-x-0 peer-focus:bg-accent/15 peer-focus:px-2 peer-focus:text-accent`}
+      >
+        {label}
+      </label>
+    </div>
+  );
+}
+
 /** 機能アイコン(ストローク。最小限の線で構成)。 */
 function TrophyIcon() {
   return (
@@ -308,58 +374,47 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             </>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-n-9">{t("login.email")}</label>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && mode === "reset" && handleSubmit()}
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint={mode === "reset" ? "send" : "next"}
-                placeholder="mail@example.com"
-                className="w-full rounded-xl border border-line px-3.5 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
-              />
-            </div>
+          <div className="space-y-5">
+            <FloatingField
+              id="login-email"
+              label={t("login.email")}
+              value={email}
+              onChange={setEmail}
+              onKeyDown={(e) => e.key === "Enter" && mode === "reset" && handleSubmit()}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              enterKeyHint={mode === "reset" ? "send" : "next"}
+            />
 
             {mode !== "reset" && (
-              <div>
-                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-n-9">{t("login.password")}</label>
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                  type="password"
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  enterKeyHint={mode === "signup" ? "next" : "go"}
-                  placeholder={t("login.passwordPlaceholder")}
-                  className="w-full rounded-xl border border-line px-3.5 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
-                />
-              </div>
+              <FloatingField
+                id="login-password"
+                label={t("login.password")}
+                value={password}
+                onChange={setPassword}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                type="password"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                enterKeyHint={mode === "signup" ? "next" : "go"}
+              />
             )}
 
             {mode === "signup" && (
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold tracking-wide text-n-9">{t("login.passwordConfirm")}</label>
-                <input
+                <FloatingField
+                  id="login-password-confirm"
+                  label={t("login.passwordConfirm")}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={setConfirmPassword}
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   type="password"
                   autoComplete="new-password"
                   enterKeyHint="go"
-                  placeholder={t("login.passwordConfirmPlaceholder")}
-                  className={`w-full rounded-xl border px-3.5 py-3 text-sm text-fg placeholder:text-fg-3 focus:outline-none focus:ring-2 focus:ring-line-strong/5 ${
-                    confirmPassword && confirmPassword !== password ? "border-crimson-500" : "border-line focus:border-line-strong"
-                  }`}
+                  invalid={Boolean(confirmPassword) && confirmPassword !== password}
                 />
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="mt-1 text-[11px] text-crimson-300">{t("login.passwordMismatch")}</p>
+                  <p className="mt-1.5 text-[11px] text-crimson-300">{t("login.passwordMismatch")}</p>
                 )}
               </div>
             )}
@@ -407,7 +462,7 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               (mode !== "reset" && !password) ||
               (mode === "signup" && (!confirmPassword || confirmPassword !== password))
             }
-            className="mt-5 w-full rounded-xl bg-accent py-3.5 font-semibold text-on-accent shadow-glow pressable disabled:opacity-40"
+            className="mt-5 w-full rounded-xl bg-accent py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-on-accent shadow-glow pressable disabled:opacity-40"
           >
             {submitting ? t("login.submitting") : submitLabel}
           </button>

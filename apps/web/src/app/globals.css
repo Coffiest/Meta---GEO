@@ -1287,3 +1287,17 @@ textarea:focus-visible,
     transform: perspective(var(--card-ring-perspective)) rotateX(var(--card-ring-rotate-x));
   }
 }
+
+/* テキスト入力欄の共通意匠。ふちを持たず、面に彫り込まれたような凹み(inset shadow)の
+   ピル型にする。ボーダーではなく陰影だけで縁を示すため、Tailwindのシャドウ7段(e0〜e4/
+   glow/glow-sm、いずれも「浮いた面」用)には無い「凹んだ面」の一点物になる ―― 呼び出し
+   箇所ごとに shadow-[...] を書き散らさないよう、この1クラスへ集約する。
+   (出典: uiverse.io by garerim。白地を、このアプリのダーク面(n-0)へ再配色) */
+.input-inset {
+  background: rgb(var(--n-0) / 0.7);
+  box-shadow: inset 2px 4px 10px rgb(0 0 0 / 0.55);
+  transition: box-shadow 0.2s ease;
+}
+.input-inset:focus {
+  box-shadow: inset 2px 4px 10px rgb(0 0 0 / 0.55), 0 0 0 2px rgb(var(--accent) / 0.5);
+}

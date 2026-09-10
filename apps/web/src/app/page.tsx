@@ -652,7 +652,7 @@ function GameScreen({
                 onChange={(e) => setChatDraft(e.target.value)}
                 maxLength={120}
                 placeholder="メッセージを入力…"
-                className="flex-1 rounded-full bg-white/[0.08] px-4 py-2.5 text-sm text-fg outline-none ring-1 ring-inset ring-white/12 placeholder:text-fg-faint"
+                className="input-inset flex-1 rounded-full px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
               />
               <button
                 type="submit"

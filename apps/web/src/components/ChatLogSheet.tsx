@@ -106,7 +106,7 @@ export function ChatLogSheet({
             onChange={(e) => setDraft(e.target.value)}
             maxLength={120}
             placeholder="メッセージを入力…"
-            className="flex-1 rounded-full glass-panel px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
+            className="input-inset flex-1 rounded-full px-4 py-2.5 text-sm text-fg outline-none placeholder:text-fg-faint"
           />
           <button
             type="submit"
