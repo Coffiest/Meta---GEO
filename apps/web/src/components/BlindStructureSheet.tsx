@@ -139,28 +139,30 @@ export function BlindStructureSheet({
           </div>
         </div>
 
-        {/* 順位 / プライズ / ブラインド表 の切替ボタン */}
-        <div className="mt-4 flex gap-2">
+        {/* 順位 / プライズ / ブラインド表 の切替ボタン。もう一度押すと閉じる開閉トグルの
+            集まりなので(常にどれか1つが選ばれているとは限らない)共通のSegmentedTabsは
+            使わず、活性面だけをその意匠(半透明ガラス片)へ揃えている。 */}
+        <div className="segmented mt-4 gap-2">
           <button
             onClick={() => setView((v) => (v === "ranking" ? "clock" : "ranking"))}
-            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "ranking" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
+            className={`pressable flex-1 rounded-full py-2.5 text-[12px] font-black transition-colors ${
+              view === "ranking" ? "bg-white/[0.14] text-fg ring-1 ring-inset ring-white/20 backdrop-blur-sm" : "text-fg-3"
             }`}
           >
             順位
           </button>
           <button
             onClick={() => setView((v) => (v === "prize" ? "clock" : "prize"))}
-            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "prize" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
+            className={`pressable flex-1 rounded-full py-2.5 text-[12px] font-black transition-colors ${
+              view === "prize" ? "bg-white/[0.14] text-fg ring-1 ring-inset ring-white/20 backdrop-blur-sm" : "text-fg-3"
             }`}
           >
             プライズ
           </button>
           <button
             onClick={() => setView((v) => (v === "structure" ? "clock" : "structure"))}
-            className={`pressable flex-1 rounded-full border py-2.5 text-[12px] font-black transition-colors ${
-              view === "structure" ? "border-line-strong bg-n-4 text-white" : "border-line-strong bg-surface text-fg"
+            className={`pressable flex-1 rounded-full py-2.5 text-[12px] font-black transition-colors ${
+              view === "structure" ? "bg-white/[0.14] text-fg ring-1 ring-inset ring-white/20 backdrop-blur-sm" : "text-fg-3"
             }`}
           >
             ブラインド表

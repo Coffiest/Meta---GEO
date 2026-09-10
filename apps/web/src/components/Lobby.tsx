@@ -1530,22 +1530,16 @@ export function Lobby({
           >
             <TabHeader eyebrow="Every hand" title="Hand History" />
             {/* ハンド履歴 / トーナメント履歴の切替。過去トナメは各カードから棋譜解析へ飛べる。 */}
-            <div className="flex gap-1.5 mb-3">
-              {([
-                ["hands", t("lobby.historyView.hands")],
-                ["tournaments", t("lobby.historyView.tourneys")],
-              ] as const).map(([v, label]) => (
-                <button
-                  key={v}
-                  onClick={() => setHistoryView(v)}
-                  className={`pressable flex-1 h-9 rounded-xl text-[12px] font-semibold transition-colors ${
-                    historyView === v ? "bg-n-4 text-white" : "bg-n-4 text-n-9"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedTabs
+              className="mb-3"
+              ariaLabel="履歴の種類"
+              items={[
+                { key: "hands", label: t("lobby.historyView.hands") },
+                { key: "tournaments", label: t("lobby.historyView.tourneys") },
+              ]}
+              value={historyView}
+              onChange={setHistoryView}
+            />
             {historyView === "tournaments" ? (
               <TournamentResultsSection accessToken={accessToken} tournamentHistory={tournamentHistory} />
             ) : (
