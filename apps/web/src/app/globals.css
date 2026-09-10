@@ -529,17 +529,23 @@ textarea:focus-visible,
   display: flex;
   padding: 0.3rem;
   border-radius: 99px;
-  background: rgb(var(--n-2) / 0.6);
+  background: rgb(var(--n-1) / 0.5);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
 }
 .segmented > * {
   position: relative;
   z-index: 2;
 }
+/* 選択面(グライダー)。ソリッドのアクセント面ではなく、島の中を滑る「もう1枚のガラス片」
+   として作る ―― 明るい半透明+ぼかしで、上端に光を拾うハイライト、縁取りはリング。
+   (出典: uiverse.io by _7948の「黒い島+スライドするインジケータ」構造を、
+   Apple Musicのリキッドグラス素材へ改変。Framer Motionのspringで動かす=CSS
+   transitionではなく`SegmentedTabs`側でSPRING_MOVEを使う) */
 .segmented-glider {
   position: absolute;
   top: 0.3rem;
@@ -547,12 +553,13 @@ textarea:focus-visible,
   left: 0.3rem;
   z-index: 1;
   border-radius: 99px;
-  background: linear-gradient(180deg, rgb(var(--accent-hi)), rgb(var(--accent-lo)));
-  box-shadow: 0 2px 10px -2px rgb(var(--accent) / 0.5);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .segmented-glider { transition: none; }
+  background: rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(0 0 0 / 0.2),
+    0 2px 8px -2px rgb(0 0 0 / 0.5);
 }
 
 /* ── プレイ画面の背景(星空) ─────────────────────────────────────
