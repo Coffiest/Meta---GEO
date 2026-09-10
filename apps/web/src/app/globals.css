@@ -262,39 +262,39 @@ textarea:focus-visible,
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
   cursor: pointer;
   touch-action: none;
 }
 .bet-slider::-webkit-slider-runnable-track {
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
 }
 .bet-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 22px;
-  height: 22px;
-  margin-top: -7px;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
   border-radius: 9999px;
   background: rgb(var(--accent));
   border: 3px solid rgb(var(--n-1));
   box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 .bet-slider::-moz-range-track {
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
   background: rgb(var(--n-4));
 }
 .bet-slider::-moz-range-progress {
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
   background: rgb(var(--accent));
 }
 .bet-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 9999px;
   background: rgb(var(--accent));
   border: 3px solid rgb(var(--n-1));
@@ -1307,4 +1307,146 @@ textarea:focus-visible,
 }
 .input-inset:focus {
   box-shadow: inset 2px 4px 10px rgb(0 0 0 / 0.55), 0 0 0 2px rgb(var(--accent) / 0.5);
+}
+
+/* ── アクションボタン(発光する円が内側を漂う) ────────────────────────
+   出典: uiverse.io by Ashon-G。原案は金色の1種類だが、このアプリでは色に意味がある
+   (青=降りる / 緑=応答 / 赤=強い意思表示)ので、意匠だけを借りて配色は現行のまま
+   `data-tone` で3種に分けている。
+
+   原案からの変更点と、その理由:
+
+   - **円を12個から5個に減らした。** `filter: blur()` の常時アニメーションは合成レイヤを
+     増やす。CLAUDE.md は「常時アニメーションする卓画面ではガラスを使わない(発熱対策)」と
+     定めており、3ボタン×12個=36枚のぼかしレイヤは同じ理由で許容できない。5個(=15枚)に
+     減らし、ぼかし半径を上げて密度を補っている。
+   - **`:hover` で動きを速める指定を外した。** タッチではホバーがタップ後も張り付き、
+     指を離しても速いままになる。
+   - **塗りを一段暗くした。** 原案の明度のままだと白文字が 4.5:1 を割る。発光の円が
+     最大10%白へ寄せる前提で計算し直し、円が乗った状態でも 4.5:1 を満たす段を選んである
+     (fold 4.51:1 / call 4.60:1 / raise 4.56:1、円が無い平常時は 5.4〜5.6:1)。
+   - 角丸は原案の 24px ではなく、このアプリのボタンに合わせて 16px。 */
+.action-glow {
+  position: relative;
+  isolation: isolate;
+  border-radius: 16px;
+  color: #fff;
+  background: radial-gradient(circle at 50% 40%, var(--ag-inner), var(--ag-outer) 78%);
+  box-shadow: 0 0 14px -3px var(--ag-shadow);
+  -webkit-tap-highlight-color: transparent;
+}
+.action-glow::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 2px 10px var(--ag-inset-top),
+    inset 0 -3px 5px var(--ag-inset-bottom);
+}
+/* 円のはみ出しを角丸で切る。overflow だけでは Safari が角丸を無視して四角く切るため、
+   原案どおりマスクを併用する。 */
+.action-glow .ag-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  mask-image: radial-gradient(#fff, #000);
+}
+.action-glow .ag-label {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+.action-glow .ag-circle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--ag-bg, transparent);
+  filter: blur(var(--ag-blur, 13px));
+  transform: translate(var(--x, 0), var(--y, 0)) translateZ(0);
+  animation: var(--ag-anim, none) var(--ag-duration, 7s) linear infinite;
+}
+.action-glow .ag-1 { --ag-bg: var(--ag-c1); --x: 4px;  --y: -14px; --ag-anim: ag-drift-1; }
+.action-glow .ag-2 { --ag-bg: var(--ag-c2); --x: 62px; --y: 6px;   --ag-anim: ag-drift-2; --ag-blur: 16px; }
+.action-glow .ag-3 { --ag-bg: var(--ag-c3); --x: 30px; --y: -6px;  --ag-anim: ag-drift-3; --ag-blur: 15px; }
+.action-glow .ag-4 { --ag-bg: var(--ag-c1); --x: 88px; --y: -10px; --ag-anim: ag-drift-4; }
+.action-glow .ag-5 { --ag-bg: var(--ag-c2); --x: 46px; --y: 14px;  --ag-anim: ag-drift-5; --ag-blur: 17px; }
+
+@keyframes ag-drift-1 {
+  33% { transform: translate(24px, 10px) translateZ(0); }
+  66% { transform: translate(8px, 30px) translateZ(0); }
+}
+@keyframes ag-drift-2 {
+  33% { transform: translate(44px, -12px) translateZ(0); }
+  66% { transform: translate(78px, 18px) translateZ(0); }
+}
+@keyframes ag-drift-3 {
+  33% { transform: translate(66px, 16px) translateZ(0); }
+  66% { transform: translate(18px, -18px) translateZ(0); }
+}
+@keyframes ag-drift-4 {
+  33% { transform: translate(104px, 12px) translateZ(0); }
+  66% { transform: translate(70px, -16px) translateZ(0); }
+}
+@keyframes ag-drift-5 {
+  33% { transform: translate(14px, -10px) translateZ(0); }
+  66% { transform: translate(84px, 8px) translateZ(0); }
+}
+
+/* 降りる(青) */
+.action-glow[data-tone="fold"] {
+  --ag-inner: #316ba5;
+  --ag-outer: #285887;
+  --ag-c1: rgb(124 182 240 / 0.5);
+  --ag-c2: rgb(52 104 196 / 0.55);
+  --ag-c3: rgb(158 214 255 / 0.34);
+  --ag-shadow: rgb(58 127 196 / 0.45);
+  --ag-inset-top: rgb(168 210 248 / 0.3);
+  --ag-inset-bottom: rgb(8 26 48 / 0.5);
+}
+/* 応答(緑) */
+.action-glow[data-tone="call"] {
+  --ag-inner: #15764c;
+  --ag-outer: #11613e;
+  --ag-c1: rgb(122 220 174 / 0.44);
+  --ag-c2: rgb(31 174 112 / 0.55);
+  --ag-c3: rgb(38 194 163 / 0.36);
+  --ag-shadow: rgb(31 174 112 / 0.45);
+  --ag-inset-top: rgb(150 232 192 / 0.3);
+  --ag-inset-bottom: rgb(4 40 26 / 0.5);
+}
+/* 強い意思表示(赤) */
+.action-glow[data-tone="raise"] {
+  --ag-inner: #c03b31;
+  --ag-outer: #9e3028;
+  --ag-c1: rgb(240 148 144 / 0.44);
+  --ag-c2: rgb(221 68 56 / 0.55);
+  --ag-c3: rgb(255 190 130 / 0.32);
+  --ag-shadow: rgb(221 68 56 / 0.45);
+  --ag-inset-top: rgb(250 186 180 / 0.3);
+  --ag-inset-bottom: rgb(48 10 8 / 0.5);
+}
+
+.action-glow:disabled {
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+/* 動きを減らす設定では円を止める。グラデーションと発光はそのまま残すので、
+   ボタンの意味と立体感は失われない。 */
+@media (prefers-reduced-motion: reduce) {
+  .action-glow .ag-circle {
+    animation: none !important;
+  }
 }

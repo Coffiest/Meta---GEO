@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
@@ -23,6 +23,7 @@ import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
+import { CheckMark } from "@/components/ui/CheckMark";
 
 const SEAT_COUNT = 6;
 
@@ -241,7 +242,7 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
         type="button"
         onClick={() => setConfirming(true)}
         aria-label={t("settings.leave")}
-        className="pressable shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-crimson-300"
+        className="pressable shrink-0 h-8 w-8 rounded-full glass-panel flex items-center justify-center text-crimson-300"
       >
         <Icon name="chevron-left" className="h-4 w-4" />
       </button>
@@ -282,6 +283,38 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+/**
+ * 自席の席ピルの左外に積む、小さな補助トグル(タイムバンク・離席)。
+ *
+ * 卓の中に置くので、卓と一緒に縮む(`useFitScale` の zoom 箱の中にある)。
+ * 常時アニメーションする卓画面なので、ONの表現は色だけにして影やぼかしは足さない。
+ */
+function SeatAsideToggle({
+  active,
+  onClick,
+  ariaLabel,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={`pressable flex h-7 items-center gap-1 rounded-full px-1.5 transition-colors ${
+        active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -337,6 +370,7 @@ function GameScreen({
     seatBubbles,
     gameHandHistory,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode });
+  const { t } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -353,6 +387,18 @@ function GameScreen({
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
   // ハンドショウ: 自分の手札をハンド終了時に公開する意思(自席のカードをタップでトグル)。
   const [heroShowIntent, setHeroShowIntent] = useState(false);
+  // 「離席」と「チェック/フォールド予約」。自席の横のトグルとアクションバーの隅のトグルの
+  // 両方から触るので、状態はここで持って両方へ配る(以前は ActionBar のローカル state で、
+  // 同じ離席トグルが場所ごとに別実装になっていた)。
+  const [away, setAwayLocal] = useState(false);
+  const [checkFoldArmed, setCheckFoldArmed] = useState(false);
+  const toggleAway = useCallback(
+    (next: boolean) => {
+      setAwayLocal(next);
+      setAway(next);
+    },
+    [setAway]
+  );
   // 卓上の金額表示モード(bb換算/点数)。自席スタックのタップで切り替え、選択は端末に保存する。
   const [amountDisplayMode, setAmountDisplayMode] = useState<AmountDisplayMode>(() => {
     if (typeof window === "undefined") return "bb";
@@ -487,83 +533,67 @@ function GameScreen({
 
   return (
     <div className="starfield relative isolate flex h-[100dvh] flex-col overflow-hidden">
-      {/* 卓の外側に広がる星空。卓画像は黒地を screen 合成で消してあるので、この星空が
-          卓の内側まで途切れずに繋がり、卓の台紙が矩形として見えることがない。 */}
+      {/* 卓の外側に広がる星空。卓画像は黒地をアルファとして焼き込んだ透過版を使っているので、
+          この星空が卓の内側まで途切れずに繋がり、卓の台紙が矩形として見えることがない。 */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="starfield-layer starfield-1" />
         <div className="starfield-layer starfield-2" />
         <div className="starfield-layer starfield-3" />
       </div>
-      <header className="relative flex items-center justify-between gap-2 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2 shrink-0">
-        {/* 現在のブラインドと次のレベルまでのカウントダウン(常時表示・タップでブラインドストラクチャ表示)。
-            マイクロラベル(uppercase・字間広め)+大きめ数字のタイポグラフィ階層で構成。 */}
-        {/* ブラインドタイマー(トーナメントクロック)を縮小したミニ版。クロック画面と同じ意匠で、
-            gold-600の大きなカウントダウンを主役に、LEVEL・BLIND・ANTEをマイクロラベル付きで並べる。 */}
+      {/* トーナメントクロック。以前は縦4段(Lv / 26pxのカウントダウン / 残り人数 / BLIND・ANTE・AVE)で
+          122px を占めていた。実機の実測ではヘッダーとアクションバーだけで画面の63%を使っており、
+          そのぶん卓が小さく描かれていた。同じ情報量を1行に畳んで 46px に収める。
+          カウントダウンは引き続きこの行で一番大きく、色もアクセントのままなので、
+          「次のレベルまで」が主役であることは変わらない。 */}
+      <header className="relative flex items-center justify-between gap-2 px-3 pt-[calc(env(safe-area-inset-top)+4px)] pb-1.5 shrink-0">
         <button
           onClick={() => setStructureOpen(true)}
-          className="glass-panel pressable shrink-0 rounded-2xl px-3 py-1.5 text-left text-fg"
+          className="glass-panel pressable flex h-9 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-2xl px-2.5 text-left text-fg"
         >
-          <div className="flex items-center gap-1.5 leading-none">
-            <span className="text-[8px] font-black uppercase tracking-[0.22em] text-accent tabular-nums">Lv {level?.level ?? "-"}</span>
-            {gameKey === "mtt" && (
-              <span className="rounded bg-n-4 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
-            )}
-            {tournamentInfo?.isFinalTable && (
-              <span className="rounded bg-accent px-1 py-[1px] text-[7px] font-black tracking-widest text-on-accent">FINAL TABLE</span>
-            )}
-          </div>
+          <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.18em] text-n-9 tabular-nums">
+            LV{level?.level ?? "-"}
+          </span>
           <CountdownText
             endsAt={levelEndsAt}
-            className="mt-0.5 block text-[26px] tracking-[-0.015em] font-black tabular-nums leading-none text-accent"
+            className="shrink-0 text-[15px] font-black tabular-nums leading-none tracking-[-0.01em] text-accent"
           />
-          {/* 生存者数。「生存者/エントリー」を1つの分数としてコンパクトに出す(例: 10/12)。
-              MTT・Sit&Goのどちらでも必ず出す(サーバーは両方とも remaining/total を送っている)。
-              以前はMTT限定の条件で囲っていたため、Sit&Goでは人数が一切見えなかった。 */}
           {tournamentInfo && tournamentInfo.total > 0 && (
-            <div className="mt-1 flex items-baseline gap-1 leading-none">
-              {/* プレイヤー(人数)アイコン。絵文字禁止のためSVG。 */}
-              <Icon name="user" className="h-3.5 w-3.5 shrink-0 self-center text-n-9" />
-              <span className="text-[16px] font-black tabular-nums leading-none text-fg">
+            <span className="flex shrink-0 items-center gap-0.5 border-l border-line pl-2 leading-none">
+              <Icon name="user" className="h-3 w-3 text-n-9" />
+              <span className="text-[11px] font-black tabular-nums text-fg">
                 {tournamentInfo.remaining}
                 <span className="text-fg-2">/</span>
                 {tournamentInfo.total}
               </span>
-              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-n-9">残り</span>
-            </div>
+            </span>
           )}
-          {/* レベルタイマー直下: レジストレーションクローズまでのカウントダウン(MTT・RC前のみ)。 */}
+          <span className="shrink-0 border-l border-line pl-2 text-[10px] font-black tabular-nums leading-none text-fg">
+            {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
+            {level && level.bbAnte > 0 && <span className="text-n-9">{` A${level.bbAnte.toLocaleString()}`}</span>}
+          </span>
+          {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
+            <span className="shrink-0 border-l border-line pl-2 text-[10px] font-black tabular-nums leading-none text-accent">
+              {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
+              <span className="text-[8px] text-n-9">BB</span>
+            </span>
+          )}
           {regClosesAt && (
-            <div className="mt-0.5 flex items-center gap-1 leading-none">
-              <span className="text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Reg締切</span>
+            <span className="flex shrink-0 items-center gap-1 border-l border-line pl-2 leading-none">
+              <span className="text-[8px] font-black uppercase tracking-[0.14em] text-n-9">Reg</span>
               <CountdownText endsAt={regClosesAt} className="text-[10px] font-black tabular-nums text-crimson-300" />
-            </div>
+            </span>
           )}
-          <div className="mt-1 flex items-end gap-2 leading-none">
-            <div>
-              <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Blind</span>
-              <span className="text-[11px] font-black tabular-nums text-fg">
-                {level ? `${level.smallBlind.toLocaleString()}/${level.bigBlind.toLocaleString()}` : "—"}
-              </span>
-            </div>
-            {level && level.bbAnte > 0 && (
-              <div className="border-l border-line pl-2">
-                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">ANTE</span>
-                <span className="text-[11px] font-black tabular-nums text-fg">{level.bbAnte.toLocaleString()}</span>
-              </div>
-            )}
-            {tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 && (
-              <div className="border-l border-line pl-2">
-                <span className="block text-[8px] font-black uppercase tracking-[0.18em] text-n-9">Ave</span>
-                <span className="text-[11px] font-black tabular-nums text-accent">
-                  {Math.round(tournamentInfo.averageStack / bigBlind).toLocaleString()}
-                  <span className="text-[8px] text-n-9">BB</span>
-                </span>
-              </div>
-            )}
-          </div>
+          {gameKey === "mtt" && (
+            <span className="shrink-0 rounded bg-n-4 px-1 py-[1px] text-[7px] font-black tracking-widest text-white">MTT</span>
+          )}
+          {tournamentInfo?.isFinalTable && (
+            <span className="shrink-0 rounded bg-accent px-1 py-[1px] text-[7px] font-black tracking-widest text-on-accent">
+              FINAL
+            </span>
+          )}
         </button>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <LeaveTableButton
             onLeave={() => {
               // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
@@ -577,10 +607,10 @@ function GameScreen({
           />
           <button
             onClick={() => setSettingsOpen((v) => !v)}
-            className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
-            aria-label="設定"
+            className="shrink-0 h-8 w-8 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
+            aria-label={t("settings.title")}
           >
-            <Icon name="settings" className="h-[18px] w-[18px]" />
+            <Icon name="settings" className="h-4 w-4" />
           </button>
         </div>
         {settingsOpen && (
@@ -618,6 +648,28 @@ function GameScreen({
             onToggleHeroShow={toggleHeroShow}
             displayMode={amountDisplayMode}
             onToggleDisplayMode={toggleAmountDisplayMode}
+            heroAside={
+              <>
+                {timeBank && (
+                  <SeatAsideToggle
+                    active={timeBank.armed}
+                    onClick={() => armTimeBank(!timeBank.armed)}
+                    ariaLabel={t("action.timeBank")}
+                  >
+                    <CheckMark on={timeBank.armed} className="h-3.5 w-3.5" />
+                    {/* 残り枚数はピップで。0枚のときは点を出さず、押しても意味が無いことを示す。 */}
+                    <span className="flex items-center gap-[3px]">
+                      {Array.from({ length: timeBank.cards }).map((_, i) => (
+                        <span key={i} className="h-1 w-1 rounded-full bg-accent" />
+                      ))}
+                    </span>
+                  </SeatAsideToggle>
+                )}
+                <SeatAsideToggle active={away} onClick={() => toggleAway(!away)} ariaLabel={t("action.away")}>
+                  <Icon name="pause" className="h-3.5 w-3.5" />
+                </SeatAsideToggle>
+              </>
+            }
           />
         )}
       </main>
@@ -919,9 +971,10 @@ function GameScreen({
           bigBlind={bigBlind}
           effectiveStackBehind={effectiveStackBehind}
           onAction={sendAction}
-          timeBank={timeBank}
-          onToggleTimeBank={() => timeBank && armTimeBank(!timeBank.armed)}
-          onToggleAway={setAway}
+          away={away}
+          onToggleAway={toggleAway}
+          checkFoldArmed={checkFoldArmed}
+          onToggleCheckFold={setCheckFoldArmed}
           displayMode={amountDisplayMode}
         />
       )}

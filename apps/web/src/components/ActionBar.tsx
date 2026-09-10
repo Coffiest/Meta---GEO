@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
-import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
-import type { TimeBankInfo } from "@/lib/socket";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "./Icon";
 import { CheckMark } from "./ui/CheckMark";
@@ -25,19 +23,10 @@ function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
 /**
  * アクションボタン。
  *
- * 面は水平のまま(斜めに歪ませない)。立体は、塗りの上下グラデーションと上端の
- * スペキュラ ―― 光が上から当たっている、という一貫した説明だけで作る。
- * 押下は .pressable が触れた瞬間に返すので、影へスラムするような演出は要らない。
- *
- * 色は意味に対応させる: フォールド=青(降りる) / チェック・コール=緑(応答) /
- * ベット・レイズ=赤(強い意思表示)。塗りの濃さは、その上の白文字が読める段を選んである。
+ * 面の中を発光する円がゆっくり漂う(意匠の出典: uiverse.io by Ashon-G / CSSは globals.css の
+ * `.action-glow`)。色は意味に対応させる: フォールド=青(降りる) / チェック・コール=緑(応答) /
+ * ベット・レイズ=赤(強い意思表示)。
  */
-const ACTION_TONE_CLASS: Record<"fold" | "call" | "raise", string> = {
-  fold: "bg-gradient-to-b from-azure-500 to-azure-600",
-  call: "bg-gradient-to-b from-mint-600 to-mint-700",
-  raise: "bg-gradient-to-b from-crimson-500 to-crimson-600",
-};
-
 function ActionButton({
   tone,
   onClick,
@@ -57,29 +46,39 @@ function ActionButton({
       disabled={disabled}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`pressable relative flex h-[62px] flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl text-white shadow-e2 disabled:pointer-events-none disabled:opacity-30 ${ACTION_TONE_CLASS[tone]}`}
+      data-tone={tone}
+      className="action-glow pressable flex h-[50px] flex-1 items-center justify-center shadow-e2"
     >
-      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/22 to-transparent" />
-      <span aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/15" />
-      <span className="relative flex flex-col items-center leading-none">{children}</span>
+      <span aria-hidden className="ag-wrapper">
+        <span className="ag-circle ag-1" />
+        <span className="ag-circle ag-2" />
+        <span className="ag-circle ag-3" />
+        <span className="ag-circle ag-4" />
+        <span className="ag-circle ag-5" />
+      </span>
+      <span className="ag-label">{children}</span>
     </button>
   );
 }
 
 /**
- * 手番待ち中の予約系ボタン(チェック/フォールド予約・離席)。
- * アクションボタンと同じ寸法・同じ角丸のまま、塗りを持たないガラス面にして
- * 「今は主役ではない」ことを示す。ONの間だけアクセントの縁が点く。
+ * 手番待ち中の予約系トグル(チェック/フォールド予約・離席)。
+ *
+ * 以前はアクションボタンと同じ 62px の大ボタン2つだったが、それだけで画面の高さを
+ * 100px 近く食っていた。卓を大きく見せるほうが優先なので、枠の左右下隅に置く極小の
+ * ピルにしてある。ONの間だけアクセント色が点く。
  */
-function StandbyButton({
+function TinyToggle({
   active,
   onClick,
   ariaLabel,
+  className,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   ariaLabel: string;
+  className: string;
   children: ReactNode;
 }) {
   return (
@@ -88,16 +87,26 @@ function StandbyButton({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`pressable relative flex h-[62px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl transition-colors ${
-        active
-          ? "bg-accent/18 text-accent-hi ring-1 ring-inset ring-accent/60"
-          : "bg-white/[0.06] text-fg-2 ring-1 ring-inset ring-white/10"
+      className={`pressable absolute bottom-0 flex h-7 items-center gap-1 rounded-full px-2 text-[9px] font-bold leading-none transition-colors ${className} ${
+        active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
       }`}
     >
       {children}
     </button>
   );
 }
+
+/* 卓上のアクション名は、意匠として全ロケール共通の英字にする(オーナー指示)。
+   読み上げ用の aria-label は t() の各言語のまま残してあるので、
+   日本語話者がスクリーンリーダーで使えなくなることはない。 */
+const ACTION_EN = {
+  fold: "FOLD",
+  check: "CHECK",
+  call: "CALL",
+  bet: "BET",
+  raise: "RAISE",
+  allIn: "ALL IN",
+} as const;
 
 // ポストフロップ(および3ベット以降)のポット比率プリセット。実戦で使うサイズを一通り並べてある。
 const POT_PCT_PRESETS = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5];
@@ -150,7 +159,8 @@ function computePresets(params: {
   // 付けるため、残すと同額の2ピルが同時ハイライトされて紛らわしい。
   const withAllIn = (list: Preset[]): Preset[] => [
     ...list.filter((p) => p.toAmount < maxRaiseToAmount),
-    { label: t("action.allInPreset"), toAmount: maxRaiseToAmount },
+    // 「オールイン」だけはアクション名でもあるので、ボタンと同じ英字表記に揃える。
+    { label: ACTION_EN.allIn, toAmount: maxRaiseToAmount },
   ];
 
   // プリフロップでまだ誰もレイズしていない(オープンレイズ想定の)スポットは、bbの倍数プリセット。
@@ -201,9 +211,10 @@ export function ActionBar({
   bigBlind,
   effectiveStackBehind,
   onAction,
-  timeBank,
-  onToggleTimeBank,
+  away,
   onToggleAway,
+  checkFoldArmed,
+  onToggleCheckFold,
   displayMode = "bb",
 }: {
   isYourTurn: boolean;
@@ -220,13 +231,13 @@ export function ActionBar({
    * ジオメトリックサイズをこの値基準で計算する。 */
   effectiveStackBehind: number;
   onAction: (action: PlayerAction) => void;
-  /** タイムバンク。テーブル上の座席と同じ領域に浮かせて配置すると表示名の長さや
-   * ディーラーボタンの位置次第でどうしても干渉してしまうため、干渉しようがない
-   * アクションバー側の専用行に置く。 */
-  timeBank?: TimeBankInfo | null;
-  onToggleTimeBank?: () => void;
-  /** 離席状態をサーバーに通知する(全員の座席に「離席中」を表示するため)。 */
-  onToggleAway?: (away: boolean) => void;
+  /** 「離席」。ONの間は手番が来るたびに毎回自動でチェック/フォールドし続ける。
+   * 自席の横のトグルとアクションバーの隅のトグルの両方から触るので、状態は page.tsx が持つ。 */
+  away: boolean;
+  onToggleAway: (away: boolean) => void;
+  /** 「チェック/フォールドを予約」。次に手番が来た瞬間に一度だけ自動で実行し、その後OFFに戻る。 */
+  checkFoldArmed: boolean;
+  onToggleCheckFold: (armed: boolean) => void;
   /** 卓上の金額表示モード(bb換算/点数)。ベット額入力・プリセット・CALL/RAISE額に反映する。 */
   displayMode?: AmountDisplayMode;
 }) {
@@ -236,13 +247,6 @@ export function ActionBar({
   // 以前はonChangeのたびに即クランプしていたため「12」の1文字目で最小額へ丸められ
   // 2桁の数値が実質入力できなかった。編集中は自由に打たせ、確定(blur/Enter)時にだけ丸める。
   const [raiseInput, setRaiseInput] = useState<string | null>(null);
-  // 「チェック/フォールドを予約」: 手番でない間にONにしておくと、次に手番が来た瞬間に
-  // 一度だけ自動でチェック(できなければフォールド)する。よくあるポーカーアプリの
-  // 事前アクション予約と同じく、発火後は自動でOFFに戻る(毎回のハンドで明示的に予約し直す)。
-  const [checkFoldArmed, setCheckFoldArmed] = useState(false);
-  // 「離席」: ONの間は手番が来るたびに毎回自動でチェック/フォールドし続ける。手動でOFFに
-  // するまで持続する点がチェック/フォールド予約(一度きり)との違い。
-  const [away, setAway] = useState(false);
   const wasYourTurnRef = useRef(isYourTurn);
 
   useEffect(() => {
@@ -258,52 +262,9 @@ export function ActionBar({
     if (!justBecameYourTurn) return;
     if (away || checkFoldArmed) {
       onAction({ kind: canCheck ? "check" : "fold" });
-      if (!away) setCheckFoldArmed(false);
+      if (!away) onToggleCheckFold(false);
     }
-  }, [isYourTurn, away, checkFoldArmed, canCheck, onAction]);
-
-  // タイムバンク: チェックボックスで使用ON/OFF、残り枚数はピップ(丸ドット)で視覚化。
-  const timeBankRow = timeBank && (
-    <motion.button
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileTap={{ scale: 0.96 }}
-      onClick={onToggleTimeBank}
-      className="flex items-center gap-2 rounded-full glass-panel pl-2 pr-3 h-9 text-[11px] font-bold text-fg shrink-0"
-    >
-      <CheckMark on={timeBank.armed} />
-      <span>{t("action.timeBank")}</span>
-      <span className="flex items-center gap-1 border-l border-white/15 pl-2">
-        {timeBank.cards > 0 ? (
-          Array.from({ length: timeBank.cards }).map((_, i) => (
-            <span key={i} className="h-1.5 w-1.5 rounded-full bg-accent" />
-          ))
-        ) : (
-          <span className="text-[11px] text-n-9">{t("action.remaining0")}</span>
-        )}
-      </span>
-    </motion.button>
-  );
-
-  // 「離席」: ONでサーバーへ通知し、全員の座席に「離席中」を表示する。
-  const awayRow = (
-    <motion.button
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileTap={{ scale: 0.96 }}
-      onClick={() =>
-        setAway((v) => {
-          const next = !v;
-          onToggleAway?.(next);
-          return next;
-        })
-      }
-      className="flex items-center gap-1.5 rounded-full glass-panel pl-2 pr-3 h-9 text-[11px] font-bold text-fg shrink-0"
-    >
-      <CheckMark on={away} />
-      {t("action.away")}
-    </motion.button>
-  );
+  }, [isYourTurn, away, checkFoldArmed, canCheck, onAction, onToggleCheckFold]);
 
   // プリフロップはブラインドが「最初のベット」に相当するため、常に「レイズ」表記にする。
   const isRaiseLabel = street === "preflop" || toCall > 0;
@@ -346,19 +307,23 @@ export function ActionBar({
   // アクションバーの高さは常に一定に保つ。盤面(main flex-1 justify-center)は
   // 残りの高さの中央に卓を置くので、バーの高さが変わると画面全体が上下にジャンプする。
   // 「手番待ち」と「手番」で中身は全く別物になるが、外形は 1px も変えない。
+  //
+  // 高さは 238px から 132px へ詰めてある。実機の実測でヘッダーとこのバーだけで画面の
+  // 63% を占めており、卓が本来の 54% の大きさでしか描かれていなかった。補助トグルの行を
+  // 自席の横へ追い出し、残る3行を詰めたぶんが、そのまま卓の大きさになる。
+  //
+  // 待機中はガラスの面を出さない(オーナー指示)。高さは変えないので卓は動かない。
   return (
-    <div className="safe-area-bottom px-3 pb-4 pt-2">
-      <div className="glass-bar mx-auto flex h-[238px] max-w-md flex-col justify-between gap-2.5 rounded-[28px] px-3 py-3">
+    <div className="safe-area-bottom px-3 pb-2 pt-1">
+      <div
+        className={`relative mx-auto flex h-[132px] max-w-md flex-col justify-between gap-[5px] rounded-[24px] px-3 py-2 ${
+          isYourTurn ? "glass-bar" : ""
+        }`}
+      >
         {isYourTurn ? (
           <>
-            {/* 補助トグル(タイムバンク・離席)。 */}
-            <div className="flex h-9 items-center gap-2 overflow-x-auto no-scrollbar">
-              {timeBankRow}
-              {awayRow}
-            </div>
-
             {/* サイズのプリセット。 */}
-            <div className="flex h-10 items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <div className="flex h-7 items-center gap-1.5 overflow-x-auto no-scrollbar">
               {showRaiseUI &&
                 presets.map((preset) => {
                   const active = raiseTo === preset.toAmount;
@@ -369,7 +334,7 @@ export function ActionBar({
                         setRaiseInput(null);
                         setRaiseTo(preset.toAmount);
                       }}
-                      className={`pressable shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold tabular-nums transition-colors ${
+                      className={`pressable shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums transition-colors ${
                         active
                           ? "bg-accent text-on-accent shadow-glow-sm"
                           : "bg-white/[0.08] text-fg-2 ring-1 ring-inset ring-white/10"
@@ -382,7 +347,7 @@ export function ActionBar({
             </div>
 
             {/* 金額: スライダーで大きく動かし、ステッパーで1bbずつ詰める。 */}
-            <div className={`flex h-11 items-center gap-2 ${showRaiseUI ? "" : "invisible"}`}>
+            <div className={`flex h-8 items-center gap-1.5 ${showRaiseUI ? "" : "invisible"}`}>
               <input
                 type="range"
                 min={minRaiseToAmount}
@@ -400,7 +365,7 @@ export function ActionBar({
                 type="button"
                 onClick={() => stepRaise(-1)}
                 aria-label={t("action.betMinus")}
-                className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
+                className="pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
               >
                 <Icon name="minus" className="h-4 w-4" />
               </button>
@@ -415,33 +380,37 @@ export function ActionBar({
                   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                 }}
                 aria-label={t("action.betAmount")}
-                className="h-11 w-20 shrink-0 rounded-xl bg-white/[0.06] text-center text-base font-semibold tabular-nums text-fg ring-1 ring-inset ring-white/10"
+                className="h-8 w-16 shrink-0 rounded-lg bg-white/[0.06] text-center text-base font-semibold tabular-nums text-fg ring-1 ring-inset ring-white/10"
               />
               <button
                 type="button"
                 onClick={() => stepRaise(1)}
                 aria-label={t("action.betPlus")}
-                className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
+                className="pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
               >
                 <Icon name="plus" className="h-4 w-4" />
               </button>
             </div>
 
-            {/* 主行動。 */}
-            <div className="flex gap-2.5">
+            {/* 主行動。表記は英字で統一し、読み上げは aria-label で各言語のまま残す。 */}
+            <div className="flex gap-2">
               {!canCheck && (
-                <ActionButton tone="fold" onClick={() => onAction({ kind: "fold" })}>
-                  <span className="text-[17px] font-black tracking-[-0.01em]">{t("action.fold")}</span>
+                <ActionButton tone="fold" ariaLabel={t("action.fold")} onClick={() => onAction({ kind: "fold" })}>
+                  <span className="text-[15px] font-black tracking-[0.08em]">{ACTION_EN.fold}</span>
                 </ActionButton>
               )}
 
-              <ActionButton tone="call" onClick={() => onAction({ kind: canCheck ? "check" : "call" })}>
+              <ActionButton
+                tone="call"
+                ariaLabel={canCheck ? t("action.check") : t("action.call")}
+                onClick={() => onAction({ kind: canCheck ? "check" : "call" })}
+              >
                 {canCheck ? (
-                  <span className="text-[17px] font-black tracking-[-0.01em]">{t("action.check")}</span>
+                  <span className="text-[15px] font-black tracking-[0.08em]">{ACTION_EN.check}</span>
                 ) : (
                   <>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">{t("action.call")}</span>
-                    <span className="mt-1 text-[19px] font-black tabular-nums tracking-[-0.01em]">
+                    <span className="text-[9px] font-bold tracking-[0.16em] opacity-80">{ACTION_EN.call}</span>
+                    <span className="mt-0.5 text-[16px] font-black tabular-nums tracking-[-0.01em]">
                       {formatAmount(toCall, bigBlind, displayMode)}
                     </span>
                   </>
@@ -451,12 +420,15 @@ export function ActionBar({
               <ActionButton
                 tone="raise"
                 disabled={raiseDisabled}
+                ariaLabel={
+                  raiseTo >= maxRaiseToAmount ? t("action.allInPreset") : isRaiseLabel ? t("action.raise") : t("action.bet")
+                }
                 onClick={() => (canGoAllIn ? onAction({ kind: toCall > 0 ? "raise" : "bet", toAmount: raiseTo }) : undefined)}
               >
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">
-                  {raiseTo >= maxRaiseToAmount ? t("action.allInPreset") : isRaiseLabel ? t("action.raise") : t("action.bet")}
+                <span className="text-[9px] font-bold tracking-[0.16em] opacity-80">
+                  {raiseTo >= maxRaiseToAmount ? ACTION_EN.allIn : isRaiseLabel ? ACTION_EN.raise : ACTION_EN.bet}
                 </span>
-                <span className="mt-1 text-[19px] font-black tabular-nums tracking-[-0.01em]">
+                <span className="mt-0.5 text-[16px] font-black tabular-nums tracking-[-0.01em]">
                   {formatAmount(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind, displayMode)}
                 </span>
               </ActionButton>
@@ -464,10 +436,8 @@ export function ActionBar({
           </>
         ) : (
           <>
-            {/* 手番待ち。空の行を並べて高さだけ確保するのではなく、この時間にできること
-                (次の手番の予約・離席)と、今どういう状態かを見せる。 */}
-            <div className="flex h-9 items-center gap-2 overflow-x-auto no-scrollbar">{timeBankRow}</div>
-
+            {/* 手番待ち。枠は出さない(星空がそのまま透ける)。高さだけは手番中と揃えてあるので、
+                手番が回ってきても卓の位置と大きさは 1px も動かない。 */}
             <div className="flex flex-1 flex-col items-center justify-center gap-2">
               <span className="flex items-center gap-1.5" aria-hidden>
                 {[0, 1, 2].map((i) => (
@@ -482,33 +452,27 @@ export function ActionBar({
               <span className="text-[11px] font-semibold tracking-wide text-fg-3">{t("action.waiting")}</span>
             </div>
 
-            <div className="flex gap-2.5">
-              {/* チェック/フォールド予約。次の手番で一度だけ自動で実行する。 */}
-              <StandbyButton
-                active={checkFoldArmed}
-                onClick={() => setCheckFoldArmed((v) => !v)}
-                ariaLabel={t("action.armCheckFold")}
-              >
-                <CheckMark on={checkFoldArmed} className="h-[22px] w-[22px]" />
-                <span className="text-[11px] font-bold leading-none">{t("action.checkFoldShort")}</span>
-              </StandbyButton>
+            {/* 次の手番で一度だけ自動実行する予約。左下の隅に極小で置く。 */}
+            <TinyToggle
+              className="left-0"
+              active={checkFoldArmed}
+              onClick={() => onToggleCheckFold(!checkFoldArmed)}
+              ariaLabel={t("action.armCheckFold")}
+            >
+              <CheckMark on={checkFoldArmed} className="h-3.5 w-3.5" />
+              <span>{t("action.checkFoldShort")}</span>
+            </TinyToggle>
 
-              {/* 離席。手動でOFFにするまで、手番のたびに自動でチェック/フォールドし続ける。 */}
-              <StandbyButton
-                active={away}
-                onClick={() =>
-                  setAway((v) => {
-                    const next = !v;
-                    onToggleAway?.(next);
-                    return next;
-                  })
-                }
-                ariaLabel={t("action.away")}
-              >
-                <AwayIcon className="h-[22px] w-[22px]" />
-                <span className="text-[11px] font-bold leading-none">{t("action.away")}</span>
-              </StandbyButton>
-            </div>
+            {/* 離席。手動でOFFにするまで、手番のたびに自動でチェック/フォールドし続ける。 */}
+            <TinyToggle
+              className="right-0"
+              active={away}
+              onClick={() => onToggleAway(!away)}
+              ariaLabel={t("action.away")}
+            >
+              <AwayIcon className="h-3.5 w-3.5" />
+              <span>{t("action.away")}</span>
+            </TinyToggle>
           </>
         )}
       </div>
