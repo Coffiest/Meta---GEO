@@ -218,7 +218,7 @@ export function Onboarding({
               autoFocus={isFirstTime}
               autoComplete="off"
               enterKeyHint="go"
-              className="w-full rounded-xl glass-panel px-4 py-3 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-line-strong/5"
+              className="input-inset w-full rounded-full px-5 py-3 text-sm text-fg placeholder:text-fg-3 focus:outline-none"
             />
           </div>
 

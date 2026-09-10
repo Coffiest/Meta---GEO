@@ -179,7 +179,7 @@ export function CouponWallet({
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            className="min-w-0 flex-1 rounded-xl border border-line px-3.5 py-2.5 font-mono text-[14px] tracking-[0.12em] text-fg placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
+            className="input-inset min-w-0 flex-1 rounded-full px-4 py-2.5 font-mono text-[14px] tracking-[0.12em] text-fg placeholder:font-sans placeholder:text-[12px] placeholder:tracking-normal placeholder:text-fg-3 focus:outline-none"
           />
           <button
             onClick={() => void applyCode(codeInput, "input")}
