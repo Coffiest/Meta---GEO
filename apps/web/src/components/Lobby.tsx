@@ -256,13 +256,16 @@ function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="mb-5 mt-1"
     >
+      {/* eyebrowの "//" はコードコメント風の飾り、見出し末尾は句点の代わりに点滅する
+          端末カーソルにしている(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/
+          コンソール演出をこのアプリの全タブ見出しへさりげなく適用)。 */}
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{eyebrow}</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{`// ${eyebrow}`}</span>
       </div>
       <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-fg">
         {title}
-        <span className="text-accent">.</span>
+        <span className="term-cursor bg-accent" aria-hidden="true" />
       </h1>
     </motion.div>
   );
@@ -478,6 +481,54 @@ function TournamentHistoryCard({
 function InfoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <Icon name="info" className={className} />
+  );
+}
+
+/** シンタックスハイライト風の1行分。indentは20px単位。 */
+type CodeLine = { n: number; indent?: number; parts: { text: string; cls?: string }[] };
+
+const HACKER_CARD_LINES: CodeLine[] = [
+  { n: 1, parts: [{ text: "public static object ", cls: "text-[#ff79c6]" }, { text: "GetTableStatus", cls: "text-[#50fa7b]" }, { text: "()", cls: "text-[#8be9fd]" }] },
+  { n: 2, parts: [{ text: "{", cls: "text-[#8be9fd]" }] },
+  { n: 3, indent: 1, parts: [{ text: "return new", cls: "text-[#ff79c6]" }] },
+  { n: 4, indent: 1, parts: [{ text: "{", cls: "text-[#50fa7b]" }] },
+  { n: 5, indent: 2, parts: [{ text: "Engine " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"GEO Solver"', cls: "text-[#f1fa8c]" }, { text: "," }] },
+  { n: 6, indent: 2, parts: [{ text: "Table " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"Poker ART"', cls: "text-[#f1fa8c]" }, { text: "," }] },
+  { n: 7, indent: 2, parts: [{ text: "Status " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"LIVE"', cls: "text-[#f1fa8c]" }, { text: "," }] },
+  { n: 8, indent: 1, parts: [{ text: "}", cls: "text-[#50fa7b]" }, { text: ";" }] },
+  { n: 9, parts: [{ text: "}", cls: "text-[#8be9fd]" }] },
+];
+
+/**
+ * ハッカー/コンソール演出の装飾カード(出典: uiverse.io by kamehame-ha の行番号+
+ * シンタックスハイライト付きコードブロックと、Jarol20cbのフロートアニメーションを
+ * 組み合わせ、このアプリのダーク面(n-0)へそのまま適用したもの。機能は持たない
+ * 雰囲気付けのイースターエッグで、ホーム画面にさりげなく1枚だけ置く)。
+ */
+function HackerCodeCard() {
+  return (
+    <div className="hacker-card-float rounded-2xl bg-n-0 p-4 shadow-e2 ring-1 ring-white/[0.06]">
+      <div className="mb-3 flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
+        <span className="ml-2 text-[10px] text-fg-3">poker-art.geo</span>
+      </div>
+      <div className="space-y-1 overflow-x-auto">
+        {HACKER_CARD_LINES.map((l) => (
+          <div key={l.n} className="flex gap-3 whitespace-pre text-[11px] leading-5">
+            <span className="w-4 shrink-0 text-right text-white/20 tabular-nums">{l.n}</span>
+            <span style={{ paddingLeft: (l.indent ?? 0) * 20 }}>
+              {l.parts.map((p, i) => (
+                <span key={i} className={p.cls ?? "text-fg-2"}>
+                  {p.text}
+                </span>
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1315,9 +1366,13 @@ export function Lobby({
 
             <RRPokerPromoBanner />
 
+            <HackerCodeCard />
+
             <div className="pt-1">
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-fg-3">
-                v{APP_VERSION} · Coffiest · © 2026 Poker ART
+                <span className="text-accent">{"$ "}</span>
+                poker-art --version {APP_VERSION} · Coffiest · © 2026 Poker ART
+                <span className="term-cursor bg-fg-3" style={{ width: 5, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
               </p>
             </div>
           </motion.div>
