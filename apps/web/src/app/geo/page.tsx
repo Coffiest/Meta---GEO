@@ -7,6 +7,7 @@ import {
   geoTreeApi,
   GeoApiError,
   PREFLOP_BUCKET_LABELS,
+  PREFLOP_DISPLAY_BUCKET_LABELS,
   POSTFLOP_BUCKET_LABELS,
   STACK_BUCKET_LABELS,
   GTO_STACK_LABELS,
@@ -187,7 +188,8 @@ function GeoDatabase() {
    * 自動で進めず、「板面を選び直す」導線を出す(存在しない板面を選んだ場合の連鎖ポップアップ防止)。 */
   const [justPickedBoard, setJustPickedBoard] = useState(false);
 
-  const bucketLabels: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  const bucketLabels: Record<string, string> =
+    street === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
 
   /** GTOタブで人数<6のとき、不在のアーリーポジションを自動フォールド扱いにする接頭辞。
    * リクエスト時のみラインの先頭に付与し、画面のピルには表示しない。 */

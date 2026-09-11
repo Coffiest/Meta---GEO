@@ -1,4 +1,4 @@
-import { PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
+import { OPEN_RAISE_BUCKET, PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBucket, type PreflopBucket } from "@/lib/geoApi";
 
 /**
  * アクションカラー。GTO Wizard と同じロジックで、**色相がアクション、濃淡がサイズ**を表す:
@@ -47,12 +47,14 @@ export const POSTFLOP_BUCKET_COLOR: Record<PostflopBucket, string> = {
 /**
  * geometricRatio(そのバケットの中でジオメトリックサイズだった割合)が高い場合は
  * サイズ帯の色より優先してティールを返す。Allinは常にディープパープル(紫はAllin専用)。
+ * Open Raise(統合バケット)はサイズ帯を持たないので、レイズ系の基準色(RAISE_RED)を使う。
  */
 export function bucketColor(bucket: string, geometricRatio = 0): string {
   if (bucket === "allIn") return ALLIN_COLOR;
   if (bucket !== "fold" && bucket !== "call" && bucket !== "checkOrCall" && geometricRatio >= 0.5) {
     return GEOMETRIC_COLOR;
   }
+  if (bucket === OPEN_RAISE_BUCKET) return RAISE_RED;
   return (
     (PREFLOP_BUCKET_COLOR as Record<string, string>)[bucket] ??
     (POSTFLOP_BUCKET_COLOR as Record<string, string>)[bucket] ??
@@ -63,8 +65,10 @@ export function bucketColor(bucket: string, geometricRatio = 0): string {
 /**
  * バケットの「弱→強」順のインデックス。頻度でなくこの順でセル/バーを並べるために使う
  * (一番激しいアクションを左端に配置する、という表示要件)。未知のバケットは最後尾扱い。
+ * Open Raiseは統合後の唯一のレイズ系バケットなので、fold(0)/call(1)の次に置く。
  */
 export function bucketOrderIndex(bucket: string): number {
+  if (bucket === OPEN_RAISE_BUCKET) return 2;
   const preflopIndex = (PREFLOP_BUCKETS as string[]).indexOf(bucket);
   if (preflopIndex !== -1) return preflopIndex;
   const postflopIndex = (POSTFLOP_BUCKETS as string[]).indexOf(bucket);

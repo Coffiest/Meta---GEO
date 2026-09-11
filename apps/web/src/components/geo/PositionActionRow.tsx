@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { TreeNode } from "@/lib/geoApi";
+import { mergeOpenRaiseOptions, type TreeNode } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
 
 /**
@@ -44,7 +44,9 @@ export function PositionActionRow({
     );
   }
 
-  const sortedOptions = [...node.options].sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket));
+  const sortedOptions = mergeOpenRaiseOptions(node.options).sort(
+    (a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket),
+  );
 
   return (
     <motion.div
@@ -75,7 +77,7 @@ export function PositionActionRow({
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
-              onClick={() => onSelect(opt.bucket)}
+              onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
               className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
               style={{
                 background: bucketColor(opt.bucket, opt.geometricRatio),
