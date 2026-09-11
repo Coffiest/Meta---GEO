@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+import { TermPrompt } from "./Header";
 import { LoaderBlock } from "./ui/Loader";
 
 export interface RRRatingData {
@@ -280,7 +281,10 @@ export function RRRatingCard({
           </motion.button>
         </div>
 
-        <div className="mb-3">
+        {/* コンソール演出(出典: uiverse.io by kamehame-ha / Jarol20cbのハッカー/コンソール
+            演出をこのカードにも適用)。"$ cat rating.log"をタイプしてから偏差値を出す。 */}
+        <div className="mb-3 space-y-2">
+          <TermPrompt command="cat rating.log" className="justify-center" />
           <RuleLabel>トナメ偏差値</RuleLabel>
         </div>
 
@@ -296,6 +300,7 @@ export function RRRatingCard({
                 className="text-5xl font-black text-fg tracking-tight tabular-nums"
               >
                 {displayRating(data.rrRating)}
+                <span className="term-cursor bg-accent" style={{ width: 10, height: 40 }} aria-hidden="true" />
               </motion.p>
               {data.nationalRank != null && (
                 <div className="mb-1.5 rounded-full bg-n-4 px-2.5 py-1">
@@ -341,10 +346,14 @@ export function RRRatingCard({
       </div>
 
       <div className="border-t border-line p-4">
+        <TermPrompt command="tail -f history.log" className="mb-2" />
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <Icon name="trophy" className="h-4 w-4 text-n-9" />
-            <p className="text-[13px] font-bold text-fg">Tournament History</p>
+            <p className="text-[13px] font-bold text-fg">
+              Tournament History
+              <span className="term-cursor ml-0.5 bg-fg-3" style={{ width: 4, height: 14, verticalAlign: "-2px" }} aria-hidden="true" />
+            </p>
           </div>
           <button onClick={onViewHistory} className="pressable text-[11px] text-accent font-semibold underline decoration-dashed underline-offset-4">
             もっと見る
