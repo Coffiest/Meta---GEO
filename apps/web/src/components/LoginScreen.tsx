@@ -41,19 +41,14 @@ function AppleIcon() {
 }
 
 /**
- * フローティングラベル入力欄。値が空(=placeholderが見えている)の間はラベルが入力欄の中央に
- * 大きく座り、フォーカスまたは入力ありで小さなピルへ浮き上がる(出典: uiverse.io by JkHuger。
- * 地色#e3e3e3のニューモーフィズムをこのアプリのダークテーマへ再配色し、浮き上がったラベルは
- * 単色の黒ではなくアクセントの中段運用(bg-accent/15 + ring-accent)にして、送信ボタン1つに
- * 強アクセントを残す)。
- *
- * CSSのみで実装(:placeholder-shown / :focus の2状態をpeerで拾う)。`peer-placeholder-shown`
- * (空欄時=大きく中央)がデフォルトを上書きし、`peer-focus`(フォーカス時=常に浮く)がさらに
- * それを上書きする ―― Tailwindのvariant適用順序が focus > placeholder-shown のため、
- * 「空欄でもフォーカス中は浮く」「入力があれば常に浮く」の両方が両立する。
+ * アイコン付き入力欄。ふちを持たず面に彫り込まれたような凹み(`.input-inset`、
+ * 他のテキスト入力欄と共通の意匠)のピルの中に、意味を示すアイコン+透明地の入力を横並びに置く
+ * (出典: uiverse.io by yashasvi9199。地色#171717はこのアプリのダーク面(n-0)とほぼ同値のため
+ * そのまま踏襲し、装飾のグラデーションは使わずアイコン色のみアクセントに寄せている)。
  */
-function FloatingField({
+function IconField({
   id,
+  icon,
   label,
   value,
   onChange,
@@ -65,6 +60,7 @@ function FloatingField({
   invalid = false,
 }: {
   id: string;
+  icon: IconName;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -76,7 +72,11 @@ function FloatingField({
   invalid?: boolean;
 }) {
   return (
-    <div className="relative">
+    <label
+      htmlFor={id}
+      className={`input-inset flex items-center gap-2.5 rounded-full px-4 py-3 ${invalid ? "ring-1 ring-inset ring-crimson-500" : ""}`}
+    >
+      <Icon name={icon} className={`h-[18px] w-[18px] shrink-0 ${invalid ? "text-crimson-300" : "text-fg-3"}`} />
       <input
         id={id}
         value={value}
@@ -89,20 +89,10 @@ function FloatingField({
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint={enterKeyHint}
-        placeholder=" "
-        className={`peer w-full rounded-xl border-2 bg-transparent px-3.5 pb-2.5 pt-4 text-sm text-fg placeholder-transparent transition-colors focus:outline-none ${
-          invalid ? "border-crimson-500" : "border-line focus:border-accent"
-        }`}
+        placeholder={label}
+        className="min-w-0 flex-1 bg-transparent text-sm text-fg placeholder:text-fg-faint focus:outline-none"
       />
-      <label
-        htmlFor={id}
-        className={`pointer-events-none absolute left-3 top-0 -translate-y-1/2 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] transition-all duration-300 ${
-          invalid ? "bg-crimson-500/15 text-crimson-300" : "bg-accent/15 text-accent"
-        } peer-placeholder-shown:top-1/2 peer-placeholder-shown:translate-x-1.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0 peer-placeholder-shown:text-fg-3 peer-focus:top-0 peer-focus:translate-x-0 peer-focus:bg-accent/15 peer-focus:px-2 peer-focus:text-accent`}
-      >
-        {label}
-      </label>
-    </div>
+    </label>
   );
 }
 
@@ -153,7 +143,7 @@ const item: Variants = {
  * その下に流れるキーワード帯・機能インデックスでアプリの価値を提示する。
  * Google/Appleはパスワード不要で直接OAuthへ、メールはパスワード必須(ログイン/新規登録/再設定の3モード)。 */
 import { ReportErrorButton } from "./ReportErrorButton";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { ParticleText } from "./effects/ParticleText";
 
 export function LoginScreen({ auth }: { auth: AuthState }) {
@@ -259,13 +249,17 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           </motion.p>
         </motion.div>
 
-        {/* 認証カード(ヒーロー直下 = ノースクロールで到達) */}
+        {/* 認証カード(ヒーロー直下 = ノースクロールで到達)。
+            アクセントの淡いグラデーション縁+ダーク面のカード(出典: uiverse.io by
+            yashasvi9199。原案の緑→青の縁はアクセント1色のグラデーションへ、地色#171717は
+            このアプリのダーク面(n-0)へそのまま踏襲)。 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22, duration: 0.55, ease: EASE }}
-          className="mt-6 rounded-2xl glass-panel p-6 shadow-e2"
+          className="mt-6 rounded-[26px] bg-gradient-to-br from-accent-hi/50 to-accent-lo/50 p-px shadow-e2"
         >
+        <div className="rounded-[26px] bg-n-0 p-6">
           {confirmSentTo ? (
             /* 新規登録直後: 確認メールの手順ガイド。何をすればいいかを1ステップずつ示す。 */
             <div>
@@ -342,7 +336,10 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             </div>
           ) : (
             <>
-          <div className="mb-5 flex items-baseline justify-between">
+          {/* 見出し。"LOGIN" は英語の据え置き語(ワードマーク的な扱い)、それ以外の文言は
+              日本人ユーザーを主対象に日本語で組む(t()は既存のとおり多言語対応のまま)。 */}
+          <p className="text-center text-[11px] font-black uppercase tracking-[0.4em] text-fg-3">Login</p>
+          <div className="mb-5 mt-1.5 flex items-baseline justify-center gap-2 text-center">
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
             <span className="text-[12px] text-fg-2">{subtitle}</span>
           </div>
@@ -352,14 +349,14 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => auth.signInWithGoogle()}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-line py-3 transition-colors hover:bg-canvas pressable"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-line py-3 transition-colors hover:bg-n-2 pressable"
                 >
                   <GoogleIcon />
                   <span className="text-[13px] font-semibold">Google</span>
                 </button>
                 <button
                   onClick={() => auth.signInWithApple()}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-n-4 py-3 pressable"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-n-3 py-3 pressable"
                 >
                   <AppleIcon />
                   <span className="text-[13px] font-semibold text-white">Apple</span>
@@ -374,9 +371,10 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             </>
           )}
 
-          <div className="space-y-5">
-            <FloatingField
+          <div className="space-y-3.5">
+            <IconField
               id="login-email"
+              icon="mail"
               label={t("login.email")}
               value={email}
               onChange={setEmail}
@@ -388,8 +386,9 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             />
 
             {mode !== "reset" && (
-              <FloatingField
+              <IconField
                 id="login-password"
+                icon="lock"
                 label={t("login.password")}
                 value={password}
                 onChange={setPassword}
@@ -402,8 +401,9 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
 
             {mode === "signup" && (
               <div>
-                <FloatingField
+                <IconField
                   id="login-password-confirm"
+                  icon="lock"
                   label={t("login.passwordConfirm")}
                   value={confirmPassword}
                   onChange={setConfirmPassword}
@@ -414,13 +414,13 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
                   invalid={Boolean(confirmPassword) && confirmPassword !== password}
                 />
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="mt-1.5 text-[11px] text-crimson-300">{t("login.passwordMismatch")}</p>
+                  <p className="mt-1.5 pl-1 text-[11px] text-crimson-300">{t("login.passwordMismatch")}</p>
                 )}
               </div>
             )}
 
             {mode === "login" && (
-              <button onClick={() => goTo("reset")} className="pressable text-[12px] text-fg-2 underline underline-offset-2 hover:text-n-10">
+              <button onClick={() => goTo("reset")} className="pressable pl-1 text-[12px] text-fg-2 underline underline-offset-2 hover:text-n-10">
                 {t("login.forgot")}
               </button>
             )}
@@ -462,32 +462,42 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
               (mode !== "reset" && !password) ||
               (mode === "signup" && (!confirmPassword || confirmPassword !== password))
             }
-            className="mt-5 w-full rounded-xl bg-accent py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-on-accent shadow-glow pressable disabled:opacity-40"
+            className="mt-6 w-full rounded-lg bg-accent py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-on-accent shadow-glow pressable disabled:opacity-40"
           >
             {submitting ? t("login.submitting") : submitLabel}
           </button>
 
-          <div className="mt-5 text-center text-[13px]">
+          <div className="mt-4 flex justify-center">
             {mode === "login" && (
-              <button onClick={() => goTo("signup")} className="pressable text-n-9">
+              <button
+                onClick={() => goTo("signup")}
+                className="pressable rounded-lg bg-n-3 px-4 py-2 text-[13px] text-n-9 transition-colors hover:bg-n-4"
+              >
                 {t("login.toSignupPrefix")}
-                <span className="ml-1 font-semibold text-fg underline underline-offset-2">{t("login.toSignup")}</span>
+                <span className="ml-1 font-semibold text-fg">{t("login.toSignup")}</span>
               </button>
             )}
             {mode === "signup" && (
-              <button onClick={() => goTo("login")} className="pressable text-n-9">
+              <button
+                onClick={() => goTo("login")}
+                className="pressable rounded-lg bg-n-3 px-4 py-2 text-[13px] text-n-9 transition-colors hover:bg-n-4"
+              >
                 {t("login.toLoginPrefix")}
-                <span className="ml-1 font-semibold text-fg underline underline-offset-2">{t("login.toLogin")}</span>
+                <span className="ml-1 font-semibold text-fg">{t("login.toLogin")}</span>
               </button>
             )}
             {mode === "reset" && (
-              <button onClick={() => goTo("login")} className="pressable font-semibold text-fg underline underline-offset-2">
+              <button
+                onClick={() => goTo("login")}
+                className="pressable rounded-lg bg-n-3 px-4 py-2 text-[13px] font-semibold text-fg transition-colors hover:bg-n-4"
+              >
                 {t("login.backToLogin")}
               </button>
             )}
           </div>
             </>
           )}
+        </div>
         </motion.div>
 
         {/* 流れるキーワード帯 */}
