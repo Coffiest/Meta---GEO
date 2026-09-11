@@ -291,6 +291,8 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
  *
  * 卓の中に置くので、卓と一緒に縮む(`useFitScale` の zoom 箱の中にある)。
  * 常時アニメーションする卓画面なので、ONの表現は色だけにして影やぼかしは足さない。
+ * チェックボックス(uiverse.io by PriyanshuGupta28)の押しやすさ改善に合わせ、
+ * 高さ28px→36pxへ(タップしやすい最小サイズに寄せる)。
  */
 function SeatAsideToggle({
   active,
@@ -309,7 +311,7 @@ function SeatAsideToggle({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`pressable flex h-7 items-center gap-1 rounded-full px-1.5 transition-colors ${
+      className={`pressable flex h-9 items-center gap-1.5 rounded-full px-2 transition-colors ${
         active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
       }`}
     >
@@ -656,7 +658,7 @@ function GameScreen({
                     onClick={() => armTimeBank(!timeBank.armed)}
                     ariaLabel={t("action.timeBank")}
                   >
-                    <CheckMark on={timeBank.armed} className="h-3.5 w-3.5" />
+                    <CheckMark on={timeBank.armed} className="h-5 w-5" />
                     {/* 残り枚数はピップで。0枚のときは点を出さず、押しても意味が無いことを示す。 */}
                     <span className="flex items-center gap-[3px]">
                       {Array.from({ length: timeBank.cards }).map((_, i) => (
