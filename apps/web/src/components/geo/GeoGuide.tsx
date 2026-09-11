@@ -63,7 +63,7 @@ function GtoVsGeoMini() {
     { label: "教えてくれること", gto: "正解の打ち方", geo: "相手のミスの突き方" },
   ];
   return (
-    <div className="mx-auto mt-6 w-full max-w-[320px] overflow-hidden rounded-[18px] border-[1.5px] border-line-strong bg-surface text-left">
+    <div className="mx-auto mt-6 w-full max-w-[320px] overflow-hidden rounded-[18px] glass-panel text-left">
       <div className="grid grid-cols-[1fr_auto_1fr]">
         <div className="px-3 py-2.5 text-center">
           <p className="text-[14px] font-black tracking-tight text-fg-3">GTO</p>
@@ -166,7 +166,7 @@ const SLIDES: Slide[] = [
       <>
         スタック深度・参加人数・トナメ偏差値帯・インマネまでの残り人数(ICM)で、見たい状況だけに絞れます。
         <br />
-        上部のタブで、実測の「GEO」と検証用の「GTO」を切り替えられます。
+        左上の設定ボタンからいつでも変更できます。
       </>
     ),
   },
@@ -224,10 +224,10 @@ export function GeoGuide({ onDone }: { onDone: () => void }) {
             className="w-full max-w-[360px] text-center"
           >
             {slide.eyebrow && (
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-accent">{slide.eyebrow}</p>
+              <p className="font-mono text-[11px] font-black uppercase tracking-[0.3em] text-accent">{`// ${slide.eyebrow}`}</p>
             )}
             {slide.icon && (
-              <span className="mx-auto mt-2 flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-line-strong text-fg">
+              <span className="mx-auto mt-2 flex h-16 w-16 items-center justify-center rounded-2xl glass-panel ring-1 ring-accent/40 text-accent">
                 {slide.icon}
               </span>
             )}

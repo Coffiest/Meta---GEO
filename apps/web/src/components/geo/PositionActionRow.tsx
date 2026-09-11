@@ -24,7 +24,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-line bg-canvas p-6 text-center"
+        className="glass-panel rounded-2xl p-6 text-center"
       >
         <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
@@ -36,7 +36,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-line bg-canvas p-6 text-center"
+        className="glass-panel rounded-2xl p-6 text-center"
       >
         <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
         <p className="text-sm text-fg-3">サンプルなし</p>
