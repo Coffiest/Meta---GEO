@@ -665,7 +665,9 @@ function GeoDatabase() {
 
         {/* PC(lg)ではレンジ表とアクション選択を左右に並べ、スクロールせずに両方を見渡せるようにする。 */}
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
-        <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
+        <div className="mt-1">
+          {matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} mergeOpenRaise={street === "preflop"} />}
+        </div>
 
         <div className="mt-3 lg:mt-1">
           {loading || solving ? (

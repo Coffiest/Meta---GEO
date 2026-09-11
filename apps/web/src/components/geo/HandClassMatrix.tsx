@@ -2,22 +2,44 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { HandClassCell, HandClassMatrixResult } from "@/lib/geoApi";
+import { mergeOpenRaiseByBucket, OPEN_RAISE_BUCKET, type HandClassCell, type HandClassMatrixResult } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex } from "./colors";
+
+/**
+ * 表示用に加工したセル。mergeOpenRaiseが有効な場合、raise2-5/raise5+/allInの3バケットを
+ * Open Raise 1つへ統合する(PositionPillBar/PositionActionRowと表示を揃えるため)。
+ * openRaiseRepresentativeは、統合後の「openRaise」バケットの色を決めるための、
+ * 統合前の実バケットのうち最多件数だったもの。
+ */
+interface DisplayCell extends HandClassCell {
+  openRaiseRepresentative?: string;
+}
+
+function toDisplayCell(cell: HandClassCell, mergeOpenRaise: boolean): DisplayCell {
+  if (!mergeOpenRaise) return cell;
+  const merged = mergeOpenRaiseByBucket(cell.byBucket);
+  if (!merged.openRaiseRepresentative) return cell;
+  return { ...cell, byBucket: merged.byBucket, openRaiseRepresentative: merged.openRaiseRepresentative };
+}
+
+/** 統合後の「openRaise」バケットは単体では色を持たないため、統合前の代表バケットへ解決する。 */
+function colorForBucket(cell: DisplayCell, bucket: string): string {
+  return bucketColor(bucket === OPEN_RAISE_BUCKET ? (cell.openRaiseRepresentative ?? bucket) : bucket);
+}
 
 /** セル内のバケット構成を、頻度順ではなく固定のアグレッション順(強→弱)で左から右に並べる(濃い色=強いアクションが常に左)。 */
 function orderedBucketEntries(cell: HandClassCell): [string, number][] {
   return Object.entries(cell.byBucket).sort((a, b) => bucketOrderIndex(b[0]) - bucketOrderIndex(a[0]));
 }
 
-function cellGradient(cell: HandClassCell): string {
+function cellGradient(cell: DisplayCell): string {
   if (cell.count === 0) return "#232326";
   const stops: string[] = [];
   let cursor = 0;
   for (const [bucket, count] of orderedBucketEntries(cell)) {
     const pct = (count / cell.count) * 100;
     if (pct <= 0) continue;
-    stops.push(`${bucketColor(bucket)} ${cursor}% ${cursor + pct}%`);
+    stops.push(`${colorForBucket(cell, bucket)} ${cursor}% ${cursor + pct}%`);
     cursor += pct;
   }
   if (stops.length === 0) return "#232326";
@@ -35,11 +57,21 @@ function topBucketFrequency(cell: HandClassCell): { bucket: string; pct: number 
 }
 
 interface HoverState {
-  cell: HandClassCell;
+  /** 表示用(Open Raise統合後)のセル。ツールチップの描画に使う。 */
+  cell: DisplayCell;
+  /** matrix.cells由来の元セル参照。toDisplayCellは毎レンダー新しいオブジェクトを作るため、
+      「今どのセルがホバー中か」の同一性判定はこちらで行う。 */
+  rawCell: HandClassCell;
   anchorX: number;
   anchorTop: number;
   anchorBottom: number;
 }
+
+/** ツールチップ(w-64=256px)の半幅+画面端との余白。マージンが半幅未満だと、画面端付近の
+ * セルをタップしたときにツールチップの反対側が画面からはみ出て見切れる(実際に起きていた不具合)。 */
+const TOOLTIP_HALF_WIDTH = 128;
+const TOOLTIP_EDGE_GUTTER = 12;
+const TOOLTIP_MARGIN = TOOLTIP_HALF_WIDTH + TOOLTIP_EDGE_GUTTER;
 
 /**
  * GTO Wizard型の169ハンドクラス・マトリクス。各セルは実測アクション頻度の色分け帯(アグレッション順、
@@ -51,18 +83,21 @@ interface HoverState {
 export function HandClassMatrix({
   matrix,
   bucketLabels,
+  mergeOpenRaise = false,
   onHoverCell,
 }: {
   matrix: HandClassMatrixResult;
   bucketLabels: Record<string, string>;
+  /** プリフロップのみtrue: raise2-5/raise5+/allInを表示上「Open Raise」1つへ統合する。 */
+  mergeOpenRaise?: boolean;
   onHoverCell?: (cell: HandClassCell | null) => void;
 }) {
   const [hover, setHover] = useState<HoverState | null>(null);
 
-  function showCell(cell: HandClassCell, target: HTMLElement) {
+  function showCell(cell: DisplayCell, rawCell: HandClassCell, target: HTMLElement) {
     const rect = target.getBoundingClientRect();
-    setHover({ cell, anchorX: rect.left + rect.width / 2, anchorTop: rect.top, anchorBottom: rect.bottom });
-    onHoverCell?.(cell);
+    setHover({ cell, rawCell, anchorX: rect.left + rect.width / 2, anchorTop: rect.top, anchorBottom: rect.bottom });
+    onHoverCell?.(rawCell);
   }
 
   function hideCell() {
@@ -71,7 +106,12 @@ export function HandClassMatrix({
   }
 
   const showAbove = hover ? hover.anchorTop > 180 : false;
-  const tooltipX = hover ? Math.min(Math.max(hover.anchorX, 100), (typeof window !== "undefined" ? window.innerWidth : 400) - 100) : 0;
+  const tooltipX = hover
+    ? Math.min(
+        Math.max(hover.anchorX, TOOLTIP_MARGIN),
+        (typeof window !== "undefined" ? window.innerWidth : 400) - TOOLTIP_MARGIN,
+      )
+    : 0;
 
   return (
     <div className="relative">
@@ -84,15 +124,16 @@ export function HandClassMatrix({
       >
         {matrix.cells.map((row, r) =>
           row.map((cell, c) => {
-            const top = topBucketFrequency(cell);
-            const isHovered = hover?.cell === cell;
+            const displayCell = toDisplayCell(cell, mergeOpenRaise);
+            const top = topBucketFrequency(displayCell);
+            const isHovered = hover?.rawCell === cell;
             return (
               <button
                 key={`${r}-${c}`}
-                style={{ background: cellGradient(cell) }}
-                onMouseEnter={(e) => showCell(cell, e.currentTarget)}
-                onFocus={(e) => showCell(cell, e.currentTarget)}
-                onClick={(e) => (isHovered ? hideCell() : showCell(cell, e.currentTarget))}
+                style={{ background: cellGradient(displayCell) }}
+                onMouseEnter={(e) => showCell(displayCell, cell, e.currentTarget)}
+                onFocus={(e) => showCell(displayCell, cell, e.currentTarget)}
+                onClick={(e) => (isHovered ? hideCell() : showCell(displayCell, cell, e.currentTarget))}
                 onMouseLeave={hideCell}
                 onBlur={hideCell}
                 className={`pressable aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] lg:text-[11px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white ${
@@ -140,7 +181,7 @@ export function HandClassMatrix({
                   const pct = Math.round((count / hover.cell.count) * 100);
                   return (
                     <div key={bucket} className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: bucketColor(bucket) }} />
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: colorForBucket(hover.cell, bucket) }} />
                       <span className="w-[74px] shrink-0 text-[10px] font-bold text-white truncate">
                         {bucketLabels[bucket] ?? bucket}
                       </span>
@@ -150,7 +191,7 @@ export function HandClassMatrix({
                           animate={{ width: `${pct}%` }}
                           transition={{ duration: 0.3, ease: "easeOut" }}
                           className="h-full rounded-full"
-                          style={{ background: bucketColor(bucket) }}
+                          style={{ background: colorForBucket(hover.cell, bucket) }}
                         />
                       </div>
                       <span className="w-9 shrink-0 text-right text-[10px] font-bold text-n-10 tabular-nums">{pct}%</span>
