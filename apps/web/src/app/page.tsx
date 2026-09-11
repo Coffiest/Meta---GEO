@@ -24,6 +24,8 @@ import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
 import { CheckMark } from "@/components/ui/CheckMark";
+import { Loader } from "@/components/ui/Loader";
+import { TermPrompt } from "@/components/Header";
 
 const SEAT_COUNT = 6;
 
@@ -730,7 +732,7 @@ function GameScreen({
             className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl glass-panel p-3.5"
           >
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+              <Loader size="sm" label="待機中" />
               <div className="text-xs font-semibold text-fg">
                 {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
@@ -781,7 +783,7 @@ function GameScreen({
             className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+96px)] z-40 mx-auto w-[92%] max-w-md rounded-2xl glass-panel p-4 shadow-e3"
           >
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-line-strong border-t-transparent animate-spin" />
+              <Loader size="sm" label="再同期中" className="mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-black text-fg">
                   {tableNotice
@@ -998,12 +1000,12 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
   const slow = seconds >= 5;
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
-      <div className="flex items-center gap-2 text-n-9">
-        <span className="h-4 w-4 rounded-full border-2 border-line border-t-transparent animate-spin" />
-        <span className="text-sm">
-          {what}… <span className="tabular-nums text-fg-2">{seconds}秒</span>
-        </span>
-      </div>
+      <TermPrompt command="poker-art --connect" />
+      <Loader size="md" label={what} />
+      <span className="font-mono text-[12px] text-fg-3">
+        {"// "}
+        {what}… <span className="tabular-nums text-fg-2">{seconds}秒</span>
+      </span>
       {slow && (
         <>
           <p className="max-w-xs text-[12px] leading-relaxed text-fg-2">
@@ -1029,7 +1031,7 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-canvas px-6 text-center">
       <div className="flex items-center gap-2 text-n-9">
-        <span className="h-4 w-4 rounded-full border-2 border-line border-t-transparent animate-spin" />
+        <Loader size="sm" label="接続を再試行しています" />
         <p className="text-sm font-medium">接続を再試行しています…</p>
       </div>
       <p className="max-w-xs text-[13px] leading-relaxed text-fg-2">

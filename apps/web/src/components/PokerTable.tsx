@@ -73,23 +73,25 @@ const SEAT_LAYOUT: Record<number, string> = {
  * 「その席の前のフェルト上」に置く。
  *
  * フェルトは FELT_BOX のとおりコンテナ内 x:18〜82% / y:10〜82% の楕円(中心 50%,46% / 半径 32%,36%)。
- * 各席から中心へ向かって内側に入った、楕円の内側に必ず収まる座標を選んである。あわせて
- * 画像のロゴ帯(上部 約5-31%)・カードスロット帯(約44-56%)・ワードマーク帯(約59-78%)の
- * 中央列を避けるため、上下の席は左右へずらしてある(卓上の意匠と重ならないように)。
+ * 以前は「画像のロゴ帯・カードスロット帯・ワードマーク帯を避ける」ことを優先しすぎて、
+ * 各席の実際の位置(SEAT_LAYOUT)からかなり離れてしまい、特に自席(スロット0)は卓中央寄りに
+ * 浮いて見え「誰の前のボタンか分かりにくい」という指摘を受けた。SEAT_LAYOUTのアンカーから
+ * 卓中心へごくわずかだけ寄せた座標(各席の目の前、卓の意匠帯は避けつつ最短距離)に引き直してある。
  */
 const DEALER_BUTTON_LAYOUT: Record<number, string> = {
-  0: "top-[70%] left-[64%]",
-  1: "top-[56%] left-[28%]",
-  2: "top-[32%] left-[30%]",
-  3: "top-[20%] left-[58%]",
+  0: "top-[77%] left-[60%]",
+  1: "top-[57%] left-[23%]",
+  2: "top-[28%] left-[25%]",
+  3: "top-[16%] left-[56%]",
   // 左右は left-% の鏡像で指定する(right-% と混在させると中心合わせのマージン分だけ左右非対称になる)。
-  4: "top-[32%] left-[70%]",
-  5: "top-[56%] left-[72%]",
+  4: "top-[28%] left-[75%]",
+  5: "top-[57%] left-[77%]",
 };
 
 /**
- * フェルト上に置かれたディーラーボタン。実物のボタン(白い樹脂ディスクに"D"の刻印)に寄せて、
- * 二重リング+わずかな落ち影で「卓に置かれた物体」として読ませる。ボタンが移動する卓では
+ * フェルト上に置かれたディーラーボタン。実物のボタン(白い樹脂ディスクに"D"の刻印)に寄せつつ、
+ * アクセント色の輪郭+発光で「今どこにあるか」を目で追いやすくした(卓の意匠は無彩色なので、
+ * このアプリで唯一のアクセント色の物体として卓上で浮き上がる)。ボタンが移動する卓では
  * ハンドごとに位置が変わるため、layout アニメーションで席から席へ滑らせる
  * (reduced-motion 時は移動アニメーションを切る)。
  */
@@ -102,10 +104,13 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
-      className={`pointer-events-none absolute z-20 -ml-[11px] -mt-[11px] ${DEALER_BUTTON_LAYOUT[slot]}`}
+      className={`pointer-events-none absolute z-20 -ml-[12px] -mt-[12px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-line-strong bg-surface shadow-e1">
-        <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full border border-line text-[9px] font-black leading-none text-fg">
+      <span
+        className="flex h-[24px] w-[24px] items-center justify-center rounded-full border-[1.5px] border-accent bg-surface shadow-e1"
+        style={{ boxShadow: "0 0 0 3px rgba(38,194,163,0.18), 0 0 8px 1px rgba(38,194,163,0.35)" }}
+      >
+        <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full border border-accent/50 text-[9px] font-black leading-none text-accent">
           D
         </span>
       </span>
@@ -421,8 +426,11 @@ export function PokerTable({
               className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
-                  (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
-              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
+                  (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。
+                  左のドットは進行中のハンドであることを示す小さな「オンライン」点滅
+                  (Header.tsxのterm-ledと同じ意匠)。 */}
+              <span className="flex items-center gap-1 text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
+                <span className="term-led" aria-hidden="true" />
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
               <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
