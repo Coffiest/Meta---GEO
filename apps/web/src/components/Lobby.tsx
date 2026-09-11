@@ -489,6 +489,10 @@ function StatTile({
   onInfo,
   countTo,
   format,
+  valueSize = "base",
+  captionValue,
+  captionClass,
+  onCaptionInfo,
 }: {
   label: string;
   value: string;
@@ -497,6 +501,13 @@ function StatTile({
   /** 指定すると 0→countTo をカウントアップ表示する(表示は format で整形)。 */
   countTo?: number;
   format?: (n: number) => string;
+  /** 大きめの数字で強調したいとき用("base"は従来どおりの大きさ)。 */
+  valueSize?: "base" | "lg";
+  /** 値の下に添える小さな差分表記(出典: uiverse.io by Gidarxの「金額+増減率」表記を、
+   *  このアプリの各スタッツに合わせて置き換えたもの)。 */
+  captionValue?: string;
+  captionClass?: string;
+  onCaptionInfo?: () => void;
 }) {
   const { t } = useI18n();
   const animated = useCountUp(0, countTo ?? 0, 1100, 200);
@@ -511,7 +522,23 @@ function StatTile({
           </button>
         )}
       </div>
-      <div className={`text-lg font-bold tabular-nums ${valueClass ?? "text-fg"}`}>{display}</div>
+      <div
+        className={`${valueSize === "lg" ? "text-xl font-black" : "text-lg font-bold"} tabular-nums ${valueClass ?? "text-fg"}`}
+      >
+        {display}
+      </div>
+      {captionValue &&
+        (onCaptionInfo ? (
+          <button
+            onClick={onCaptionInfo}
+            className={`pressable mt-1 block text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}
+            aria-label={t("stat.infoAria", { label })}
+          >
+            {captionValue}
+          </button>
+        ) : (
+          <div className={`mt-1 text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}>{captionValue}</div>
+        ))}
     </div>
   );
 }
@@ -735,6 +762,7 @@ function SingleLineChart({
   points,
   baseline,
   formatValue,
+  deltaFormat,
   onInfo,
 }: {
   title: string;
@@ -742,15 +770,23 @@ function SingleLineChart({
   points: { x: number; y: number }[];
   baseline: number;
   formatValue: (v: number) => string;
+  /** タイトル横に出す期間内差分の整形(出典: uiverse.io by Gidarxの「金額+増減率」表記。
+   *  未指定時は formatValue をそのまま使う)。 */
+  deltaFormat?: (v: number) => string;
   onInfo?: () => void;
 }) {
   const { t } = useI18n();
+  const delta = points.length >= 2 ? points[points.length - 1]!.y - points[0]!.y : 0;
+  const deltaClass = delta > 0 ? "text-mint-400" : delta < 0 ? "text-crimson-300" : "text-fg-3";
   const header = (
     <div className="flex items-center gap-1.5 mb-1">
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
       <span className="text-xs font-semibold text-n-10">{title}</span>
       {points.length >= 2 && (
-        <span className="ml-auto text-xs font-bold tabular-nums text-fg">{formatValue(points[points.length - 1]!.y)}</span>
+        <span className="ml-auto flex items-baseline gap-1.5">
+          <span className="text-base font-black tabular-nums text-fg">{formatValue(points[points.length - 1]!.y)}</span>
+          <span className={`text-[10px] font-bold tabular-nums ${deltaClass}`}>{(deltaFormat ?? formatValue)(delta)}</span>
+        </span>
       )}
       {onInfo && (
         <button onClick={onInfo} className={`pressable text-n-9 active:text-n-10 ${points.length >= 2 ? "" : "ml-auto"}`} aria-label={t("stat.infoAria", { label: title })}>
@@ -840,6 +876,18 @@ function SingleLineChart({
             {points[i]!.x}
           </text>
         ))}
+
+        {/* 最新値の発光ドット(出典: uiverse.io by Gidarx)。常時ゆっくり脈打つ輪+芯の点。 */}
+        <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1]!.y)} r={5} fill={color} opacity={0.32} />
+        <circle
+          cx={toX(points.length - 1)}
+          cy={toY(points[points.length - 1]!.y)}
+          r={7}
+          fill={color}
+          opacity={0.25}
+          className="chart-pulse-ring"
+        />
+        <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1]!.y)} r={2.5} fill={color} />
       </svg>
     </div>
   );
@@ -1289,39 +1337,48 @@ export function Lobby({
             {accessToken ? (
               stats ? (
                 <>
+                  {/* 収支サマリー(出典: uiverse.io by Gidarxの「アイコン付き見出し+仕切り線で
+                      2分割された金額表記」を、獲得/参加費の2軸へ組み替えて適用。収支・ROIは
+                      各列の下に色付きの差分表記として残し、タップで従来どおり説明モーダルを開ける)。 */}
                   <AnimatedCard delay={0.06}>
-                    <div className="mb-3"><RuleLabel>{t("lobby.sec.profit")}</RuleLabel></div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-                      <StatTile
-                        label={t("stat.buyIns")}
-                        value={stats.totalBuyIns.toLocaleString()}
-                        countTo={stats.totalBuyIns}
-                        format={(n) => Math.round(n).toLocaleString()}
-                        onInfo={() => setInfoKey("buyIns")}
-                      />
-                      <StatTile
-                        label={t("stat.payouts")}
-                        value={stats.totalPayouts.toLocaleString()}
-                        countTo={stats.totalPayouts}
-                        format={(n) => Math.round(n).toLocaleString()}
-                        onInfo={() => setInfoKey("payouts")}
-                      />
-                      <StatTile
-                        label={t("stat.profit")}
-                        value={formatSigned(stats.profit)}
-                        countTo={stats.profit}
-                        format={(n) => formatSigned(Math.round(n))}
-                        valueClass={signedClass(stats.profit)}
-                        onInfo={() => setInfoKey("profit")}
-                      />
-                      <StatTile
-                        label={t("stat.roi")}
-                        value={`${(stats.roi * 100).toFixed(1)}%`}
-                        countTo={stats.roi * 100}
-                        format={(n) => `${n.toFixed(1)}%`}
-                        valueClass={signedClass(stats.roi * 100 - 100)}
-                        onInfo={() => setInfoKey("roi")}
-                      />
+                    <div className="flex items-center gap-3 border-b border-line pb-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15">
+                        <Icon name="coins" className="h-5 w-5 text-accent" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-fg">{t("lobby.sec.profit")}</p>
+                        <p className="text-[10px] text-fg-3">
+                          {t("stat.tournamentsPlayed")} {stats.tournamentsPlayed.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex divide-x divide-line pt-4">
+                      <div className="flex-1 pr-4">
+                        <StatTile
+                          label={t("stat.payouts")}
+                          value={stats.totalPayouts.toLocaleString()}
+                          countTo={stats.totalPayouts}
+                          format={(n) => Math.round(n).toLocaleString()}
+                          valueSize="lg"
+                          onInfo={() => setInfoKey("payouts")}
+                          captionValue={formatSigned(stats.profit)}
+                          captionClass={signedClass(stats.profit)}
+                          onCaptionInfo={() => setInfoKey("profit")}
+                        />
+                      </div>
+                      <div className="flex-1 pl-4">
+                        <StatTile
+                          label={t("stat.buyIns")}
+                          value={stats.totalBuyIns.toLocaleString()}
+                          countTo={stats.totalBuyIns}
+                          format={(n) => Math.round(n).toLocaleString()}
+                          valueSize="lg"
+                          onInfo={() => setInfoKey("buyIns")}
+                          captionValue={`${stats.roi * 100 - 100 >= 0 ? "+" : ""}${(stats.roi * 100 - 100).toFixed(1)}%`}
+                          captionClass={signedClass(stats.roi * 100 - 100)}
+                          onCaptionInfo={() => setInfoKey("roi")}
+                        />
+                      </div>
                     </div>
                   </AnimatedCard>
 
@@ -1379,41 +1436,62 @@ export function Lobby({
                     </div>
                   </AnimatedCard>
 
+                  {/* 収支推移グラフ(出典: uiverse.io by Gidarxの「アイコン付き見出し+背景オーラ+
+                      発光ドットの折れ線」を、既存のROI/収支2チャートへ適用。ホバー限定だった
+                      オーラは常時ごく薄く出す(タッチ端末にhoverは無いため)。 */}
                   <AnimatedCard delay={0.18}>
-                    {bankrollGraph === null ? (
-                      <div className="space-y-6">
-                        <ChartSkeleton />
-                        <ChartSkeleton />
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <SingleLineChart
-                          title={t("stat.roi")}
-                          color="#26C2A3" /* テーマのアクセント。1画面に1つだけ置く「主役」の色 */
-                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
-                          baseline={100}
-                          formatValue={(v) => `${v.toFixed(1)}%`}
-                          onInfo={() => setInfoKey("graphRoi")}
-                        />
-                        <SingleLineChart
-                          title={t("stat.profit")}
-                          color="#F5F5F7"
-                          points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
-                          baseline={0}
-                          formatValue={(v) => formatSigned(v)}
-                          onInfo={() => setInfoKey("graphProfit")}
-                        />
-                      </div>
-                    )}
+                    <div className="relative -m-4 overflow-hidden rounded-[20px] p-4">
+                      <div className="pointer-events-none absolute -top-20 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
 
-                    <div className="mt-4 flex flex-col items-center gap-1.5">
-                      <span className="text-[10px] text-n-9">{t("lobby.recentTourneys")}</span>
-                      <SegmentedTabs
-                        ariaLabel={t("lobby.recentTourneys")}
-                        items={TOURNEY_GRAPH_RANGES.map((r) => ({ key: r.key, label: r.label }))}
-                        value={graphRangeKey}
-                        onChange={setGraphRangeKey}
-                      />
+                      <div className="relative flex items-center gap-3 border-b border-line pb-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15">
+                          <Icon name="graph-up" className="h-5 w-5 text-accent" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold text-fg">{t("lobby.sec.trend")}</p>
+                          <p className="text-[10px] text-fg-3">
+                            {t("lobby.recentTourneys")} · {TOURNEY_GRAPH_RANGES.find((r) => r.key === graphRangeKey)?.label}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="relative pt-4">
+                        {bankrollGraph === null ? (
+                          <div className="space-y-6">
+                            <ChartSkeleton />
+                            <ChartSkeleton />
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            <SingleLineChart
+                              title={t("stat.roi")}
+                              color="#26C2A3" /* テーマのアクセント。1画面に1つだけ置く「主役」の色 */
+                              points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
+                              baseline={100}
+                              formatValue={(v) => `${v.toFixed(1)}%`}
+                              deltaFormat={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}pt`}
+                              onInfo={() => setInfoKey("graphRoi")}
+                            />
+                            <SingleLineChart
+                              title={t("stat.profit")}
+                              color="#F5F5F7"
+                              points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
+                              baseline={0}
+                              formatValue={(v) => formatSigned(v)}
+                              onInfo={() => setInfoKey("graphProfit")}
+                            />
+                          </div>
+                        )}
+
+                        <div className="mt-4 flex justify-center">
+                          <SegmentedTabs
+                            ariaLabel={t("lobby.recentTourneys")}
+                            items={TOURNEY_GRAPH_RANGES.map((r) => ({ key: r.key, label: r.label }))}
+                            value={graphRangeKey}
+                            onChange={setGraphRangeKey}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </AnimatedCard>
                 </>
