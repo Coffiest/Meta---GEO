@@ -371,6 +371,52 @@ textarea:focus-visible,
   animation: chart-pulse-ring 1.8s cubic-bezier(0.16, 0.6, 0.4, 1) infinite;
 }
 
+/* ============================================================================
+   ハッカー/コンソール演出(出典: uiverse.io by Jarol20cb / kamehame-ha)。
+   全画面で使う共有ヘッダー(HeaderLogo)・各タブ見出し(TabHeader)・ホーム画面の
+   装飾コードカードに使う、控えめな「端末感」の小道具3点。既存のダークテーマの上に
+   さりげなく重ねるだけで、色トークンやガラス素材はこのアプリの語彙をそのまま使う。
+   ============================================================================ */
+/* 見出し末尾やターミナルプロンプト末尾に置く、点滅する矩形カーソル。steps(1)でON/OFFを
+   はっきり切り替える(フェードにしない方が端末らしい)。 */
+@keyframes term-cursor-blink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.term-cursor {
+  display: inline-block;
+  width: 0.5rem;
+  height: 1.6rem;
+  border-radius: 1px;
+  vertical-align: -0.28rem;
+  animation: term-cursor-blink 1.1s steps(1) infinite;
+}
+
+/* ロゴ横の「オンライン」LED。呼吸するように明滅する。 */
+@keyframes term-led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.term-led {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 6px 1px rgb(var(--accent) / 0.65);
+  animation: term-led-blink 2.4s ease-in-out infinite;
+}
+
+/* 装飾コードカードのふわふわ浮遊(Jarol20cbの.float-animationを踏襲)。 */
+@keyframes hacker-card-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.hacker-card-float {
+  animation: hacker-card-float 4s ease-in-out infinite;
+}
+
 /* テーブル画面の画像(felt/カード/アバター)は右クリック保存・ドラッグ選択の対象外にする。 */
 .no-image-actions img {
   -webkit-touch-callout: none;

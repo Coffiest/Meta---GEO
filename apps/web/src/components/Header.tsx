@@ -37,8 +37,12 @@ export function HeaderLogo() {
     <div className="flex items-center gap-2 text-[18px] font-semibold tracking-tight text-fg">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={LOGO_SRC} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
-      <span>
+      <span className="inline-flex items-center gap-1.5">
         Poker<span className="text-accent">ART</span>
+        {/* 常時点滅する「オンライン」LED(出典: uiverse.io by Jarol20cb / kamehame-ha を
+            踏まえたハッカー/コンソール演出)。全画面共通のヘッダーに乗るので、さりげない
+            端末感を全画面に行き渡らせる役目を持つ。 */}
+        <span className="term-led" aria-hidden="true" />
       </span>
     </div>
   );
