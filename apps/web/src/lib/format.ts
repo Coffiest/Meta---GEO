@@ -17,3 +17,28 @@ export function formatSignedBb(chips: number, bigBlind: number): string {
   const str = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   return `${sign}${str}bb`;
 }
+
+/**
+ * 卓上の金額表示モード。bb=ビッグブラインド換算 / chips=素の点数(チップ)。
+ * トーナメントでは点数でスタックを把握したい場面があるため、自席スタックのタップで切り替える。
+ */
+export type AmountDisplayMode = "bb" | "chips";
+
+/** チップ数を点数表記の文字列に変換する。例: 20400 → "20,400" */
+export function formatChips(chips: number): string {
+  return Math.round(chips).toLocaleString("en-US");
+}
+
+/** 表示モードに応じたbb/点数表記。卓上の金額表示(ポット/ベット/スタック)を一括で切り替える。 */
+export function formatAmount(chips: number, bigBlind: number, mode: AmountDisplayMode): string {
+  return mode === "chips" ? formatChips(chips) : formatBb(chips, bigBlind);
+}
+
+/** 符号付きの表示モード対応表記(例: "+1.5bb" / "+2,400")。ポット獲得バッジ用。 */
+export function formatSignedAmount(chips: number, bigBlind: number, mode: AmountDisplayMode): string {
+  if (mode !== "chips") return formatSignedBb(chips, bigBlind);
+  const rounded = Math.round(chips);
+  if (rounded === 0) return "±0";
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toLocaleString("en-US")}`;
+}

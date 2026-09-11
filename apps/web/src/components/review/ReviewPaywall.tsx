@@ -1,0 +1,194 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { startCheckout, SubscriptionUnavailableError } from "@/lib/subscription";
+import { CouponWallet } from "@/components/CouponWallet";
+
+/**
+ * 棋譜解析の無料枠(24時間ローリング1回)を使い切ったときに、モーダル総括の代わりに表示する
+ * ペイウォール。ロックされた解析のチラ見せ → 使い放題プラン(¥980/月)の価値訴求 → 単一の
+ * 強いCTA(Stripe Checkout)で加入導線を提示する。アイコンは全てSVG。
+ *
+ * 課金せずに開放する手段として、招待で貰った「1ヶ月無料クーポン」をこの場で適用できる。
+ */
+
+const BENEFITS: { title: string; desc: string; icon: IconName }[] = [
+  {
+    title: "棋譜解析が使い放題",
+    desc: "24時間の待ち時間なし。トーナメントを何度でも解析。",
+    icon: "refresh",
+  },
+  {
+    title: "GTO精度スコア & EVロス",
+    desc: "全アクションをGTO基準で採点し、失ったEVを可視化。",
+    icon: "bar-chart",
+  },
+  {
+    title: "ワースト・ベスト & 通し再生",
+    desc: "痛恨のミスと会心の一手をハイライト。全ハンド1手ずつ再生。",
+    icon: "trophy",
+  },
+];
+
+function nextFreeText(nextFreeAt: string | null): string | null {
+  if (!nextFreeAt) return null;
+  const ms = new Date(nextFreeAt).getTime() - Date.now();
+  if (ms <= 0) return null;
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `次の無料解析まで あと約${h}時間` : `次の無料解析まで あと約${Math.max(1, m)}分`;
+}
+
+import { ReportErrorButton } from "../ReportErrorButton";
+import { Icon, type IconName } from "../Icon";
+import { Loader } from "../ui/Loader";
+
+export function ReviewPaywall({
+  tournamentId,
+  accessToken,
+  nextFreeAt,
+  onUnlocked,
+}: {
+  tournamentId: string;
+  accessToken: string | undefined;
+  nextFreeAt: string | null;
+  /** クーポン適用などで解析が開放されたときに呼ばれる(呼び出し側で解析を取り直す)。 */
+  onUnlocked?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const onSubscribe = async () => {
+    if (!accessToken) {
+      setMsg("ご登録にはログインが必要です。");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      await startCheckout(accessToken, tournamentId); // 成功時は Stripe へリダイレクト
+    } catch (e) {
+      setBusy(false);
+      if (e instanceof SubscriptionUnavailableError) {
+        setMsg("決済は現在準備中です。まもなくご利用いただけます。");
+      } else {
+        setMsg("チェックアウトを開始できませんでした。時間をおいてお試しください。");
+      }
+    }
+  };
+
+  const countdown = nextFreeText(nextFreeAt);
+
+  return (
+    <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+      {/* ロックされた解析のチラ見せ */}
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+        className="relative overflow-hidden rounded-[24px] bg-n-4 p-5 shadow-e2"
+      >
+        {/* 背面: ぼかしたスコアのプレビュー */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-between px-5 opacity-20 blur-[3px]">
+          <span className="text-6xl font-black text-white tabular-nums">87%</span>
+          <span className="text-right text-white">
+            <span className="block text-[10px] font-bold uppercase tracking-widest">総ロスEV</span>
+            <span className="block text-2xl font-black tabular-nums">−12.4bb</span>
+          </span>
+        </div>
+        <div className="relative flex flex-col items-center text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
+            <Icon name="lock" className="h-5 w-5" />
+          </span>
+          <p className="mt-3 text-[17px] font-black leading-tight text-white">
+            このトーナメントの解析は<br />使い放題プランで開放
+          </p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-fg-3">
+            無料枠(24時間に1回)は使い切りました。
+            {countdown ? `${countdown}。` : ""}
+            <br />今すぐ全ハンドをGTO解析するには—
+          </p>
+        </div>
+      </motion.div>
+
+      {/* プランカード(ゴールド強調) */}
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
+        className="mt-3 glass-panel rounded-[24px] p-4 ring-2 ring-inset ring-accent shadow-glow"
+      >
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">使い放題プラン</p>
+            <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
+          </div>
+          <p className="text-fg">
+            <span className="text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none">¥980</span>
+            <span className="ml-1 text-[12px] font-bold text-fg-2">/月</span>
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {BENEFITS.map((b) => (
+            <motion.div
+              key={b.title}
+              variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
+              className="flex items-start gap-3"
+            >
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-n-4">
+                <Icon name={b.icon} className="h-4 w-4" style={{ color: "#5FE0C6" }} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-black text-fg leading-tight">{b.title}</p>
+                <p className="text-[11px] leading-snug text-fg-2">{b.desc}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.button
+          variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onSubscribe}
+          disabled={busy}
+          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
+        >
+          {busy ? (
+            <Loader size="sm" />
+          ) : (
+            <>
+              使い放題プランに登録
+              <Icon name="chevron-right" className="h-4 w-4" />
+            </>
+          )}
+        </motion.button>
+
+        {msg && (
+          <div className="mt-2 text-center">
+            <p className="text-[11px] font-bold text-crimson-300">{msg}</p>
+            <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
+          </div>
+        )}
+
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-fg-3">
+          いつでも解約可能・クレジットカード決済(Stripe)
+          <br />
+          <Link href="/legal/tokushoho" className="underline decoration-dotted underline-offset-2 hover:text-n-9">
+            特定商取引法に基づく表記
+          </Link>
+        </p>
+      </motion.div>
+
+      {/* 課金以外の開放手段。招待で貰ったクーポンをここで適用すると1ヶ月無料で解析できる。 */}
+      <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }} className="mt-3">
+        <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
+        <Link
+          href="/"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full glass-panel text-[13px] font-bold text-fg pressable"
+        >
+          <Icon name="user-plus" className="h-4 w-4" />
+          友達を招待してクーポンを増やす
+        </Link>
+      </motion.div>
+    </motion.div>
+  );
+}

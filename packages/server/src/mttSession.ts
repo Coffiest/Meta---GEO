@@ -1,31 +1,98 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import { HandEngine, MultiTableTournament, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, computeMttPrizeStructure, type PayoutPlace } from "@meta-geo/db";
-import { decideBotAction } from "./bot.js";
+import { HandEngine, MultiTableTournament, STARTING_STACK, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
+import {
+  prisma,
+  recordHand,
+  recordBuyIn,
+  recordPayout,
+  refundBuyIn,
+  computeMttPrizeStructure,
+  invalidateRankedEntries,
+  type PayoutPlace,
+} from "@meta-geo/db";
+import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
   MTT_TIME_BANK_CARDS,
+  botDecisionMs,
+  buildSeatAction,
   ensureBotUsers,
-  runoutRevealDelayMs,
+  scheduleStagedRunout,
+  sanitizeChatText,
+  safeStringify,
+  snapshotHandForDiag,
   type HumanPlayer,
   type GameSession,
+  type ChatMessage,
+  type ActionResultCode,
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
+import { activeGames } from "./activeGames.js";
+import { liveStatus } from "./liveStatus.js";
 
-const BOT_ACTION_DELAY_MS = 900;
 const NEXT_HAND_DELAY_MS = 3000;
+/** 人間が離脱した席の自動フォールドなど、進行中のハンドを手早く畳むためだけの短いディレイ。 */
 const FAST_DELAY_MS = 20;
+/**
+ * 人間が誰も座っていない卓(=driveInstantHandで一気に消化される卓)の、次ハンドまでの基準間隔。
+ *
+ * ここが短すぎると「人間が数ハンド打つ間に、他卓だけ100ハンド以上進んでフィールドが溶ける」
+ * という現象が起きる(レベル1でいきなり半分が飛ぶ・アベレージスタックだけ跳ね上がる、の原因)。
+ * 実測の人間卓テンポ(humanHandIntervalMs)に合わせるのが基本で、この値は人間卓のハンドが
+ * まだ1回も完了していない開始直後に使う初期値。
+ */
+const BOT_TABLE_BASE_HAND_MS = 18_000;
+/** ボット卓の間隔の下限/上限(人間卓テンポの実測値をこの範囲に丸める)。 */
+const BOT_TABLE_MIN_HAND_MS = 8_000;
+const BOT_TABLE_MAX_HAND_MS = 60_000;
+/** tournamentInfo(生存者数・アベレージ・ライブ順位)の最小配信間隔。連打すると端末が発熱する。 */
+const TOURNAMENT_INFO_MIN_INTERVAL_MS = 2_000;
 export const MTT_MIN_PLAYERS_TO_START = 4;
 export const MTT_TABLE_SEAT_COUNT = 6;
 export const MTT_BUY_IN = 2000;
+/** 最初の登録から、ボット補充して4人で開始するまでのマッチング時間(15秒)。 */
+export const MTT_MATCH_WINDOW_MS = 15_000;
+/** フィールド上限(ボット補充・リエントリはこの生存人数を超えない)。初期10〜15人+レイトレジ用に余裕を持たせる。 */
+export const MTT_FIELD_CAP = 24;
+/** 開始時に必ず賑わうよう、初期フィールドは10〜15人。人間の不足分をボットで補充する(人間が多ければボットは減る/ゼロ)。 */
+export const MTT_INITIAL_FIELD_MIN = 10;
+export const MTT_INITIAL_FIELD_MAX = 15;
+/** レジストレーションクローズまでの時間(スタートから15分)。 */
+export const MTT_REG_DURATION_MS = 15 * 60_000;
+/** ボット補充の判定間隔(3分)。直近3分に人間の新規参加が0ならボットを1〜2名足す。 */
+export const MTT_BOT_TOPUP_INTERVAL_MS = 3 * 60_000;
+/** MTTのブラインドレベル時間(3分)。SNGは5分だが、MTTはRC=15分でBB=1,000(=20BB)に届くよう短縮。 */
+export const MTT_LEVEL_DURATION_MS = 3 * 60_000;
 
 interface PlayerInfo {
   userId: string;
   displayName: string;
   avatarKey: string | null;
   isBot: boolean;
+}
+
+/**
+ * 1卓ぶんの進行状態(全卓並行進行のための単位)。各卓が独立して自分の `hand` と
+ * ターンクロック(`turnTimer`)を持ち、他卓を待たずに自分のハンドループを回す。
+ * `pumpScheduled` は「次ハンドの開始が予約済み(setTimeout中)」フラグで、二重起動を防ぐ。
+ */
+interface TableRuntime {
+  readonly tableId: number;
+  hand: HandEngine | null;
+  turnTimer: ReturnType<typeof setTimeout> | null;
+  pumpScheduled: boolean;
+  /** 直近に配信した手番クロック。再接続(attachHuman)時にまだ有効なら再送し、復帰後の時計を正しく動かす。 */
+  lastTurn: { seatIndex: number; endsAt: number; durationMs: number; timeBank: boolean } | null;
+  /**
+   * ハンド終了後、精算(settleFinishedHandOnTable)が完了するまで true。
+   * finishHand は rt.hand を先に null にするため、このフラグが無いと精算待ちの卓が busy 扱いから
+   * 外れ、並行する他卓の精算・リバランスがこの卓を解体して精算が `Unknown table` で失敗する
+   * (=ハンド結果が破棄されチップが壊れる)。busyTableIds はこのフラグも参照する。
+   */
+  settling: boolean;
 }
 
 interface HumanEntry {
@@ -35,9 +102,12 @@ interface HumanEntry {
   socket: Socket | null;
   timeBankCards: number;
   timeBankArmed: boolean;
+  /** 離席中(自動チェック/フォールド)。全員の座席に「離席中」を表示するため保持。 */
+  away: boolean;
   left: boolean;
   done: boolean;
-  disconnectTimer: ReturnType<typeof setTimeout> | null;
+  /** 連続タイムアウト回数。2回連続で時間切れになると自動離席。自分でアクションすると0にリセット。 */
+  consecutiveTimeouts: number;
   currentTableId: number | null;
 }
 
@@ -50,41 +120,98 @@ interface HumanEntry {
  *  - レジクロ時点までの総エントリー数でプライズプールとペイアウト構造(WSOP準拠)を確定する。
  *    レジクロ後に参加していたプレイヤーがバストしていても、そのプレイヤーの着順は
  *    バスト順(=通常のトーナメント順位)としてそのまま有効。
- *  - 進行はロックステップ方式: 全体で同時に1ハンドだけをアクティブにし、卓を順番に回して
- *    1ハンドずつ消化する。誰かが着席している卓は対話的なペースで進行し、BOTのみの卓は
- *    瞬時に消化する。これによりハンド間だけで卓のバランシングが起きるというエンジンの
- *    前提を壊さず、複数の人間プレイヤーが別々の卓に同時に座っていても安全に進行できる。
+ *  - 進行は全卓並行方式: 各卓が独立して自分のハンドループ(`pumpTable`)を回し、他卓を待たない
+ *    (実MTTと同じ挙動)。人間が着席している卓は対話的なペースで、BOTのみの卓は瞬時に消化する。
+ *    卓横断の共有状態(ブラインドレベル・バスト順・テーブルバランス/ブレイク)は `engineLock` で
+ *    直列化し、並行する精算どうしが座席移動・卓消滅で競合しないようにする。精算時には「今ハンドが
+ *    動いている他卓」を `busyTableIds` としてエンジンへ渡し、進行中の卓を解体・移動元にしない。
  */
 export class MttSession implements GameSession {
   private mtt: MultiTableTournament | null = null;
-  private hand: HandEngine | null = null;
-  private activeTableId: number | null = null;
+  /** 卓ごとの進行状態(全卓並行進行)。tableId → その卓のハンド/クロック。 */
+  private readonly runtimes = new Map<number, TableRuntime>();
+  /**
+   * エンジンの共有状態(座席・テーブルバランス/ブレイク・バスト順)を変更する処理を
+   * トーナメント単位で直列化するためのロック。並行進行する各卓の精算が同時に
+   * 座席を動かして競合するのを防ぐ。
+   */
+  private engineLock: Promise<unknown> = Promise.resolve();
+  /** リエントリ時に「元の卓・元の席」を希望するための、各人間の直近の着席位置。 */
+  private readonly lastSeatByUser = new Map<string, { tableId: number; seatIndex: number }>();
   private dbTournamentId: string | null = null;
   private readonly playersById = new Map<string, PlayerInfo>();
+  /** 卓ごとの同卓チャットログ(直近50件)。 */
+  private readonly chatLogByTable = new Map<number, ChatMessage[]>();
   private readonly humans = new Map<string, HumanEntry>();
   private pendingRegistrants: HumanPlayer[] = [];
   private started = false;
   private registrationClosed = false;
   private finished = false;
   private entryCount = 0;
+  /**
+   * 人間卓の実測ハンド間隔(EWMA)。ボットだけの卓もこのテンポに揃えることで、
+   * 「自分が1ハンド打つ間に他卓が何十ハンドも進んでフィールドが溶ける」のを防ぐ。
+   */
+  private humanHandIntervalMs = BOT_TABLE_BASE_HAND_MS;
+  /** 直近で人間卓のハンドが完了した時刻(EWMAの差分計算用)。 */
+  private lastHumanHandFinishedAt: number | null = null;
+  /** tournamentInfoの最終配信時刻と、間隔内に来た配信要求をまとめる予約。 */
+  private lastTournamentInfoAt = 0;
+  private tournamentInfoTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 「チップを破棄して離脱」で場から消えたチップの累計。チップ保存則の検算で、
+   * 正当な減少分として期待値から差し引くために持つ。
+   */
+  private forfeitedChips = 0;
   private prizeStructure: PayoutPlace[] = [];
   private bustedOrder: string[] = [];
-  private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
+  private readonly pendingForcedEliminations = new Set<string>();
+  /** リエントリ処理中のユーザー。連打による二重課金・二重着席・entryCount多重加算を防ぐ(H4)。 */
+  private readonly reEntryInFlight = new Set<string>();
   private levelEndsAt = 0;
-  private tableRotation = 0;
-  private acceleratedHands = 0;
+  /**
+   * ハンド履歴のDB書き込みを卓の進行から切り離すための直列キュー。
+   * 進行(finishHand)はこの完了を待たないが、キューで直列化することで
+   * 1セッションあたりの同時接続数を1に抑え、プール枯渇を防ぐ。
+   */
+  private recordQueue: Promise<void> = Promise.resolve();
+  /** 15秒マッチング→ボット補充で開始するためのタイマー。 */
+  private matchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 3分ごとのボット補充タイマー。 */
+  private topupTimer: ReturnType<typeof setInterval> | null = null;
+  /** レジクローズ(スタート+15分)タイマー。 */
+  private regCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 直近の補充判定以降に新規参加した実人間の数(0なら次のtickでボット補充)。 */
+  private humanEntriesSinceLastTopup = 0;
+  /** レジクローズまでの締切時刻(epoch ms)。RC前のクライアント表示用。0=未スタート。 */
+  private registrationClosesAt = 0;
 
   private readonly io: Server;
   readonly buyIn = MTT_BUY_IN;
   private readonly roomPrefix: string;
+  /** 進行フェーズ記録上のこのセッションの識別子(卓ごとに `#t{tableId}` を付ける)。 */
+  private readonly diagScope: string;
+  /** レジクローズした瞬間に呼ばれる(スケジューラが次の募集MTTを開くため)。 */
+  private readonly onRegistrationClosed: (() => void) | undefined;
 
-  constructor(io: Server) {
+  constructor(io: Server, onRegistrationClosed?: () => void) {
     this.io = io;
     this.roomPrefix = `mtt:${randomUUID()}`;
+    this.diagScope = `mtt:${this.roomPrefix.slice(4, 12)}`;
+    this.onRegistrationClosed = onRegistrationClosed;
   }
 
   private tableRoom(tableId: number): string {
     return `${this.roomPrefix}:t${tableId}`;
+  }
+
+  /**
+   * 卓ごとの進行フェーズを1件記録する(停止時に「どの卓のどの段で詰まったか」を特定するための実測値)。
+   * MTTは複数卓が並行して進むため、scope に卓IDまで含める。
+   */
+  private phase(tableId: number, phase: ProgressPhase, detail?: Record<string, unknown>): void {
+    recordPhase(`${this.diagScope}#t${tableId}`, phase, detail);
   }
 
   isFinished(): boolean {
@@ -125,9 +252,10 @@ export class MttSession implements GameSession {
       socket,
       timeBankCards: MTT_TIME_BANK_CARDS,
       timeBankArmed: false,
+      away: false,
       left: false,
       done: false,
-      disconnectTimer: null,
+      consecutiveTimeouts: 0,
       currentTableId: null,
     });
     this.playersById.set(player.userId, { ...player, isBot: false });
@@ -139,13 +267,20 @@ export class MttSession implements GameSession {
       await recordBuyIn({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: this.buyIn });
       socket.emit("mttWaiting", { registered: this.pendingRegistrants.length, needed: MTT_MIN_PLAYERS_TO_START });
       if (this.pendingRegistrants.length >= MTT_MIN_PLAYERS_TO_START) {
-        await this.beginTournament();
+        // 4人(実人間)が集まった瞬間に即開始。
+        await this.beginWithBotFill();
+      } else if (!this.matchTimer) {
+        // 最初の登録者から15秒後に、足りない分をボットで補充して開始する。
+        this.matchTimer = setTimeout(() => void this.beginWithBotFill(), MTT_MATCH_WINDOW_MS);
       }
       return;
     }
 
-    // レイトレジ: 既に進行中のトーナメントへ開始スタックで途中参加
-    const assignment = this.mtt!.registerLatePlayer({ playerId: player.userId, displayName: player.displayName });
+    // レイトレジ: 既に進行中のトーナメントへ開始スタックで途中参加(進行中の卓は動かさない)
+    this.humanEntriesSinceLastTopup += 1;
+    const assignment = await this.runExclusive(() =>
+      this.mtt!.registerLatePlayer({ playerId: player.userId, displayName: player.displayName }, this.busyTableIds()),
+    );
     this.humans.get(player.userId)!.currentTableId = assignment.tableId;
     void socket.join(this.tableRoom(assignment.tableId));
     await prisma.tournamentEntry.create({
@@ -153,6 +288,87 @@ export class MttSession implements GameSession {
     });
     await recordBuyIn({ userId: player.userId, tournamentId: this.dbTournamentId!, amount: this.buyIn });
     this.emitPlayersForTable(assignment.tableId);
+    this.broadcastTournamentInfo();
+    this.reconcileTables();
+  }
+
+  /**
+   * ボットを補充して開始する。開始時のフィールドが最低10〜15人(ランダム)になるよう、実人間の不足分を
+   * 新規ボットで埋めてから開始する。人間がどれだけ少なくても常に10人以上で賑わい、人間が多ければ
+   * ボットは少なく(またはゼロ)なる。15秒マッチング満了時、または実人間が規定数集まった瞬間に呼ばれる。
+   */
+  private async beginWithBotFill(): Promise<void> {
+    if (this.started) return;
+    if (this.matchTimer) {
+      clearTimeout(this.matchTimer);
+      this.matchTimer = null;
+    }
+    // 初期フィールド目標: 10〜15人のランダム。人間の不足分だけボットで補充する。
+    const target =
+      MTT_INITIAL_FIELD_MIN + Math.floor(Math.random() * (MTT_INITIAL_FIELD_MAX - MTT_INITIAL_FIELD_MIN + 1));
+    const need = Math.max(0, target - this.pendingRegistrants.length);
+    if (need > 0) {
+      const bots = await this.freshBots(need);
+      for (const b of bots) {
+        this.entryCount += 1;
+        this.playersById.set(b.id, { userId: b.id, displayName: b.displayName, avatarKey: b.avatarKey, isBot: true });
+        this.pendingRegistrants.push({ userId: b.id, displayName: b.displayName, avatarKey: b.avatarKey });
+      }
+    }
+    await this.beginTournament();
+  }
+
+  /** 既にこのトーナメントに参加していないボットUserを count 体返す(名前重複を避ける)。 */
+  private async freshBots(count: number): Promise<{ id: string; displayName: string; avatarKey: string | null }[]> {
+    const pool = await ensureBotUsers(MTT_FIELD_CAP);
+    return pool.filter((b) => !this.playersById.has(b.id)).slice(0, count);
+  }
+
+  /** 現在の生存人数(全卓の着席者合計)。フィールド上限判定に使う。 */
+  private aliveCount(): number {
+    if (!this.mtt) return this.pendingRegistrants.length;
+    let n = 0;
+    for (const tid of this.mtt.getTableIds()) n += this.mtt.getTableOccupancy(tid).length;
+    return n;
+  }
+
+  /**
+   * ボットを1体、進行中トーナメントへレイトレジ着席させる(補充・リエントリ共通)。
+   * `registerLatePlayer` はエンジンの座席を変更するため、呼び出し側で `engineLock` の
+   * 排他区間内から呼ぶこと(進行中の卓を動かさないよう `busyTableIds` を渡す)。
+   */
+  private addLateBot(b: { id: string; displayName: string; avatarKey: string | null }): void {
+    if (!this.mtt || this.registrationClosed || !this.dbTournamentId) return;
+    this.entryCount += 1;
+    this.playersById.set(b.id, { userId: b.id, displayName: b.displayName, avatarKey: b.avatarKey, isBot: true });
+    const assignment = this.mtt.registerLatePlayer({ playerId: b.id, displayName: b.displayName }, this.busyTableIds());
+    void prisma.tournamentEntry
+      .create({ data: { tournamentId: this.dbTournamentId, userId: b.id, seatIndex: this.entryCount - 1 } })
+      .catch(() => {});
+    this.emitPlayersForTable(assignment.tableId);
+  }
+
+  /**
+   * 3分ごとの補充判定。直近3分に実人間の新規参加が0で、フィールドが上限未満なら
+   * ボットを1〜2名レイトレジさせて場を維持する。
+   */
+  private async botTopupTick(): Promise<void> {
+    if (this.finished || this.registrationClosed || !this.mtt) return;
+    const newHumans = this.humanEntriesSinceLastTopup;
+    this.humanEntriesSinceLastTopup = 0;
+    if (newHumans > 0) return;
+    const room = MTT_FIELD_CAP - this.aliveCount();
+    if (room <= 0) return;
+    const want = Math.min(room, Math.random() < 0.5 ? 1 : 2);
+    const bots = await this.freshBots(want);
+    // addLateBot はエンジンの座席を変更するため排他区間で実行する(docコメントの契約どおり)。
+    if (bots.length > 0) {
+      await this.runExclusive(() => {
+        for (const b of bots) this.addLateBot(b);
+      });
+      this.broadcastTournamentInfo();
+      this.reconcileTables();
+    }
   }
 
   private async ensureDbTournament(): Promise<void> {
@@ -164,11 +380,9 @@ export class MttSession implements GameSession {
   }
 
   private async beginTournament(): Promise<void> {
+    if (this.started) return;
     this.started = true;
-    for (const p of this.pendingRegistrants) {
-      const botCheck = this.playersById.get(p.userId);
-      if (botCheck) botCheck.isBot = false;
-    }
+    // playersById.isBot は登録時に正しく設定済み(人間=false, ボット=true)。ここで上書きしない。
 
     this.mtt = new MultiTableTournament({
       tableSeatCount: MTT_TABLE_SEAT_COUNT,
@@ -179,18 +393,61 @@ export class MttSession implements GameSession {
       data: this.pendingRegistrants.map((p, i) => ({ tournamentId: this.dbTournamentId!, userId: p.userId, seatIndex: i })),
     });
 
+    // レジクローズはスタートから15分後。以降は新規参加・レイトレジ・リエントリ不可。
+    this.registrationClosesAt = Date.now() + MTT_REG_DURATION_MS;
+    this.regCloseTimer = setTimeout(() => this.closeRegistration(), MTT_REG_DURATION_MS);
+    // 3分ごとにボット補充を判定(直近3分に人間の新規参加が無ければ1〜2名足す)。
+    this.topupTimer = setInterval(
+      () => this.botTopupTick().catch((err) => console.error("[mtt] botTopupTick failed:", err)),
+      MTT_BOT_TOPUP_INTERVAL_MS,
+    );
+
     this.syncHumanTables();
     this.scheduleLevelAdvance();
-    this.pump();
+    this.startAllTables();
+  }
+
+  /** エンジンの共有状態を変更する処理を直列化して実行する(卓横断の座席移動・卓消滅の競合防止)。 */
+  private runExclusive<T>(fn: () => T | Promise<T>): Promise<T> {
+    const next = this.engineLock.then(() => fn());
+    this.engineLock = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
+  /** 卓の進行状態を取得(無ければ生成)。 */
+  private runtime(tableId: number): TableRuntime {
+    let rt = this.runtimes.get(tableId);
+    if (!rt) {
+      rt = { tableId, hand: null, turnTimer: null, pumpScheduled: false, lastTurn: null, settling: false };
+      this.runtimes.set(tableId, rt);
+    }
+    return rt;
+  }
+
+  /** 今ハンドが進行中の卓の集合(`exclude` は除く)。テーブルバランス時にこれらを動かさない。 */
+  private busyTableIds(exclude?: number): Set<number> {
+    const s = new Set<number>();
+    for (const [tid, rt] of this.runtimes) {
+      if (tid === exclude) continue;
+      // ハンド進行中に加え、精算完了待ち(settling)の卓もbusy扱いにする。
+      // 精算前に解体・座席変更されるとハンド結果が適用できなくなるため。
+      if ((rt.hand && !rt.hand.isHandComplete()) || rt.settling) s.add(tid);
+    }
+    return s;
   }
 
   attachHuman(socket: Socket, userId: string): void {
     const human = this.humans.get(userId);
     if (!human) return;
     human.socket = socket;
-    if (human.disconnectTimer) {
-      clearTimeout(human.disconnectTimer);
-      human.disconnectTimer = null;
+    // 再接続したら離席状態を解除し、連続タイムアウトもリセット。
+    human.consecutiveTimeouts = 0;
+    if (human.away) {
+      human.away = false;
+      if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
     }
     this.wireHumanSocket(socket, userId);
     if (human.currentTableId !== null) void socket.join(this.tableRoom(human.currentTableId));
@@ -201,32 +458,105 @@ export class MttSession implements GameSession {
     }
     if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
     socket.emit("levelUp", { level: this.mtt!.getCurrentLevel(), endsAt: this.levelEndsAt });
+    this.broadcastTournamentInfo();
+    if (human.currentTableId !== null) {
+      const log = this.chatLogByTable.get(human.currentTableId);
+      if (log && log.length > 0) socket.emit("chatLog", { messages: log });
+    }
     socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
-    if (this.hand && human.currentTableId === this.activeTableId) {
-      socket.emit("state", this.hand.getPublicState());
+    const rt = human.currentTableId !== null ? this.runtimes.get(human.currentTableId) : undefined;
+    if (rt?.hand && !rt.hand.isHandComplete()) {
+      socket.emit("state", rt.hand.getPublicState());
       const seatIndex = this.seatIndexOf(userId);
-      if (seatIndex !== null) socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      if (seatIndex !== null) socket.emit("yourCards", { seatIndex, cards: rt.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      // 復帰後の手番クロックを正しく動かすため、まだ有効な手番タイマーを新ソケットへ再送する。
+      if (rt.lastTurn && rt.lastTurn.endsAt > Date.now() && rt.hand.getActingSeatIndex() === rt.lastTurn.seatIndex) {
+        socket.emit("turnTimer", rt.lastTurn);
+      }
     }
   }
 
   private wireHumanSocket(socket: Socket, userId: string): void {
+    // 同じソケットで再ワイヤーされても、アクション/チャット/リエントリがN重処理されないよう、
+    // 自分が張るゲームイベントを一通り剥がしてから登録し直す。`disconnect` はここで消すと
+    // index.ts の接続数カウンタまで剥がしてしまうため対象外(重複しても早期returnで無害)。
     socket.removeAllListeners("action");
     socket.removeAllListeners("timeBankArm");
-    socket.on("action", (action: PlayerAction) => {
+    socket.removeAllListeners("reEntry");
+    socket.removeAllListeners("sitOut");
+    socket.removeAllListeners("chat");
+    socket.on("action", (action: PlayerAction, ack?: unknown) => {
+      // クライアントのフリーズ診断用ACK。どの分岐で処理が終わったか(=なぜ何も起きなかったか)を
+      // 必ず返すことで、「タップしたのに無反応」の原因をクライアント側で特定できるようにする。
+      const reply = (ok: boolean, code: ActionResultCode) => {
+        if (typeof ack === "function") {
+          try {
+            (ack as (res: { ok: boolean; code: ActionResultCode }) => void)({ ok, code });
+          } catch {
+            /* ACK送信失敗でゲーム進行を止めない */
+          }
+        }
+      };
+      const human = this.humans.get(userId);
+      if (human) {
+        // 自分でアクションしたら連続タイムアウトをリセットし、離席状態なら復帰。
+        human.consecutiveTimeouts = 0;
+        if (human.away) {
+          human.away = false;
+          if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+        }
+      }
+      if (!human) return reply(false, "NOT_IN_TOURNAMENT");
+      const rt = human.currentTableId != null ? this.runtimes.get(human.currentTableId) : undefined;
+      if (!rt) return reply(false, "NO_TABLE");
       const seatIndex = this.seatIndexOf(userId);
-      if (seatIndex !== null) this.handleAction(seatIndex, action);
+      if (seatIndex === null) return reply(false, "NO_SEAT");
+      // ここで例外が漏れると uncaughtException でプロセスごと落ち、全卓・全ゲームが切断される。
+      try {
+        const code = this.handleAction(rt, seatIndex, action);
+        reply(code === "OK", code);
+      } catch (err) {
+        console.error("[mtt] action handler failed:", err);
+        reply(false, "HANDLER_ERROR");
+      }
     });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
       const human = this.humans.get(userId);
       if (human) human.timeBankArmed = Boolean(payload?.armed);
     });
+    socket.on("reEntry", () => this.handleReEntry(userId).catch((err) => console.error("[mtt] reEntry failed:", err)));
+    socket.on("sitOut", (payload: { away?: boolean }) => {
+      const human = this.humans.get(userId);
+      if (!human) return;
+      human.away = Boolean(payload?.away);
+      if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+    });
+    socket.on("chat", (payload: { text?: string }) => {
+      const human = this.humans.get(userId);
+      const text = sanitizeChatText(payload?.text);
+      if (!human || human.currentTableId === null || !text) return;
+      const seatIndex = this.seatIndexOf(userId);
+      if (seatIndex === null) return;
+      const tableId = human.currentTableId;
+      const msg: ChatMessage = { seatIndex, userId, displayName: human.displayName, text, ts: Date.now() };
+      const log = this.chatLogByTable.get(tableId) ?? [];
+      log.push(msg);
+      if (log.length > 50) log.shift();
+      this.chatLogByTable.set(tableId, log);
+      this.io.to(this.tableRoom(tableId)).emit("chat", msg);
+    });
     socket.on("disconnect", () => {
       const human = this.humans.get(userId);
       if (!human || human.socket !== socket) return;
       human.socket = null;
-      human.disconnectTimer = setTimeout(() => {
-        if (!human.socket) this.leave(userId);
-      }, 60_000);
+      // タスクキル/アプリ終了/リフレッシュなどで切断された場合は自動で離席状態にする。手番は
+      // 時間切れで自動処理されるが、席は保持し続ける。
+      if (!human.away && !human.left) {
+        human.away = true;
+        if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
+      }
+      // 重要: 切断だけでは絶対にトーナメントから離脱させない(オーナー指示)。リフレッシュや一時的な
+      // 回線断でチップを失わないよう、離脱は「チップ破棄」ボタン(明示的なleaveGame)かバスト時のみ。
     });
   }
 
@@ -234,11 +564,92 @@ export class MttSession implements GameSession {
     const human = this.humans.get(userId);
     if (!human || this.finished || human.left) return;
     human.left = true;
-    if (this.hand && human.currentTableId === this.activeTableId) {
+
+    // チップを破棄しての離脱は即敗退扱いにする(自動フォールドで生き残らせない)。離脱した席の卓が
+    // まさに今ハンド進行中なら、そのハンドを安全に精算し終えた直後(finishHand側)で確実に処理する。
+    // 進行中でなければ、その場で座席を解放して敗退確定できる(進行中の他卓は動かさない)。
+    const rt = human.currentTableId !== null ? this.runtimes.get(human.currentTableId) : undefined;
+    const midHandOnTheirTable = Boolean(rt?.hand) && !rt!.hand!.isHandComplete();
+    if (midHandOnTheirTable && rt) {
       const seatIndex = this.seatIndexOf(userId);
-      if (seatIndex !== null && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
-        this.handleAction(seatIndex, { kind: "fold" });
+      if (seatIndex !== null && rt.hand!.getActingSeatIndex() === seatIndex) {
+        this.handleAction(rt, seatIndex, { kind: "fold" });
       }
+      this.pendingForcedEliminations.add(userId);
+    } else {
+      void this.runExclusive(() => {
+        this.noteForfeitedChips(userId);
+        this.mtt?.forceEliminate(userId, this.busyTableIds());
+      }).then(() => {
+        if (!this.bustedOrder.includes(userId)) this.bustedOrder.push(userId);
+        void this.recordHumanFinish(human);
+        this.syncHumanTables();
+        this.pruneRuntimes();
+        this.reconcileTables();
+      });
+    }
+  }
+
+  /**
+   * リエントリ。バスト済みの人間が、レジクローズ前かつ場が満員でなければ、-2,000を払って
+   * 開始スタックで復帰する。バスト状態を解除し、レイトレジと同様に着席し直す。
+   */
+  private async handleReEntry(userId: string): Promise<void> {
+    if (this.finished || this.registrationClosed || !this.mtt || !this.dbTournamentId) return;
+    const human = this.humans.get(userId);
+    if (!human || !human.done) return; // バスト済み(done)のみリエントリ可
+    // 連打・重複イベントで二重課金/二重着席/entryCount多重加算が起きないよう、処理中は弾く(H4)。
+    if (this.reEntryInFlight.has(userId)) return;
+    if (this.aliveCount() >= MTT_FIELD_CAP) {
+      human.socket?.emit("actionError", { message: "満員のため今はリエントリできません" });
+      return;
+    }
+
+    this.reEntryInFlight.add(userId);
+    try {
+      // 参加費(-2,000)と新規エントリー記録を先に確定させる。ここが失敗したら着席させずエラーを返す。
+      // 以前は .catch(()=>{}) で握り潰しており、失敗時に「タダでリエントリできる/賞金・順位が壊れる」
+      // 事態を招いていた(H16)。seatIndex は増分前の entryCount を使う(従来の entryCount-1 と同義)。
+      const entrySeatIndex = this.entryCount;
+      try {
+        await recordBuyIn({ userId, tournamentId: this.dbTournamentId, amount: this.buyIn });
+        await prisma.tournamentEntry.create({
+          data: { tournamentId: this.dbTournamentId, userId, seatIndex: entrySeatIndex },
+        });
+      } catch (err) {
+        console.error("[mtt] reEntry charge failed:", err);
+        human.socket?.emit("actionError", {
+          message: "リエントリの処理に失敗しました。時間をおいて再度お試しください。",
+        });
+        return;
+      }
+      // 課金が確定してからカウントを進める(失敗時に多重加算が残らないようにする)。
+      this.entryCount += 1;
+      this.humanEntriesSinceLastTopup += 1;
+
+      // バスト状態を解除して復帰。順位計算のためバスト順からも除く。
+      human.done = false;
+      human.left = false;
+      human.away = false;
+      human.consecutiveTimeouts = 0;
+      const bi = this.bustedOrder.indexOf(userId);
+      if (bi !== -1) this.bustedOrder.splice(bi, 1);
+
+      // 開始スタックで着席し直す。可能なら元の卓・元の席へ(空いていて進行中でなければ)、
+      // 無ければ最少人数卓へ。進行中の卓は動かさない。
+      const pref = this.lastSeatByUser.get(userId);
+      const assignment = await this.runExclusive(() =>
+        this.mtt!.registerLatePlayer({ playerId: userId, displayName: human.displayName }, this.busyTableIds(), pref),
+      );
+      human.currentTableId = assignment.tableId;
+      if (human.socket) void human.socket.join(this.tableRoom(assignment.tableId));
+
+      human.socket?.emit("reEntered", { seatIndex: assignment.seatIndex, tableId: assignment.tableId, stack: 20_000 });
+      this.emitPlayersForTable(assignment.tableId);
+      this.broadcastTournamentInfo();
+      this.reconcileTables();
+    } finally {
+      this.reEntryInFlight.delete(userId);
     }
   }
 
@@ -259,10 +670,15 @@ export class MttSession implements GameSession {
         const human = this.humans.get(occ.playerId);
         if (!human) continue;
         if (human.currentTableId !== tableId) {
+          // 別の卓から移動した場合(初回着席=nullは除く)は、テーブル移動を本人へ通知する。
+          const wasMoved = human.currentTableId !== null;
           if (human.socket && human.currentTableId !== null) void human.socket.leave(this.tableRoom(human.currentTableId));
           human.currentTableId = tableId;
           if (human.socket) void human.socket.join(this.tableRoom(tableId));
           this.emitPlayersForTable(tableId);
+          if (wasMoved) {
+            human.socket?.emit("tableNotice", { kind: "moved", message: "テーブルが移動しました" });
+          }
         }
       }
     }
@@ -275,40 +691,158 @@ export class MttSession implements GameSession {
     return false;
   }
 
-  // --- 進行のメインループ ---
+  // --- 進行のメインループ(全卓並行) ---
 
-  private pump(): void {
+  /** 全卓のハンドループを起動する(トーナメント開始時に一度だけ呼ぶ)。 */
+  private startAllTables(): void {
     const mtt = this.mtt;
     if (!mtt || this.finished) return;
     if (mtt.isTournamentOver()) {
       void this.finishTournament();
       return;
     }
+    for (const tableId of mtt.getTableIds()) this.pumpTable(tableId);
+  }
 
-    const tableIds = mtt.getTableIds().filter((id) => mtt.getTableOccupancy(id).length >= 2);
-    if (tableIds.length === 0) {
+  /**
+   * 待機中(ハンド未進行かつ次ハンド未予約)の卓のうち、2人以上いる卓のループを起動する。
+   * リバランスで人が移ってきた卓・新設された卓を拾うため、精算後や途中参加後に呼ぶ。
+   */
+  private reconcileTables(): void {
+    const mtt = this.mtt;
+    if (!mtt || this.finished) return;
+    if (mtt.isTournamentOver()) {
       void this.finishTournament();
       return;
     }
-    const tableId = tableIds[this.tableRotation % tableIds.length]!;
-    this.tableRotation += 1;
+    for (const tableId of mtt.getTableIds()) {
+      const rt = this.runtime(tableId);
+      if (rt.hand && !rt.hand.isHandComplete()) continue; // 進行中
+      if (rt.pumpScheduled) continue; // 次ハンド予約済み
+      if (mtt.getTableOccupancy(tableId).length < 2) continue; // リバランス待ち
+      this.pumpTable(tableId);
+    }
+  }
 
-    this.activeTableId = tableId;
-    this.hand = mtt.startNextHandOnTable(tableId);
+  /** getTableIds に存在しなくなった(解体された)卓の進行状態を破棄する。 */
+  private pruneRuntimes(): void {
+    if (!this.mtt) return;
+    const live = new Set(this.mtt.getTableIds());
+    for (const [tid, rt] of [...this.runtimes]) {
+      if (!live.has(tid)) {
+        if (rt.turnTimer) clearTimeout(rt.turnTimer);
+        this.runtimes.delete(tid);
+      }
+    }
+  }
 
-    if (this.tableHasHuman(tableId)) {
-      this.emitPlayersForTable(tableId);
-      this.broadcastState();
-      this.sendYourCardsForTable(tableId);
-      this.scheduleTurn();
-    } else {
-      this.driveInstantHand();
+  /** 指定卓の次のハンドを開始し、その卓だけを進める(他卓は待たない)。 */
+  private pumpTable(tableId: number, attempt = 0): void {
+    const mtt = this.mtt;
+    if (!mtt || this.finished) return;
+    const rt = this.runtime(tableId);
+    rt.pumpScheduled = false;
+    this.phase(tableId, "nextHandStarting", { attempt });
+    if (mtt.isTournamentOver()) {
+      this.phase(tableId, "tournamentFinishing", { from: "pumpTable" });
+      void this.finishTournament();
+      return;
+    }
+    // 以下3つの早期returnは、いずれも「次ハンドが予約されないまま卓が止まる」経路。
+    // 黙って抜けると理由が残らないため、どの条件で抜けたかを必ず記録する。
+    if (!mtt.getTableIds().includes(tableId)) {
+      // すでに解体された卓。進行状態を破棄して終了。
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "tableBroken" });
+      if (rt.turnTimer) clearTimeout(rt.turnTimer);
+      this.runtimes.delete(tableId);
+      return;
+    }
+    if (rt.hand && !rt.hand.isHandComplete()) {
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "handAlreadyRunning" });
+      return; // 既に進行中
+    }
+    const occupancy = mtt.getTableOccupancy(tableId).length;
+    if (occupancy < 2) {
+      // リバランス/ブレイク待ち。これ自体は正常な待機だが、ここで待ち続けたまま復帰しない
+      // ケースの切り分けに必要なので記録は残す。
+      this.phase(tableId, "abortedEarlyReturn", { at: "pumpTable", reason: "occupancyBelow2", occupancy });
+      return;
+    }
+
+    // 万一startNextHandOnTableが失敗しても、その卓だけを再試行(最大5回・2秒間隔)する。
+    try {
+      rt.hand = mtt.startNextHandOnTable(tableId);
+    } catch (err) {
+      console.error(`[mtt] pumpTable failed on table ${tableId} (attempt ${attempt}):`, err);
+      this.phase(tableId, "nextHandFailed", {
+        attempt,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
+      rt.hand = null;
+      if (attempt < 5) {
+        this.io.to(this.tableRoom(tableId)).emit("tableNotice", {
+          kind: "retrying",
+          message: "サーバー内部エラーのため、次のハンドの開始を再試行しています…",
+        });
+        rt.pumpScheduled = true;
+        setTimeout(() => this.pumpTable(tableId, attempt + 1), 2000);
+      } else {
+        this.io.to(this.tableRoom(tableId)).emit("tableNotice", {
+          kind: "stalled",
+          message: "サーバー内部エラーで次のハンドを開始できませんでした。アプリを再読み込みして卓へ復帰してください。",
+        });
+      }
+      return;
+    }
+    this.phase(tableId, "nextHandStarted", { attempt, occupancy });
+    this.pumpTablePostStart(rt, tableId, attempt);
+  }
+
+  /**
+   * ハンド開始直後の配信・手番スケジュールのみを行う。ここで例外が出ても卓ごと固まらない・
+   * プロセスを落とさないよう防御する(例外はこの卓の再試行として扱い、他卓へ波及させない)。
+   *
+   * 重要(H6): 失敗時の再試行は pumpTable ではなく自分自身を呼ぶ。pumpTable へ戻すと、rt.hand が
+   * セット済みのため先頭の「既に進行中」ガードで必ず早期returnし、卓が永久停止する。また rt.hand を
+   * 作り直す(startNextHandOnTable 再実行)とボタンが二重に進みハンドが破棄されるため、
+   * 既存の rt.hand に対してこの後処理だけをやり直す。
+   */
+  private pumpTablePostStart(rt: TableRuntime, tableId: number, attempt: number): void {
+    rt.pumpScheduled = false;
+    const hand = rt.hand;
+    if (!hand) return;
+    try {
+      if (hand.isHandComplete()) {
+        // 開始と同時に完了したハンド(ブラインドで全員オールインの配剥け等)。
+        // scheduleTurn は完了済みハンドを扱わないため、ここで精算まで進めないと卓が永久に固まる。
+        if (this.tableHasHuman(tableId)) {
+          this.emitPlayersForTable(tableId);
+          this.broadcastStateForTable(tableId);
+          this.sendYourCardsForTable(tableId);
+        }
+        void this.finishHand(rt);
+        return;
+      }
+      if (this.tableHasHuman(tableId)) {
+        this.emitPlayersForTable(tableId);
+        this.broadcastStateForTable(tableId);
+        this.sendYourCardsForTable(tableId);
+        this.scheduleTurn(rt);
+      } else {
+        this.driveInstantHand(rt);
+      }
+    } catch (err) {
+      console.error(`[mtt] pumpTable post-start failed on table ${tableId} (attempt ${attempt}):`, err);
+      if (attempt < 5) {
+        rt.pumpScheduled = true;
+        setTimeout(() => this.pumpTablePostStart(rt, tableId, attempt + 1), 2000);
+      }
     }
   }
 
   /** BOTのみ(または全員離脱済み)の卓のハンドを同期的に最後まで消化する。 */
-  private driveInstantHand(): void {
-    const hand = this.hand;
+  private driveInstantHand(rt: TableRuntime): void {
+    const hand = rt.hand;
     if (!hand) return;
     let guard = 0;
     while (!hand.isHandComplete() && guard++ < 500) {
@@ -317,47 +851,90 @@ export class MttSession implements GameSession {
       const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === acting)?.playerId;
       const human = playerId ? this.humans.get(playerId) : undefined;
       try {
-        hand.applyAction(acting, human ? { kind: "fold" } : this.computeBotAction(acting));
+        hand.applyAction(acting, human ? { kind: "fold" } : this.computeBotAction(rt, acting));
       } catch {
         hand.applyAction(acting, { kind: "fold" });
       }
     }
-    void this.finishHand();
+    void this.finishHand(rt);
   }
 
-  private handleAction(seatIndex: number, action: PlayerAction): void {
-    const hand = this.hand;
-    if (!hand || hand.isHandComplete()) return;
-    if (hand.getActingSeatIndex() !== seatIndex) return;
+  private handleAction(rt: TableRuntime, seatIndex: number, action: PlayerAction): ActionResultCode {
+    // タイマー/ソケット双方から呼ばれるため、例外を外へ漏らさない(漏れるとプロセス死=全ゲーム切断)。
+    try {
+      return this.handleActionInner(rt, seatIndex, action);
+    } catch (err) {
+      console.error(`[mtt] handleAction failed on table ${rt.tableId}:`, err);
+      // 例外でハンドが宙ぶらりんのまま卓が永久停止しないよう、必ず進行を再武装する(H7)。
+      // 完了していれば精算、未完了なら手番タイマーを張り直し「時間切れ→自動処理」で先へ進める。
+      try {
+        if (rt.hand?.isHandComplete()) void this.finishHand(rt);
+        else if (rt.hand) this.scheduleTurn(rt);
+      } catch (err2) {
+        console.error(`[mtt] recovery after handler failure also failed on table ${rt.tableId}:`, err2);
+      }
+      return "HANDLER_ERROR";
+    }
+  }
+
+  private handleActionInner(rt: TableRuntime, seatIndex: number, action: PlayerAction): ActionResultCode {
+    const hand = rt.hand;
+    if (!hand) return "NO_HAND";
+    if (hand.isHandComplete()) return "HAND_COMPLETE";
+    if (hand.getActingSeatIndex() !== seatIndex) return "NOT_YOUR_TURN";
+    const tableId = rt.tableId;
     const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === seatIndex)?.playerId;
     const human = playerId ? this.humans.get(playerId) : undefined;
-    const boardLenBefore = hand.getPublicState().board.length;
+    const preState = hand.getPublicState();
+    const boardLenBefore = preState.board.length;
+    let effectiveAction = action;
     try {
       hand.applyAction(seatIndex, action);
     } catch (err) {
       if (!human || human.left) {
         hand.applyAction(seatIndex, { kind: "fold" });
+        effectiveAction = { kind: "fold" };
       } else {
         human.socket?.emit("actionError", { message: (err as Error).message });
-        return;
+        return "REJECTED";
       }
     }
-    if (this.tableHasHuman(this.activeTableId!)) this.broadcastState();
-    if (hand.isHandComplete()) {
-      const delay = runoutRevealDelayMs(boardLenBefore, hand.getPublicState().board.length);
-      if (delay > 0) setTimeout(() => void this.finishHand(), delay);
-      else void this.finishHand();
-    } else {
-      this.scheduleTurn();
+    const tableHasHuman = this.tableHasHuman(tableId);
+    // ストリートを閉じるアクションもアイコンに一瞬表示されるよう、状態更新と別に seatAction を発火する。
+    if (tableHasHuman) {
+      this.io.to(this.tableRoom(tableId)).emit("seatAction", buildSeatAction(seatIndex, effectiveAction, preState));
     }
+    if (hand.isHandComplete()) {
+      const boardGrew = hand.getPublicState().board.length > boardLenBefore;
+      // ボードが自動展開された=オールインでベッティングが閉じたケース。ルール上の順序どおり
+      // 「先にショウダウン→ストリートごとにボード公開→結果処理」で配信する(人間がいる卓のみ)。
+      if (boardGrew && tableHasHuman) {
+        const room = this.tableRoom(tableId);
+        scheduleStagedRunout({
+          hand,
+          boardLenBefore,
+          emitState: (state) => this.io.to(room).emit("state", state),
+          emitShowdown: (holeCards) => this.io.to(room).emit("showdownReveal", { holeCards }),
+          isStillCurrent: () => rt.hand === hand && !this.finished,
+          onDone: () => void this.finishHand(rt),
+        });
+      } else {
+        if (tableHasHuman) this.broadcastStateForTable(tableId);
+        void this.finishHand(rt);
+      }
+    } else {
+      if (tableHasHuman) this.broadcastStateForTable(tableId);
+      this.scheduleTurn(rt);
+    }
+    return "OK";
   }
 
-  private scheduleTurn(): void {
-    if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
-      this.turnTimer = null;
+  private scheduleTurn(rt: TableRuntime): void {
+    if (rt.turnTimer) {
+      clearTimeout(rt.turnTimer);
+      rt.turnTimer = null;
     }
-    const hand = this.hand;
+    const hand = rt.hand;
     if (!hand || hand.isHandComplete()) return;
     const actingSeat = hand.getActingSeatIndex();
     if (actingSeat === null) return;
@@ -365,77 +942,341 @@ export class MttSession implements GameSession {
     const human = playerId ? this.humans.get(playerId) : undefined;
 
     if (!human) {
-      const delay = this.tableHasHuman(this.activeTableId!) ? BOT_ACTION_DELAY_MS : FAST_DELAY_MS;
-      this.turnTimer = setTimeout(() => {
-        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handleAction(actingSeat, this.computeBotAction(actingSeat));
-      }, delay);
+      // 実際に選ぶアクションを先に確定し、人間と同じ20秒のショットクロックの中で動かす。
+      const botAction = this.computeBotAction(rt, actingSeat);
+      this.scheduleBotTurn(rt, actingSeat, botAction);
       return;
     }
 
     if (human.left) {
-      this.turnTimer = setTimeout(() => {
-        if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
-        this.handleAction(actingSeat, { kind: "fold" });
+      rt.turnTimer = setTimeout(() => {
+        if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
+        this.handleAction(rt, actingSeat, { kind: "fold" });
       }, FAST_DELAY_MS);
       return;
     }
 
-    this.armHumanClock(actingSeat, human, ACTION_CLOCK_MS);
+    this.armHumanClock(rt, actingSeat, human, ACTION_CLOCK_MS);
   }
 
-  private armHumanClock(actingSeat: number, human: HumanEntry, durationMs: number): void {
+  /**
+   * 自動プレイヤーの手番。人間と同じ20秒のショットクロックを表示し、その中の決めた時刻でアクション
+   * する(早め〜ギリギリ)。20秒で決めきれない場合はタイムバンクで延長する。人間不在卓は即消化。
+   */
+  /** 手番クロックを卓へ配信しつつ、再接続時の再送用に卓ごとの最新値を保持する。 */
+  /**
+   * 手番クロックを卓へ配信する。`timeBank` は「この延長がタイムバンクによるもの」を表し、
+   * クライアントはそれを見て演出を出す。
+   *
+   * 重要: このフラグは相手が誰であっても同じ条件で立てる(人間の消費でも自動プレイヤーの長考でも
+   * 同じ)。ここに差を作ると、演出の出方そのものが相手の種別を推測する手掛かりになってしまう。
+   */
+  private emitTurnTimer(
+    rt: TableRuntime,
+    seatIndex: number,
+    endsAt: number,
+    durationMs: number,
+    timeBank = false,
+  ): void {
+    rt.lastTurn = { seatIndex, endsAt, durationMs, timeBank };
+    this.io.to(this.tableRoom(rt.tableId)).emit("turnTimer", { seatIndex, endsAt, durationMs, timeBank });
+  }
+
+  private scheduleBotTurn(rt: TableRuntime, actingSeat: number, botAction: PlayerAction): void {
+    const room = this.tableRoom(rt.tableId);
+    const act = () => {
+      if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
+      this.handleAction(rt, actingSeat, botAction);
+    };
+    if (!this.tableHasHuman(rt.tableId)) {
+      rt.turnTimer = setTimeout(act, FAST_DELAY_MS);
+      return;
+    }
+    const street = rt.hand?.getPublicState().street ?? "preflop";
+    const decision = botDecisionMs(street, botAction);
+    this.emitTurnTimer(rt, actingSeat, Date.now() + ACTION_CLOCK_MS, ACTION_CLOCK_MS);
+    if (decision <= ACTION_CLOCK_MS) {
+      rt.turnTimer = setTimeout(act, decision);
+      return;
+    }
+    // 20秒で決めきれず、タイムバンクを使って延長する。
+    rt.turnTimer = setTimeout(() => {
+      if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
+      this.emitTurnTimer(rt, actingSeat, Date.now() + TIME_BANK_EXTENSION_MS, TIME_BANK_EXTENSION_MS, true);
+      rt.turnTimer = setTimeout(act, Math.min(decision - ACTION_CLOCK_MS, TIME_BANK_EXTENSION_MS - 1000));
+    }, ACTION_CLOCK_MS);
+  }
+
+  private armHumanClock(
+    rt: TableRuntime,
+    actingSeat: number,
+    human: HumanEntry,
+    durationMs: number,
+    timeBank = false,
+  ): void {
     const endsAt = Date.now() + durationMs;
-    this.io.to(this.tableRoom(this.activeTableId!)).emit("turnTimer", { seatIndex: actingSeat, endsAt, durationMs });
-    this.turnTimer = setTimeout(() => {
-      const current = this.hand;
+    this.emitTurnTimer(rt, actingSeat, endsAt, durationMs, timeBank);
+    rt.turnTimer = setTimeout(() => {
+      const current = rt.hand;
       if (!current || current.isHandComplete() || current.getActingSeatIndex() !== actingSeat) return;
 
       if (human.timeBankArmed && human.timeBankCards > 0 && !human.left) {
         human.timeBankCards -= 1;
         human.socket?.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed, consumed: true });
-        this.armHumanClock(actingSeat, human, TIME_BANK_EXTENSION_MS);
+        this.armHumanClock(rt, actingSeat, human, TIME_BANK_EXTENSION_MS, true);
         return;
+      }
+
+      // 連続タイムアウトを数え、2回連続で時間切れになったら自動で離席状態にする。
+      human.consecutiveTimeouts += 1;
+      if (human.consecutiveTimeouts >= 2 && !human.away) {
+        human.away = true;
+        if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
       }
 
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
-      this.handleAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
+      this.handleAction(rt, actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
     }, durationMs);
   }
 
-  private computeBotAction(seatIndex: number): PlayerAction {
-    const hand = this.hand!;
+  private computeBotAction(rt: TableRuntime, seatIndex: number): PlayerAction {
+    const hand = rt.hand!;
     const state = hand.getPublicState();
-    const seat = state.seats.find((s) => s.seatIndex === seatIndex)!;
+    const seat = state.seats.find((s) => s.seatIndex === seatIndex);
+    if (!seat) return { kind: "fold" };
     const holeCards = hand.getSeatHoleCards(seatIndex);
     if (holeCards.length !== 2) return { kind: "fold" };
-    return decideBotAction({
-      street: state.street,
-      holeCards: holeCards as unknown as readonly [Card, Card],
-      board: state.board,
-      currentBetToMatch: state.currentBetToMatch,
-      streetContribution: seat.streetContribution,
-      minRaiseToAmount: hand.getMinRaiseToAmount(),
-      potBefore: state.potTotal,
-      stack: seat.stack,
-      canRaise: !seat.hasActedThisStreet,
-    });
+    const activeOpponentCount = state.seats.filter(
+      (s) => s.seatIndex !== seatIndex && (s.status === "active" || s.status === "allIn"),
+    ).length;
+    // ボットの意思決定が万一失敗しても手番(卓・プロセス)を止めない:チェック可ならチェック、でなければフォールド。
+    try {
+      return decideBotAction({
+        street: state.street,
+        holeCards: holeCards as unknown as readonly [Card, Card],
+        board: state.board,
+        currentBetToMatch: state.currentBetToMatch,
+        streetContribution: seat.streetContribution,
+        minRaiseToAmount: hand.getMinRaiseToAmount(),
+        potBefore: state.potTotal,
+        stack: seat.stack,
+        canRaise: !seat.hasActedThisStreet,
+        activeOpponentCount,
+        bigBlind: this.mtt?.getCurrentLevel().bigBlind,
+        isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
+      });
+    } catch (err) {
+      console.error("[mtt] decideBotAction failed (fallback to check/fold):", err);
+      return state.currentBetToMatch - seat.streetContribution <= 0 ? { kind: "check" } : { kind: "fold" };
+    }
   }
 
-  private async finishHand(): Promise<void> {
+  private async finishHand(rt: TableRuntime): Promise<void> {
     const mtt = this.mtt;
-    const hand = this.hand;
-    const tableId = this.activeTableId;
-    if (!mtt || !hand || tableId === null || !this.dbTournamentId) return;
+    const hand = rt.hand;
+    const tableId = rt.tableId;
+    // ここで黙って return すると次ハンドが永久に予約されず、その卓がそのまま固まる。
+    // とくに dbTournamentId が null(=DB書き込み失敗)のケースは、ハンドが終わるたびに必ず
+    // この経路へ落ちるため「毎ハンド固まる」挙動になっていた。記録を残したうえで、
+    // DB記録だけ諦めて進行は続ける。
+    if (!mtt || !hand || !this.dbTournamentId) {
+      this.phase(tableId, "abortedEarlyReturn", {
+        at: "finishHand",
+        hasMtt: Boolean(mtt),
+        hasHand: Boolean(hand),
+        hasDbTournamentId: Boolean(this.dbTournamentId),
+      });
+      if (mtt && hand && !this.dbTournamentId) {
+        this.io.to(this.tableRoom(tableId)).emit("tableNotice", {
+          kind: "retrying",
+          message: "対局記録の保存先が初期化できていないため、記録なしで進行します。",
+        });
+        rt.hand = null;
+        if (rt.turnTimer) {
+          clearTimeout(rt.turnTimer);
+          rt.turnTimer = null;
+        }
+        await this.runExclusive(() => {
+          try {
+            mtt.settleFinishedHandOnTable(tableId, hand, this.busyTableIds(tableId));
+          } catch {
+            /* 清算済みなら無視 */
+          }
+        });
+        if (mtt.isTournamentOver()) {
+          void this.finishTournament();
+          return;
+        }
+        if (mtt.getTableIds().includes(tableId)) {
+          rt.pumpScheduled = true;
+          this.phase(tableId, "nextHandScheduled", { delayMs: NEXT_HAND_DELAY_MS, withoutDb: true });
+          setTimeout(() => this.pumpTable(tableId), NEXT_HAND_DELAY_MS);
+        }
+        this.reconcileTables();
+      }
+      return;
+    }
 
-    const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted");
     const tableHadHuman = this.tableHasHuman(tableId);
+    this.phase(tableId, "finishHandEntered", { tableHadHuman });
+    // 精算が完了するまでこの卓はbusy扱いを維持する(rt.handを先にnullへ落とすため、settlingフラグで守る)。
+    // これが無いと、並行する他卓の精算・ボット補充のリバランスがこの卓を解体し、
+    // 精算が Unknown table で失敗してハンド結果(スタック・バスト)が破棄される。
+    rt.settling = true;
+    rt.hand = null;
+    if (rt.turnTimer) {
+      clearTimeout(rt.turnTimer);
+      rt.turnTimer = null;
+    }
 
-    if (started && started.type === "handStarted") {
+    // このメソッドの途中で何が失敗しても、末尾の「次ハンドの再スケジュール」には必ず到達させる
+    // (ここが飛ぶと、ショウダウン直後にその卓が永久に固まる)。
+    try {
+      await this.finishHandInner(mtt, hand, tableId, tableHadHuman);
+      this.phase(tableId, "finishHandInnerDone");
+    } catch (err) {
+      this.phase(tableId, "finishHandInnerDone", {
+        failed: true,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
+      // 再発時の原因切り分け用に、失敗したハンドの盤面・各席の状態/拠出・ポット内訳を構造化出力する。
+      console.error(
+        "[mtt] finishHand failed (proceeding):",
+        err,
+        `table=${tableId}`,
+        "\n[mtt] hand diagnostics:",
+        safeStringify(snapshotHandForDiag(hand)),
+      );
+      // 清算前に失敗した可能性に備えて一度だけ清算を試みる(排他区間で)。
+      await this.runExclusive(() => {
+        try {
+          mtt.settleFinishedHandOnTable(tableId, hand, this.busyTableIds(tableId));
+        } catch {
+          /* 清算済みなら無視 */
+        }
+      });
+      // 最低限の保証: この卓を正常に完了できなかった=サーバー側の異常。該当卓の人間へ参加費を返金する
+      // (refundBuyInは同一トーナメント×ユーザーで1回だけの冪等処理。二重返金にはならない)。
+      const tid = this.dbTournamentId;
+      if (tid) {
+        for (const human of this.humans.values()) {
+          if (human.currentTableId !== tableId) continue;
+          void refundBuyIn({ userId: human.userId, tournamentId: tid, amount: this.buyIn }).catch((e) =>
+            console.error("[mtt] refundBuyIn failed:", e),
+          );
+        }
+      }
+    } finally {
+      rt.settling = false;
+    }
+
+    this.syncHumanTables();
+    this.pruneRuntimes();
+
+    if (mtt.isTournamentOver()) {
+      this.phase(tableId, "tournamentFinishing", { reason: "tournamentOver" });
+      void this.finishTournament();
+      return;
+    }
+
+    // 人間が誰も残っていないMTTをBOTだけで回し続けない。以前はここから20ms間隔で全卓のハンドを
+    // 延々と生成し続け(1卓あたり毎秒50ハンド)、CPUとDB接続を空回りで食い潰していた。
+    // 人間の着順は離脱・バスト時点で確定済みなので、残りはその場で着順を決めて即終了する。
+    const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
+    if (!anyoneActive) {
+      this.phase(tableId, "tournamentFinishing", { reason: "noHumansActive" });
+      void this.finishTournament();
+      return;
+    }
+
+    // 人間卓のテンポを実測しておく(ボット卓の間隔をこれに合わせる)。
+    if (tableHadHuman) {
+      const now = Date.now();
+      if (this.lastHumanHandFinishedAt !== null) {
+        const observed = now - this.lastHumanHandFinishedAt;
+        if (observed > 0) {
+          const clamped = Math.min(BOT_TABLE_MAX_HAND_MS, Math.max(BOT_TABLE_MIN_HAND_MS, observed));
+          this.humanHandIntervalMs = Math.round(this.humanHandIntervalMs * 0.7 + clamped * 0.3);
+        }
+      }
+      this.lastHumanHandFinishedAt = now;
+    }
+
+    // この卓の次ハンドを予約しつつ、リバランスで人が入った他の待機卓も起動する。
+    // 人間不在の卓(=同期的に一気消化される卓)は、人間卓と同じテンポまで意図的に落とす。
+    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : this.botTableHandIntervalMs();
+    if (this.mtt?.getTableIds().includes(tableId)) {
+      rt.pumpScheduled = true;
+      this.phase(tableId, "nextHandScheduled", { delayMs: delay, tableHadHuman });
+      setTimeout(() => this.pumpTable(tableId), delay);
+    } else {
+      // 卓が解体された。人間はリバランスで別卓へ移るので、移動が起きなければここが最終フェーズになる。
+      this.phase(tableId, "abortedEarlyReturn", { at: "finishHand:schedule", reason: "tableBroken" });
+    }
+    this.reconcileTables();
+  }
+
+  /**
+   * チップを破棄して離脱する席のスタックを「場から消えたチップ」として記録する。
+   * forceEliminate を呼ぶ **前** に呼ぶこと(呼んだ後では座席が消えてスタックが読めない)。
+   */
+  private noteForfeitedChips(playerId: string): void {
+    const mtt = this.mtt;
+    if (!mtt) return;
+    for (const tid of mtt.getTableIds()) {
+      for (const o of mtt.getTableOccupancy(tid)) {
+        if (o.playerId === playerId) {
+          this.forfeitedChips += o.stack;
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * ボットだけの卓の次ハンドまでの間隔。人間卓の実測テンポに合わせ、下限/上限で丸める。
+   * これによりフィールドの減り方が「自分が体感しているハンド数」と釣り合う。
+   */
+  private botTableHandIntervalMs(): number {
+    return Math.min(BOT_TABLE_MAX_HAND_MS, Math.max(BOT_TABLE_MIN_HAND_MS, this.humanHandIntervalMs));
+  }
+
+  /** ハンド履歴の保存を直列キューへ積む(進行はこの完了を待たない)。 */
+  private enqueueRecordHand(input: Parameters<typeof recordHand>[0]): void {
+    this.recordQueue = this.recordQueue
+      .then(() => recordHand(input))
+      .then(() => undefined)
+      .catch((err) => {
+        console.error("[mtt] recordHand failed:", err);
+        // 進行は止めないが、プール枯渇(P2024)や接続不可(P1001)の決定的な証拠になるので残す。
+        recordPhase(this.diagScope, "recordHandSkipped", {
+          reason: "saveFailed",
+          error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+        });
+      });
+  }
+
+  private async finishHandInner(
+    mtt: MultiTableTournament,
+    hand: HandEngine,
+    tableId: number,
+    tableHadHuman: boolean,
+  ): Promise<void> {
+    const dbTournamentId = this.dbTournamentId;
+    if (!dbTournamentId) return;
+    // この卓の直近の handStarted を拾う(並行進行では他卓のイベントが後に積まれているため tableId で絞る)。
+    const started = [...mtt.getEvents()].reverse().find((e) => e.type === "handStarted" && e.tableId === tableId);
+
+    // BOTだけのハンドは誰も参照しない(ハンド履歴もレビューも人間の席が対象)。保存を丸ごと省いて
+    // DB書き込みと接続プールの消費を止める。「このハンドに人間が着席していたか」で判定するため、
+    // このハンドでバストした人間の最終ハンドはきちんと保存される。
+    const handHadHuman = hand.getPublicState().seats.some((s) => this.humans.has(s.playerId));
+
+    if (started && started.type === "handStarted" && handHadHuman) {
       const occupancy = mtt.getTableOccupancy(tableId);
-      await recordHand({
-        tournamentId: this.dbTournamentId,
+      this.enqueueRecordHand({
+        tournamentId: dbTournamentId,
         handNumber: started.handNumber,
         buttonFixedPos: started.buttonFixedPos,
         levelSmallBlind: started.level.smallBlind,
@@ -447,9 +1288,13 @@ export class MttSession implements GameSession {
           startingStack: occupancy.find((o) => o.seatIndex === s.seatIndex)?.stack ?? 0,
           isSmallBlind: s.seatIndex === started.smallBlindSeat,
           isBigBlind: s.seatIndex === started.bigBlindSeat,
+          wasAway: this.humans.get(s.playerId)?.away ?? false,
         })),
         hand,
-      }).catch((err) => console.error("[mtt] recordHand failed:", err));
+      });
+      this.phase(tableId, "recordHandQueued", { handNumber: started.handNumber });
+    } else {
+      this.phase(tableId, "recordHandSkipped", { hasStartedEvent: Boolean(started), handHadHuman });
     }
 
     if (tableHadHuman) {
@@ -462,42 +1307,92 @@ export class MttSession implements GameSession {
         holeCards: revealedHoleCards,
         remainingPlayers: mtt.totalRemainingPlayers(),
       });
+      this.phase(tableId, "handEndedEmitted");
     }
 
-    mtt.settleFinishedHandOnTable(tableId, hand);
-    const settled = [...mtt.getEvents()].reverse().find((e) => e.type === "handFinished");
-    if (settled && settled.type === "handFinished") {
-      this.bustedOrder.push(...settled.bustedPlayerIds);
-      for (const playerId of settled.bustedPlayerIds) {
+    // --- エンジンの座席変更(精算・テーブルバランス・強制敗退)は排他区間で直列化する。
+    // 進行中の他卓は動かさないよう busyTableIds(自卓は既に完了なので除外)を渡す。
+    const critical = await this.runExclusive(() => {
+      mtt.settleFinishedHandOnTable(tableId, hand, this.busyTableIds(tableId));
+      const settled = [...mtt.getEvents()].reverse().find((e) => e.type === "handFinished" && e.tableId === tableId);
+      const bustedPlayerIds = settled && settled.type === "handFinished" ? [...settled.bustedPlayerIds] : [];
+      this.bustedOrder.push(...bustedPlayerIds);
+
+      // このハンド中に離脱した人間を、通常のバスト判定を待たずここで確実に敗退確定する。
+      const forced: string[] = [];
+      for (const playerId of [...this.pendingForcedEliminations]) {
         const human = this.humans.get(playerId);
-        if (human && !human.done) await this.recordHumanFinish(human);
+        if (!human || human.currentTableId !== tableId) continue;
+        this.pendingForcedEliminations.delete(playerId);
+        if (human.done) continue;
+        this.noteForfeitedChips(playerId);
+        mtt.forceEliminate(playerId, this.busyTableIds(tableId));
+        if (!this.bustedOrder.includes(playerId)) this.bustedOrder.push(playerId);
+        forced.push(playerId);
+      }
+
+      let bustedBots = 0;
+      for (const playerId of bustedPlayerIds) {
+        if (!this.humans.get(playerId)) bustedBots += 1; // 人間でない=ボットのバスト
+      }
+      return { bustedPlayerIds, forced, bustedBots };
+    });
+    this.phase(tableId, "settled", { busted: critical.bustedPlayerIds.length, forced: critical.forced.length });
+
+    // バストした人間(通常バスト＋強制敗退)の結果確定は排他区間の外で(DB書き込み・通知)。
+    for (const playerId of [...critical.bustedPlayerIds, ...critical.forced]) {
+      const human = this.humans.get(playerId);
+      if (human && !human.done) {
+        // ここは進行の中でDBの完了を待つ箇所。プールが枯渇していると pool_timeout まで待たされ、
+        // そのまま「次のハンドが来ない」として観測される。所要時間を必ず残す。
+        const startedAt = Date.now();
+        await this.recordHumanFinish(human).catch((err) => console.error("[mtt] recordHumanFinish failed:", err));
+        this.phase(tableId, "humanFinishRecorded", { tookMs: Date.now() - startedAt });
       }
     }
 
-    this.hand = null;
-    this.activeTableId = null;
-    this.syncHumanTables();
-
-    if (mtt.isTournamentOver()) {
-      void this.finishTournament();
-      return;
+    // レジ中はボットもリエントリして場を維持する(上限内で、飛んだボット数ぶん新規ボットを足す)。
+    if (critical.bustedBots > 0 && !this.registrationClosed && !this.finished) {
+      const room = MTT_FIELD_CAP - this.aliveCount();
+      const add = Math.min(critical.bustedBots, Math.max(0, room));
+      if (add > 0) {
+        const bots = await this.freshBots(add).catch(() => []);
+        if (bots.length > 0) {
+          await this.runExclusive(() => {
+            for (const b of bots) this.addLateBot(b);
+          });
+        }
+      }
     }
-
-    const anyoneActive = [...this.humans.values()].some((h) => !h.left && !h.done);
-    if (!anyoneActive) {
-      this.acceleratedHands += 1;
-      if (this.acceleratedHands % 10 === 0) mtt.advanceToNextLevel();
-    }
-
-    const delay = tableHadHuman && anyoneActive ? NEXT_HAND_DELAY_MS : FAST_DELAY_MS;
-    setTimeout(() => this.pump(), delay);
   }
 
-  /** レジクロ(登録締切)。以降は新規登録・レイトレジを受け付けず、確定エントリー数でプライズを固定する。 */
+  /** レジクロ(登録締切)。以降は新規登録・レイトレジ・リエントリを受け付けず、確定エントリー数でプライズを固定する。 */
   closeRegistration(): void {
     if (this.registrationClosed) return;
     this.registrationClosed = true;
     this.prizeStructure = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn).places;
+    if (this.regCloseTimer) {
+      clearTimeout(this.regCloseTimer);
+      this.regCloseTimer = null;
+    }
+    if (this.topupTimer) {
+      clearInterval(this.topupTimer);
+      this.topupTimer = null;
+    }
+    if (this.matchTimer) {
+      clearTimeout(this.matchTimer);
+      this.matchTimer = null;
+    }
+    // 確定したペイアウトストラクチャを全卓へ通知(RCした瞬間に「何位いくら」が見えるようになる)。
+    if (this.mtt) {
+      const total = this.prizeStructure.reduce((s, p) => s + p.amount, 0);
+      this.io
+        .to([...this.mtt.getTableIds()].map((id) => this.tableRoom(id)))
+        .emit("registrationClosed", { places: this.prizeStructure, prizePool: total });
+    }
+    this.broadcastTournamentInfo();
+    // スケジューラへ通知: 募集先を次の新しいMTTへ切り替える(このMTTは裏で優勝者まで進行)。
+    this.onRegistrationClosed?.();
   }
 
   private placeOf(playerId: string): number {
@@ -514,18 +1409,36 @@ export class MttSession implements GameSession {
     const place = this.placeOf(human.userId);
     const payout = this.prizeStructure.find((p) => p.place === place)?.amount ?? 0;
 
-    await prisma.tournamentEntry.updateMany({
-      where: { tournamentId: this.dbTournamentId, userId: human.userId },
-      data: { finishPosition: place, payout },
-    });
-    if (payout > 0) {
-      await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+    // DB書き込みが失敗しても、本人への結果通知とゲーム進行は止めない。
+    try {
+      await prisma.tournamentEntry.updateMany({
+        where: { tournamentId: this.dbTournamentId, userId: human.userId },
+        data: { finishPosition: place, payout },
+      });
+      if (payout > 0) {
+        await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
+      }
+      // 着順が確定したので偏差値/リーダーボードの共有キャッシュを破棄する
+      // (結果画面が偏差値と全国順位の増減を出すため、ここは必ず最新値にする)。
+      invalidateRankedEntries();
+    } catch (err) {
+      console.error("[mtt] recordHumanFinish db write failed:", err);
     }
 
     human.socket?.emit("tournamentOver", {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+      // レジクローズ前かつ場が満員でなければリエントリ可能(クライアントがボタン表示に使う)。
+      canReEntry: !this.registrationClosed && !this.finished && this.aliveCount() < MTT_FIELD_CAP,
+      reEntryCost: this.buyIn,
+    });
+    // 離席/切断中に終了した場合に備えて結果を保存(復帰時に結果サジェスト表示)。
+    activeGames.recordResult(human.userId, {
+      winnerPlayerId: place === 1 ? human.userId : null,
+      yourFinishPosition: place,
+      yourPayout: payout,
+      gameKey: "mtt",
     });
   }
 
@@ -533,8 +1446,36 @@ export class MttSession implements GameSession {
     const mtt = this.mtt;
     if (!mtt || !this.dbTournamentId || this.finished) return;
     this.finished = true;
-    if (this.turnTimer) clearTimeout(this.turnTimer);
+    recordPhase(this.diagScope, "sessionFinished", { tournamentOver: mtt.isTournamentOver() });
+    for (const tid of this.runtimes.keys()) forgetPhaseScope(`${this.diagScope}#t${tid}`);
+    forgetPhaseScope(this.diagScope);
+    for (const rt of this.runtimes.values()) {
+      if (rt.turnTimer) clearTimeout(rt.turnTimer);
+      rt.turnTimer = null;
+    }
+    if (this.matchTimer) clearTimeout(this.matchTimer);
+    if (this.regCloseTimer) clearTimeout(this.regCloseTimer);
+    if (this.topupTimer) clearInterval(this.topupTimer);
+    this.matchTimer = null;
+    this.regCloseTimer = null;
+    this.topupTimer = null;
     if (!this.registrationClosed) this.closeRegistration();
+
+    // 人間が全員抜けて途中終了した場合、生存者(BOT)が複数残ったままになる。placeOf は
+    // bustedOrder に載っていない全員を「優勝(1位)」と見なすため、ここでスタックの少ない順に
+    // bustedOrder へ積んで着順を確定させる(チップリーダーが最後=1位になる)。
+    if (!mtt.isTournamentOver()) {
+      const survivors = mtt
+        .getTableIds()
+        .flatMap((tid) => mtt.getTableOccupancy(tid))
+        .filter((o) => !this.bustedOrder.includes(o.playerId))
+        .sort((a, b) => a.stack - b.stack);
+      if (survivors.length > 0) {
+        // 最大スタック(=優勝扱い)以外を bustedOrder へ積む。placeOf は
+        // 「bustedOrder に載っていない=1位」「後に積まれたものほど上位」と解釈する。
+        for (const s of survivors.slice(0, -1)) this.bustedOrder.push(s.playerId);
+      }
+    }
 
     for (const human of this.humans.values()) {
       if (!human.done) await this.recordHumanFinish(human);
@@ -564,14 +1505,16 @@ export class MttSession implements GameSession {
   private scheduleLevelAdvance(): void {
     const mtt = this.mtt;
     if (!mtt) return;
-    const level = mtt.getCurrentLevel();
-    this.levelEndsAt = Date.now() + level.durationMinutes * 60_000;
+    // MTTは1レベル3分(値はSNGと同一、時間だけ短縮)。表示上のdurationMinutesも3に揃える。
+    const raw = mtt.getCurrentLevel();
+    const level = { ...raw, durationMinutes: MTT_LEVEL_DURATION_MS / 60_000 };
+    this.levelEndsAt = Date.now() + MTT_LEVEL_DURATION_MS;
     this.io.to([...this.mtt!.getTableIds()].map((id) => this.tableRoom(id))).emit("levelUp", { level, endsAt: this.levelEndsAt });
     setTimeout(() => {
       if (!this.mtt || this.mtt.isTournamentOver() || this.finished) return;
       this.mtt.advanceToNextLevel();
       this.scheduleLevelAdvance();
-    }, level.durationMinutes * 60_000);
+    }, MTT_LEVEL_DURATION_MS);
   }
 
   // --- 出力 ---
@@ -583,26 +1526,128 @@ export class MttSession implements GameSession {
       const info = this.playersById.get(o.playerId);
       return {
         seatIndex: o.seatIndex,
+        // 自動プレイヤーかどうかのフラグは送らない(通信内容から相手の種別が分かってはいけない)。
+        userId: o.playerId,
         displayName: info?.displayName ?? o.playerId,
         avatarKey: info?.avatarKey ?? null,
-        isBot: info?.isBot ?? true,
+        away: this.humans.get(o.playerId)?.away ?? false,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });
   }
 
-  private broadcastState(): void {
-    if (!this.hand || this.activeTableId === null) return;
-    this.io.to(this.tableRoom(this.activeTableId)).emit("state", this.hand.getPublicState());
+  /**
+   * トーナメント集計情報の配信。ハンド終了ごとに素直に呼ぶと、卓数×ハンド数ぶんの
+   * ライブ順位付きペイロードが毎秒何度もクライアントへ飛び、端末が発熱する。
+   * 最短 TOURNAMENT_INFO_MIN_INTERVAL_MS 間隔に間引き、間隔内の要求は末尾で1回にまとめる。
+   */
+  private broadcastTournamentInfo(): void {
+    if (this.finished) return;
+    const elapsed = Date.now() - this.lastTournamentInfoAt;
+    if (elapsed >= TOURNAMENT_INFO_MIN_INTERVAL_MS) {
+      if (this.tournamentInfoTimer) {
+        clearTimeout(this.tournamentInfoTimer);
+        this.tournamentInfoTimer = null;
+      }
+      this.emitTournamentInfoNow();
+      return;
+    }
+    if (this.tournamentInfoTimer) return; // すでに末尾配信を予約済み
+    this.tournamentInfoTimer = setTimeout(() => {
+      this.tournamentInfoTimer = null;
+      this.emitTournamentInfoNow();
+    }, TOURNAMENT_INFO_MIN_INTERVAL_MS - elapsed);
+  }
+
+  /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を全卓に配信。 */
+  private emitTournamentInfoNow(): void {
+    const mtt = this.mtt;
+    if (!mtt) return;
+    this.lastTournamentInfoAt = Date.now();
+    let remaining = 0;
+    let totalChips = 0;
+    // 生存者のスタックを集めてBB持ち降順のライブ順位を作る(右メニューのランキング用)。
+    const bb = Math.max(1, mtt.getCurrentLevel().bigBlind);
+    const alive: { userId: string; stack: number }[] = [];
+    for (const tid of mtt.getTableIds()) {
+      for (const o of mtt.getTableOccupancy(tid)) {
+        remaining += 1;
+        totalChips += o.stack;
+        alive.push({ userId: o.playerId, stack: o.stack });
+      }
+    }
+    alive.sort((a, b) => b.stack - a.stack);
+    const standings = alive.map((a, i) => {
+      const info = this.playersById.get(a.userId);
+      return {
+        userId: a.userId,
+        displayName: info?.displayName ?? a.userId,
+        stack: a.stack,
+        bbStack: Math.round((a.stack / bb) * 10) / 10,
+        rank: i + 1,
+      };
+    });
+    // アベレージスタック = 場に残っている実チップ / 生存者数。
+    // 「延べエントリー×開始スタック」から逆算するのではなく、必ず実スタックの合計から出す
+    // (リエントリ・レイトレジ・チップ破棄離脱があっても実態とズレないようにするため)。
+    const averageStack = remaining > 0 ? Math.round(totalChips / remaining) : 0;
+    // チップ保存則の検算。離脱によるチップ消滅を除けば、場のチップ総量は
+    // 「延べエントリー数 × 開始スタック」と一致しなければならない。ズレたら集計かポット精算の
+    // どちらかにバグがあるので、アベレージが嘘をつく前にログへ出す。
+    const expectedChips = this.entryCount * STARTING_STACK - this.forfeitedChips;
+    if (remaining > 0 && expectedChips > 0 && Math.abs(totalChips - expectedChips) > 0) {
+      console.warn(
+        `[mtt] chip conservation mismatch: inPlay=${totalChips} expected=${expectedChips} ` +
+          `(entries=${this.entryCount} remaining=${remaining} forfeited=${this.forfeitedChips})`,
+      );
+    }
+    // RC前は「何位いくら」を出さず、プライズプール総額のみ見せる。RC後は確定ペイアウト(places)を出す。
+    const structure = computeMttPrizeStructure(Math.max(this.entryCount, 1), this.buyIn);
+    const prizePool = this.registrationClosed ? this.prizeStructure : [];
+    const isFinalTable = remaining > 1 && remaining <= MTT_TABLE_SEAT_COUNT;
+    this.io.to([...mtt.getTableIds()].map((id) => this.tableRoom(id))).emit("tournamentInfo", {
+      remaining,
+      total: this.entryCount,
+      averageStack,
+      prizePool,
+      prizePoolTotal: structure.prizePool,
+      registrationClosed: this.registrationClosed,
+      registrationClosesAt: this.registrationClosed ? null : this.registrationClosesAt || null,
+      isFinalTable,
+      standings,
+      tournamentId: this.dbTournamentId ?? null,
+    });
+
+    // 観戦ページ(/watch)用の公開スナップショット。ホールカードやBOTの内訳は含めない。
+    const leader = standings[0];
+    liveStatus.update({
+      remaining,
+      total: this.entryCount,
+      averageStack,
+      bigBlind: bb,
+      isFinalTable,
+      prizePoolTotal: structure.prizePool,
+      chipLeader: leader ? { displayName: leader.displayName, bbStack: leader.bbStack } : null,
+    });
+  }
+
+  private broadcastStateForTable(tableId: number): void {
+    const rt = this.runtimes.get(tableId);
+    if (!rt?.hand) return;
+    this.broadcastTournamentInfo();
+    this.io.to(this.tableRoom(tableId)).emit("state", rt.hand.getPublicState());
   }
 
   private sendYourCardsForTable(tableId: number): void {
-    if (!this.hand) return;
+    const rt = this.runtimes.get(tableId);
+    if (!rt?.hand) return;
     for (const human of this.humans.values()) {
       if (human.currentTableId !== tableId || !human.socket) continue;
       const seatIndex = this.seatIndexOf(human.userId);
       if (seatIndex === null) continue;
-      human.socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      // リエントリ時の「元席」希望に使うため、直近の着席位置を記録しておく。
+      this.lastSeatByUser.set(human.userId, { tableId, seatIndex });
+      human.socket.emit("yourCards", { seatIndex, cards: rt.hand.getSeatHoleCards(seatIndex).map(cardToString) });
     }
   }
 

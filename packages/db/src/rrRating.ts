@@ -1,0 +1,166 @@
+import { prisma } from "./client.js";
+import { getRankedEntries } from "./rankedEntries.js";
+
+/**
+ * 「トナメ偏差値」(RRRating)。RRPokerの `app/home/store/PrizeDistributeModal.tsx` にある
+ * 実装と全く同じロジック(平均50・標準偏差10のT-score、経験ベイズ収縮でプレイ数が少ない
+ * うちは母平均に寄せる)を、このアプリのROI(得た金額÷かけた金額)データに対して適用する。
+ *
+ *   roi = totalPayouts / totalBuyIns
+ *   adjustedROI = (n/(n+k)) * roi + (k/(n+k)) * mu   (k=20, n=参加トナメ数)
+ *   rrRating = sigma !== 0 ? 50 + 10 * ((adjustedROI - mu) / sigma) : 50
+ *
+ * mu(平均)・sigma(標準偏差)は、終了済みトーナメントに1回以上参加した全実プレイヤー(BOT除外)
+ * を母集団として毎回その場で計算する(RRPoker同様、キャッシュテーブルは持たない)。
+ */
+
+export const RR_RATING_SHRINKAGE_K = 20;
+
+export interface RRRatingPopulationStats {
+  mu: number;
+  sigma: number;
+}
+
+/**
+ * 母集団(終了済みトーナメントに1回以上参加した全実プレイヤー)のROI分布の平均・標準偏差。
+ * getTournamentHistory(bankroll.ts)がトナメごとの偏差値推移(近似値)を計算する際にも使う。
+ */
+export async function computeRRRatingPopulationStats(): Promise<RRRatingPopulationStats> {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { finishPosition: { not: null }, user: { isBot: false } },
+    select: { payout: true, tournament: { select: { buyIn: true } }, userId: true },
+  });
+
+  const byUser = new Map<string, { totalBuyIns: number; totalPayouts: number; plays: number }>();
+  for (const e of entries) {
+    let row = byUser.get(e.userId);
+    if (!row) {
+      row = { totalBuyIns: 0, totalPayouts: 0, plays: 0 };
+      byUser.set(e.userId, row);
+    }
+    row.totalBuyIns += e.tournament.buyIn;
+    row.totalPayouts += e.payout;
+    row.plays += 1;
+  }
+
+  const players = [...byUser.values()]
+    .filter((p) => p.totalBuyIns > 0)
+    .map((p) => ({ ...p, roi: p.totalPayouts / p.totalBuyIns }));
+
+  const mu = players.length > 0 ? players.reduce((sum, p) => sum + p.roi, 0) / players.length : 0;
+  const withAdjustedRoi = players.map((p) => {
+    const n = p.plays;
+    const adjustedROI = (n / (n + RR_RATING_SHRINKAGE_K)) * p.roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * mu;
+    return adjustedROI;
+  });
+  const sigma = Math.sqrt(withAdjustedRoi.reduce((sum, roi) => sum + Math.pow(roi - mu, 2), 0) / (withAdjustedRoi.length || 1));
+
+  return { mu, sigma };
+}
+
+/** 母集団のmu/sigmaを固定した上で、adjustedROIから単発のトナメ偏差値を計算する。 */
+export function ratingFromAdjustedRoi(adjustedRoi: number, stats: RRRatingPopulationStats): number {
+  return stats.sigma !== 0 ? Number((50 + 10 * ((adjustedRoi - stats.mu) / stats.sigma)).toFixed(2)) : 50;
+}
+
+const SHRINKAGE_K = RR_RATING_SHRINKAGE_K;
+
+export interface RRRatingEntry {
+  userId: string;
+  displayName: string;
+  avatarKey: string | null;
+  rrRating: number;
+  roi: number;
+  tournamentsPlayed: number;
+}
+
+/** 全実プレイヤーのトナメ偏差値を、偏差値の高い順に並べて返す。 */
+export async function computeRRRatings(): Promise<RRRatingEntry[]> {
+  // 偏差値とリーダーボードが同じ全体集計を要求するため、取得は共有キャッシュに任せる
+  // (ホーム表示のたびにTournamentEntryを全件フェッチしていたのが、体感の重さの主因だった)。
+  const entries = await getRankedEntries();
+
+  const byUser = new Map<
+    string,
+    { userId: string; displayName: string; avatarKey: string | null; totalBuyIns: number; totalPayouts: number; plays: number }
+  >();
+  for (const e of entries) {
+    let row = byUser.get(e.userId);
+    if (!row) {
+      row = { userId: e.userId, displayName: e.displayName, avatarKey: e.avatarKey, totalBuyIns: 0, totalPayouts: 0, plays: 0 };
+      byUser.set(e.userId, row);
+    }
+    row.totalBuyIns += e.buyIn;
+    row.totalPayouts += e.payout;
+    row.plays += 1;
+  }
+
+  const players = [...byUser.values()]
+    .filter((p) => p.totalBuyIns > 0)
+    .map((p) => ({ ...p, roi: p.totalPayouts / p.totalBuyIns }));
+
+  const mu = players.length > 0 ? players.reduce((sum, p) => sum + p.roi, 0) / players.length : 0;
+
+  const withAdjustedRoi = players.map((p) => {
+    const n = p.plays;
+    const adjustedROI = (n / (n + SHRINKAGE_K)) * p.roi + (SHRINKAGE_K / (n + SHRINKAGE_K)) * mu;
+    return { ...p, adjustedROI };
+  });
+
+  const sigma = Math.sqrt(
+    withAdjustedRoi.reduce((sum, p) => sum + Math.pow(p.adjustedROI - mu, 2), 0) / (withAdjustedRoi.length || 1),
+  );
+
+  return withAdjustedRoi
+    .map((p) => ({
+      userId: p.userId,
+      displayName: p.displayName,
+      avatarKey: p.avatarKey,
+      rrRating: sigma !== 0 ? Number((50 + 10 * ((p.adjustedROI - mu) / sigma)).toFixed(2)) : 50,
+      roi: p.roi,
+      tournamentsPlayed: p.plays,
+    }))
+    .sort((a, b) => b.rrRating - a.rrRating);
+}
+
+/**
+ * ランキング母集団の人数(＝実プレイヤーが自分/他人のプロフィールで見る totalRankedPlayers と同じ値)。
+ *
+ * 自動プレイヤーの擬似プロフィールにも「実プレイヤーと同一のグローバル値」を入れるために使う。
+ * ここがID毎のランダム値だと、プロフィールを2人分見比べるだけで自動プレイヤーが判別できてしまう
+ * (実プレイヤーは全員この単一の値で揃うため)。取得は getRankedEntries の共有キャッシュに乗る。
+ */
+export async function getRankedPlayerCount(): Promise<number> {
+  const entries = await getRankedEntries();
+  const byUser = new Map<string, number>();
+  for (const e of entries) byUser.set(e.userId, (byUser.get(e.userId) ?? 0) + e.buyIn);
+  let count = 0;
+  for (const totalBuyIns of byUser.values()) if (totalBuyIns > 0) count += 1;
+  return count;
+}
+
+export interface RRRatingResult {
+  rrRating: number;
+  roi: number;
+  tournamentsPlayed: number;
+  /** 全国順位(トナメ偏差値ランキング内、1始まり)。1トナメも参加していなければnull。 */
+  nationalRank: number | null;
+  totalRankedPlayers: number;
+}
+
+/** 特定ユーザーのトナメ偏差値+順位を返す。参加0件ならrrRating=50・順位null。 */
+export async function getRRRating(userId: string): Promise<RRRatingResult> {
+  const ratings = await computeRRRatings();
+  const index = ratings.findIndex((r) => r.userId === userId);
+  if (index === -1) {
+    return { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: ratings.length };
+  }
+  const entry = ratings[index]!;
+  return {
+    rrRating: entry.rrRating,
+    roi: entry.roi,
+    tournamentsPlayed: entry.tournamentsPlayed,
+    nationalRank: index + 1,
+    totalRankedPlayers: ratings.length,
+  };
+}

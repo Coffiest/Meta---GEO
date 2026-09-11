@@ -1,0 +1,37 @@
+name: Marketing
+
+# ④ トレンド収集。鍵が要らないRSSだけを見るので、Secret を1つも設定していなくても動く。
+# 手動実行もできるようにしてあるが、workflow_dispatch はデフォルトブランチに存在しないと
+# 登録されない点に注意(このリポジトリでは過去に同じ理由で実行できなかったことがある)。
+on:
+  schedule:
+    # 毎日 09:00 JST (00:00 UTC)。日本のニュースが出揃った後に拾う。
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  collect-trends:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @meta-geo/db run generate
+      - name: Collect trends
+        run: pnpm --filter @meta-geo/db exec tsx scripts/collectTrends.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MARKETING_KEYWORDS: ${{ vars.MARKETING_KEYWORDS }}
+          MARKETING_YOUTUBE_CHANNELS: ${{ vars.MARKETING_YOUTUBE_CHANNELS }}
+
+      # ①⑦ フォロワー推移。X_BEARER_TOKEN が未設定なら何もせず正常終了する
+      # (鍵が無い状態が普通なので、ここで赤くすると本当の異常に気づけなくなる)。
+      - name: Collect account metrics
+        run: pnpm --filter @meta-geo/db exec tsx scripts/collectAccounts.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}

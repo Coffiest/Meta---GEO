@@ -1,14 +1,43 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   completeOnboarding,
+  getBankrollGraph,
   getLeaderboard,
+  getLeaderboards,
   getOrCreateUserByAuthId,
   getPlayerStats,
+  getPlayerNote,
+  getPlayerNotesForTargets,
+  getReferralSummary,
+  redeemReferralCode,
+  getCouponWallet,
+  redeemCouponCode,
   getHandProfitGraph,
+  getRRRating,
+  getRankedPlayerCount,
+  getTournamentHistory,
   getUserHandHistory,
   prisma,
+  setHandFavorite,
+  upsertPlayerNote,
+  type PlayerNoteColor,
+  deleteAccount,
 } from "@meta-geo/db";
-import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { activeGames } from "./activeGames.js";
+import { liveStatus } from "./liveStatus.js";
+import {
+  deletePushSubscription,
+  hasPushSubscription,
+  pushAvailable,
+  pushPublicKey,
+  savePushSubscription,
+  sendPushToUser,
+  type PushSubscriptionInput,
+} from "./push.js";
+import { putTransfer, takeTransfer } from "./authTransfer.js";
+import { syntheticPlayerProfile } from "./syntheticProfile.js";
+import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -26,14 +55,10 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
   return value.slice("Bearer ".length);
 }
 
+// ボディ読み取りは共通ヘルパー(64KB上限つき)へ委譲する。無認証・無制限の巨大ボディで
+// メモリを枯渇させられないようにするため。呼び出し側の使い勝手は従来どおり。
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readJsonBodyLimited(req);
 }
 
 const EMPTY_STATS = {
@@ -81,6 +106,35 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
   }
 
   try {
+    // OAuthシート→PWA本体へのセッション受け渡し(iOSのストレージパーティション分離対策)。
+    // POST: シート側が認証済みトークンをワンタイムコード付きで預ける(トークン検証済みのみ受理)。
+    // GET : 本体側がコードで受け取る(一回限り・短TTL。コード自体が128bitの秘密)。
+    if (url.pathname === "/api/lobby/session-transfer") {
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const code = body["code"];
+        const accessToken = typeof body["access_token"] === "string" ? body["access_token"] : "";
+        const refreshToken = typeof body["refresh_token"] === "string" ? body["refresh_token"] : "";
+        // 本物のセッションだけ預かる(ゴミ・偽トークンの持ち込みを遮断)。
+        const verified = accessToken ? await verifyAccessToken(accessToken) : null;
+        if (!verified) {
+          sendJson(res, 401, { error: "unauthorized" });
+          return true;
+        }
+        const ok = putTransfer(code as string, { accessToken, refreshToken });
+        sendJson(res, ok ? 200 : 400, ok ? { ok: true } : { error: "invalid code" });
+        return true;
+      }
+      const code = url.searchParams.get("code") ?? "";
+      const tokens = takeTransfer(code);
+      if (!tokens) {
+        sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      sendJson(res, 200, { access_token: tokens.accessToken, refresh_token: tokens.refreshToken });
+      return true;
+    }
+
     // ログイン中ユーザーのプロフィール取得/オンボーディング保存
     if (url.pathname === "/api/lobby/profile") {
       const verified = await verifyAccessToken(extractBearerToken(req));
@@ -114,6 +168,29 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
+    // アプリ復帰/ログイン時の進行中ゲーム確認。進行中なら gameKey を返して強制復帰させ、
+    // 離席中に終了していれば result(結果サジェスト)を1回だけ返す。
+    // ?peek=1 のときは「参加中ゲームの有無」だけを非破壊で返す(ホームの復帰バナー用ポーリング。
+    // result を消費しないので、あとで通常の active-game 取得時に結果サジェストが1回だけ出る動作を壊さない)。
+    if (url.pathname === "/api/lobby/active-game") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      if (!user) {
+        sendJson(res, 200, { gameKey: null, result: null });
+        return true;
+      }
+      const peek = url.searchParams.get("peek") === "1";
+      sendJson(res, 200, {
+        gameKey: activeGames.getActive(user.id),
+        result: peek ? null : activeGames.takeResult(user.id),
+      });
+      return true;
+    }
+
     if (url.pathname === "/api/lobby/stats") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
@@ -131,6 +208,41 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
+    // リーダーボード: 収支/ROI/偏差値/インマネ率 × Weekly/All Time/直近10トナメ(最低10トナメ)。
+    if (url.pathname === "/api/lobby/leaderboards") {
+      sendJson(res, 200, await getLeaderboards());
+      return true;
+    }
+
+    // トナメ偏差値(RRRating)。RRPokerと同じロジック(平均50・標準偏差10のT-score)。
+    if (url.pathname === "/api/lobby/rr-rating") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      sendJson(
+        res,
+        200,
+        user ? await getRRRating(user.id) : { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: 0 },
+      );
+      return true;
+    }
+
+    // ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用(トーナメントごとの個別損益)
+    if (url.pathname === "/api/lobby/tournament-history") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      const limitParam = clampLimit(url.searchParams.get("limit"), 20, 1, 200);
+      sendJson(res, 200, user ? await getTournamentHistory(user.id, limitParam) : []);
+      return true;
+    }
+
     if (url.pathname === "/api/lobby/history") {
       const verified = await verifyAccessToken(extractBearerToken(req));
       if (!verified) {
@@ -138,7 +250,47 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100) : []);
+      const favoritesOnly = url.searchParams.get("favorites") === "1";
+      // tournamentId指定時はそのトーナメントのハンドだけを返す(プレイ中のハンド履歴詳細用)。
+      const tournamentId = url.searchParams.get("tournamentId") ?? undefined;
+      sendJson(res, 200, user ? await getUserHandHistory(user.id, 100, favoritesOnly, tournamentId) : []);
+      return true;
+    }
+
+    // ハンドのお気に入り登録/解除。 { handId, isFavorite } をJSON bodyで受け取る。
+    if (url.pathname === "/api/lobby/history/favorite" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      if (!user) {
+        sendJson(res, 404, { error: "user not found" });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const handId = typeof body["handId"] === "string" ? body["handId"] : null;
+      const isFavorite = body["isFavorite"] === true;
+      if (!handId) {
+        sendJson(res, 400, { error: "handId is required" });
+        return true;
+      }
+      await setHandFavorite(user.id, handId, isFavorite);
+      sendJson(res, 200, { handId, isFavorite });
+      return true;
+    }
+
+    // Statsタブの「ROI / 収支 / 得た金額」グラフ(トーナメントごと・累計推移)
+    if (url.pathname === "/api/lobby/bankroll-graph") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
+      const limitParam = clampLimit(url.searchParams.get("limit"), 1000, 1, 5000);
+      sendJson(res, 200, user ? await getBankrollGraph(user.id, limitParam) : []);
       return true;
     }
 
@@ -150,8 +302,262 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await prisma.user.findUnique({ where: { authId: verified.authId } });
-      const limitParam = Number(url.searchParams.get("limit") ?? 1000);
+      const limitParam = clampLimit(url.searchParams.get("limit"), 1000, 1, 5000);
       sendJson(res, 200, user ? await getHandProfitGraph(user.id, limitParam) : []);
+      return true;
+    }
+
+    // 対戦相手の公開プロフィール(収支/ROI/インマネ率/VPIP/PFR/3bet/偏差値/全国順位)。
+    // 相手をタップしたときのプレイヤー詳細モーダル用。ログイン必須(?userId=対象User.id)。
+    if (url.pathname === "/api/lobby/player") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const targetUserId = url.searchParams.get("userId");
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      const target = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, displayName: true, avatarKey: true, isBot: true },
+      });
+      if (!target) {
+        sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      // 自動プレイヤーは擬似スタッツで通常プレイヤーと同じ形で応答する。
+      // ここで404を返すと、応答の違いそのものが「相手が自動プレイヤーである」ことの手掛かりになる。
+      if (target.isBot) {
+        // totalRankedPlayers は実プレイヤーが見るグローバル値と一致させる。
+        // ここをID毎の値にすると、プロフィールを2人分見比べるだけで判別できてしまう。
+        const rankedPlayers = await getRankedPlayerCount();
+        const synthetic = syntheticPlayerProfile(target.id, target.displayName, target.avatarKey);
+        synthetic.stats.totalRankedPlayers = rankedPlayers;
+        synthetic.rrRating.totalRankedPlayers = rankedPlayers;
+        sendJson(res, 200, synthetic);
+        return true;
+      }
+      const [stats, rr] = await Promise.all([getPlayerStats(target.id), getRRRating(target.id)]);
+      sendJson(res, 200, {
+        id: target.id,
+        displayName: target.displayName,
+        avatarKey: target.avatarKey,
+        stats,
+        rrRating: rr,
+      });
+      return true;
+    }
+
+    // プレイヤーメモ&マーキング(自分が相手につけたノート)。GET ?userId= で取得、POSTで保存。
+    if (url.pathname === "/api/lobby/player-note") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const author = await resolveDbUser(verified);
+
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const targetUserId = typeof body["targetUserId"] === "string" ? body["targetUserId"] : null;
+        if (!targetUserId) {
+          sendJson(res, 400, { error: "targetUserId is required" });
+          return true;
+        }
+        const color = (typeof body["color"] === "string" ? body["color"] : null) as PlayerNoteColor | null;
+        const note = typeof body["note"] === "string" ? body["note"] : "";
+        const saved = await upsertPlayerNote(author.id, targetUserId, color, note);
+        sendJson(res, 200, saved);
+        return true;
+      }
+
+      const targetUserId = url.searchParams.get("userId");
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "userId is required" });
+        return true;
+      }
+      sendJson(res, 200, await getPlayerNote(author.id, targetUserId));
+      return true;
+    }
+
+    // 複数相手のマーキング&メモをまとめて取得(テーブル上の全席のマーキングドット描画用)。
+    // GET ?userIds=id1,id2,... → { [userId]: { color, note } }
+    if (url.pathname === "/api/lobby/player-notes") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const author = await resolveDbUser(verified);
+      const idsParam = url.searchParams.get("userIds") ?? "";
+      const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
+      sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
+      return true;
+    }
+
+    // PWAプッシュ通知の設定情報。購読に必要なVAPID公開鍵と、この端末以外も含めた購読有無。
+    // VAPID鍵が未設定の環境では available:false を返し、クライアントは通知UI自体を出さない。
+    if (url.pathname === "/api/lobby/push/config") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, {
+        available: pushAvailable(),
+        publicKey: pushPublicKey(),
+        subscribed: pushAvailable() ? await hasPushSubscription(user.id) : false,
+      });
+      return true;
+    }
+
+    // プッシュ通知の購読登録。
+    if (url.pathname === "/api/lobby/push/subscribe" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      if (!pushAvailable()) {
+        sendJson(res, 503, { error: "push not configured" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const sub = body["subscription"] as PushSubscriptionInput | undefined;
+      if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+        sendJson(res, 400, { error: "invalid subscription" });
+        return true;
+      }
+      await savePushSubscription(user.id, sub);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // プッシュ通知の購読解除(通知オフ)。
+    if (url.pathname === "/api/lobby/push/unsubscribe" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const endpoint = typeof body["endpoint"] === "string" ? body["endpoint"] : "";
+      if (endpoint) await deletePushSubscription(endpoint);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // 観戦(配信)用のライブ状況。進行中MTTの公開スナップショットだけを返す。
+    // ログイン不要 — 配信の視聴者やまだ登録していない人がそのまま見られることが目的。
+    // ホールカードや進行中のアクションは一切含めないため、覗き見による不正の余地は無い。
+    if (url.pathname === "/api/lobby/live") {
+      sendJson(res, 200, { live: liveStatus.get() });
+      return true;
+    }
+
+    // 友達招待(リファラル)。自分の招待コード・招待成立数・称号を返す。
+    // コードは未発行ならこの取得時に発行する。
+    if (url.pathname === "/api/lobby/referral") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, await getReferralSummary(user.id));
+      return true;
+    }
+
+    // 招待コードの適用。1ユーザーにつき生涯1回だけ(自分のコード・存在しないコードは弾く)。
+    if (url.pathname === "/api/lobby/referral/redeem" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const code = typeof body["code"] === "string" ? body["code"] : "";
+      const result = await redeemReferralCode(user.id, code);
+      // 招待が成立したら、招待した人へプッシュで知らせる(称号が上がる瞬間を逃さないため)。
+      // 通知の失敗で招待そのものを失敗させない。
+      if (result.ok) {
+        const inviter = await prisma.referral.findUnique({
+          where: { inviteeUserId: user.id },
+          select: { inviterUserId: true },
+        });
+        if (inviter) {
+          void sendPushToUser(inviter.inviterUserId, {
+            title: "棋譜解析1ヶ月無料クーポンを獲得",
+            body: `${user.displayName} さんがあなたの招待で参加しました。ホームからクーポンを確認できます。`,
+            path: "/",
+            tag: "referral",
+          }).catch(() => undefined);
+        }
+      }
+      // 適用できなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    // 獲得済みの「棋譜解析1ヶ月無料」クーポン一覧と、いま有効な無料期間。
+    if (url.pathname === "/api/lobby/coupons") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, await getCouponWallet(user.id));
+      return true;
+    }
+
+    // クーポンコードの適用。1枚1回だけ使える(棋譜解析の無料期間が延びる)。
+    if (url.pathname === "/api/lobby/coupons/redeem" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const code = typeof body["code"] === "string" ? body["code"] : "";
+      // 使えなかった理由もクライアントで文言を出し分けるため200で返す(通信エラーと区別する)。
+      sendJson(res, 200, await redeemCouponCode(user.id, code));
+      return true;
+    }
+
+    /**
+     * アカウントの完全削除(退会)。
+     *
+     * GEO DATABASE のデータは絶対に消さない。ハンド履歴(Hand/HandSeat)がGEOの実データで、
+     * HandSeat.userId が User を参照しているため、User 行を消すと集計対象のハンドまで
+     * 巻き添えになる。そこで deleteAccount は「個人データは物理削除、User 行は匿名化して残す」
+     * 実装になっている。ここではそれを呼んだうえで、Supabase Auth 側のユーザーも消して
+     * 二度とログインできない状態にする。
+     */
+    if (url.pathname === "/api/lobby/delete-account" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const result = await deleteAccount(user.id);
+      // DB側の匿名化が済んでから Auth を消す(順序を逆にすると、Auth削除後にDB処理が失敗した場合
+      // 「ログインできないのにデータだけ残る」宙ぶらりんの状態になる)。
+      const authRemoved = result.authId ? await deleteAuthUser(result.authId) : false;
+      sendJson(res, 200, {
+        ok: true,
+        authRemoved,
+        // GEOデータが保持されていることを応答でも確認できるようにする。
+        keptHandSeats: result.keptHandSeats,
+      });
       return true;
     }
 

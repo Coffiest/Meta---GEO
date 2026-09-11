@@ -1,306 +1,820 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  geoApi,
-  type GeoSummaryStats,
-  type HandDetail,
-  type PositionalRfiStat,
-  type RangeMatrixResult,
-  type RangeScenario,
-  type RecentHandSummary,
+  geoTreeApi,
+  GeoApiError,
+  PREFLOP_BUCKET_LABELS,
+  PREFLOP_DISPLAY_BUCKET_LABELS,
+  POSTFLOP_BUCKET_LABELS,
+  STACK_BUCKET_LABELS,
+  GTO_STACK_TO_BAND,
+  GTO_STACK_TO_BUCKET,
+  BUBBLE_STAGE_LABELS,
+  type BubbleStage,
+  type GtoStack,
+  type HandClassMatrixResult,
+  type LineStep,
+  type StackBucket,
+  type TreeNode,
 } from "@/lib/geoApi";
-import { StatTile } from "@/components/geo/StatTile";
-import { PositionalRfiChart } from "@/components/geo/PositionalRfiChart";
-import { HandHistoryList } from "@/components/geo/HandHistoryList";
-import { HandDetailPanel } from "@/components/geo/HandDetailPanel";
-import { RangeMatrix, RAISE_COLOR, CALL_COLOR, FOLD_COLOR } from "@/components/geo/RangeMatrix";
-import { PositionTable } from "@/components/geo/PositionTable";
+import { GeoSettingsModal, RATING_MIN, RATING_MAX } from "@/components/geo/GeoSettingsModal";
+import { ReportErrorButton } from "@/components/ReportErrorButton";
+import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
+import { PositionActionRow } from "@/components/geo/PositionActionRow";
+import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
+import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
+import { Footer } from "@/components/Footer";
+import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
+import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
+import { PasscodeModal } from "@/components/PasscodeModal";
+import { useAuth } from "@/lib/useAuth";
+import { APP_VERSION } from "@/lib/version";
+import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
 
-type GeoTab = "range" | "analytics";
-type Street = "preflop" | "postflop";
-
-const SCENARIOS: { key: RangeScenario; label: string }[] = [
-  { key: "rfi", label: "RFI" },
-  { key: "vsOpen", label: "vs Open" },
-];
+/** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
+const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
 
 /**
- * GTO WizardのStudy最初の画面を踏襲した「Preflop / Postflop」切り替え。
- * Preflopは実データに基づく169ハンドクラスのレンジエクスプローラー(本実装)、
- * Postflopはボードテクスチャ別の集計基盤が未整備のため準備中表示にする。
+ * /geo のゲート。GEO DATABASE は一般開放済み(ログイン済みユーザーのみ)。
+ * - 初回アクセス時、または ?guide=1(メニューからの再表示)のときは使い方チュートリアル(GeoGuide)を表示し、
+ *   「使ってみる」/スキップで本体(GeoDatabase)へ。以降は本体を直接開く。
+ * - 未ログイン(Supabase有効時)はホーム(ログイン画面)へ誘導する。
  */
-function StudyExplorer() {
-  const [street, setStreet] = useState<Street>("preflop");
+export default function GeoPage() {
+  const { authAvailable, loading, session } = useAuth();
+  const router = useRouter();
+  const [showGuide, setShowGuide] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  return (
-    <div className="rounded-2xl bg-ink-950 ring-1 ring-ink-700/60 overflow-hidden">
-      <div className="flex items-center justify-center py-4 bg-ink-900/40">
-        <div className="inline-flex rounded-full bg-ink-800 p-1 ring-1 ring-ink-700/60">
-          {(["preflop", "postflop"] as Street[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStreet(s)}
-              className={`rounded-full px-5 py-1.5 text-[12px] font-semibold capitalize transition-colors ${
-                street === s ? "bg-mint-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
-              }`}
-            >
-              {s === "preflop" ? "Preflop" : "Postflop"}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="p-4">{street === "preflop" ? <PreflopStudy /> : <PostflopComingSoon />}</div>
-    </div>
-  );
+  useEffect(() => {
+    // database タブを開いた記録を残す(次回以降ホームの解放トーストを出さない)。
+    try {
+      localStorage.setItem(GEO_DB_OPENED_KEY, "1");
+    } catch {
+      /* localStorage不可でも致命ではない */
+    }
+    // ?guide=1 は既読でも強制表示(ハンバーガーメニューの「使い方」から)。それ以外は初回のみ。
+    const forced =
+      typeof window !== "undefined" && new URLSearchParams(window.location.search).get("guide") === "1";
+    setShowGuide(forced || !hasGeoGuideBeenSeen());
+    setReady(true);
+  }, []);
+
+  // ログイン必須(Supabaseが有効な本番のみ)。ゲストモード(authAvailable=false)ではブロックしない。
+  useEffect(() => {
+    if (authAvailable && !loading && !session) router.replace("/");
+  }, [authAvailable, loading, session, router]);
+
+  if (authAvailable && !loading && !session) return null; // リダイレクト中は何も出さない
+  if (loading || !ready) {
+    // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
+    return <div className="flex min-h-screen items-center justify-center bg-surface text-[13px] text-fg-2">読み込み中…</div>;
+  }
+  if (showGuide) return <GeoGuide onDone={() => setShowGuide(false)} />;
+  return <GeoDatabase />;
 }
 
-function PreflopStudy() {
-  const [position, setPosition] = useState("BTN");
-  const [scenario, setScenario] = useState<RangeScenario>("rfi");
-  const [matrix, setMatrix] = useState<RangeMatrixResult | null>(null);
-  const [loadError, setLoadError] = useState(false);
+/** 読み込み開始からの経過秒。これ以上かかっているときだけ「時間がかかっています」に切り替える。 */
+const SLOW_HINT_AFTER_SEC = 3;
+
+/**
+ * 読み込み開始からの経過秒表示。毎秒のsetStateをこの葉コンポーネントに閉じ込め、
+ * 親(GeoDatabase)のツリー全体が毎秒再描画されないようにする(発熱・カクつき対策)。
+ */
+function ElapsedText({ startedAt }: { startedAt: number }) {
+  const [sec, setSec] = useState(() => Math.floor((Date.now() - startedAt) / 1000));
+  useEffect(() => {
+    setSec(Math.floor((Date.now() - startedAt) / 1000));
+    const timer = setInterval(() => setSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+  if (sec < SLOW_HINT_AFTER_SEC) return <span>読み込み中…</span>;
+  return <span>時間がかかっています…({sec}秒経過)</span>;
+}
+
+const FULL_PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+const FULL_POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"];
+
+/** GEOタブ: 人数ごとのブラインド基準ポジション並び(プリフロップのアクション順)。
+ * サーバー(geoTree)のブラインド基準ラベルと同じ命名。ヘッズアップはボタンがSBを兼ねるため BTN(SB)。
+ *
+ * 3人卓にも UTG を入れてある。デッドボタン方式では、バスト直後などで着席が飛び飛びになると
+ * 「ブラインドでもボタンでもない席」が生まれ、その席は UTG と命名される(engine の
+ * computePositionLabels)。3人卓を BTN/SB/BB だけにしていた頃は、実際に記録されている
+ * 3人卓 UTG の意思決定へ画面から到達できなかった。存在しない人数では単に空で出るだけなので
+ * 入れておいて害はない。 */
+const GEO_PREFLOP_ORDER: Record<number, string[]> = {
+  2: ["BTN(SB)", "BB"],
+  3: ["UTG", "BTN", "SB", "BB"],
+  4: ["UTG", "BTN", "SB", "BB"],
+  5: ["UTG", "CO", "BTN", "SB", "BB"],
+  6: FULL_PREFLOP_ORDER,
+};
+const GEO_POSTFLOP_ORDER: Record<number, string[]> = {
+  2: ["BB", "BTN(SB)"],
+  3: ["SB", "BB", "UTG", "BTN"],
+  4: ["SB", "BB", "UTG", "BTN"],
+  5: ["SB", "BB", "UTG", "CO", "BTN"],
+  6: FULL_POSTFLOP_ORDER,
+};
+
+type LineStepWithMeta = LineStep & { geometricRatio?: number };
+
+function nextStreetOf(street: Street): PostflopStreet | null {
+  if (street === "preflop") return "flop";
+  if (street === "flop") return "turn";
+  if (street === "turn") return "river";
+  return null;
+}
+
+function bucketLabelFor(street: Street, bucket: string): string {
+  const table: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  return table[bucket] ?? bucket;
+}
+
+function GeoDatabase() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 最下部バージョン表記タップ→パスコード(2357)→管理者画面(GEOデータ削除等)への隠し導線。 */
+  const [adminGateOpen, setAdminGateOpen] = useState(false);
+  const router = useRouter();
+  // データ源。GTOモードへの入口は廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。
+  // 内部の分岐(GEO/GTOで別エンドポイントを叩く等)はそのまま残してあるが、常に"geo"側だけを通る。
+  const [mode] = useState<"geo" | "gto">("geo");
+  const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
+  // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
+  const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
+  const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
+  /**
+   * GEOタブ: 卓の参加人数(2〜6)。必ずどれか1つを選ぶ。
+   *
+   * 人数をまとめて集計してはいけない。ラインはポジション名の並びで表すが、人数が違うと
+   * アクション順そのものが変わるため、同じ "UTG:fold" というラインが6人卓のHJ・5人卓のCO・
+   * 4人卓のBTNを1つのノードへ合流させてしまう。さらにルート(ライン無し)だけは全人数の
+   * 最初のアクションが合算されるので、「UTGだけ異常にデータが多く、その先が急に痩せる」
+   * という実体のない偏りが生まれていた。
+   */
+  const [playerCount, setPlayerCount] = useState<number>(6);
+  /** GTOタブ: 人数(2〜6)。6未満はアーリーポジションの自動フォールド接頭辞で表現する。 */
+  const [gtoPlayerCount, setGtoPlayerCount] = useState(6);
+  // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
+  const [ratingRange, setRatingRange] = useState({ min: RATING_MIN, max: RATING_MAX });
+  const ratingFilter =
+    ratingRange.min > RATING_MIN || ratingRange.max < RATING_MAX ? ratingRange : undefined;
+  const ratingActive = Boolean(ratingFilter);
+
+  const [street, setStreet] = useState<Street>("preflop");
+  const [preflopLine, setPreflopLine] = useState<LineStepWithMeta[]>([]);
+  const [board, setBoard] = useState<string[]>([]);
+  const [streetLines, setStreetLines] = useState<Record<Street, LineStepWithMeta[]>>({
+    preflop: [],
+    flop: [],
+    turn: [],
+    river: [],
+  });
+  const [pendingStreet, setPendingStreet] = useState<PostflopStreet | null>(null);
+  const [dismissedStreet, setDismissedStreet] = useState<PostflopStreet | null>(null);
+
+  const [node, setNode] = useState<TreeNode | null>(null);
+  const [matrix, setMatrix] = useState<HandClassMatrixResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  /** ボード選択直後、その板面に一致する実測データが1件もないかどうか。真の間は次のストリートへ
+   * 自動で進めず、「板面を選び直す」導線を出す(存在しない板面を選んだ場合の連鎖ポップアップ防止)。 */
+  const [justPickedBoard, setJustPickedBoard] = useState(false);
+
+  const bucketLabels: Record<string, string> =
+    street === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+
+  /** GTOタブで人数<6のとき、不在のアーリーポジションを自動フォールド扱いにする接頭辞。
+   * リクエスト時のみラインの先頭に付与し、画面のピルには表示しない。 */
+  const gtoFoldPrefix: LineStep[] =
+    mode === "gto" && gtoPlayerCount < 6
+      ? FULL_PREFLOP_ORDER.slice(0, 6 - gtoPlayerCount).map((p) => ({ position: p, bucket: "fold" }))
+      : [];
+
+  /** 現在のモード/人数でのプリフロップのアクション順(表示対象ポジション)。 */
+  function preflopOrder(): string[] {
+    if (mode === "gto") return FULL_PREFLOP_ORDER.slice(6 - gtoPlayerCount);
+    return GEO_PREFLOP_ORDER[playerCount] ?? FULL_PREFLOP_ORDER;
+  }
+
+  /** 現在のモード/人数でのポストフロップのアクション順。 */
+  function postflopOrderAll(): string[] {
+    if (mode === "gto") {
+      const visible = new Set(preflopOrder());
+      return FULL_POSTFLOP_ORDER.filter((p) => visible.has(p));
+    }
+    return GEO_POSTFLOP_ORDER[playerCount] ?? FULL_POSTFLOP_ORDER;
+  }
+
+  function foldedBeforeStreet(streetKey: Street): Set<string> {
+    const folded = new Set<string>();
+    preflopLine.forEach((s) => {
+      if (s.bucket === "fold") folded.add(s.position);
+    });
+    if (streetKey === "turn" || streetKey === "river") {
+      streetLines.flop.forEach((s) => {
+        if (s.bucket === "fold") folded.add(s.position);
+      });
+    }
+    if (streetKey === "river") {
+      streetLines.turn.forEach((s) => {
+        if (s.bucket === "fold") folded.add(s.position);
+      });
+    }
+    return folded;
+  }
+
+  function activePositions(streetKey: Street): string[] {
+    const before = foldedBeforeStreet(streetKey);
+    const order = streetKey === "preflop" ? preflopOrder() : postflopOrderAll();
+    return order.filter((p) => !before.has(p));
+  }
+
+  function remainingActiveCount(streetKey: Street): number {
+    const activeAtStart = activePositions(streetKey);
+    const currentStreetLine = streetKey === "preflop" ? preflopLine : streetLines[streetKey];
+    const foldedThisStreet = new Set(currentStreetLine.filter((s) => s.bucket === "fold").map((s) => s.position));
+    return activeAtStart.filter((p) => !foldedThisStreet.has(p)).length;
+  }
+
+  // GTOポストフロップの「計算中」ポーリング。solving=true の応答が来たら数秒後に再取得する。
+  const [solving, setSolving] = useState(false);
+  const [pollTick, setPollTick] = useState(0);
+  /** 一時的な取得失敗をリトライ中(スピナー文言を「再試行中」に切り替える用)。 */
+  const [reconnecting, setReconnecting] = useState(false);
+  /**
+   * 直近の取得失敗の内訳。以前は catch でエラーを握り潰していたため、画面には
+   * 「接続を再試行中…」しか出ず原因を切り分けられなかった。何が・どこで・どれだけ待って
+   * 失敗したのかをそのまま保持し、待たせている間も画面に出す。
+   */
+  const [failure, setFailure] = useState<{ reason: string; detail: string; attempt: number } | null>(null);
+  /** 現在のリクエストを開始した時刻(経過秒の表示用)。応答が遅いことを待っている間に伝える。 */
+  const [requestStartedAt, setRequestStartedAt] = useState<number | null>(null);
+  /** 同じ条件で連続して失敗した回数。条件が変わるか成功したらリセットする。 */
+  const retryRoundRef = useRef(0);
+  /** 直前のリクエスト条件。pollTickによる再試行と、条件変更による新規取得を区別するために持つ。 */
+  const lastRequestKeyRef = useRef<string | null>(null);
+
+  // 条件(モード/スタック/ライン/ボード等)を一意に表す文字列。pollTickは含めない —
+  // これが変わったときだけ「新しい取得」とみなしてエラー表示をクリアする。
+  const requestKey = JSON.stringify([
+    mode,
+    stackBucket,
+    gtoStackBb,
+    bubbleStage,
+    street,
+    preflopLine,
+    board,
+    streetLines[street],
+    ratingFilter?.min,
+    ratingFilter?.max,
+    playerCount,
+    gtoPlayerCount,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
-    setMatrix(null);
-    setLoadError(false);
-    geoApi
-      .rangeMatrix(position, scenario)
-      .then((m) => !cancelled && setMatrix(m))
-      .catch(() => !cancelled && setLoadError(true));
+    setLoading(true);
+    setRequestStartedAt(Date.now());
+    // 条件が変わった=新しい取得なので、前の条件で出したエラーは消す。
+    // 逆にpollTickによる再試行では消さない — 以前はここで無条件にクリアしていたため、
+    // 出したエラーが5秒後の再試行で勝手に消えてスピナーへ戻り、原因が読めなかった。
+    if (lastRequestKeyRef.current !== requestKey) {
+      lastRequestKeyRef.current = requestKey;
+      retryRoundRef.current = 0;
+      setError(null);
+      setFailure(null);
+      setReconnecting(false);
+    } else if (retryRoundRef.current > 0) {
+      // 失敗後のバックグラウンド再試行。スピナーを「再試行中(N回目)」にして、
+      // エラー表示と合わせて「今まさに復帰を試している」ことが分かるようにする。
+      setReconnecting(true);
+    }
+
+    // GTOタブは実スタック選択(gtoStackBb)を band へ写像して送る。push/fold/Nashノード用に近い範囲バケットも併送。
+    const gtoBand = GTO_STACK_TO_BAND[gtoStackBb];
+    const gtoBucket = GTO_STACK_TO_BUCKET[gtoStackBb];
+    const makeRequest = () =>
+      mode === "gto"
+        ? street === "preflop"
+          ? geoTreeApi.gtoNode({ variant: "full", line: [...gtoFoldPrefix, ...preflopLine], stackBucket: gtoBucket, band: gtoBand })
+          : geoTreeApi.gtoPostflopNode({
+              stackBucket: gtoBucket,
+              band: gtoBand,
+              line: [...gtoFoldPrefix, ...preflopLine],
+              board,
+              postflopLine: streetLines[street],
+            })
+        : street === "preflop"
+        ? geoTreeApi.preflopNode({
+            stackBucket,
+            bubbleStage,
+            line: preflopLine,
+            ratingRange: ratingFilter,
+            playerCount,
+          })
+        : geoTreeApi.postflopNode({
+            stackBucket,
+            bubbleStage,
+            preflopLine,
+            board,
+            street,
+            postflopLine: streetLines[street],
+            ratingRange: ratingFilter,
+            playerCount,
+          });
+
+    // 失敗したら「1回目で」原因を画面に出す。ここでリトライを重ねてから表示すると、
+    // 1回ぶんのタイムアウト(10秒)×回数ぶんだけ表示が遅れ、その間ユーザーには
+    // 「再試行中…」しか見えない=事実上フリーズ、という元の不具合に逆戻りするため。
+    // リトライは必ずバックグラウンドに回す:
+    // - 失敗を確定表示 → node を破棄(直前ノードへのアクション重複追加ループを断つ)
+    // - loading=false にして画面を凍結させない(ユーザーは操作・手動再試行ができる)
+    // - 5秒後にeffectごと再実行し、復帰するまでエラーを出したまま裏で試し続ける
+    async function run() {
+      if (cancelled) return;
+      try {
+        const result = await makeRequest();
+        if (cancelled) return;
+        setReconnecting(false);
+        setSolving(Boolean(result.solving));
+        if (result.solving) {
+          // サーバーがCFR計算中。3.5秒後に再取得(このeffectをpollTickで再発火)。
+          setTimeout(() => {
+            if (!cancelled) setPollTick((t) => t + 1);
+          }, 3500);
+          return;
+        }
+        setNode(result.node);
+        setMatrix(result.matrix);
+        if (result.node.sampleSize > 0) setJustPickedBoard(false);
+        retryRoundRef.current = 0;
+        setError(null);
+        setFailure(null);
+      } catch (err) {
+        if (cancelled) return;
+        // 何が起きたかを必ず残す。GeoApiError なら原因種別・HTTPステータス・所要時間まで分かる。
+        const reason = err instanceof GeoApiError ? err.describe() : err instanceof Error ? err.message : String(err);
+        const detail =
+          err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        const round = retryRoundRef.current + 1;
+        retryRoundRef.current = round;
+        setNode(null);
+        setReconnecting(false);
+        setFailure({ reason, detail, attempt: round });
+        setError(round === 1 ? reason : `${reason}(${round}回試行。自動で再試行を続けます)`);
+        setTimeout(() => {
+          if (!cancelled) setPollTick((t) => t + 1);
+        }, 5000);
+      }
+    }
+
+    void run().finally(() => {
+      if (!cancelled) {
+        setLoading(false);
+        setRequestStartedAt(null);
+      }
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [position, scenario]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, pollTick]);
 
-  return (
-    <div>
-      <PositionTable position={position} onChange={setPosition} />
+  // プリフロップ(あるいは各ストリート)のアクションが終わり、まだ2人以上残っていて
+  // 次のストリートがあるなら、自動でボードカード選択ポップアップを開く。
+  useEffect(() => {
+    if (!node || node.position !== null || pendingStreet || justPickedBoard) return;
+    const next = nextStreetOf(street);
+    if (!next) return;
+    if (remainingActiveCount(street) < 2) return;
+    if (dismissedStreet === next) return;
+    setPendingStreet(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node, street, pendingStreet, dismissedStreet, justPickedBoard, preflopLine, streetLines, board]);
 
-      <div className="flex items-center justify-center gap-1 mt-4">
-        {SCENARIOS.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => setScenario(s.key)}
-            className={`rounded-md px-3.5 py-1.5 text-[11px] font-medium transition-colors ${
-              scenario === s.key ? "bg-mint-500 text-ink-950" : "bg-ink-800 text-ink-400 hover:text-ink-100"
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+  /** ラインをリセットしてプリフロップ先頭へ戻す(モード/人数の切替時)。 */
+  function resetLines() {
+    setStreet("preflop");
+    setPreflopLine([]);
+    setBoard([]);
+    setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
+    setPendingStreet(null);
+    setDismissedStreet(null);
+    setJustPickedBoard(false);
+  }
 
-      <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap text-[10px] text-ink-400 mt-4">
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: RAISE_COLOR }} />
-          レイズ
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: CALL_COLOR }} />
-          コール
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-sm" style={{ background: FOLD_COLOR }} />
-          フォールド
-        </span>
-      </div>
+  function changePlayerCount(next: number) {
+    if (next === playerCount) return;
+    setPlayerCount(next);
+    resetLines();
+  }
 
-      <div className="mt-4">
-        {loadError ? (
-          <div className="py-10 text-center text-sm text-rose-400">レンジデータの取得に失敗しました。</div>
-        ) : matrix ? (
-          matrix.totalSamples === 0 ? (
-            <div className="py-10 text-center text-sm text-ink-500">
-              {position} / {scenario === "rfi" ? "RFI" : "vs オープン"} のサンプルがまだありません。プレイが進むと表示されます。
-            </div>
-          ) : (
-            <>
-              <div className="text-[11px] text-ink-500 mb-2 text-center">
-                {position} ・ {scenario === "rfi" ? "オープンレイズ機会" : "vs オープン"} ・ サンプル {matrix.totalSamples.toLocaleString()}件
-              </div>
-              <RangeMatrix data={matrix} />
-            </>
-          )
-        ) : (
-          <div className="py-10 text-center text-sm text-ink-500">読み込み中…</div>
-        )}
-      </div>
-    </div>
-  );
-}
+  function changeGtoPlayerCount(next: number) {
+    if (next === gtoPlayerCount) return;
+    setGtoPlayerCount(next);
+    resetLines();
+  }
 
-function PostflopComingSoon() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-      <div className="h-14 w-14 rounded-full bg-ink-800 ring-1 ring-ink-700 flex items-center justify-center text-ink-500">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6">
-          <rect x="5" y="11" width="14" height="9" rx="2" />
-          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-      </div>
-      <div className="text-sm font-medium text-ink-200">Postflopは近日対応予定です</div>
-      <p className="text-[11px] text-ink-500 max-w-xs leading-relaxed">
-        フロップ・ターン・リバーのレンジ分析にはボードテクスチャごとの集計基盤が必要なため、現在準備を進めています。
-        まずはPreflopの実データ分析からご利用ください。
-      </p>
-    </div>
-  );
-}
-
-export default function GeoPage() {
-  const [tab, setTab] = useState<GeoTab>("range");
-  const [summary, setSummary] = useState<GeoSummaryStats | null>(null);
-  const [positional, setPositional] = useState<PositionalRfiStat[] | null>(null);
-  const [hands, setHands] = useState<RecentHandSummary[] | null>(null);
-  const [selectedHandId, setSelectedHandId] = useState<string | null>(null);
-  const [selectedHand, setSelectedHand] = useState<HandDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadAll() {
-    try {
-      const [s, p, h] = await Promise.all([geoApi.summary(), geoApi.positionalRfi(6), geoApi.hands(20)]);
-      setSummary(s);
-      setPositional(p);
-      setHands(h);
-      setError(null);
-    } catch {
-      setError("対戦サーバーに接続できませんでした。packages/server が起動しているか確認してください。");
+  function selectBucket(bucket: string) {
+    // 取得中/再試行中は選択を受け付けない。受け付けると、直前ノードが未確定のまま次の
+    // アクションが積まれてラインが重複・破損する(致命バグの再発防止)。
+    if (loading || !node?.position) return;
+    const opt = node.options.find((o) => o.bucket === bucket);
+    const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
+    setDismissedStreet(null);
+    setJustPickedBoard(false);
+    if (street === "preflop") {
+      setPreflopLine((prev) => [...prev, step]);
+    } else {
+      setStreetLines((prev) => ({ ...prev, [street]: [...prev[street], step] }));
     }
   }
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedHandId) {
-      setSelectedHand(null);
+  function handleTruncate(streetKey: Street, lineIndex: number) {
+    setDismissedStreet(null);
+    if (streetKey === "preflop") {
+      setPreflopLine((prev) => prev.slice(0, lineIndex));
+      setBoard([]);
+      setStreetLines({ preflop: [], flop: [], turn: [], river: [] });
+      setStreet("preflop");
       return;
     }
-    geoApi
-      .handDetail(selectedHandId)
-      .then(setSelectedHand)
-      .catch(() => setSelectedHand(null));
-  }, [selectedHandId]);
+    setStreet(streetKey);
+    if (streetKey === "flop") {
+      setBoard((prev) => prev.slice(0, 3));
+      setStreetLines((prev) => ({ ...prev, flop: prev.flop.slice(0, lineIndex), turn: [], river: [] }));
+    } else if (streetKey === "turn") {
+      setBoard((prev) => prev.slice(0, 4));
+      setStreetLines((prev) => ({ ...prev, turn: prev.turn.slice(0, lineIndex), river: [] }));
+    } else {
+      setStreetLines((prev) => ({ ...prev, river: prev.river.slice(0, lineIndex) }));
+    }
+  }
+
+  function confirmBoard(newCards: string[]) {
+    setBoard((prev) => [...prev, ...newCards]);
+    if (pendingStreet) setStreet(pendingStreet);
+    setPendingStreet(null);
+    setDismissedStreet(null);
+    setJustPickedBoard(true);
+  }
+
+  const BOARD_LEN_BEFORE: Record<PostflopStreet, number> = { flop: 0, turn: 3, river: 4 };
+
+  function retryBoard() {
+    if (street === "preflop") return;
+    const streetKey = street as PostflopStreet;
+    setJustPickedBoard(false);
+    setBoard((prev) => prev.slice(0, BOARD_LEN_BEFORE[streetKey]));
+    setPendingStreet(streetKey);
+  }
+
+  function closeBoardPicker() {
+    setDismissedStreet(pendingStreet);
+    setPendingStreet(null);
+  }
+
+  function buildPositionPills(streetKey: Street, order: string[], line: LineStepWithMeta[], isCurrentStreet: boolean): PillBarItem[] {
+    return order.map((position) => {
+      const idx = line.findIndex((s) => s.position === position);
+      if (idx !== -1) {
+        const step = line[idx]!;
+        return {
+          kind: "position",
+          street: streetKey,
+          position,
+          state: "decided",
+          actionLabel: bucketLabelFor(streetKey, step.bucket),
+          bucket: step.bucket,
+          geometricRatio: step.geometricRatio,
+          lineIndex: idx,
+        };
+      }
+      if (isCurrentStreet && node?.position === position) {
+        return { kind: "position", street: streetKey, position, state: "active" };
+      }
+      return { kind: "position", street: streetKey, position, state: "future" };
+    });
+  }
+
+  const items: PillBarItem[] = [...buildPositionPills("preflop", preflopOrder(), preflopLine, street === "preflop")];
+  // 2巡目(オープナーがスクイーズ/3betに応答)対応。1周モデルの buildPositionPills は各ポジションを
+  // 1回しか描かないため、2回目以降のアクション(オープナーのvs3bet応答=fold/call/4bet)を明示的に足す。
+  // 標準ラインでは preflopLine に重複ポジションが無く、この追加は空になるので既存挙動は不変(GEO側も安全)。
+  {
+    const firstIdx = new Map<string, number>();
+    preflopLine.forEach((s, i) => {
+      if (!firstIdx.has(s.position)) firstIdx.set(s.position, i);
+    });
+    // 2巡目以降の「決定済み」ピル(例: オープナーの call-vs-3bet)。
+    preflopLine.forEach((s, i) => {
+      if (firstIdx.get(s.position) === i) return; // 1周目は標準ピルで描画済み
+      items.push({
+        kind: "position",
+        street: "preflop",
+        position: s.position,
+        state: "decided",
+        actionLabel: bucketLabelFor("preflop", s.bucket),
+        bucket: s.bucket,
+        geometricRatio: s.geometricRatio,
+        lineIndex: i,
+      });
+    });
+    // アクティブな2巡目(オープナーが3betに応答する番)。node.position が既出=2巡目。
+    if (street === "preflop" && node?.position && firstIdx.has(node.position)) {
+      items.push({ kind: "position", street: "preflop", position: node.position, state: "active" });
+    }
+  }
+  if (board.length >= 3) {
+    items.push({ kind: "street", street: "flop", cards: board.slice(0, 3) });
+    items.push(...buildPositionPills("flop", activePositions("flop"), streetLines.flop, street === "flop"));
+  }
+  if (board.length >= 4) {
+    items.push({ kind: "street", street: "turn", cards: board.slice(3, 4) });
+    items.push(...buildPositionPills("turn", activePositions("turn"), streetLines.turn, street === "turn"));
+  }
+  if (board.length >= 5) {
+    items.push({ kind: "street", street: "river", cards: board.slice(4, 5) });
+    items.push(...buildPositionPills("river", activePositions("river"), streetLines.river, street === "river"));
+  }
+
+  const noBoardData = !!node && node.position === null && justPickedBoard;
+
+  const awaitingDismissedBoard =
+    !!node &&
+    node.position === null &&
+    !pendingStreet &&
+    !justPickedBoard &&
+    dismissedStreet === nextStreetOf(street) &&
+    nextStreetOf(street) !== null &&
+    remainingActiveCount(street) >= 2;
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 pb-28">
-      <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
-        <div>
-          <div className="text-[11px] tracking-[0.25em] text-gold-500 font-medium">GEO STRATEGY DB</div>
-          <h1 className="text-lg font-semibold text-ink-50">プレイヤー傾向分析</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadAll}
-            className="rounded-full bg-ink-800 text-ink-300 text-[11px] px-3 py-1.5 ring-1 ring-ink-600/60 hover:text-ink-100 transition-colors"
-          >
-            更新
-          </button>
-          <Link
-            href="/"
-            className="rounded-full bg-gold-500 text-ink-950 text-[11px] font-semibold px-3 py-1.5 shadow-card"
-          >
-            テーブルへ
-          </Link>
-        </div>
-      </header>
-
-      {error && (
-        <div className="rounded-2xl bg-rose-500/10 ring-1 ring-rose-500/30 text-rose-300 text-sm px-4 py-3 mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="flex gap-1.5 rounded-full bg-ink-900/70 ring-1 ring-ink-700/50 p-1 w-fit mb-4">
-        <button
-          onClick={() => setTab("range")}
-          className={`rounded-full px-4 py-1.5 text-[12px] font-medium transition-colors ${
-            tab === "range" ? "bg-gold-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
-          }`}
-        >
-          Study
-        </button>
-        <button
-          onClick={() => setTab("analytics")}
-          className={`rounded-full px-4 py-1.5 text-[12px] font-medium transition-colors ${
-            tab === "analytics" ? "bg-gold-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
-          }`}
-        >
-          アナリティクス
-        </button>
+    <div className="min-h-screen bg-canvas-sunken">
+      <div className="max-w-3xl lg:max-w-6xl mx-auto">
+        <Header
+          widthClass="max-w-3xl lg:max-w-6xl"
+          left={<HeaderLogo />}
+          right={
+            <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
+              <HamburgerIcon />
+            </HeaderIconButton>
+          }
+        />
       </div>
 
-      {tab === "range" ? (
-        <StudyExplorer />
-      ) : (
-        <>
-          <p className="text-[12px] text-ink-500 mb-4 leading-relaxed">
-            このテーブルでプレイされた全ハンド・全アクションを記録し、スポットごとの傾向を可視化しています。
-            GTOソルバーとの比較(理論値との乖離)は今後実装予定です。現時点では実際のプレイヤー母集団の
-            実測データのみを表示しています。
-          </p>
+      {/* lg以上は「左ナビレール + 本文」の2カラム。モバイルは従来の1カラム + 下部フッターナビ。 */}
+      <div className="mx-auto flex w-full max-w-3xl lg:max-w-6xl lg:gap-6 lg:px-6">
+        <SideNav activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-4" />
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
-            <StatTile label="記録済みハンド数" value={summary ? summary.totalHands.toLocaleString() : "—"} />
-            <StatTile label="プレイヤー数" value={summary ? summary.totalPlayers.toLocaleString() : "—"} hint="BOTを除く" />
-            <StatTile label="平均ポット" value={summary ? summary.averagePot.toLocaleString() : "—"} />
-            <StatTile
-              label="ショーダウン率"
-              value={summary ? `${Math.round(summary.showdownRate * 100)}%` : "—"}
-              hint="残りはフォールドで決着"
+        <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
+        {/* GEO専用のツールバー(見出し+データ源トグル+設定+ポジションピル)。共通ヘッダーの
+            `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
+            欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
+            この一式は他画面のTabHeaderと同じくスクロールする本文側へ移した。 */}
+        <div className="pt-4">
+          {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
+              ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
+              演出をこのページにも適用)。 */}
+          <TermPrompt command="geo --query" className="mb-1.5" />
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
+            className="mb-2 flex items-center gap-2"
+          >
+            {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。GTOモードへの入口は
+                廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。 */}
+            <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
+            <p className="text-[15px] font-black tracking-tight text-fg leading-none">
+              GEO<span className="text-accent"> Database</span>
+              <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
+            </p>
+          </motion.div>
+          {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
+          <div className="flex items-stretch gap-2.5">
+            {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
+                高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
+            <motion.button
+              onClick={() => setSettingsOpen(true)}
+              whileTap={{ scale: 0.94 }}
+              className="pressable glass-panel shrink-0 flex flex-col justify-center rounded-xl px-3 py-1.5 text-left"
+              aria-label="詳細設定を変更"
+            >
+              <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
+                <Icon name="settings" className="h-3 w-3" />
+                設定
+              </div>
+              <div className="text-[11px] font-bold text-fg whitespace-nowrap">
+                {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+              </div>
+            </motion.button>
+            <PositionPillBar
+              items={items}
+              onTruncate={handleTruncate}
+              activeOptions={node?.position ? node.options : undefined}
+              activeSampleSize={node?.position ? node.sampleSize : undefined}
+              bucketLabels={bucketLabels}
+              onSelect={selectBucket}
             />
           </div>
+        </div>
 
-          {positional && <PositionalRfiChart data={positional} />}
-
-          <div className="grid md:grid-cols-2 gap-4 mt-5">
-            <div>
-              <h2 className="text-[12px] text-ink-400 mb-2">ハンド履歴</h2>
-              {hands && <HandHistoryList hands={hands} selectedId={selectedHandId} onSelect={setSelectedHandId} />}
-            </div>
-            <div>
-              <h2 className="text-[12px] text-ink-400 mb-2">ハンド詳細</h2>
-              <HandDetailPanel hand={selectedHand} />
+        {error && (
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
+            <p className="text-sm text-crimson-300">{error}</p>
+            {/* 原因の技術詳細(種別・エンドポイント・HTTPステータス・所要ms)。そのまま共有できる。 */}
+            {failure && <p className="mt-1 font-mono text-[10px] leading-snug text-crimson-300/70 break-all">{failure.detail}</p>}
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPollTick((t) => t + 1)}
+                className="rounded-full bg-crimson-600 px-4 py-1.5 text-[12px] font-bold text-white pressable"
+              >
+                今すぐ再試行
+              </button>
+              <ReportErrorButton
+                scope="geo"
+                message={error}
+                detail={failure?.detail ?? null}
+                context={{ mode, street, stackBucket, bubbleStage, attempt: failure?.attempt ?? null }}
+              />
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        {/* サンプル数が少ない(n<5000)実測ノードの注意書き。レンジ表自体は表示するが、統計的に不十分な旨を明示する。 */}
+        {node && !node.isGto && node.sampleSize > 0 && node.sampleSize < 5000 && (
+          <div className="mt-1 flex items-start gap-2.5 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3">
+            <Icon name="warning" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <p className="text-[12px] leading-snug text-accent-hi">
+              このノードはサンプル数が少なめです（n={node.sampleSize.toLocaleString()}）。レンジ表として不十分なため、参考程度にご覧ください。
+            </p>
+          </div>
+        )}
+
+        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5" />}
+
+        {/* PC(lg)ではレンジ表とアクション選択を左右に並べ、スクロールせずに両方を見渡せるようにする。 */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+        <div className="mt-1">
+          {matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} mergeOpenRaise={street === "preflop"} />}
+        </div>
+
+        <div className="mt-3 lg:mt-1">
+          {loading || solving ? (
+            <div className="glass-panel rounded-2xl p-8 text-center text-sm text-fg-2">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <CardRingSpinner size={32} />
+                <span className="font-mono">
+                  {solving ? (
+                    "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
+                  ) : reconnecting ? (
+                    `接続を再試行中…(${failure?.attempt ?? 1}回目)`
+                  ) : requestStartedAt !== null ? (
+                    // 待たされていること自体を必ず伝える。無言のスピナーだけだと
+                    // 「進んでいるのか固まっているのか」が利用者にもこちらにも分からない。
+                    <ElapsedText startedAt={requestStartedAt} />
+                  ) : (
+                    "読み込み中…"
+                  )}
+                  <span className="term-cursor ml-0.5 bg-fg-3" style={{ width: 4, height: 12, verticalAlign: "-2px" }} aria-hidden="true" />
+                </span>
+              </div>
+              {/* 待たせている間も理由を隠さない。「ずっと再試行中」の原因がその場で読める。
+                  上のエラーバナーに同じ内容が出ているときは重複させない。 */}
+              {reconnecting && failure && !error && (
+                <div className="mt-3 space-y-1 text-left">
+                  <p className="text-[12px] leading-snug text-crimson-300">{failure.reason}</p>
+                  <p className="font-mono text-[10px] leading-snug text-fg-3 break-all">{failure.detail}</p>
+                </div>
+              )}
+            </div>
+          ) : noBoardData ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-panel rounded-2xl p-6 text-center"
+            >
+              <p className="text-sm text-n-9 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={retryBoard}
+                className="pressable rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
+              >
+                板面を選び直す
+              </motion.button>
+            </motion.div>
+          ) : awaitingDismissedBoard ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-panel rounded-2xl p-6 text-center"
+            >
+              <p className="text-sm text-n-9 mb-3">次のストリートに進むにはボードを選択してください。</p>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setDismissedStreet(null);
+                  setPendingStreet(nextStreetOf(street));
+                }}
+                className="pressable rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
+              >
+                ボードを選択
+              </motion.button>
+            </motion.div>
+          ) : node ? (
+            <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
+          ) : null}
+        </div>
+        </div>
+
+        {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等)。
+            ホーム画面フッターと同じターミナルプロンプト風の表記に揃えている。 */}
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={() => setAdminGateOpen(true)}
+            className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
+          >
+            <span className="text-accent">{"$ "}</span>
+            poker-art --version {APP_VERSION} · © 2026 Poker ART
+            <span className="term-cursor bg-fg-3" style={{ width: 4, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
+          </button>
+        </div>
+        </main>
       </div>
 
-      <nav className="fixed bottom-0 inset-x-0 border-t border-ink-800 bg-ink-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto max-w-md grid grid-cols-5 items-end">
-          {(
-            [
-              { key: "home", label: "Home", icon: "home", href: "/" },
-              { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-              null,
-              { key: "history", label: "History", icon: "layers", href: "/?tab=history" },
-              { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-            ] as ({ key: string; label: string; icon: string; href: string } | null)[]
-          ).map((t, i) =>
-            t ? (
-              <Link key={t.key} href={t.href} className="flex flex-col items-center gap-0.5 py-2.5 text-ink-500">
-                <Icon name={t.icon} />
-                <span className="text-[9px] font-medium">{t.label}</span>
-              </Link>
-            ) : (
-              <div key={`db-${i}`} className="relative flex justify-center">
-                <div className="absolute -top-7 h-14 w-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 ring-4 ring-ink-950 shadow-panel flex flex-col items-center justify-center text-ink-950">
-                  <Icon name="db" className="h-5 w-5" />
-                  <span className="text-[7px] font-bold tracking-wide mt-[1px]">DATABASE</span>
-                </div>
-                <div className="h-[54px]" />
-              </div>
-            ),
-          )}
-        </div>
-      </nav>
+      <AnimatePresence>
+        {adminGateOpen && (
+          <PasscodeModal
+            expected="2357"
+            title="管理者パスコード"
+            onSuccess={(code) => {
+              try {
+                sessionStorage.setItem("adminPasscode", code);
+              } catch {
+                /* sessionStorage不可でも/admin側で再入力できる */
+              }
+              router.push("/admin");
+            }}
+            onClose={() => setAdminGateOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingStreet && (
+          <BoardCardPicker
+            cardsNeeded={pendingStreet === "flop" ? 3 : 1}
+            usedCards={board}
+            onClose={closeBoardPicker}
+            onConfirm={confirmBoard}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {settingsOpen && (
+          <GeoSettingsModal
+            mode={mode}
+            stackBucket={stackBucket}
+            gtoStackBb={gtoStackBb}
+            bubbleStage={bubbleStage}
+            ratingRange={ratingRange}
+            playerCount={playerCount}
+            gtoPlayerCount={gtoPlayerCount}
+            onChangeStackBucket={setStackBucket}
+            onChangeGtoStackBb={setGtoStackBb}
+            onChangeBubbleStage={setBubbleStage}
+            onChangeRatingRange={setRatingRange}
+            onChangePlayerCount={changePlayerCount}
+            onChangeGtoPlayerCount={changeGtoPlayerCount}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      <div className="lg:hidden">
+        <Footer
+          activeKey={null}
+          centerActive
+          items={[
+            { key: "home", label: "Home", icon: "home", href: "/" },
+            { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
+            { key: "history", label: "History", icon: "history", href: "/?tab=history" },
+            { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+          ]}
+        />
+      </div>
     </div>
   );
 }

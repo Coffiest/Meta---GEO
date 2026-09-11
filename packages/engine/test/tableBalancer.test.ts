@@ -40,6 +40,25 @@ describe("findTableToBreak", () => {
     ];
     expect(findTableToBreak(tables, 6, 4)).toBe(1);
   });
+
+  it("does not break a busy (hand-in-progress) table and falls back to a free one", () => {
+    const tables = [
+      { tableId: 0, occupiedSeats: [0] },
+      { tableId: 1, occupiedSeats: [1] }, // smallest tie, but busy
+      { tableId: 2, occupiedSeats: [0, 1] },
+    ];
+    // 4 players over 3 tables -> target 1, so break; smallest-tie t1 is busy, so break the free t0 instead.
+    expect(findTableToBreak(tables, 6, 4, new Set([1]))).toBe(0);
+  });
+
+  it("returns null when every over-count table is busy (defers to a later hand boundary)", () => {
+    const tables = [
+      { tableId: 0, occupiedSeats: [0, 1, 2] },
+      { tableId: 1, occupiedSeats: [0, 1, 2] },
+    ];
+    // target 1 for 6 players, but both tables are mid-hand -> nothing to break right now.
+    expect(findTableToBreak(tables, 6, 6, new Set([0, 1]))).toBeNull();
+  });
 });
 
 describe("findRebalanceMove", () => {
@@ -61,6 +80,24 @@ describe("findRebalanceMove", () => {
       { tableId: 1, occupiedSeats: [0, 1, 2] },
     ];
     expect(findRebalanceMove(tables)).toEqual({ fromTableId: 0, toTableId: 1 });
+  });
+
+  it("does not use a busy table as the move source (picks the next-fullest free one)", () => {
+    const tables = [
+      { tableId: 0, occupiedSeats: [0, 1, 2, 3, 4, 5] }, // fullest, but busy
+      { tableId: 1, occupiedSeats: [0, 1, 2, 3, 4] },
+      { tableId: 2, occupiedSeats: [0, 1] }, // emptiest
+    ];
+    // t0 is busy; the next-fullest free source is t1 (5) vs emptiest t2 (2), gap 3 >= 2.
+    expect(findRebalanceMove(tables, new Set([0]))).toEqual({ fromTableId: 1, toTableId: 2 });
+  });
+
+  it("returns null when every viable source is busy", () => {
+    const tables = [
+      { tableId: 0, occupiedSeats: [0, 1, 2, 3, 4, 5] }, // busy
+      { tableId: 1, occupiedSeats: [0, 1] },
+    ];
+    expect(findRebalanceMove(tables, new Set([0]))).toBeNull();
   });
 });
 

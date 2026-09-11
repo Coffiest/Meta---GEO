@@ -1,9 +1,111 @@
 import type { Metadata, Viewport } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { LocaleProvider } from "@/lib/i18n";
+import { DiagnosticsToaster } from "@/components/DiagnosticsToaster";
+
+// Google AdSense。NEXT_PUBLIC_ADSENSE_CLIENT_ID(ca-pub-...)が未設定の間はスクリプト自体を
+// 読み込まない(審査未通過の状態で広告タグを配信しないため)。設定後は再デプロイのみで有効化される。
+const ADSENSE_CLIENT_ID = process.env["NEXT_PUBLIC_ADSENSE_CLIENT_ID"];
+
+/**
+ * 欧文・数字のフォント。エディタ/ターミナルの見え方に寄せるため、コーディング用の
+ * JetBrains Mono を全面に使う。0にスラッシュが入り l と 1 が描き分けられるので、
+ * スタック・bb・%・順位といった数値の誤読が起きにくい。
+ *
+ * 和文は JetBrains Mono に無いので、下の <link> で読む M PLUS 1 Code へ自動的に
+ * フォールバックする(fontFamily の並び順で解決される)。
+ */
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-mono",
+});
+
+/**
+ * 和文フォント(M PLUS 1 Code)の読み込み先。
+ *
+ * next/font/google は使えない。Next.js が持つフォント定義上、M PLUS 1 Code の subsets は
+ * latin / latin-ext / vietnamese しか無く **japanese が存在しない**ため、next/font 経由だと
+ * 和文グリフが1つも入らず日本語だけシステムフォントに落ちてしまう。
+ * Google Fonts の CSS API は同じフォントを 119 個の unicode-range に分割して返し、
+ * かな・漢字を含む。ブラウザは実際に使う範囲のファイルだけを取得する。
+ */
+const JP_FONT_CSS =
+  "https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400..700&display=swap";
+
+const SITE_URL = "https://meta-geo-poker.vercel.app";
+const SITE_DESCRIPTION =
+  "Poker ART（ポーカーアート／POKERART）は、課金なしのバーチャルチップ専用オンラインポーカー。Sit & Go・MTTのNLHトーナメントを無料でプレイでき、ハンド履歴とレンジ分析で戦略を磨けます。";
 
 export const metadata: Metadata = {
-  title: "Ten Four Poker Tournament",
-  description: "GTOを超える、GEO戦略のポーカートーナメント",
+  // 本番URLを基準に相対パス(manifest/OGP等)を絶対URL化する。
+  metadataBase: new URL(SITE_URL),
+  // ブランド名「Poker ART / ポーカーアート / POKERART」で検索されたときに確実に一致させる。
+  title: {
+    default: "Poker ART（ポーカーアート）| 無料バーチャルチップ・ポーカートーナメント",
+    template: "%s | Poker ART（ポーカーアート）",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: "Poker ART",
+  keywords: [
+    "Poker ART",
+    "ポーカーアート",
+    "POKERART",
+    "ポーカー",
+    "無料 ポーカー",
+    "オンラインポーカー",
+    "バーチャルポーカー",
+    "ポーカー トーナメント",
+    "テキサスホールデム",
+    "SNG",
+    "MTT",
+  ],
+  authors: [{ name: "Poker ART" }],
+  creator: "Poker ART",
+  publisher: "Poker ART",
+  // favicon/apple-touch-iconは src/app/icon.png・apple-icon.png のNext.js規約ファイルから自動生成される。
+  manifest: "/manifest.webmanifest",
+  alternates: { canonical: "/" },
+  // iOSでホーム画面に追加したとき、Safariのタブではなく独立したWebアプリ(スタンドアロン)
+  // として起動させるための設定。capable:true が <meta name="apple-mobile-web-app-capable" content="yes"> を出す。
+  appleWebApp: {
+    capable: true,
+    title: "Poker ART",
+    // ダークテーマなので、ステータスバーは白文字が読める黒半透明にする。
+    // black-translucent にすると内容がステータスバーの下まで回り込み、背景色が上端まで繋がる。
+    statusBarStyle: "black-translucent",
+  },
+  // Android(Chrome)版の「ホーム画面に追加」でもアドレスバー無しのスタンドアロン表示にする
+  // 明示的なヒント。manifest.ts の display:standalone が主だが、一部Chromeはこのmetaも見る。
+  other: { "mobile-web-app-capable": "yes" },
+  formatDetection: { telephone: false },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  // Google Search Console の所有権確認トークン(環境変数 GOOGLE_SITE_VERIFICATION に設定すると
+  // <meta name="google-site-verification"> が出力される)。設定後に再デプロイ→GSCで確認できる。
+  ...(process.env["GOOGLE_SITE_VERIFICATION"]
+    ? { verification: { google: process.env["GOOGLE_SITE_VERIFICATION"] } }
+    : {}),
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    url: SITE_URL,
+    siteName: "Poker ART（ポーカーアート）",
+    title: "Poker ART（ポーカーアート）| 無料バーチャルチップ・ポーカートーナメント",
+    description: SITE_DESCRIPTION,
+    images: [{ url: "/logos/Logo_s.png", width: 2000, height: 2000, alt: "Poker ART（ポーカーアート）" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Poker ART（ポーカーアート）| 無料バーチャルポーカー",
+    description: SITE_DESCRIPTION,
+    images: ["/logos/Logo_s.png"],
+  },
 };
 
 export const viewport: Viewport = {
@@ -12,13 +114,106 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#08080a",
+  // ブラウザのUI(Androidのアドレスバー等)をアプリの背景色に一致させ、画面の境目を消す。
+  themeColor: "#1C1C1E",
+};
+
+// 検索エンジンにブランド(Poker ART=ポーカーアート=POKERART)を「同一の実体」として
+// 認識させるための構造化データ。@graphで WebSite・Organization・WebApplication を相互参照させ、
+// alternateName でカナ/大文字表記、sameAs で公式SNS・姉妹サイトを紐付けてブランド実体を強化する。
+// これによりブランド名検索での一致(ナレッジ/サイトリンク)を狙う。
+const ORG_ID = `${SITE_URL}/#organization`;
+const SITE_ID = `${SITE_URL}/#website`;
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": ORG_ID,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART", "Poker ART（ポーカーアート）"],
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.png`,
+      // 公式SNS・姉妹サービスとの関連付け(ブランド実体の裏付け)。
+      sameAs: ["https://www.instagram.com/coffest_o0", "https://rrpoker.vercel.app/"],
+    },
+    {
+      "@type": "WebSite",
+      "@id": SITE_ID,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART"],
+      url: SITE_URL,
+      inLanguage: "ja",
+      description: SITE_DESCRIPTION,
+      publisher: { "@id": ORG_ID },
+      // サイト内検索(サイトリンク検索ボックス)の候補提示。
+      potentialAction: {
+        "@type": "SearchAction",
+        target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/glossary?q={search_term_string}` },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "WebApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: "Poker ART",
+      alternateName: ["ポーカーアート", "POKERART", "Poker ART（ポーカーアート）"],
+      url: SITE_URL,
+      applicationCategory: "GameApplication",
+      operatingSystem: "Web",
+      inLanguage: "ja",
+      description: SITE_DESCRIPTION,
+      isPartOf: { "@id": SITE_ID },
+      publisher: { "@id": ORG_ID },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "JPY" },
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
-      <body className="min-h-screen bg-ink-950 text-ink-50 font-sans antialiased">{children}</body>
+    // --font-mono は Tailwind の preflight(html への font-family 指定)から参照されるので、
+    // html 側で定義しないと解決されない(CSS変数は上へ継承しない)。
+    <html lang="ja" className={mono.variable}>
+      <head>
+        {/* 和文フォントは Google Fonts から。gstatic は実ファイルの配信元なので両方 preconnect する
+            (crossOrigin 無しだと接続が使い回されず、preconnect の意味が無くなる)。 */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href={JP_FONT_CSS} />
+      </head>
+      {/* body に next/font の className を付けてはいけない。その font-family は
+          JetBrains Mono とそのフォールバックだけで **M PLUS 1 Code を含まない**ため、
+          html 側の指定を上書きしてしまい和文がWebフォントに到達しなくなる。
+          ここでは何も指定せず、html の font-family
+          (var(--font-mono) → 'JetBrains Mono' → 'M PLUS 1 Code')をそのまま継承させる。 */}
+      <body className="min-h-screen bg-canvas text-fg antialiased">
+        {/* 環境光。個々の部品ではなく空間そのものを発光させることで、テーマの「アート」を
+            全画面に一度に効かせる。操作には干渉しない(pointer-events: none)。 */}
+        <div className="aura" aria-hidden="true" />
+        {/* クローラー向けのブランド見出し。アプリ本体はクライアント描画でサーバーHTMLに本文が
+            乗らないため、ブランド名(カナ・英字・大文字)と概要をサーバー描画のテキストとして必ず含める。
+            視覚的には隠す(sr-only)がDOMには存在し、実体を正確に説明する正当なテキスト。 */}
+        <h1 className="sr-only">Poker ART（ポーカーアート／POKERART）— 無料バーチャルチップ・ポーカートーナメント</h1>
+        <p className="sr-only">{SITE_DESCRIPTION}</p>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+        {ADSENSE_CLIENT_ID && (
+          // next/script の Script コンポーネント(strategy問わず)は、生の<script src>タグを
+          // 直接HTMLへ出力せず、<link rel="preload">+ JS実行時に組み立てる仕組みになっている。
+          // AdSenseの所有権確認クローラーはJSを実行せず、静的HTML中の文字どおりの<script src=...>
+          // タグを探すため、next/scriptでは検出されずサイト確認が失敗し続けていた。
+          // そのため、素のHTML <script> タグとして直接出力する。
+          // eslint-disable-next-line @next/next/no-sync-scripts -- AdSense所有権確認は静的HTML中の生<script>タグを要求するため、next/scriptは使えない
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+            crossOrigin="anonymous"
+          />
+        )}
+        <LocaleProvider>{children}</LocaleProvider>
+        {/* JSエラー・Promise拒否・メインスレッド過負荷を、画面下部のトーストでこまめに知らせる。 */}
+        <DiagnosticsToaster />
+      </body>
     </html>
   );
 }

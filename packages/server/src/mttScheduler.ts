@@ -2,27 +2,32 @@ import type { Server, Socket } from "socket.io";
 import { MttSession, MTT_MIN_PLAYERS_TO_START } from "./mttSession.js";
 import type { HumanPlayer } from "./gameServer.js";
 
-/** レジストレーションウィンドウ(30分)。次の周期は前回のレジクロ時刻から30分後に固定される。 */
-export const MTT_REGISTRATION_WINDOW_MS = 30 * 60_000;
-
 /**
- * MTTを30分周期で回し続けるスケジューラ。常に「今登録できるMTT」が1つ存在し、
- * ウィンドウが終わるとそのMTTのレジストレーションを締め切る(トーナメント自体は
- * 勝者が決まるまで裏で進行し続ける)と同時に次のMTTを新規オープンする。
+ * MTTのロビー管理。常に「今登録できるMTT」が **1つだけ** 存在する。
  *
- * 例: 12:00にオープンしたMTTは12:30にレジクロ→そのタイミングで次のMTTがオープンし13:00にレジクロ…
- * という周期を、このプロセスが起動している限り繰り返す。
+ * 仕組み(確定仕様):
+ *  - 募集中のMTTは常に1つ。新規の人間はレジストレーションクローズ(RC)までその同じMTTへ相席する。
+ *  - MTTは「4人(実人間)が集まった瞬間」または「最初の登録から15秒経過してボット補充で4人」で開始。
+ *  - RCは **スタートから15分後**(固定周期ではなくスタート連動)。RCした瞬間に次の募集MTTが開く。
+ *  - 参加できるMTTが同時に複数存在することは無い。
  */
 export class MttScheduler {
   private current: MttSession;
   private readonly io: Server;
-  private readonly windowMs: number;
 
-  constructor(io: Server, windowMs: number = MTT_REGISTRATION_WINDOW_MS) {
+  constructor(io: Server) {
     this.io = io;
-    this.windowMs = windowMs;
-    this.current = new MttSession(io);
-    this.scheduleNextClose();
+    this.current = this.openNew();
+  }
+
+  private openNew(): MttSession {
+    // RC(登録締切)されたら、その瞬間に次の募集MTTを開く。
+    return new MttSession(this.io, () => this.onCurrentClosed());
+  }
+
+  private onCurrentClosed(): void {
+    // RC済みのセッションはこのまま裏で優勝者まで進行し続ける。募集先は新しいMTTへ切り替える。
+    this.current = this.openNew();
   }
 
   /** 現在レジストレーション中のMTT(登録先)を返す。 */
@@ -30,19 +35,8 @@ export class MttScheduler {
     return this.current;
   }
 
-  /** 特定のセッションを(離脱後の再参加判定などのために)IDで探す用途は今のところ不要。 */
   findSessionForUser(userId: string): MttSession | null {
     return this.current.hasUser(userId) ? this.current : null;
-  }
-
-  private scheduleNextClose(): void {
-    setTimeout(() => this.rotate(), this.windowMs);
-  }
-
-  private rotate(): void {
-    this.current.closeRegistration();
-    this.current = new MttSession(this.io);
-    this.scheduleNextClose();
   }
 
   /** 登録し、登録先となったMttSessionを返す(呼び出し側が再接続用に保持するため)。 */

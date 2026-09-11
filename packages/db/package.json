@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@meta-geo/engine": "workspace:*",
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "@meta-geo/marketing": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

@@ -93,6 +93,18 @@ export class Tournament {
     return [...this.seats.values()];
   }
 
+  /**
+   * チップを破棄しての離脱など、ハンドの結果によらず強制的にその席を「今バストした」扱いにする。
+   * 呼ばない場合、離脱者は以降のハンドで自動フォールドし続けるだけの席として残り、ブラインドで
+   * 少しずつ減る以外は負けないため、実際にプレイして敗退した他のプレイヤーより良い着順になって
+   * しまう(離脱=即敗退という直感に反する)。既にバスト済みなら何もしない。
+   */
+  forceEliminate(seatIndex: number): void {
+    const seat = this.seats.get(seatIndex);
+    if (!seat || seat.bustedAtHand !== null) return;
+    seat.bustedAtHand = this.handNumber;
+  }
+
   getEvents(): readonly TournamentEvent[] {
     return this.events;
   }

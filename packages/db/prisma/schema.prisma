@@ -22,11 +22,177 @@ model User {
   /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
   onboarded   Boolean  @default(false)
   isBot       Boolean  @default(false)
+  /// 友達招待用のコード(例 "K7QMX2AB")。ホームの招待カードを初めて開いたときに発行する。
+  /// 未発行はnull(BOTには発行しない)。
+  referralCode String? @unique
   createdAt   DateTime @default(now())
+  /// アカウント削除(退会)した時刻。未削除はnull。
+  ///
+  /// 重要: 退会しても User 行そのものは消さない。ハンド履歴(Hand/HandSeat)=GEO DATABASE の
+  /// 実データが HandSeat.userId で User を参照しており、行を消すと集計対象のハンドまで
+  /// 巻き添えになるため。退会処理では認証情報と表示名を匿名化するだけにして、
+  /// GEOの集計結果は退会前とまったく同じに保つ。
+  deletedAt   DateTime?
 
   tournamentEntries    TournamentEntry[]
   handSeats            HandSeat[]
   bankrollTransactions BankrollTransaction[]
+  subscription         Subscription?
+  referralsSent        Referral[]            @relation("ReferralInviter")
+  referralReceived     Referral?             @relation("ReferralInvitee")
+  pushSubscriptions    PushSubscription[]
+  premiumCoupon        PremiumCoupon?
+  couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
+  couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
+  errorReports ErrorReport[]
+
+  @@index([deletedAt])
+}
+
+/// Web Push(PWAプッシュ通知)の購読情報。1ユーザーが複数端末を登録できる。
+/// 送信時に失効(410/404)が返った購読はその場で削除する(死んだ購読を溜めない)。
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  /// プッシュサービスのエンドポイントURL。端末+ブラウザごとに一意。
+  endpoint  String   @unique
+  /// 暗号化キー(購読オブジェクトの keys.p256dh / keys.auth)。
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// 招待コードの成立記録(招待した人 × 招待された人)。
+/// 特典は「棋譜解析プラン1ヶ月無料クーポン」を1招待につき1枚発行(PremiumCouponCode)。
+/// バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が出るため。
+/// 招待される側は生涯1回だけ(inviteeUserIdが一意)。
+model Referral {
+  id            String   @id @default(uuid())
+  /// 招待した側のUser.id
+  inviterUserId String
+  inviter       User     @relation("ReferralInviter", fields: [inviterUserId], references: [id])
+  /// 招待された側のUser.id。1人につき1回だけ適用できる。
+  inviteeUserId String   @unique
+  invitee       User     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
+  /// 適用時に入力された招待コード(発行後に変わることはないが、履歴として残す)。
+  code          String
+  createdAt     DateTime @default(now())
+
+  @@index([inviterUserId, createdAt])
+}
+
+/// 招待特典として発行される「棋譜解析プラン1ヶ月無料」クーポン。招待が1件成立するごとに1枚
+/// 発行され、獲得した人はいつでも一覧で確認・コピーできる。
+///
+/// 発行しただけでは無料期間は始まらない —— 棋譜解析の画面でコードを適用したときに初めて
+/// PremiumCoupon(下)の期限が伸びる。使うタイミングを本人が選べるようにするための設計。
+/// コードは1枚1回だけ使える(redeemedAt が立ったら再利用不可)。
+model PremiumCouponCode {
+  id               String    @id @default(uuid())
+  /// 人が読める一意なコード(表示は "GEO-XXXX-XXXX"、保存は区切りなしの英数字)。
+  code             String    @unique
+  /// このクーポンを獲得した人。
+  ownerUserId      String
+  owner            User      @relation("CouponOwner", fields: [ownerUserId], references: [id])
+  /// 適用すると付与される無料月数。
+  months           Int       @default(1)
+  /// 発行理由(referral=友達招待)。将来キャンペーン等で増やせるようにしている。
+  source           String    @default("referral")
+  /// 発行元の招待。1招待につき1枚だけ発行するための冪等キー(招待以外の発行はnull)。
+  referralId       String?   @unique
+  /// 適用された時刻。未適用ならnull。
+  redeemedAt       DateTime?
+  /// 適用した人。コードは共有できるため、獲得者(owner)とは別に記録する。
+  redeemedByUserId String?
+  redeemedBy       User?     @relation("CouponRedeemer", fields: [redeemedByUserId], references: [id])
+  createdAt        DateTime  @default(now())
+
+  @@index([ownerUserId, createdAt])
+}
+
+/// クーポンを適用して得られる「棋譜解析プランの無料アクセス権」。1ユーザー1行で、クーポンを
+/// 使うたびに expiresAt を1ヶ月ずつ積み上げる(有効期限が残っていればその後ろへ伸ばす)。
+///
+/// Subscription(Stripe契約・管理者付与comp)とは別テーブルにしている。1ユーザー1行のSubscriptionへ
+/// 書き込むと、課金中ユーザーのstatus/期間をこちらが上書きして契約情報を壊しかねないため。
+/// 有料判定(getSubscriptionStatusForUser)は Stripe契約 / comp / このクーポン のORで行う。
+model PremiumCoupon {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  /// この特典で無料アクセスできる期限。
+  expiresAt     DateTime
+  /// 累計で付与された月数(表示用)。
+  monthsGranted Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+/// GEO戦略DB(レンジ分析)の月額サブスクリプション状態。Stripeのsubscriptionオブジェクトと
+/// stripeSubscriptionId/stripeCustomerIdで対応させ、Webhookでstatusを同期する。
+model Subscription {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  stripeCustomerId     String    @unique
+  stripeSubscriptionId String?   @unique
+  /// "active" | "trialing" | "past_due" | "canceled" | "incomplete"
+  status               String
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+}
+
+/// 無料プランの1日あたりGEO閲覧回数トラッキング。日付が変わったら新しい行として扱う(リセット不要)。
+model GeoViewUsage {
+  id        String   @id @default(uuid())
+  userId    String
+  /// "YYYY-MM-DD"形式(UTC基準)。
+  date      String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+/// 棋譜解析(トーナメント単位)の無料枠トラッキング。無料プランは24時間ローリングで1回まで。
+/// (userId, tournamentId)で一意=同一トナメの再解析は消費しない(冪等)。直近24時間の行数で判定する。
+model ReviewUsage {
+  id           String   @id @default(uuid())
+  userId       String
+  tournamentId String
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, tournamentId])
+  @@index([userId, createdAt])
+}
+
+/// プレイヤーメモ&マーキング。あるユーザー(author)が対戦相手(target)につける
+/// 色分類(赤/橙/黄/青/紫)+自由記述メモ。GTO WizardやTenFourのHUD的な「相手ノート」機能。
+/// author×targetで一意(1相手につき1メモ)。
+model PlayerNote {
+  id           String   @id @default(uuid())
+  /// メモを付けた本人のUser.id
+  authorUserId String
+  /// メモの対象プレイヤーのUser.id
+  targetUserId String
+  /// 色分類。"red"|"orange"|"yellow"|"blue"|"purple" のいずれか、未設定はnull。
+  color        String?
+  /// 自由記述メモ本文。
+  note         String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([authorUserId, targetUserId])
+  @@index([authorUserId])
+  @@index([targetUserId])
 }
 
 /// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
@@ -92,11 +258,17 @@ model Hand {
   wonByFold       Boolean
   createdAt       DateTime @default(now())
 
-  seats   HandSeat[]
-  actions HandAction[]
-  pots    HandPot[]
+  seats     HandSeat[]
+  actions   HandAction[]
+  pots      HandPot[]
+  reviews   HandReview[]
+  decisions GeoDecision[]
 
   @@unique([tournamentId, handNumber])
+  /// GEO集計は常に createdAt 昇順で走査するため、全件ソートを避けるインデックス。
+  @@index([createdAt])
+  /// ポストフロップGEOは板面でハンドを絞り込む(board @> ARRAY[...])。配列包含はGINが効く。
+  @@index([board(ops: ArrayOps)], type: Gin)
 }
 
 /// そのハンドにおける各プレイヤーの着席情報。GEO分析上、全ハンド終了後はホールカードを常に記録する
@@ -113,6 +285,16 @@ model HandSeat {
   isSmallBlind     Boolean @default(false)
   isBigBlind       Boolean @default(false)
   resultStackDelta Int
+  /// Historyタブでプレイヤーが「お気に入り」登録したハンドかどうか。
+  isFavorite       Boolean @default(false)
+  /// そのハンド中、このプレイヤーが離席状態(自動チェック/フォールド)だったか。
+  /// 離席中の意思決定は本人の戦略ではないため、GEO戦略分析の集計から除外する。
+  wasAway          Boolean @default(false)
+  /// 管理者がGEO戦略DBから除外(論理削除)したか。アクション行そのものは残す(物理削除すると
+  /// 同卓他プレイヤーのライン再生が壊れるため)が、GEO集計のサンプルには一切含めない。
+  excludedFromGeo  Boolean @default(false)
+
+  decisions GeoDecision[]
 
   @@unique([handId, seatIndex])
   @@index([userId])
@@ -134,6 +316,47 @@ model HandAction {
   @@index([street, kind])
 }
 
+/// GEO戦略DBの集計用に事前展開した「1意思決定 = 1行」のテーブル。
+///
+/// 以前はGEOのノードを開くたびに全ハンドの全履歴を読み出してNode側でリプレイしていたため、
+/// プレイが増えるほど際限なく重くなっていた。ここへ書き出しておくことで、GEOの問い合わせを
+/// インデックス1本 + GROUP BY で答えられるようにする(応答時間がデータ総量に依存しなくなる)。
+///
+/// 行を書くのは「実プレイヤーの意思決定」だけ(自動プレイヤー・離席中の席は書かない)。
+/// 管理者が後から切り替えられる excludedFromGeo は焼き込まず、HandSeat をJOINして除外する。
+model GeoDecision {
+  id         String   @id @default(uuid())
+  handId     String
+  hand       Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  /// excludedFromGeo を参照するための HandSeat。
+  handSeatId String
+  handSeat   HandSeat @relation(fields: [handSeatId], references: [id], onDelete: Cascade)
+  /// 偏差値レンジでの絞り込み用。
+  userId     String
+  street     String
+  /// 同一ストリート内で、この意思決定の直前までのライン系列。"UTG:fold|MP:raise2-5" 形式。
+  /// 要求されたラインと完全一致で引ける(要求ライン = 対象決定の直前までの系列、という対応)。
+  lineKey    String
+  /// ポストフロップのみ。そのストリートまでの板面。"9s,8s,7s" 形式。プリフロップは空文字。
+  boardKey   String
+  /// ポストフロップのみ。そのハンドのプリフロップ全系列(要求プリフロップラインの前方一致判定用)。
+  preflopKey String
+  position   String
+  bucket     String
+  stackBucket String
+  bubbleStage String
+  playerCount Int
+  isGeometric Boolean
+  /// 13x13ハンドレンジ表の座標。分類できないホールカードは null。
+  handClassRow Int?
+  handClassCol Int?
+  sequenceNumber Int
+
+  @@index([street, lineKey, boardKey, stackBucket, bubbleStage, playerCount])
+  @@index([handId])
+  @@index([handSeatId])
+}
+
 model HandPot {
   id              String @id @default(uuid())
   handId          String
@@ -144,4 +367,230 @@ model HandPot {
   winnerUserIds   String[]
 
   @@unique([handId, potIndex])
+}
+
+/// 局後検討(GTO棋譜解析)の「正解データ」= 自社ソルバーで計算したGTO解のプリコンピュート/キャッシュ。
+/// 他社サービスのスクレイピングではなく、あくまで自前で計算した自社データを格納する。
+/// spotKeyは局面を正規化した一意キー(street/有効スタック帯/相対ポジション/スート正規化ボード/
+/// アクションライン/ベットサイズ抽象化 を連結してハッシュ化)。詳細は packages/db/src/solverSpot.ts。
+model GtoSolution {
+  id             String   @id @default(uuid())
+  /// 局面を正規化した一意キー(sha1)。キャッシュ命中判定に使う。
+  spotKey        String   @unique
+  street         String // "preflop" | "flop" | "turn" | "river"
+  /// 有効スタック帯(stackBucketと同じ区分)。
+  effStackBucket String
+  /// 相対ポジション。ポストフロップHUは "IP" | "OOP"。プリフロップは "BTN" 等の絶対ポジション。
+  heroPos        String
+  /// スート正規化済みボード(例: "AaKb7c")。プリフロップは空文字。
+  boardCanon     String
+  /// そのストリート内で直面したアクションライン(バケット列)を連結した文字列。
+  actionLine     String
+  /// ベットサイズ抽象化のID(どのサイズ木で解いたか)。
+  betTree        String
+  /// per-actionの頻度とEVを格納したペイロード。{ actions: [{ action, freq, evBb }], ... }
+  solution       Json
+  /// 収束品質(exploitability, %pot等)。プリフロップの表引きは0扱い。
+  exploitability Float    @default(0)
+  /// 解の生成元バージョン(ソルバー版 or レンジ表版)。
+  solverVersion  String   @default("preflop-table-v1")
+  createdAt      DateTime @default(now())
+
+  @@index([street, effStackBucket])
+}
+
+/// 1ハンドに対する1プレイヤー(hero)ぶんのレビュージョブ+集計結果。
+model HandReview {
+  id           String   @id @default(uuid())
+  handId       String
+  hand         Hand     @relation(fields: [handId], references: [id])
+  /// レビュー対象(意思決定を分析する)プレイヤーのUser.id。
+  heroUserId   String
+  /// "queued" | "solving" | "explaining" | "done" | "failed"
+  status       String   @default("queued")
+  error        String?
+  /// トナメ/ハンド単位のGTO精度%(0-100)。チェスドットコムのAccuracy相当。
+  gtoAccuracy  Float?
+  totalEvLossBb Float?
+  mistakeCount  Int?
+  artisticCount Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  decisions ReviewDecision[]
+
+  @@unique([handId, heroUserId])
+  @@index([status])
+}
+
+/// heroの1意思決定ぶんの分析結果。
+model ReviewDecision {
+  id               String  @id @default(uuid())
+  reviewId         String
+  review           HandReview @relation(fields: [reviewId], references: [id])
+  /// 対応するHandAction.sequenceNumber。
+  sequenceNumber   Int
+  street           String
+  /// 解析対象か。多人数ポストフロップ等はfalse。
+  analyzable       Boolean @default(true)
+  /// 対象外の理由。"multiway" 等。
+  outOfScopeReason String?
+  heroPos          String
+  effStackBb       Float
+  potBb            Float
+  facingSizeBb     Float?
+  /// { action, size, bucket } 実際に取ったアクション。
+  actionTaken      Json
+  /// [{ action, size, freq, evBb }] GTO基準の各アクション。
+  gtoActions       Json?
+  evLossBb         Float?
+  /// "artistic" | "best" | "great" | "excellent" | "good" | "book" | "inaccuracy" | "mistake" | "blunder" | null
+  classification   String?
+  /// 呼称ラベル(例 "チェックレイズ")。チャットボット未実装時の「正解表示」用。
+  actionName       String?
+  /// 将来のチャットボット解説文(フェーズ3)。未実装時はnull。
+  explanation      String?
+  spotKey          String?
+
+  @@index([reviewId])
+}
+
+/// ユーザーが「運営に報告する」を押したときのエラー報告。
+/// 画面に出ていた文言だけでなく、原因特定に必要な技術詳細(エラー種別・HTTPステータス・
+/// 所要時間・通信状態など)をそのまま保存し、運営が後から読んで修正できるようにする。
+model ErrorReport {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+
+  /// 発生元の画面/機能。例: "geo" | "table" | "login" | "onboarding" | "review" 等。
+  scope String
+
+  /// 画面にユーザー向けとして出ていたメッセージ本文。
+  message String
+
+  /// 技術詳細(1行)。エラー種別・エンドポイント・HTTPステータス・所要msなど。
+  detail String?
+
+  /// 追加の構造化コンテキスト(画面ごとの状態、通信診断のスナップショット等)。
+  context Json?
+
+  /// 報告時点のアプリバージョン(例 "3.20.0")。再現条件の切り分けに使う。
+  appVersion String?
+
+  /// 端末情報とページURL。どの環境・どの画面で起きたかの特定に使う。
+  userAgent String?
+  url       String?
+
+  /// ログイン中なら報告者。未ログインでも報告できるようnull許容。
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// 運営が対応済みにした時刻。未対応はnull。
+  resolvedAt DateTime?
+
+  @@index([createdAt])
+  @@index([scope, createdAt])
+  @@index([resolvedAt])
+}
+
+// ---------------------------------------------------------------------------
+// SNS運用(マーケティング)
+//
+// 収集・監視の結果を保存する。集計ロジック自体は packages/marketing 側に置いてあり、
+// ここは「いつ何を拾ったか」を残して時系列で追えるようにするだけ。
+// ---------------------------------------------------------------------------
+
+/// ④ 収集したトレンド/ニュース1件。
+model TrendItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// 収集元の種別。"google-trends" | "google-news" | "youtube" | "hatena"。
+  source String
+
+  /// 画面に出す収集元の名前(例 "ニュース: ポーカー")。
+  sourceLabel String
+
+  title String
+  link  String
+
+  /// 元フィードが返した公開日時。取れないフィードもあるのでnull許容。
+  publishedAt DateTime?
+
+  /// ⑨ の判定結果。"critical" | "warning" | "info"。何も当たらなければnull。
+  severity String?
+
+  /// 判定の根拠になった語。人が却下できるように残す。
+  severityTerms String[]
+
+  /// 運営が確認済みにした時刻。未確認はnull。
+  reviewedAt DateTime?
+
+  /// 同じ記事を二重に保存しないための鍵。リンクが空のものは題名を使う。
+  dedupeKey String @unique
+
+  @@index([createdAt])
+  @@index([severity, createdAt])
+  @@index([reviewedAt])
+}
+
+/// ②⑥ 投稿の原稿と、その構造分析の結果。過去投稿の再利用元にもなる。
+model SocialPost {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// 原稿本文(出し分け前の1本)。
+  source String
+
+  /// 実際に投稿したプラットフォーム。未投稿はnull。
+  platform String?
+
+  /// 投稿先のURL。実績を後から突き合わせるために持つ。
+  postedUrl String?
+  postedAt  DateTime?
+
+  /// analyzePost の結果をそのまま入れる。閾値を変えたときの再計算元にする。
+  structure Json
+
+  /// 手動で記録する実績(表示数・いいね等)。APIが無くても運用できるようにする。
+  impressions Int?
+  likes       Int?
+  reposts     Int?
+
+  @@index([createdAt])
+  @@index([platform, postedAt])
+}
+
+/// ①⑦ 監視対象のアカウント(自社・競合とも)。
+model SocialAccount {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  platform String
+  /// @を除いたハンドル。
+  handle String
+  label  String
+
+  /// 自社アカウントか(競合と区別して推移を並べるため)。
+  isOwn Boolean @default(false)
+
+  snapshots AccountSnapshot[]
+
+  @@unique([platform, handle])
+}
+
+/// ⑦ フォロワー推移。1日1件を想定。
+model AccountSnapshot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  accountId String
+  account   SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  followers Int
+  following Int?
+  posts     Int?
+
+  @@index([accountId, createdAt])
 }
