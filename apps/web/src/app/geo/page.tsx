@@ -27,7 +27,7 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { Header } from "@/components/Header";
+import { Header, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
@@ -569,7 +569,27 @@ function GeoDatabase() {
           widthClass="max-w-3xl lg:max-w-6xl"
           left={
             <div className="w-full">
-              <div className="mb-2 flex items-center justify-between gap-2">
+              {/* 全画面共通のPoker ARTブランディング(ロゴ+ホームへ戻る導線)。このページは
+                  `left`をGEO専用ツールバーが占有していたため、他画面には必ずある共通ヘッダーが
+                  欠けていた。押すとホーム(メニューへの入口)へ戻る。 */}
+              <button
+                onClick={() => router.push("/")}
+                className="pressable mb-2 inline-flex"
+                aria-label="ホームへ戻る"
+              >
+                <HeaderLogo />
+              </button>
+
+              {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
+                  ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
+                  演出をこのページにも適用)。 */}
+              <TermPrompt command="geo --query" className="mb-1.5" />
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
+                className="mb-2 flex items-center justify-between gap-2"
+              >
                 {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
@@ -587,7 +607,7 @@ function GeoDatabase() {
                   value={mode}
                   onChange={switchMode}
                 />
-              </div>
+              </motion.div>
               {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
               <div className="flex items-stretch gap-2.5">
                 {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。

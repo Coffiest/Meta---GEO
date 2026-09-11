@@ -10,7 +10,7 @@
  */
 
 /** 共有元の識別子。 */
-export type ShareSurface = "hand" | "result" | "milestone" | "invite" | "rating";
+export type ShareSurface = "hand" | "result" | "milestone" | "invite" | "rating" | "home";
 
 /** 既に同名のパラメータがあれば尊重する(呼び出し側や広告側の指定を上書きしない)。 */
 export function withShareTracking(url: string, surface: ShareSurface): string {

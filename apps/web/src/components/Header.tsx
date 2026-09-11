@@ -85,3 +85,37 @@ export function HamburgerIcon({ open = false, className = "" }: { open?: boolean
     </span>
   );
 }
+
+/** 1文字あたりの表示間隔(ms)。TermPromptのタイプ所要時間を揃えて計算するため公開する。 */
+const TERM_TYPE_MS_PER_CHAR = 45;
+
+/** {@link TermPrompt} のタイプ所要時間(ms)。後続コンテンツを「打ち終わってから出す」ために使う。 */
+export function termTypeMs(command: string): number {
+  return command.length * TERM_TYPE_MS_PER_CHAR;
+}
+
+/**
+ * "$ コマンド"をタイプライター風に表示するコンソール演出(出典: uiverse.io by
+ * kamehame-ha / Jarol20cb)。このアプリは全面モノスペースフォント固定のため、
+ * 文字数ぶんの steps() がそのまま等幅の1文字ずつの表示になる。打ち終わりの位置に
+ * 点滅カーソルを残す。各タブ見出し(TabHeader)・GEO Databaseページの見出しで使う。
+ */
+export function TermPrompt({ command, className = "" }: { command: string; className?: string }) {
+  const ms = termTypeMs(command);
+  return (
+    <div className={`flex items-center gap-1.5 font-mono text-[11px] text-fg-3 ${className}`}>
+      <span className="text-accent">$</span>
+      <span
+        className="term-type inline-block overflow-hidden whitespace-nowrap align-bottom"
+        style={{ "--term-type-steps": command.length, animationDuration: `${ms}ms` } as React.CSSProperties}
+      >
+        {command}
+      </span>
+      <span
+        className="term-cursor shrink-0 bg-fg-3"
+        style={{ width: 5, height: 11, animationDelay: `${ms}ms` }}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}

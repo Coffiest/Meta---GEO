@@ -408,13 +408,18 @@ textarea:focus-visible,
   animation: term-led-blink 2.4s ease-in-out infinite;
 }
 
-/* 装飾コードカードのふわふわ浮遊(Jarol20cbの.float-animationを踏襲)。 */
-@keyframes hacker-card-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+/* "$ コマンド"のタイプライター表示(TermPrompt)。全面モノスペースなので、文字数分の
+   steps()が等幅の1文字ずつの表示になる(可変幅フォントだと崩れるが、このアプリは
+   フォントが全面モノスペース固定なので成立する)。文字数は--term-type-stepsで渡す。 */
+@keyframes term-type {
+  from { width: 0; }
+  to { width: 100%; }
 }
-.hacker-card-float {
-  animation: hacker-card-float 4s ease-in-out infinite;
+.term-type {
+  width: 0;
+  animation-name: term-type;
+  animation-timing-function: steps(var(--term-type-steps, 1), end);
+  animation-fill-mode: forwards;
 }
 
 /* テーブル画面の画像(felt/カード/アバター)は右クリック保存・ドラッグ選択の対象外にする。 */
