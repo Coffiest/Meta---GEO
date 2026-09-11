@@ -143,13 +143,6 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
   fold: "bg-surface text-fg-3 ring-line",
 };
 
-/** ポット獲得バッジに添えるチップのグリフ(重なった2枚)。絵文字は使わずSVGで描く。 */
-function ChipsGlyph({ className = "h-3 w-3" }: { className?: string }) {
-  return (
-    <Icon name="chip" className={className} />
-  );
-}
-
 export interface SeatViewProps {
   name: string;
   avatarKey: string | null;
@@ -438,7 +431,6 @@ export function Seat({
             className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
             style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
           >
-            {badge.tone === "win" && <ChipsGlyph className="h-3 w-3 shrink-0" />}
             {badge.text}
           </motion.div>
         ) : (
