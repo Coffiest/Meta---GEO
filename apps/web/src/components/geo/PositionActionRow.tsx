@@ -7,8 +7,8 @@ import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
  * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
- * (強→弱、左から右。濃い色ほど左)で並べる。ジオメトリックサイズ以上のオプションは
- * ティールで表示される(bucketColorがgeometricRatioを見て判定)。
+ * (強→弱、左から右)で並べる。色は固定4色(Fold=青/Call=緑/Bet・Raise=赤/
+ * とても大きいBet・Raise・Allin=茶)。
  */
 export function PositionActionRow({
   node,
@@ -80,9 +80,9 @@ export function PositionActionRow({
               onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
               className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
               style={{
-                background: bucketColor(opt.bucket, opt.geometricRatio),
+                background: bucketColor(opt.representativeBucket ?? opt.bucket),
                 // 面が明るいほど白文字が読めなくなるので、文字色は面の明るさから選び直す。
-                color: bucketTextColor(bucketColor(opt.bucket, opt.geometricRatio)),
+                color: bucketTextColor(bucketColor(opt.representativeBucket ?? opt.bucket)),
               }}
             >
               <div className="text-[11px] font-bold leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
@@ -112,7 +112,7 @@ export function PositionActionRow({
             initial={{ width: 0 }}
             animate={{ width: `${opt.frequency * 100}%` }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+            style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
           />
         ))}
       </div>

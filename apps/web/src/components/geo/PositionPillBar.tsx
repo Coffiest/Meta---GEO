@@ -119,7 +119,7 @@ export function PositionPillBar({
                   >
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+                      style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
                     />
                     {bucketLabels?.[opt.bucket] ?? opt.bucket}
                   </button>
@@ -146,7 +146,7 @@ export function PositionPillBar({
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-fg truncate max-w-[90px]">
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: bucketColor(item.bucket ?? "", item.geometricRatio) }}
+                  style={{ background: bucketColor(item.bucket ?? "") }}
                 />
                 {item.actionLabel}
               </div>
