@@ -28,7 +28,6 @@ import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
-import { SpotlightCard } from "./effects/SpotlightCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -163,6 +162,12 @@ function GameStartButton({
 
   return (
     <>
+      {/* 縁取り(アウトライン)+押下でアクセント塗り潰し+発光、という意匠(出典: uiverse.io
+          by zjssun)。原案はマウスhoverで塗り潰されるが、このアプリの主対象はタッチ端末で
+          hoverが無いため(以前LeaveTableButtonで踏んだのと同じ問題)、押している間
+          (:active)にだけ塗り潰し+発光が出るよう置き換えた。原案の白文字+青(#008cff)は、
+          アクセントは1色のみ運用というこのアプリのルールに合わせ、アクセント色1色に統一。
+          カーソル追従の光(SpotlightCard)は指では意味を持たないため外した。 */}
       <motion.button
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -170,24 +175,14 @@ function GameStartButton({
         whileTap={{ scale: 0.98 }}
         onClick={() => onJoin("sng")}
         aria-label={t("play.enter")}
-        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo text-left text-on-accent shadow-glow"
+        className="pressable-lg group relative flex w-full items-center gap-4 rounded-[22px] border-2 border-accent/50 bg-transparent px-5 py-4 text-left text-fg transition-colors duration-300 active:border-accent active:bg-accent active:text-on-accent active:shadow-glow"
       >
-        {/* カーソル追従の淡い白光。既に塗り自体がアクセント色のグラデーションなので、
-            スポットライトはteal系ではなく白を選び、上端のスペキュラと役割を分ける
-            (スペキュラ=常時の質感、こちらはポインタに反応する主役の合図)。 */}
-        <SpotlightCard className="!h-full !w-full !rounded-[22px] !border-0 !bg-transparent px-5 py-4" spotlightColor="rgba(255, 255, 255, 0.28)">
-        <span className="flex w-full items-center gap-4">
-        {/* 上端のスペキュラ。塗りの面にも光が当たっていると読ませ、板ではなく物として見せる。 */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
-        />
-        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、ホバーで
+        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、押下で
             わずかに拡大+起こして「物」として反応させる
             (出典: uiverse.io by barisdogansutcu。オリジナルのキャラクターSVGを
             アプリに既に存在するトランプ画像へ置き換え、寸法をこのボタンに合わせて調整)。 */}
-        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-on-accent/10">
-          <span className="transition-transform duration-500 ease-out group-hover:-rotate-6 group-hover:scale-110">
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent/15 transition-colors duration-300 group-active:bg-on-accent/10">
+          <span className="transition-transform duration-500 ease-out group-active:-rotate-6 group-active:scale-110">
             <PlayingCard card="As" size="sm" />
           </span>
         </span>
@@ -196,8 +191,6 @@ function GameStartButton({
           <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
         </span>
         <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
-        </span>
-        </SpotlightCard>
       </motion.button>
 
       <AnimatePresence>
