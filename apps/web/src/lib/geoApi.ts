@@ -78,7 +78,7 @@ export const PREFLOP_BUCKET_LABELS: Record<PreflopBucket, string> = {
  * 1つにまとめて表示する)。生データ(packages/db)のサイズ帯分類は一切変更しない。
  */
 export const OPEN_RAISE_BUCKET = "openRaise";
-const OPEN_RAISE_SOURCE_BUCKETS: readonly string[] = ["raise2-5", "raise5+", "allIn"];
+export const OPEN_RAISE_SOURCE_BUCKETS: readonly string[] = ["raise2-5", "raise5+", "allIn"];
 
 /** PositionPillBar / PositionActionRow の見出し用。生バケットのラベルに Open Raise を足しただけ。 */
 export const PREFLOP_DISPLAY_BUCKET_LABELS: Record<string, string> = {
@@ -175,6 +175,32 @@ export interface HandClassCell {
   label: string;
   count: number;
   byBucket: Record<string, number>;
+}
+
+export interface MergedByBucket {
+  byBucket: Record<string, number>;
+  /**
+   * Open Raiseへ統合した場合の色解決用(統合前の実バケットのうち最多件数だったもの)。
+   * 統合が発生しなかった(raise2-5/raise5+/allInが1件もない)場合はundefined。
+   */
+  openRaiseRepresentative?: string;
+}
+
+/**
+ * HandClassMatrixのセル内訳(byBucket、件数のみのRecord)向けのOpen Raise統合。
+ * mergeOpenRaiseOptionsと同じ対象バケットを合算するが、こちらは頻度/geometricRatio等を
+ * 持たない単純な件数マップが入力になる(セルごとの内訳集計のため)。
+ */
+export function mergeOpenRaiseByBucket(byBucket: Record<string, number>): MergedByBucket {
+  const sourceEntries = OPEN_RAISE_SOURCE_BUCKETS.map((b) => [b, byBucket[b] ?? 0] as const).filter(
+    ([, count]) => count > 0,
+  );
+  if (sourceEntries.length === 0) return { byBucket };
+
+  const rest = Object.fromEntries(Object.entries(byBucket).filter(([b]) => !OPEN_RAISE_SOURCE_BUCKETS.includes(b)));
+  const total = sourceEntries.reduce((sum, [, count]) => sum + count, 0);
+  const representative = [...sourceEntries].sort((a, b) => b[1] - a[1])[0]![0];
+  return { byBucket: { ...rest, [OPEN_RAISE_BUCKET]: total }, openRaiseRepresentative: representative };
 }
 
 export interface HandClassMatrixResult {
