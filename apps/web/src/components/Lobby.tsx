@@ -1300,7 +1300,7 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
             className="space-y-5"
           >
             <TabHeader command="./poker-art --boot" eyebrow="System online" title="Home" />
@@ -1341,7 +1341,7 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
             className="space-y-3"
           >
             <TabHeader command="cat stats.log" eyebrow="Your numbers" title="Stats" />
@@ -1522,7 +1522,7 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
             <TabHeader command="curl leaderboard --top" eyebrow="Ranking" title="Leaderboard" />
 
@@ -1616,7 +1616,7 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
             <TabHeader command="tail -f hands.log" eyebrow="Every hand" title="Hand History" />
             {/* ハンド履歴 / トーナメント履歴の切替。過去トナメは各カードから棋譜解析へ飛べる。 */}
@@ -1771,7 +1771,7 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
             <TabHeader command="ls tournaments/" eyebrow="Results" title="Tournaments" />
             <TournamentResultsSection accessToken={accessToken} tournamentHistory={tournamentHistory} />
