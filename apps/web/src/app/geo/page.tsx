@@ -28,7 +28,7 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { Header, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
@@ -569,77 +569,11 @@ function GeoDatabase() {
       <div className="max-w-3xl lg:max-w-6xl mx-auto">
         <Header
           widthClass="max-w-3xl lg:max-w-6xl"
-          left={
-            <div className="w-full">
-              {/* 全画面共通のPoker ARTブランディング(ロゴ+ホームへ戻る導線)。このページは
-                  `left`をGEO専用ツールバーが占有していたため、他画面には必ずある共通ヘッダーが
-                  欠けていた。押すとホーム(メニューへの入口)へ戻る。 */}
-              <button
-                onClick={() => router.push("/")}
-                className="pressable mb-2 inline-flex"
-                aria-label="ホームへ戻る"
-              >
-                <HeaderLogo />
-              </button>
-
-              {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
-                  ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
-                  演出をこのページにも適用)。 */}
-              <TermPrompt command="geo --query" className="mb-1.5" />
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
-                className="mb-2 flex items-center justify-between gap-2"
-              >
-                {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
-                  <p className="text-[15px] font-black tracking-tight text-fg leading-none">
-                    GEO<span className="text-accent"> Database</span>
-                  </p>
-                </div>
-                {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
-                <SegmentedTabs
-                  ariaLabel="データ源"
-                  items={[
-                    { key: "geo", label: "GEO" },
-                    { key: "gto", label: "GTO" },
-                  ]}
-                  value={mode}
-                  onChange={switchMode}
-                />
-              </motion.div>
-              {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
-              <div className="flex items-stretch gap-2.5">
-                {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
-                    高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
-                <motion.button
-                  onClick={() => setSettingsOpen(true)}
-                  whileTap={{ scale: 0.94 }}
-                  className="shrink-0 flex flex-col justify-center rounded-xl border border-line bg-canvas px-3 py-1.5 text-left active:bg-surface transition-colors"
-                  aria-label="詳細設定を変更"
-                >
-                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
-                    <Icon name="settings" className="h-3 w-3" />
-                    設定
-                  </div>
-                  <div className="text-[11px] font-bold text-fg whitespace-nowrap">
-                    {mode === "gto"
-                      ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
-                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
-                  </div>
-                </motion.button>
-                <PositionPillBar
-                  items={items}
-                  onTruncate={handleTruncate}
-                  activeOptions={node?.position ? node.options : undefined}
-                  activeSampleSize={node?.position ? node.sampleSize : undefined}
-                  bucketLabels={bucketLabels}
-                  onSelect={selectBucket}
-                />
-              </div>
-            </div>
+          left={<HeaderLogo />}
+          right={
+            <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
+              <HamburgerIcon />
+            </HeaderIconButton>
           }
         />
       </div>
@@ -649,6 +583,70 @@ function GeoDatabase() {
         <SideNav activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-4" />
 
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
+        {/* GEO専用のツールバー(見出し+データ源トグル+設定+ポジションピル)。共通ヘッダーの
+            `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
+            欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
+            この一式は他画面のTabHeaderと同じくスクロールする本文側へ移した。 */}
+        <div className="pt-4">
+          {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
+              ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
+              演出をこのページにも適用)。 */}
+          <TermPrompt command="geo --query" className="mb-1.5" />
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
+            className="mb-2 flex items-center justify-between gap-2"
+          >
+            {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
+              <p className="text-[15px] font-black tracking-tight text-fg leading-none">
+                GEO<span className="text-accent"> Database</span>
+              </p>
+            </div>
+            {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
+            <SegmentedTabs
+              ariaLabel="データ源"
+              items={[
+                { key: "geo", label: "GEO" },
+                { key: "gto", label: "GTO" },
+              ]}
+              value={mode}
+              onChange={switchMode}
+            />
+          </motion.div>
+          {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
+          <div className="flex items-stretch gap-2.5">
+            {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
+                高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
+            <motion.button
+              onClick={() => setSettingsOpen(true)}
+              whileTap={{ scale: 0.94 }}
+              className="shrink-0 flex flex-col justify-center rounded-xl border border-line bg-canvas px-3 py-1.5 text-left active:bg-surface transition-colors"
+              aria-label="詳細設定を変更"
+            >
+              <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
+                <Icon name="settings" className="h-3 w-3" />
+                設定
+              </div>
+              <div className="text-[11px] font-bold text-fg whitespace-nowrap">
+                {mode === "gto"
+                  ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
+                  : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+              </div>
+            </motion.button>
+            <PositionPillBar
+              items={items}
+              onTruncate={handleTruncate}
+              activeOptions={node?.position ? node.options : undefined}
+              activeSampleSize={node?.position ? node.sampleSize : undefined}
+              bucketLabels={bucketLabels}
+              onSelect={selectBucket}
+            />
+          </div>
+        </div>
+
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
             <p className="text-sm text-crimson-300">{error}</p>
