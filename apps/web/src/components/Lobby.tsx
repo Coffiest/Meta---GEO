@@ -10,7 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo } from "./Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
 import { SideNav } from "./SideNav";
 import { Icon } from "./Icon";
@@ -18,6 +18,7 @@ import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
+import { AppShareCard } from "./AppShareCard";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
@@ -27,7 +28,6 @@ import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
-import { SpotlightCard } from "./effects/SpotlightCard";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -162,6 +162,12 @@ function GameStartButton({
 
   return (
     <>
+      {/* 縁取り(アウトライン)+押下でアクセント塗り潰し+発光、という意匠(出典: uiverse.io
+          by zjssun)。原案はマウスhoverで塗り潰されるが、このアプリの主対象はタッチ端末で
+          hoverが無いため(以前LeaveTableButtonで踏んだのと同じ問題)、押している間
+          (:active)にだけ塗り潰し+発光が出るよう置き換えた。原案の白文字+青(#008cff)は、
+          アクセントは1色のみ運用というこのアプリのルールに合わせ、アクセント色1色に統一。
+          カーソル追従の光(SpotlightCard)は指では意味を持たないため外した。 */}
       <motion.button
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
@@ -169,24 +175,14 @@ function GameStartButton({
         whileTap={{ scale: 0.98 }}
         onClick={() => onJoin("sng")}
         aria-label={t("play.enter")}
-        className="pressable-lg group relative flex w-full items-center gap-4 overflow-hidden rounded-[22px] bg-gradient-to-b from-accent-hi to-accent-lo text-left text-on-accent shadow-glow"
+        className="pressable-lg group relative flex w-full items-center gap-4 rounded-[22px] border-2 border-accent/50 bg-transparent px-5 py-4 text-left text-fg transition-colors duration-300 active:border-accent active:bg-accent active:text-on-accent active:shadow-glow"
       >
-        {/* カーソル追従の淡い白光。既に塗り自体がアクセント色のグラデーションなので、
-            スポットライトはteal系ではなく白を選び、上端のスペキュラと役割を分ける
-            (スペキュラ=常時の質感、こちらはポインタに反応する主役の合図)。 */}
-        <SpotlightCard className="!h-full !w-full !rounded-[22px] !border-0 !bg-transparent px-5 py-4" spotlightColor="rgba(255, 255, 255, 0.28)">
-        <span className="flex w-full items-center gap-4">
-        {/* 上端のスペキュラ。塗りの面にも光が当たっていると読ませ、板ではなく物として見せる。 */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
-        />
-        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、ホバーで
+        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、押下で
             わずかに拡大+起こして「物」として反応させる
             (出典: uiverse.io by barisdogansutcu。オリジナルのキャラクターSVGを
             アプリに既に存在するトランプ画像へ置き換え、寸法をこのボタンに合わせて調整)。 */}
-        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-on-accent/10">
-          <span className="transition-transform duration-500 ease-out group-hover:-rotate-6 group-hover:scale-110">
+        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent/15 transition-colors duration-300 group-active:bg-on-accent/10">
+          <span className="transition-transform duration-500 ease-out group-active:-rotate-6 group-active:scale-110">
             <PlayingCard card="As" size="sm" />
           </span>
         </span>
@@ -195,8 +191,6 @@ function GameStartButton({
           <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
         </span>
         <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
-        </span>
-        </SpotlightCard>
       </motion.button>
 
       <AnimatePresence>
@@ -248,7 +242,8 @@ function ReviewGlyph({ className }: { className?: string }) {
  * 各タブ共通の大胆なヘッダー。アクセントのアイブロウ(マイクロラベル)+特大のタイトル+
  * アクセントのピリオドで、Stats/History/Leaderboard を統一した見出しにする。
  * ホーム画面と同じタイポ言語(特大・字間タイト)。 */
-function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
+function TabHeader({ eyebrow, title, command }: { eyebrow: string; title: string; command: string }) {
+  const outputDelay = termTypeMs(command) / 1000 + 0.15;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -256,17 +251,25 @@ function TabHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="mb-5 mt-1"
     >
-      {/* eyebrowの "//" はコードコメント風の飾り、見出し末尾は句点の代わりに点滅する
-          端末カーソルにしている(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/
-          コンソール演出をこのアプリの全タブ見出しへさりげなく適用)。 */}
-      <div className="flex items-center gap-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-        <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{`// ${eyebrow}`}</span>
-      </div>
-      <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-fg">
-        {title}
-        <span className="term-cursor bg-accent" aria-hidden="true" />
-      </h1>
+      {/* "$ コマンド"をタイプし終えると、見出し本体がコンソール出力のようにフェードインする
+          (出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール演出をこのアプリの
+          全タブ見出しへさりげなく適用)。eyebrowの"//" はコードコメント風の飾り、見出し末尾は
+          句点の代わりに点滅する端末カーソル。 */}
+      <TermPrompt command={command} />
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: outputDelay, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="mt-2 flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{`// ${eyebrow}`}</span>
+        </div>
+        <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-fg">
+          {title}
+          <span className="term-cursor bg-accent" aria-hidden="true" />
+        </h1>
+      </motion.div>
     </motion.div>
   );
 }
@@ -481,54 +484,6 @@ function TournamentHistoryCard({
 function InfoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <Icon name="info" className={className} />
-  );
-}
-
-/** シンタックスハイライト風の1行分。indentは20px単位。 */
-type CodeLine = { n: number; indent?: number; parts: { text: string; cls?: string }[] };
-
-const HACKER_CARD_LINES: CodeLine[] = [
-  { n: 1, parts: [{ text: "public static object ", cls: "text-[#ff79c6]" }, { text: "GetTableStatus", cls: "text-[#50fa7b]" }, { text: "()", cls: "text-[#8be9fd]" }] },
-  { n: 2, parts: [{ text: "{", cls: "text-[#8be9fd]" }] },
-  { n: 3, indent: 1, parts: [{ text: "return new", cls: "text-[#ff79c6]" }] },
-  { n: 4, indent: 1, parts: [{ text: "{", cls: "text-[#50fa7b]" }] },
-  { n: 5, indent: 2, parts: [{ text: "Engine " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"GEO Solver"', cls: "text-[#f1fa8c]" }, { text: "," }] },
-  { n: 6, indent: 2, parts: [{ text: "Table " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"Poker ART"', cls: "text-[#f1fa8c]" }, { text: "," }] },
-  { n: 7, indent: 2, parts: [{ text: "Status " }, { text: "= ", cls: "text-[#ff79c6]" }, { text: '"LIVE"', cls: "text-[#f1fa8c]" }, { text: "," }] },
-  { n: 8, indent: 1, parts: [{ text: "}", cls: "text-[#50fa7b]" }, { text: ";" }] },
-  { n: 9, parts: [{ text: "}", cls: "text-[#8be9fd]" }] },
-];
-
-/**
- * ハッカー/コンソール演出の装飾カード(出典: uiverse.io by kamehame-ha の行番号+
- * シンタックスハイライト付きコードブロックと、Jarol20cbのフロートアニメーションを
- * 組み合わせ、このアプリのダーク面(n-0)へそのまま適用したもの。機能は持たない
- * 雰囲気付けのイースターエッグで、ホーム画面にさりげなく1枚だけ置く)。
- */
-function HackerCodeCard() {
-  return (
-    <div className="hacker-card-float rounded-2xl bg-n-0 p-4 shadow-e2 ring-1 ring-white/[0.06]">
-      <div className="mb-3 flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
-        <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
-        <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
-        <span className="ml-2 text-[10px] text-fg-3">poker-art.geo</span>
-      </div>
-      <div className="space-y-1 overflow-x-auto">
-        {HACKER_CARD_LINES.map((l) => (
-          <div key={l.n} className="flex gap-3 whitespace-pre text-[11px] leading-5">
-            <span className="w-4 shrink-0 text-right text-white/20 tabular-nums">{l.n}</span>
-            <span style={{ paddingLeft: (l.indent ?? 0) * 20 }}>
-              {l.parts.map((p, i) => (
-                <span key={i} className={p.cls ?? "text-fg-2"}>
-                  {p.text}
-                </span>
-              ))}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1345,9 +1300,11 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
             className="space-y-5"
           >
+            <TabHeader command="./poker-art --boot" eyebrow="System online" title="Home" />
+
             <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
 
             <PushOptInCard accessToken={accessToken} />
@@ -1366,7 +1323,7 @@ export function Lobby({
 
             <RRPokerPromoBanner />
 
-            <HackerCodeCard />
+            <AppShareCard />
 
             <div className="pt-1">
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-fg-3">
@@ -1384,10 +1341,10 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
             className="space-y-3"
           >
-            <TabHeader eyebrow="Your numbers" title="Stats" />
+            <TabHeader command="cat stats.log" eyebrow="Your numbers" title="Stats" />
 
             {accessToken ? (
               stats ? (
@@ -1565,9 +1522,9 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
-            <TabHeader eyebrow="Ranking" title="Leaderboard" />
+            <TabHeader command="curl leaderboard --top" eyebrow="Ranking" title="Leaderboard" />
 
             {/* 期間タブ(Weekly / All Time / 直近10)。 */}
             <SegmentedTabs
@@ -1659,9 +1616,9 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
-            <TabHeader eyebrow="Every hand" title="Hand History" />
+            <TabHeader command="tail -f hands.log" eyebrow="Every hand" title="Hand History" />
             {/* ハンド履歴 / トーナメント履歴の切替。過去トナメは各カードから棋譜解析へ飛べる。 */}
             <SegmentedTabs
               className="mb-3"
@@ -1814,9 +1771,9 @@ export function Lobby({
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={SPRING_MOVE}
           >
-            <TabHeader eyebrow="Results" title="Tournaments" />
+            <TabHeader command="ls tournaments/" eyebrow="Results" title="Tournaments" />
             <TournamentResultsSection accessToken={accessToken} tournamentHistory={tournamentHistory} />
           </motion.div>
         )}

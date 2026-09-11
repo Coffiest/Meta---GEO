@@ -61,6 +61,7 @@ export const BUBBLE_STAGE_LABELS: Record<BubbleStage, string> = {
 };
 
 // オープンレンジ(2〜5bb)を1つの raise2-5 に統合。5bb超(主に3bet/4bet)は raise5+。allInは別。
+// (packages/db側のサイズ帯構造・実データはこのまま。以下のOpen Raise統合は表示専用。)
 export type PreflopBucket = "fold" | "call" | "raise2-5" | "raise5+" | "allIn";
 /** 弱→強(アグレッション順)の固定順。頻度ではなくこの順でセル/バーを並べる。 */
 export const PREFLOP_BUCKETS: PreflopBucket[] = ["fold", "call", "raise2-5", "raise5+", "allIn"];
@@ -70,6 +71,19 @@ export const PREFLOP_BUCKET_LABELS: Record<PreflopBucket, string> = {
   "raise2-5": "Raise 2-5bb",
   "raise5+": "Raise 5bb+",
   allIn: "Allin",
+};
+
+/**
+ * 表示専用の「Open Raise」統合(ユーザー指示: Raise 2-5bb / Raise 5bb+ / Allinの3バケットを
+ * 1つにまとめて表示する)。生データ(packages/db)のサイズ帯分類は一切変更しない。
+ */
+export const OPEN_RAISE_BUCKET = "openRaise";
+const OPEN_RAISE_SOURCE_BUCKETS: readonly string[] = ["raise2-5", "raise5+", "allIn"];
+
+/** PositionPillBar / PositionActionRow の見出し用。生バケットのラベルに Open Raise を足しただけ。 */
+export const PREFLOP_DISPLAY_BUCKET_LABELS: Record<string, string> = {
+  ...PREFLOP_BUCKET_LABELS,
+  [OPEN_RAISE_BUCKET]: "Open Raise",
 };
 
 export type PostflopBucket = "fold" | "checkOrCall" | "bet20-40" | "bet40-60" | "bet60-80" | "bet80-100" | "bet100+" | "allIn";
@@ -115,6 +129,46 @@ export interface TreeNode {
   options: ActionOption[];
   /** GTO(ソルバー計算)ノードなら true。表示(件数を隠す等)を切り替えるために使う。 */
   isGto?: boolean;
+}
+
+export interface MergedActionOption extends ActionOption {
+  /**
+   * 統合前の実バケットのうち最多件数だったもの。次ノードへ進むツリー探索は、サーバーが
+   * 理解できる本来のバケット(raise2-5/raise5+/allIn)が必要なため、タップ時はこちらを使う。
+   * 統合されていないオプションでは undefined。
+   */
+  representativeBucket?: string;
+}
+
+/**
+ * Raise 2-5bb / Raise 5bb+ / Allin の3バケットを、表示専用の「Open Raise」1つへ集約する。
+ * 件数・頻度は単純合算、geometricRatio/evBbは件数加重平均で合成する。他のバケット(fold/call
+ * や postflopのbet帯)はそのまま通す。生データ(packages/db)の分類は変更していない。
+ */
+export function mergeOpenRaiseOptions(options: ActionOption[]): MergedActionOption[] {
+  const sources = options.filter((o) => OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
+  if (sources.length === 0) return options;
+  const rest = options.filter((o) => !OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
+
+  const count = sources.reduce((sum, o) => sum + o.count, 0);
+  const frequency = sources.reduce((sum, o) => sum + o.frequency, 0);
+  const geometricRatio = count > 0 ? sources.reduce((sum, o) => sum + o.geometricRatio * o.count, 0) / count : 0;
+  const evSources = sources.filter((o) => o.evBb !== undefined);
+  const evWeight = evSources.reduce((sum, o) => sum + o.count, 0);
+  const evBb = evWeight > 0 ? evSources.reduce((sum, o) => sum + (o.evBb ?? 0) * o.count, 0) / evWeight : undefined;
+  const representativeBucket = [...sources].sort((a, b) => b.count - a.count)[0]?.bucket;
+
+  return [
+    ...rest,
+    {
+      bucket: OPEN_RAISE_BUCKET,
+      count,
+      frequency,
+      geometricRatio,
+      ...(evBb !== undefined ? { evBb } : {}),
+      ...(representativeBucket ? { representativeBucket } : {}),
+    },
+  ];
 }
 
 export interface HandClassCell {

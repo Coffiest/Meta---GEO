@@ -63,6 +63,7 @@ export function BoardCardPicker({
       >
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-extrabold tracking-tight text-fg">
+            <span className="mr-1 font-mono text-fg-3">{"$"}</span>
             ボードカードを選択({selected.length}/{cardsNeeded})
           </p>
           <button onClick={onClose} className="pressable text-fg-2 text-xs font-semibold">
@@ -85,7 +86,7 @@ export function BoardCardPicker({
                     animate={isSelected ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                     transition={{ duration: 0.2 }}
                     onClick={() => toggle(card)}
-                    className={`aspect-[3/4] rounded flex flex-col items-center justify-center text-[10px] font-bold transition-colors border ${
+                    className={`pressable aspect-[3/4] rounded flex flex-col items-center justify-center text-[10px] font-bold transition-colors border ${
                       isUsed
                         ? "bg-surface text-fg-faint border-line cursor-not-allowed"
                         : isSelected
@@ -106,7 +107,7 @@ export function BoardCardPicker({
           whileTap={selected.length === cardsNeeded ? { scale: 0.97 } : undefined}
           onClick={() => selected.length === cardsNeeded && onConfirm(selected)}
           disabled={selected.length !== cardsNeeded}
-          className="w-full mt-4 rounded-xl bg-accent text-on-accent font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
+          className="pressable w-full mt-4 rounded-xl bg-accent text-on-accent font-bold py-3 disabled:opacity-30 disabled:pointer-events-none"
         >
           確定
         </motion.button>

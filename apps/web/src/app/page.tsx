@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
@@ -291,6 +291,8 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
  *
  * 卓の中に置くので、卓と一緒に縮む(`useFitScale` の zoom 箱の中にある)。
  * 常時アニメーションする卓画面なので、ONの表現は色だけにして影やぼかしは足さない。
+ * チェックボックス(uiverse.io by PriyanshuGupta28)の押しやすさ改善に合わせ、
+ * 高さ28px→36pxへ(タップしやすい最小サイズに寄せる)。
  */
 function SeatAsideToggle({
   active,
@@ -309,7 +311,7 @@ function SeatAsideToggle({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`pressable flex h-7 items-center gap-1 rounded-full px-1.5 transition-colors ${
+      className={`pressable flex h-9 items-center gap-1.5 rounded-full px-2 transition-colors ${
         active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
       }`}
     >
@@ -656,7 +658,7 @@ function GameScreen({
                     onClick={() => armTimeBank(!timeBank.armed)}
                     ariaLabel={t("action.timeBank")}
                   >
-                    <CheckMark on={timeBank.armed} className="h-3.5 w-3.5" />
+                    <CheckMark on={timeBank.armed} className="h-5 w-5" />
                     {/* 残り枚数はピップで。0枚のときは点を出さず、押しても意味が無いことを示す。 */}
                     <span className="flex items-center gap-[3px]">
                       {Array.from({ length: timeBank.cards }).map((_, i) => (
@@ -1051,6 +1053,39 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
   );
 }
 
+/**
+ * 離席/切断中に終了したゲームの「結果サジェスト」の重複表示を防ぐ(端末単位・localStorage永続)。
+ *
+ * サーバー側(activeGames.takeResult)は取り出したら消す=1回きりの設計だが、`/`と`/geo`は
+ * 別ルートで、行き来するたびにホーム画面のコンポーネントが丸ごと再マウントされる
+ * (resumeChecked等のローカル状態がリセットされる)。加えて「結果をシェア」のnavigator.share()は
+ * OSの共有シートが開閉するたびにvisibilitychangeを発火させ、そのたびに再チェックが走る。
+ * この2つが重なると、同じ結果が復帰チェックのたびに何度も出てしまう(実際に報告されたバグ)。
+ * 内容が前回表示したものと一致する場合は再表示しない、という形で確実に防ぐ。
+ */
+const RESUME_RESULT_SEEN_KEY = "pokerart.resumeResult.lastSeen.v1";
+
+function resumeResultSignature(r: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number }): string {
+  return `${r.winnerPlayerId ?? ""}|${r.yourFinishPosition ?? ""}|${r.yourPayout}`;
+}
+
+function hasSeenResumeResult(sig: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(RESUME_RESULT_SEEN_KEY) === sig;
+  } catch {
+    return false; // localStorage不可の環境では毎回出す側に倒す(見せ損なうより安全)
+  }
+}
+
+function markResumeResultSeen(sig: string): void {
+  try {
+    window.localStorage.setItem(RESUME_RESULT_SEEN_KEY, sig);
+  } catch {
+    /* no-op */
+  }
+}
+
 export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
@@ -1063,6 +1098,8 @@ export default function Page() {
   const [unlockCode, setUnlockCode] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // 直近の復帰チェック確定時刻(visibilitychangeでの再チェックを間引くため)。
+  const lastResumeCheckAtRef = useRef(0);
   // アプリ復帰/ログイン時に、進行中ゲームがあれば強制復帰、終了済みなら結果サジェストを表示する。
   const [resultSuggestion, setResultSuggestion] = useState<TournamentOverInfo | null>(null);
   const [resumeChecked, setResumeChecked] = useState(false);
@@ -1125,14 +1162,21 @@ export default function Page() {
           // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
           setGameKey(data.gameKey);
         } else if (data.result) {
-          setResultSuggestion({
-            winnerPlayerId: data.result.winnerPlayerId,
-            yourFinishPosition: data.result.yourFinishPosition,
-            yourPayout: data.result.yourPayout,
-          });
+          // 同じ内容を前回すでに見せていれば出さない(再マウント+visibilitychangeの
+          // 再チェックが重なって同じ結果が繰り返し出てしまう不具合の再発防止)。
+          const sig = resumeResultSignature(data.result);
+          if (!hasSeenResumeResult(sig)) {
+            setResultSuggestion({
+              winnerPlayerId: data.result.winnerPlayerId,
+              yourFinishPosition: data.result.yourFinishPosition,
+              yourPayout: data.result.yourPayout,
+            });
+            markResumeResultSeen(sig);
+          }
         }
         setResumeFailed(false);
         setResumeChecked(true); // 確定応答を得たときだけ確定にする。
+        lastResumeCheckAtRef.current = Date.now();
       } catch {
         if (cancelled) return;
         // 数回失敗したら「読み込み中…」で固まらないよう脱出UIを出す(再試行はバックグラウンドで継続)。
@@ -1147,10 +1191,15 @@ export default function Page() {
     };
   }, [accessToken, profile?.onboarded, gameKey, resumeChecked, resumeNonce]);
 
-  // アプリがフォアグラウンドに戻ったら再チェックする(再取得は一度きり=結果サジェストは重複しない)。
+  // アプリがフォアグラウンドに戻ったら再チェックする。
+  // 「結果をシェア」のnavigator.share()のようにOSの共有シートが開閉するだけでも
+  // visibilitychangeは発火するため、直近30秒以内に確認済みなら再チェックを間引く
+  // (でないと、共有シートを閉じるたびに再チェックが走ってしまう)。
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") setResumeChecked(false);
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastResumeCheckAtRef.current < 30_000) return;
+      setResumeChecked(false);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);

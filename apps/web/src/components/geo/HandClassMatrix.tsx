@@ -128,7 +128,7 @@ export function HandClassMatrix({
                 : hover.anchorBottom + 8,
               transform: "translateX(-50%)",
             }}
-            className="z-50 pointer-events-none w-64 rounded-2xl bg-canvas ring-1 ring-line-strong shadow-e2 p-3.5"
+            className="z-50 pointer-events-none w-64 rounded-2xl glass-panel shadow-e2 p-3.5"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-lg font-black text-fg">{hover.cell.label}</span>
@@ -162,9 +162,9 @@ export function HandClassMatrix({
         )}
       </AnimatePresence>
 
-      <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center">
-        {!hover && <span className="text-fg-3">セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
-        {hover && hover.cell.count === 0 && <span className="text-fg-3">{hover.cell.label} — サンプルなし</span>}
+      <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center font-mono">
+        {!hover && <span className="text-fg-3">{"// "}セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
+        {hover && hover.cell.count === 0 && <span className="text-fg-3">{"// "}{hover.cell.label} — サンプルなし</span>}
       </div>
     </div>
   );

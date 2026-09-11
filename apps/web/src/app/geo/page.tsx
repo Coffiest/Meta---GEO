@@ -7,9 +7,9 @@ import {
   geoTreeApi,
   GeoApiError,
   PREFLOP_BUCKET_LABELS,
+  PREFLOP_DISPLAY_BUCKET_LABELS,
   POSTFLOP_BUCKET_LABELS,
   STACK_BUCKET_LABELS,
-  GTO_STACK_LABELS,
   GTO_STACK_TO_BAND,
   GTO_STACK_TO_BUCKET,
   BUBBLE_STAGE_LABELS,
@@ -27,14 +27,13 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { Header } from "@/components/Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
-import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
@@ -143,8 +142,9 @@ function GeoDatabase() {
   /** 最下部バージョン表記タップ→パスコード(2357)→管理者画面(GEOデータ削除等)への隠し導線。 */
   const [adminGateOpen, setAdminGateOpen] = useState(false);
   const router = useRouter();
-  // データ源の切替。"geo"=従来の実測プレイヤーDB / "gto"=自社計算したGTO解(検証用ビューア)。
-  const [mode, setMode] = useState<"geo" | "gto">("geo");
+  // データ源。GTOモードへの入口は廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。
+  // 内部の分岐(GEO/GTOで別エンドポイントを叩く等)はそのまま残してあるが、常に"geo"側だけを通る。
+  const [mode] = useState<"geo" | "gto">("geo");
   const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
@@ -187,7 +187,8 @@ function GeoDatabase() {
    * 自動で進めず、「板面を選び直す」導線を出す(存在しない板面を選んだ場合の連鎖ポップアップ防止)。 */
   const [justPickedBoard, setJustPickedBoard] = useState(false);
 
-  const bucketLabels: Record<string, string> = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  const bucketLabels: Record<string, string> =
+    street === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
 
   /** GTOタブで人数<6のとき、不在のアーリーポジションを自動フォールド扱いにする接頭辞。
    * リクエスト時のみラインの先頭に付与し、画面のピルには表示しない。 */
@@ -410,12 +411,6 @@ function GeoDatabase() {
     setJustPickedBoard(false);
   }
 
-  function switchMode(next: "geo" | "gto") {
-    if (next === mode) return;
-    setMode(next);
-    resetLines();
-  }
-
   function changePlayerCount(next: number) {
     if (next === playerCount) return;
     setPlayerCount(next);
@@ -567,57 +562,11 @@ function GeoDatabase() {
       <div className="max-w-3xl lg:max-w-6xl mx-auto">
         <Header
           widthClass="max-w-3xl lg:max-w-6xl"
-          left={
-            <div className="w-full">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。 */}
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
-                  <p className="text-[15px] font-black tracking-tight text-fg leading-none">
-                    GEO<span className="text-accent"> Database</span>
-                  </p>
-                </div>
-                {/* データ源トグル: GEO(実測) / GTO(自社計算・検証用)。 */}
-                <SegmentedTabs
-                  ariaLabel="データ源"
-                  items={[
-                    { key: "geo", label: "GEO" },
-                    { key: "gto", label: "GTO" },
-                  ]}
-                  value={mode}
-                  onChange={switchMode}
-                />
-              </div>
-              {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
-              <div className="flex items-stretch gap-2.5">
-                {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
-                    高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
-                <motion.button
-                  onClick={() => setSettingsOpen(true)}
-                  whileTap={{ scale: 0.94 }}
-                  className="shrink-0 flex flex-col justify-center rounded-xl border border-line bg-canvas px-3 py-1.5 text-left active:bg-surface transition-colors"
-                  aria-label="詳細設定を変更"
-                >
-                  <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
-                    <Icon name="settings" className="h-3 w-3" />
-                    設定
-                  </div>
-                  <div className="text-[11px] font-bold text-fg whitespace-nowrap">
-                    {mode === "gto"
-                      ? `${GTO_STACK_LABELS[gtoStackBb]} · ${gtoPlayerCount}人`
-                      : `${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
-                  </div>
-                </motion.button>
-                <PositionPillBar
-                  items={items}
-                  onTruncate={handleTruncate}
-                  activeOptions={node?.position ? node.options : undefined}
-                  activeSampleSize={node?.position ? node.sampleSize : undefined}
-                  bucketLabels={bucketLabels}
-                  onSelect={selectBucket}
-                />
-              </div>
-            </div>
+          left={<HeaderLogo />}
+          right={
+            <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
+              <HamburgerIcon />
+            </HeaderIconButton>
           }
         />
       </div>
@@ -627,6 +576,58 @@ function GeoDatabase() {
         <SideNav activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-4" />
 
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
+        {/* GEO専用のツールバー(見出し+データ源トグル+設定+ポジションピル)。共通ヘッダーの
+            `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
+            欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
+            この一式は他画面のTabHeaderと同じくスクロールする本文側へ移した。 */}
+        <div className="pt-4">
+          {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
+              ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
+              演出をこのページにも適用)。 */}
+          <TermPrompt command="geo --query" className="mb-1.5" />
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
+            className="mb-2 flex items-center gap-2"
+          >
+            {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。GTOモードへの入口は
+                廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。 */}
+            <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
+            <p className="text-[15px] font-black tracking-tight text-fg leading-none">
+              GEO<span className="text-accent"> Database</span>
+              <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
+            </p>
+          </motion.div>
+          {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
+          <div className="flex items-stretch gap-2.5">
+            {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
+                高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
+            <motion.button
+              onClick={() => setSettingsOpen(true)}
+              whileTap={{ scale: 0.94 }}
+              className="pressable glass-panel shrink-0 flex flex-col justify-center rounded-xl px-3 py-1.5 text-left"
+              aria-label="詳細設定を変更"
+            >
+              <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
+                <Icon name="settings" className="h-3 w-3" />
+                設定
+              </div>
+              <div className="text-[11px] font-bold text-fg whitespace-nowrap">
+                {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+              </div>
+            </motion.button>
+            <PositionPillBar
+              items={items}
+              onTruncate={handleTruncate}
+              activeOptions={node?.position ? node.options : undefined}
+              activeSampleSize={node?.position ? node.sampleSize : undefined}
+              bucketLabels={bucketLabels}
+              onSelect={selectBucket}
+            />
+          </div>
+        </div>
+
         {error && (
           <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
             <p className="text-sm text-crimson-300">{error}</p>
@@ -660,26 +661,31 @@ function GeoDatabase() {
           </div>
         )}
 
+        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5" />}
+
         {/* PC(lg)ではレンジ表とアクション選択を左右に並べ、スクロールせずに両方を見渡せるようにする。 */}
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
         <div className="mt-1">{matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} />}</div>
 
         <div className="mt-3 lg:mt-1">
           {loading || solving ? (
-            <div className="rounded-2xl border border-line bg-canvas p-8 text-center text-sm text-fg-2">
+            <div className="glass-panel rounded-2xl p-8 text-center text-sm text-fg-2">
               <div className="flex flex-col items-center justify-center gap-2">
                 <CardRingSpinner size={32} />
-                {solving ? (
-                  "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
-                ) : reconnecting ? (
-                  `接続を再試行中…(${failure?.attempt ?? 1}回目)`
-                ) : requestStartedAt !== null ? (
-                  // 待たされていること自体を必ず伝える。無言のスピナーだけだと
-                  // 「進んでいるのか固まっているのか」が利用者にもこちらにも分からない。
-                  <ElapsedText startedAt={requestStartedAt} />
-                ) : (
-                  "読み込み中…"
-                )}
+                <span className="font-mono">
+                  {solving ? (
+                    "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
+                  ) : reconnecting ? (
+                    `接続を再試行中…(${failure?.attempt ?? 1}回目)`
+                  ) : requestStartedAt !== null ? (
+                    // 待たされていること自体を必ず伝える。無言のスピナーだけだと
+                    // 「進んでいるのか固まっているのか」が利用者にもこちらにも分からない。
+                    <ElapsedText startedAt={requestStartedAt} />
+                  ) : (
+                    "読み込み中…"
+                  )}
+                  <span className="term-cursor ml-0.5 bg-fg-3" style={{ width: 4, height: 12, verticalAlign: "-2px" }} aria-hidden="true" />
+                </span>
               </div>
               {/* 待たせている間も理由を隠さない。「ずっと再試行中」の原因がその場で読める。
                   上のエラーバナーに同じ内容が出ているときは重複させない。 */}
@@ -694,13 +700,13 @@ function GeoDatabase() {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-line bg-canvas p-6 text-center"
+              className="glass-panel rounded-2xl p-6 text-center"
             >
               <p className="text-sm text-n-9 mb-3">この板面に一致する実測データがありません。別の板面をお試しください。</p>
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={retryBoard}
-                className="rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
+                className="pressable rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
               >
                 板面を選び直す
               </motion.button>
@@ -709,7 +715,7 @@ function GeoDatabase() {
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border border-line bg-canvas p-6 text-center"
+              className="glass-panel rounded-2xl p-6 text-center"
             >
               <p className="text-sm text-n-9 mb-3">次のストリートに進むにはボードを選択してください。</p>
               <motion.button
@@ -718,7 +724,7 @@ function GeoDatabase() {
                   setDismissedStreet(null);
                   setPendingStreet(nextStreetOf(street));
                 }}
-                className="rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
+                className="pressable rounded-full bg-accent text-on-accent text-[12px] font-bold px-5 py-2.5"
               >
                 ボードを選択
               </motion.button>
@@ -729,13 +735,16 @@ function GeoDatabase() {
         </div>
         </div>
 
-        {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等) */}
+        {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等)。
+            ホーム画面フッターと同じターミナルプロンプト風の表記に揃えている。 */}
         <div className="mt-10 flex justify-center">
           <button
             onClick={() => setAdminGateOpen(true)}
             className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
           >
-            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+            <span className="text-accent">{"$ "}</span>
+            poker-art --version {APP_VERSION} · © 2026 Poker ART
+            <span className="term-cursor bg-fg-3" style={{ width: 4, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
           </button>
         </div>
         </main>

@@ -13,13 +13,6 @@ interface Preset {
   toAmount: number;
 }
 
-/** 離席(away)のアイコン。一時停止(pause)を表すモノクロSVG。 */
-function AwayIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <Icon name="pause" className={className} />
-  );
-}
-
 /**
  * アクションボタン。
  *
@@ -67,6 +60,8 @@ function ActionButton({
  * 以前はアクションボタンと同じ 62px の大ボタン2つだったが、それだけで画面の高さを
  * 100px 近く食っていた。卓を大きく見せるほうが優先なので、枠の左右下隅に置く極小の
  * ピルにしてある。ONの間だけアクセント色が点く。
+ * チェックボックス(uiverse.io by PriyanshuGupta28)の押しやすさ改善に合わせ、
+ * 高さ28px→36pxへ(タップしやすい最小サイズに寄せる)。
  */
 function TinyToggle({
   active,
@@ -87,7 +82,7 @@ function TinyToggle({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`pressable absolute bottom-0 flex h-7 items-center gap-1 rounded-full px-2 text-[9px] font-bold leading-none transition-colors ${className} ${
+      className={`pressable absolute bottom-0 flex h-9 items-center gap-1.5 rounded-full px-2.5 text-[10px] font-bold leading-none transition-colors ${className} ${
         active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
       }`}
     >
@@ -459,7 +454,7 @@ export function ActionBar({
               onClick={() => onToggleCheckFold(!checkFoldArmed)}
               ariaLabel={t("action.armCheckFold")}
             >
-              <CheckMark on={checkFoldArmed} className="h-3.5 w-3.5" />
+              <CheckMark on={checkFoldArmed} className="h-5 w-5" />
               <span>{t("action.checkFoldShort")}</span>
             </TinyToggle>
 
@@ -470,7 +465,7 @@ export function ActionBar({
               onClick={() => onToggleAway(!away)}
               ariaLabel={t("action.away")}
             >
-              <AwayIcon className="h-3.5 w-3.5" />
+              <CheckMark on={away} className="h-5 w-5" />
               <span>{t("action.away")}</span>
             </TinyToggle>
           </>

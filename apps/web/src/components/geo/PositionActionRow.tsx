@@ -1,14 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { TreeNode } from "@/lib/geoApi";
+import { mergeOpenRaiseOptions, type TreeNode } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
 
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
  * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
- * (強→弱、左から右。濃い色ほど左)で並べる。ジオメトリックサイズ以上のオプションは
- * ティールで表示される(bucketColorがgeometricRatioを見て判定)。
+ * (強→弱、左から右)で並べる。色は固定4色(Fold=青/Call=緑/Bet・Raise=赤/
+ * とても大きいBet・Raise・Allin=茶)。
  */
 export function PositionActionRow({
   node,
@@ -24,7 +24,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-line bg-canvas p-6 text-center"
+        className="glass-panel rounded-2xl p-6 text-center"
       >
         <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
@@ -36,7 +36,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-line bg-canvas p-6 text-center"
+        className="glass-panel rounded-2xl p-6 text-center"
       >
         <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
         <p className="text-sm text-fg-3">サンプルなし</p>
@@ -44,7 +44,9 @@ export function PositionActionRow({
     );
   }
 
-  const sortedOptions = [...node.options].sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket));
+  const sortedOptions = mergeOpenRaiseOptions(node.options).sort(
+    (a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket),
+  );
 
   return (
     <motion.div
@@ -75,12 +77,12 @@ export function PositionActionRow({
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
-              onClick={() => onSelect(opt.bucket)}
+              onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
               className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
               style={{
-                background: bucketColor(opt.bucket, opt.geometricRatio),
+                background: bucketColor(opt.representativeBucket ?? opt.bucket),
                 // 面が明るいほど白文字が読めなくなるので、文字色は面の明るさから選び直す。
-                color: bucketTextColor(bucketColor(opt.bucket, opt.geometricRatio)),
+                color: bucketTextColor(bucketColor(opt.representativeBucket ?? opt.bucket)),
               }}
             >
               <div className="text-[11px] font-bold leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
@@ -110,7 +112,7 @@ export function PositionActionRow({
             initial={{ width: 0 }}
             animate={{ width: `${opt.frequency * 100}%` }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            style={{ background: bucketColor(opt.bucket, opt.geometricRatio) }}
+            style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
           />
         ))}
       </div>

@@ -118,7 +118,10 @@ export function GeoSettingsModal({
         className="w-full sm:max-w-md max-h-[85vh] overflow-y-auto glass-sheet rounded-t-sheet sm:rounded-sheet p-4 shadow-e4"
       >
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-extrabold tracking-tight text-fg">詳細設定</p>
+          <p className="text-sm font-extrabold tracking-tight text-fg">
+            <span className="mr-1 font-mono text-fg-3">{"$"}</span>
+            詳細設定
+          </p>
           <button onClick={onClose} className="pressable text-fg-2 text-xs font-semibold">
             閉じる
           </button>
@@ -133,8 +136,8 @@ export function GeoSettingsModal({
                   key={bb}
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onChangeGtoStackBb(bb)}
-                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    gtoStackBb === bb ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
+                  className={`pressable rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors ${
+                    gtoStackBb === bb ? "bg-accent text-on-accent" : "glass-panel text-fg-2"
                   }`}
                 >
                   {GTO_STACK_LABELS[bb]}
@@ -148,8 +151,8 @@ export function GeoSettingsModal({
                   key={bucket}
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onChangeStackBucket(bucket)}
-                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    stackBucket === bucket ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
+                  className={`pressable rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors ${
+                    stackBucket === bucket ? "bg-accent text-on-accent" : "glass-panel text-fg-2"
                   }`}
                 >
                   {STACK_BUCKET_LABELS[bucket]}
@@ -174,8 +177,8 @@ export function GeoSettingsModal({
                   key={n}
                   whileTap={{ scale: 0.94 }}
                   onClick={() => (isGto ? onChangeGtoPlayerCount(n) : onChangePlayerCount(n))}
-                  className={`rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors border ${
-                    selected ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
+                  className={`pressable rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums transition-colors ${
+                    selected ? "bg-accent text-on-accent" : "glass-panel text-fg-2"
                   }`}
                 >
                   {n}人
@@ -217,8 +220,8 @@ export function GeoSettingsModal({
                     key={stage}
                     whileTap={{ scale: 0.94 }}
                     onClick={() => onChangeBubbleStage(stage)}
-                    className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors border ${
-                      bubbleStage === stage ? "bg-accent text-on-accent border-accent" : "bg-canvas-sunken text-n-9 border-line"
+                    className={`pressable rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors ${
+                      bubbleStage === stage ? "bg-accent text-on-accent" : "glass-panel text-fg-2"
                     }`}
                   >
                     {BUBBLE_STAGE_LABELS[stage]}
