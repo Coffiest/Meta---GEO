@@ -496,6 +496,7 @@ function StatTile({
   countTo,
   format,
   valueSize = "base",
+  captionLabel,
   captionValue,
   captionClass,
   onCaptionInfo,
@@ -510,7 +511,9 @@ function StatTile({
   /** 大きめの数字で強調したいとき用("base"は従来どおりの大きさ)。 */
   valueSize?: "base" | "lg";
   /** 値の下に添える小さな差分表記(出典: uiverse.io by Gidarxの「金額+増減率」表記を、
-   *  このアプリの各スタッツに合わせて置き換えたもの)。 */
+   *  このアプリの各スタッツに合わせて置き換えたもの)。captionValueだけだと
+   *  「収支」「ROI」のどちらの数字か分からず紛らわしいため、captionLabelで明示する。 */
+  captionLabel?: string;
   captionValue?: string;
   captionClass?: string;
   onCaptionInfo?: () => void;
@@ -537,13 +540,17 @@ function StatTile({
         (onCaptionInfo ? (
           <button
             onClick={onCaptionInfo}
-            className={`pressable mt-1 block text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}
-            aria-label={t("stat.infoAria", { label })}
+            className={`pressable mt-1 flex items-baseline gap-1 text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}
+            aria-label={t("stat.infoAria", { label: captionLabel ?? label })}
           >
-            {captionValue}
+            {captionLabel && <span className="font-normal text-fg-3">{captionLabel}</span>}
+            <span>{captionValue}</span>
           </button>
         ) : (
-          <div className={`mt-1 text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}>{captionValue}</div>
+          <div className={`mt-1 flex items-baseline gap-1 text-[11px] font-bold tabular-nums ${captionClass ?? "text-fg-3"}`}>
+            {captionLabel && <span className="font-normal text-fg-3">{captionLabel}</span>}
+            <span>{captionValue}</span>
+          </div>
         ))}
     </div>
   );
@@ -1373,6 +1380,7 @@ export function Lobby({
                           format={(n) => Math.round(n).toLocaleString()}
                           valueSize="lg"
                           onInfo={() => setInfoKey("payouts")}
+                          captionLabel={t("stat.profit")}
                           captionValue={formatSigned(stats.profit)}
                           captionClass={signedClass(stats.profit)}
                           onCaptionInfo={() => setInfoKey("profit")}
@@ -1386,6 +1394,7 @@ export function Lobby({
                           format={(n) => Math.round(n).toLocaleString()}
                           valueSize="lg"
                           onInfo={() => setInfoKey("buyIns")}
+                          captionLabel={t("stat.roi")}
                           captionValue={`${stats.roi * 100 - 100 >= 0 ? "+" : ""}${(stats.roi * 100 - 100).toFixed(1)}%`}
                           captionClass={signedClass(stats.roi * 100 - 100)}
                           onCaptionInfo={() => setInfoKey("roi")}
