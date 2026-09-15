@@ -427,9 +427,8 @@ export function GameHandHistorySheet({
                         {row.handId && timelines[row.handId] ? (
                           <HandTimelineDetail timeline={timelines[row.handId]!} displayMode={displayMode} />
                         ) : loadingHandId === row.handId ? (
-                          <div className="flex items-center gap-2 border-t border-line pt-2.5 mt-2 text-[11px] text-fg-2">
+                          <div className="flex items-center justify-center border-t border-line pt-2.5 mt-2">
                             <Loader size="sm" />
-                            詳細を読み込み中…
                           </div>
                         ) : (
                           <p className="border-t border-line pt-2.5 mt-2 text-[11px] text-fg-2">

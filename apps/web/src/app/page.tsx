@@ -1001,11 +1001,10 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
       <TermPrompt command="poker-art --connect" />
+      {/* アニメーション(跳ねる玉)だけで「読み込み中」を示す。文字での「読み込み中」表記は
+          アニメーションと重複するため出さない(ユーザー指示)。labelはaria-labelとしてのみ使われ、
+          視覚的には出ない。長引いた場合(slow)だけ、原因調査に必要な情報を別途文章で出す。 */}
       <Loader size="md" label={what} />
-      <span className="font-mono text-[12px] text-fg-3">
-        {"// "}
-        {what}… <span className="tabular-nums text-fg-2">{seconds}秒</span>
-      </span>
       {slow && (
         <>
           <p className="max-w-xs text-[12px] leading-relaxed text-fg-2">

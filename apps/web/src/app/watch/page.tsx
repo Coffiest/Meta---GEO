@@ -116,9 +116,8 @@ export default function WatchPage() {
         </p>
 
         {!loaded ? (
-          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl glass-panel p-10 text-sm text-fg-2">
+          <div className="mt-8 flex items-center justify-center rounded-2xl glass-panel p-10">
             <Loader size="sm" />
-            {t("watch.loading")}
           </div>
         ) : live ? (
           <motion.div

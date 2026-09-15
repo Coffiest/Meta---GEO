@@ -425,7 +425,11 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {posStatsOpen && !posStats && <p className="mt-2.5 text-[11px] text-n-9">読み込み中…</p>}
+              {posStatsOpen && !posStats && (
+                <div className="mt-2.5 flex justify-center">
+                  <Loader size="sm" />
+                </div>
+              )}
 
               {posStatsOpen && posStats && (
                 <div className="mt-3 space-y-3">
@@ -539,7 +543,11 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  {trends === null && <p className="text-[11px] text-n-9">読み込み中…</p>}
+                  {trends === null && (
+                    <div className="flex justify-center">
+                      <Loader size="sm" />
+                    </div>
+                  )}
                   {trends !== null && trends.length === 0 && (
                     <p className="text-[11px] text-n-9">
                       該当なし。まだ一度も収集していない場合は、日次の収集(毎朝9時)を待つか
@@ -622,9 +630,8 @@ export default function AdminPage() {
             {/* 結果リスト */}
             <div className="mt-4 space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {loading && users.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-canvas p-8 text-sm text-fg-2">
+                <div className="flex items-center justify-center rounded-2xl border border-line bg-canvas p-8">
                   <Loader size="sm" />
-                  読み込み中…
                 </div>
               ) : users.length === 0 ? (
                 <p className="rounded-2xl border border-line bg-canvas p-8 text-center text-sm text-fg-2">

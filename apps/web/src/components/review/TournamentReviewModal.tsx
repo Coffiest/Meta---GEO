@@ -25,7 +25,7 @@ import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
 import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
-import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
+import { OPEN_RAISE_BUCKET, OPEN_RAISE_SOURCE_BUCKETS, PREFLOP_DISPLAY_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { useCountUp } from "@/lib/useCountUp";
@@ -42,8 +42,27 @@ import { AdSlot } from "@/components/AdSlot";
 
 const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
 
+/**
+ * mergeOpenRaiseOptions(geoApi.ts)は件数(count)を持つ本来のActionOption向けで、
+ * ここで扱うGEO解の頻度チップは頻度(frequency)のみの軽量な型(GeoDecisionInfo.options)。
+ * 同じ対象バケット(raise2-5/raise5+/allIn)を頻度の単純合算で「Open Raise」1つへ統合する、
+ * この型専用の版。
+ */
+function mergeOpenRaiseFrequencies(
+  options: { bucket: string; frequency: number }[],
+): { bucket: string; frequency: number; representativeBucket?: string }[] {
+  const sources = options.filter((o) => OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
+  if (sources.length === 0) return options;
+  const rest = options.filter((o) => !OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
+  const frequency = sources.reduce((sum, o) => sum + o.frequency, 0);
+  const representativeBucket = [...sources].sort((a, b) => b.frequency - a.frequency)[0]?.bucket;
+  return [...rest, { bucket: OPEN_RAISE_BUCKET, frequency, ...(representativeBucket ? { representativeBucket } : {}) }];
+}
+
 function bucketLabel(street: string, bucket: string): string {
-  const table = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  // プリフロップは表示専用のOpen Raise統合バケット("openRaise")のラベルも解決できるよう、
+  // 生バケットのラベル表(PREFLOP_BUCKET_LABELS)ではなく統合込みの表を使う。
+  const table = street === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
   return (table as Record<string, string>)[bucket] ?? bucket;
 }
 
@@ -131,8 +150,14 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
   const [open, setOpen] = useState(false);
   if (!d.geo) return null;
   const geo = d.geo;
-  const bucketTable = d.street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
-  const shown = [...geo.options].filter((o) => o.frequency > 0).sort((a, b) => b.frequency - a.frequency);
+  const isPreflop = d.street === "preflop";
+  const bucketTable = isPreflop ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
+  // プリフロップはRaise 2-5bb/Raise 5bb+/Allinを表示専用の「Open Raise」1つへ統合する
+  // (PositionPillBar/PositionActionRow/HandClassMatrixと表示を揃える。ユーザー指示)。
+  const options: { bucket: string; frequency: number; representativeBucket?: string }[] = isPreflop
+    ? mergeOpenRaiseFrequencies(geo.options)
+    : geo.options;
+  const shown = [...options].filter((o) => o.frequency > 0).sort((a, b) => b.frequency - a.frequency);
   return (
     <div className="mt-2.5 rounded-2xl bg-mint-500/[0.08] px-3 py-2.5">
       <button
@@ -148,16 +173,21 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
         <Icon name="chevron-down" className={`ml-auto h-4 w-4 text-fg-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {shown.map((o) => (
-          <div key={o.bucket} className="rounded-full px-2.5 py-1" style={{ background: bucketColor(o.bucket), color: bucketTextColor(bucketColor(o.bucket)) }}>
-            <span className="text-[11px] font-bold">{bucketLabel(d.street, o.bucket)}</span>
-            <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(o.frequency * 100)}%</span>
-          </div>
-        ))}
+        {shown.map((o) => {
+          // 統合後の「openRaise」バケットは単体では色を持たないため、統合前の実バケットのうち
+          // 最多件数だったもの(representativeBucket)へ解決する(HandClassMatrixと同じ規則)。
+          const color = bucketColor(o.representativeBucket ?? o.bucket);
+          return (
+            <div key={o.bucket} className="rounded-full px-2.5 py-1" style={{ background: color, color: bucketTextColor(color) }}>
+              <span className="text-[11px] font-bold">{bucketLabel(d.street, o.bucket)}</span>
+              <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(o.frequency * 100)}%</span>
+            </div>
+          );
+        })}
       </div>
       {open && (
         <div className="mt-2.5">
-          <HandClassMatrix matrix={geo.matrix} bucketLabels={bucketTable} />
+          <HandClassMatrix matrix={geo.matrix} bucketLabels={bucketTable} mergeOpenRaise={isPreflop} />
         </div>
       )}
     </div>

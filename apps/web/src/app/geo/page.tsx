@@ -35,6 +35,7 @@ import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
 import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
+import { Loader } from "@/components/ui/Loader";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
 const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
@@ -73,7 +74,12 @@ export default function GeoPage() {
   if (authAvailable && !loading && !session) return null; // リダイレクト中は何も出さない
   if (loading || !ready) {
     // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
-    return <div className="flex min-h-screen items-center justify-center bg-surface text-[13px] text-fg-2">読み込み中…</div>;
+    // アニメーションのみ(文字での「読み込み中」表記は出さない。ユーザー指示)。
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <Loader size="lg" />
+      </div>
+    );
   }
   if (showGuide) return <GeoGuide onDone={() => setShowGuide(false)} />;
   return <GeoDatabase />;
@@ -93,7 +99,9 @@ function ElapsedText({ startedAt }: { startedAt: number }) {
     const timer = setInterval(() => setSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
-  if (sec < SLOW_HINT_AFTER_SEC) return <span>読み込み中…</span>;
+  // 通常の待ち時間はCardRingSpinner(アニメーション)だけで示す。文字での「読み込み中」表記は
+  // アニメーションと重複するため出さない(ユーザー指示)。長引いた場合だけ理由を文章で出す。
+  if (sec < SLOW_HINT_AFTER_SEC) return null;
   return <span>時間がかかっています…({sec}秒経過)</span>;
 }
 
@@ -680,12 +688,9 @@ function GeoDatabase() {
                   ) : reconnecting ? (
                     `接続を再試行中…(${failure?.attempt ?? 1}回目)`
                   ) : requestStartedAt !== null ? (
-                    // 待たされていること自体を必ず伝える。無言のスピナーだけだと
-                    // 「進んでいるのか固まっているのか」が利用者にもこちらにも分からない。
+                    // 長引いた場合だけ理由を伝える(通常はCardRingSpinnerのアニメーションのみ)。
                     <ElapsedText startedAt={requestStartedAt} />
-                  ) : (
-                    "読み込み中…"
-                  )}
+                  ) : null}
                   <span className="term-cursor ml-0.5 bg-fg-3" style={{ width: 4, height: 12, verticalAlign: "-2px" }} aria-hidden="true" />
                 </span>
               </div>
