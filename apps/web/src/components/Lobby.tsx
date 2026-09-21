@@ -160,38 +160,37 @@ function GameStartButton({
   const { t } = useI18n();
   const [devMttOpen, setDevMttOpen] = useState(devMtt);
 
+  // 発光グラデーションボタン(出典: uiverse.io by dexter-st、配色をアクセント1色へ
+  // 差し替え。詳細はglobals.cssの.foil-btn-*コメント参照)。押している間(:active)だけ
+  // 反応するCSSに任せ、Framer MotionのwhileTapは使わない(二重に動くのを避ける)。
+  const label = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
+        <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
+      </span>
+      <EnterArrow className="h-5 w-5 shrink-0" />
+    </>
+  );
+
   return (
     <>
-      {/* 縁取り(アウトライン)+押下でアクセント塗り潰し+発光、という意匠(出典: uiverse.io
-          by zjssun)。原案はマウスhoverで塗り潰されるが、このアプリの主対象はタッチ端末で
-          hoverが無いため(以前LeaveTableButtonで踏んだのと同じ問題)、押している間
-          (:active)にだけ塗り潰し+発光が出るよう置き換えた。原案の白文字+青(#008cff)は、
-          アクセントは1色のみ運用というこのアプリのルールに合わせ、アクセント色1色に統一。
-          カーソル追従の光(SpotlightCard)は指では意味を持たないため外した。 */}
-      <motion.button
+      <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={SPRING_MOVE}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => onJoin("sng")}
-        aria-label={t("play.enter")}
-        className="pressable-lg group relative flex w-full items-center gap-4 rounded-[22px] border-2 border-accent/50 bg-transparent px-5 py-4 text-left text-fg transition-colors duration-300 active:border-accent active:bg-accent active:text-on-accent active:shadow-glow"
+        className="foil-btn-wrapper pressable-lg w-full"
       >
-        {/* アイコン枠: 既存のトランプ意匠(エース・スペード)をそのまま使い、押下で
-            わずかに拡大+起こして「物」として反応させる
-            (出典: uiverse.io by barisdogansutcu。オリジナルのキャラクターSVGを
-            アプリに既に存在するトランプ画像へ置き換え、寸法をこのボタンに合わせて調整)。 */}
-        <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent/15 transition-colors duration-300 group-active:bg-on-accent/10">
-          <span className="transition-transform duration-500 ease-out group-active:-rotate-6 group-active:scale-110">
-            <PlayingCard card="As" size="sm" />
-          </span>
+        <button type="button" onClick={() => onJoin("sng")} aria-label={t("play.enter")} className="foil-btn flex items-center gap-4 px-5 py-4 text-left">
+          {label}
+        </button>
+        <span className="foil-btn-layer" aria-hidden="true" />
+        <span className="foil-btn-layer" aria-hidden="true" />
+        <span className="foil-btn-overlay gap-4 px-5 py-4 text-left" aria-hidden="true">
+          {label}
         </span>
-        <span className="relative min-w-0 flex-1">
-          <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
-          <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
-        </span>
-        <EnterArrow className="relative h-5 w-5 shrink-0 transition-transform group-active:translate-x-0.5" />
-      </motion.button>
+        <span className="foil-btn-light" aria-hidden="true" />
+      </motion.div>
 
       <AnimatePresence>
         {devMttOpen && (
@@ -1689,14 +1688,24 @@ export function Lobby({
                           <div key={group.tournamentId}>
                             <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
                               <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-n-9">{group.tournamentLabel}</p>
-                              {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。 */}
-                              <button
-                                onClick={() => setReviewTournamentId(group.tournamentId)}
-                                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-n-4 pl-2.5 pr-3 text-[11px] font-bold text-white transition-opacity pressable"
-                              >
-                                <ReviewGlyph className="h-3.5 w-3.5" />
-                                {t("lobby.reviewHand")}
-                              </button>
+                              {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。
+                                  出典: uiverse.io by dexter-st(発光グラデーションボタン。詳細はglobals.cssの
+                                  .foil-btn-*コメント参照)。ピル形状は--foil-radを9999pxへ上書きして表現。 */}
+                              <div className="foil-btn-wrapper foil-btn-pill shrink-0" style={{ "--foil-rad": "9999px" } as React.CSSProperties}>
+                                <button
+                                  onClick={() => setReviewTournamentId(group.tournamentId)}
+                                  className="foil-btn flex h-8 items-center gap-1.5 pl-2.5 pr-3 text-[11px] font-bold"
+                                >
+                                  <ReviewGlyph className="h-3.5 w-3.5" />
+                                  {t("lobby.reviewHand")}
+                                </button>
+                                <span className="foil-btn-layer" aria-hidden="true" />
+                                <span className="foil-btn-layer" aria-hidden="true" />
+                                <span className="foil-btn-overlay h-8 gap-1.5 pl-2.5 pr-3 text-[11px] font-bold" aria-hidden="true">
+                                  <ReviewGlyph className="h-3.5 w-3.5" />
+                                  {t("lobby.reviewHand")}
+                                </span>
+                              </div>
                             </div>
                             <div className="space-y-2">
                               {group.rows.map((h, i) => {
