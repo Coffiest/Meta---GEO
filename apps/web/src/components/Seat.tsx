@@ -420,34 +420,41 @@ export function Seat({
         )}
       </div>
 
-      <AnimatePresence mode="popLayout">
-        {badge && !isEmpty ? (
-          <motion.div
-            key={`badge-${badge.tone}-${badge.text}`}
-            initial={{ opacity: 0, scale: 0.5, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            transition={SPRING_SNAPPY}
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
-            style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
-          >
-            {badge.text}
-          </motion.div>
-        ) : (
-          streetContribution > 0 &&
-          !isEmpty && (
+      {/* バッジ/ベット額表示の行。どちらも出ない瞬間(フォールド直後で街道コントリビューションが
+          0、かつ直近アクションバッジも無いとき)に高さ0へ潰れないよう、min-hで場所を確保しておく。
+          潰れると、名前ピルがこの席ブロックの最下端になり(このアプリの外側は無いので)、名前ピル
+          を基準に配置している自席横のトグル(タイムバンク・チェック/フォールド予約)の中心が
+          卓の下端(y=597)を超えて、<main>のoverflow-hiddenで下端が欠けて見える不具合があった。 */}
+      <div className="min-h-[23px]">
+        <AnimatePresence mode="popLayout">
+          {badge && !isEmpty ? (
             <motion.div
-              key="contribution"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.6 }}
-              className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+              key={`badge-${badge.tone}-${badge.text}`}
+              initial={{ opacity: 0, scale: 0.5, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={SPRING_SNAPPY}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
+              style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
             >
-              {formatAmount(streetContribution, bigBlind, displayMode)}
+              {badge.text}
             </motion.div>
-          )
-        )}
-      </AnimatePresence>
+          ) : (
+            streetContribution > 0 &&
+            !isEmpty && (
+              <motion.div
+                key="contribution"
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+              >
+                {formatAmount(streetContribution, bigBlind, displayMode)}
+              </motion.div>
+            )
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
