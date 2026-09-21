@@ -759,7 +759,7 @@ function GameScreen({
               exit={{ opacity: 0, scale: 0.95 }}
               className="pointer-events-auto w-full max-w-[260px] rounded-2xl glass-panel p-5 text-center"
             >
-              <MatrixLoader />
+              <HeartPulseLoader />
               <div className="mt-2.5 text-xs font-semibold text-fg">
                 {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
@@ -1013,26 +1013,24 @@ function GameScreen({
   );
 }
 
-/** マッチング/開始待ちローディングの文字だけ("0"/"1"/コンソール記号でコード感を出す)。 */
-const MATRIX_LOADER_CHARS = ["0", "1", "$", "0", "1", "#", "1", "0"];
+/** ハートの鼓動トレース(マッチング/開始待ちローディング)のパス。100×100基準。 */
+const HEART_PULSE_PATH =
+  "M50 88 C18 62 6 40 6 24 C6 10 18 2 32 2 C42 2 50 8 50 20 C50 8 58 2 68 2 C82 2 94 10 94 24 C94 40 82 62 50 88 Z";
 
 /**
- * マッチング中/開始待ちのローディング演出。出典: uiverse.io by PriyanshuGupta28。
- * 原案の明るい緑(#00ff88)は、アクセントは1色のみ運用というこのアプリのきまりに合わせ
- * アクセント色へ差し替えてある(globals.cssの.matrix-loader)。表示中だけ動く一時的な
+ * マッチング中/開始待ちのローディング演出。出典: uiverse.io by G27XLEO。
+ * 原案の赤は、アクセントは1色のみ運用というこのアプリのきまりに合わせアクセント色へ
+ * 差し替えてある(globals.cssの.heart-pulse-loader)。輪郭(#line)を描き進めながら、
+ * 光点(#point)が同じ輪郭上を旅する(鼓動が進んでいく体)。表示中だけ動く一時的な
  * 演出なので、常時アニメーションする卓画面でガラスを使わないというきまり(発熱対策)には
  * 抵触しない。
  */
-function MatrixLoader() {
+function HeartPulseLoader() {
   return (
-    <div className="matrix-loader" aria-hidden="true">
-      <span className="glow" />
-      {MATRIX_LOADER_CHARS.map((c, i) => (
-        <span key={i} className="digit">
-          {c}
-        </span>
-      ))}
-    </div>
+    <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" className="heart-pulse-loader">
+      <path id="line" pathLength={1} d={HEART_PULSE_PATH} />
+      <path id="point" pathLength={1} d={HEART_PULSE_PATH} />
+    </svg>
   );
 }
 

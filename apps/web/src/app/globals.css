@@ -584,77 +584,60 @@ textarea:focus-visible,
   }
 }
 
-/* ── マッチング/開始待ちローディング(コードが降り注ぐ) ───────────────────
-   出典: uiverse.io by PriyanshuGupta28。原案は明るい緑(#00ff88)だが、アクセントは
-   1色のみ運用というこのアプリのきまりに合わせアクセント色へ差し替えた。表示中だけ
-   動く一時的な演出(マッチング成立/卓着席で消える)なので、常時アニメーションする
-   卓画面でガラスを使わないというきまり(発熱対策)には抵触しない。 */
-.matrix-loader {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-content: center;
-  gap: 4px;
-  width: 96px;
-  /* 3行ぶんの文字(各行 約22px)+ 落下アニメーションの振れ幅(±12px)を吸収できる高さ。
-     足りないと、下端の行が明滅しながら下にはみ出し、直下のテキストと重なる
-     (実機で発生した不具合)。 */
-  height: 100px;
-  margin: 0 auto 4px;
-  perspective: 800px;
+/* ── マッチング/開始待ちローディング(ハートの鼓動トレース) ─────────────────
+   出典: uiverse.io by G27XLEO。原案の赤(#e00000/#f00000)は、アクセントは1色のみ
+   運用というこのアプリのきまりに合わせアクセント色へ差し替えた(心電図モニターの
+   トレースも実際は緑基調のものが多く、このアプリのティールとも相性がよい)。
+   pathLength="1" を指定し、stroke-dasharray/dashoffsetを実際のパス長に関係なく
+   0〜1の比率で書けるようにしてある。#lineは輪郭を描き進め、#pointはごく短い
+   ダッシュ(0.0001)で輪郭上を旅する光点として同じパスをなぞる(鼓動が卓へ向けて
+   進んでいく体)。表示中だけ動く一時的な演出なので、常時アニメーションする卓画面で
+   ガラスを使わないというきまり(発熱対策)には抵触しない。 */
+.heart-pulse-loader {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+  overflow: visible;
 }
-.matrix-loader .digit {
-  color: rgb(var(--accent));
-  font-family: inherit;
-  font-size: 17px;
-  font-weight: 800;
-  text-align: center;
-  text-shadow: 0 0 5px rgb(var(--accent) / 0.8);
-  opacity: 0;
-  animation:
-    matrix-fall 2s infinite,
-    matrix-flicker 0.5s infinite;
+.heart-pulse-loader #line {
+  fill: none;
+  stroke: rgb(var(--accent) / 0.55);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: heart-pulse-dash 3s linear infinite;
 }
-.matrix-loader .digit:nth-child(2) { animation-delay: 0.1s; }
-.matrix-loader .digit:nth-child(3) { animation-delay: 0.3s; }
-.matrix-loader .digit:nth-child(4) { animation-delay: 0.5s; }
-.matrix-loader .digit:nth-child(5) { animation-delay: 0.7s; }
-.matrix-loader .digit:nth-child(6) { animation-delay: 0.9s; }
-.matrix-loader .digit:nth-child(7) { animation-delay: 1.1s; }
-.matrix-loader .digit:nth-child(8) { animation-delay: 1.3s; }
-.matrix-loader .digit:nth-child(9) { animation-delay: 1.5s; }
-.matrix-loader .glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgb(var(--accent) / 0.16) 0%, transparent 70%);
-  animation: matrix-pulse 2s infinite;
+.heart-pulse-loader #point {
+  fill: none;
+  stroke: rgb(var(--accent-hi));
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 0.0001 0.9999;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 4px rgb(var(--accent-hi) / 0.9));
+  animation: heart-pulse-dash 3s linear infinite;
 }
-@keyframes matrix-fall {
-  0% { transform: translateY(-12px) rotateX(90deg); opacity: 0; }
-  20%, 80% { transform: translateY(0) rotateX(0deg); opacity: 0.85; }
-  100% { transform: translateY(12px) rotateX(-90deg); opacity: 0; }
+@keyframes heart-pulse-dash {
+  0% { stroke-dashoffset: 1; }
+  80% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 0; }
 }
-@keyframes matrix-flicker {
-  0%, 19%, 21%, 100% { opacity: 0.85; }
-  20% { opacity: 0.25; }
-}
-@keyframes matrix-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.7; }
-}
-/* モーション低減時は落下・回転を止め、明滅だけで「動いている」ことを伝える。 */
+/* モーション低減時は輪郭を描き切った状態で止め、光点の明滅だけで「動いている」ことを伝える。 */
 @media (prefers-reduced-motion: reduce) {
-  .matrix-loader .digit {
-    animation: matrix-flicker-reduced 1.4s ease-in-out infinite !important;
-    transform: none;
-  }
-  .matrix-loader .glow {
+  .heart-pulse-loader #line {
+    stroke-dashoffset: 0;
     animation: none;
-    opacity: 0.35;
   }
-  @keyframes matrix-flicker-reduced {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.9; }
+  .heart-pulse-loader #point {
+    stroke-dashoffset: 0;
+    animation: heart-pulse-fade 1.4s ease-in-out infinite !important;
+  }
+  @keyframes heart-pulse-fade {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
   }
 }
 
