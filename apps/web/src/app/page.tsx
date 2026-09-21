@@ -23,7 +23,6 @@ import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
-import { CheckMark } from "@/components/ui/CheckMark";
 import { Loader } from "@/components/ui/Loader";
 import { TermPrompt } from "@/components/Header";
 
@@ -313,12 +312,36 @@ function SeatAsideToggle({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`pressable flex h-9 items-center gap-1.5 rounded-full px-2 transition-colors ${
+      className={`pressable flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 transition-colors ${
         active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * {@link SeatAsideToggle} の中身(タイムバンク予約・チェック/フォールド予約)。
+ * 出典: uiverse.io by andrew-manzyk。枠(rect)の一部とチェックマーク(polyline)を、
+ * ONになった瞬間にstroke-dasharrayで描き進める(globals.cssの.seat-check-mark)。
+ * 何のボタンか一目で伝わるよう、必ず隣にテキストラベルを添えて使う
+ * (以前はアイコンのみで用途が伝わりにくいと指摘を受けた)。
+ */
+function SeatCheckMark({ on, className = "h-5 w-5" }: { on: boolean; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      data-on={on}
+      className={`seat-check-mark shrink-0 ${className}`}
+    >
+      <rect className="box" x="3" y="3" width="18" height="18" rx="6" strokeWidth={1.8} />
+      <polyline className="tick" points="7.5 12.3 10.5 15.3 16.8 8.7" strokeWidth={2.2} />
+    </svg>
   );
 }
 
@@ -536,14 +559,11 @@ function GameScreen({
   }, [showCards]);
 
   return (
-    <div className="starfield relative isolate flex h-[100dvh] flex-col overflow-hidden">
-      {/* 卓の外側に広がる星空。卓画像は黒地をアルファとして焼き込んだ透過版を使っているので、
-          この星空が卓の内側まで途切れずに繋がり、卓の台紙が矩形として見えることがない。 */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="starfield-layer starfield-1" />
-        <div className="starfield-layer starfield-2" />
-        <div className="starfield-layer starfield-3" />
-      </div>
+    <div className="circuit-bg relative isolate flex h-[100dvh] flex-col overflow-hidden">
+      {/* 卓の外側に広がるサーキット基板グリッド背景。卓画像は黒地をアルファとして焼き込んだ
+          透過版を使っているので、この背景が卓の内側まで途切れずに繋がり、卓の台紙が矩形として
+          見えることがない。 */}
+      <div aria-hidden className="circuit-bg-grid pointer-events-none absolute inset-0 -z-10" />
       {/* トーナメントクロック。以前は縦4段(Lv / 26pxのカウントダウン / 残り人数 / BLIND・ANTE・AVE)で
           122px を占めていた。実機の実測ではヘッダーとアクションバーだけで画面の63%を使っており、
           そのぶん卓が小さく描かれていた。同じ情報量を1行に畳んで 46px に収める。
@@ -660,17 +680,22 @@ function GameScreen({
                     onClick={() => armTimeBank(!timeBank.armed)}
                     ariaLabel={t("action.timeBank")}
                   >
-                    <CheckMark on={timeBank.armed} className="h-5 w-5" />
-                    {/* 残り枚数はピップで。0枚のときは点を出さず、押しても意味が無いことを示す。 */}
-                    <span className="flex items-center gap-[3px]">
-                      {Array.from({ length: timeBank.cards }).map((_, i) => (
-                        <span key={i} className="h-1 w-1 rounded-full bg-accent" />
-                      ))}
-                    </span>
+                    <SeatCheckMark on={timeBank.armed} />
+                    {/* 何のボタンか一目で分かるよう、常に文言で示す(以前はアイコン+残り枚数の
+                        ピップのみで用途が伝わりにくいという指摘を受けた)。 */}
+                    <span className="text-[10px] font-bold">{t("action.timeBankRemaining", { count: timeBank.cards })}</span>
                   </SeatAsideToggle>
                 )}
-                <SeatAsideToggle active={away} onClick={() => toggleAway(!away)} ariaLabel={t("action.away")}>
-                  <Icon name="pause" className="h-3.5 w-3.5" />
+                {/* チェック/フォールド予約。アクションバー下部にも同じ予約トグルがあるが
+                    (待機中の左下隅)、自席の横にも置くことで手番が回ってくる前に
+                    気づきやすくする。 */}
+                <SeatAsideToggle
+                  active={checkFoldArmed}
+                  onClick={() => setCheckFoldArmed(!checkFoldArmed)}
+                  ariaLabel={t("action.armCheckFold")}
+                >
+                  <SeatCheckMark on={checkFoldArmed} />
+                  <span className="text-[10px] font-bold">{t("action.checkFoldShort")}</span>
                 </SeatAsideToggle>
               </>
             }
