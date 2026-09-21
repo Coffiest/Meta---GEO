@@ -747,30 +747,32 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。右下にトースト風に表示する */}
+      {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。画面中央に表示する
+          (以前は右下のトースト風だったが、自席横のトグルと重なって位置が分かりにくい
+          という指摘を受け、中央固定へ変更した)。 */}
       <AnimatePresence>
         {(matching || waiting) && !state && (
-          <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl glass-panel p-3.5"
-          >
-            <div className="flex items-center gap-2">
-              <Loader size="sm" label="待機中" />
-              <div className="text-xs font-semibold text-fg">
+          <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="pointer-events-auto w-full max-w-[260px] rounded-2xl glass-panel p-5 text-center"
+            >
+              <MatrixLoader />
+              <div className="mt-2.5 text-xs font-semibold text-fg">
                 {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
-            </div>
-            {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。 */}
-            {matching && (
-              <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
-            )}
-            {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
-            )}
-            {waiting && <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>}
-          </motion.div>
+              {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。 */}
+              {matching && (
+                <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
+              )}
+              {matchingSecondsLeft !== null && !matching?.starting && (
+                <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
+              )}
+              {waiting && <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>}
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -1007,6 +1009,29 @@ function GameScreen({
           displayMode={amountDisplayMode}
         />
       )}
+    </div>
+  );
+}
+
+/** マッチング/開始待ちローディングの文字だけ("0"/"1"/コンソール記号でコード感を出す)。 */
+const MATRIX_LOADER_CHARS = ["0", "1", "$", "0", "1", "#", "1", "0"];
+
+/**
+ * マッチング中/開始待ちのローディング演出。出典: uiverse.io by PriyanshuGupta28。
+ * 原案の明るい緑(#00ff88)は、アクセントは1色のみ運用というこのアプリのきまりに合わせ
+ * アクセント色へ差し替えてある(globals.cssの.matrix-loader)。表示中だけ動く一時的な
+ * 演出なので、常時アニメーションする卓画面でガラスを使わないというきまり(発熱対策)には
+ * 抵触しない。
+ */
+function MatrixLoader() {
+  return (
+    <div className="matrix-loader" aria-hidden="true">
+      <span className="glow" />
+      {MATRIX_LOADER_CHARS.map((c, i) => (
+        <span key={i} className="digit">
+          {c}
+        </span>
+      ))}
     </div>
   );
 }
