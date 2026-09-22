@@ -271,6 +271,9 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
  * 常時アニメーションする卓画面なので、ONの表現は色だけにして影やぼかしは足さない。
  * チェックボックス(uiverse.io by PriyanshuGupta28)の押しやすさ改善に合わせ、
  * 高さ28px→36pxへ(タップしやすい最小サイズに寄せる)。
+ * OFFの状態も常に読める明るさで塗る(以前は半透明のガラス+暗めの文字で、いつでも押せる
+ * のに「押せなさそう」に見えるという指摘を受けた。卓外の背景がサーキット基板グリッドに
+ * なってからは特にコントラストが沈んで見えていた)。
  */
 function SeatAsideToggle({
   active,
@@ -290,7 +293,7 @@ function SeatAsideToggle({
       aria-label={ariaLabel}
       aria-pressed={active}
       className={`pressable flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 transition-colors ${
-        active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
+        active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "bg-n-3 text-fg ring-1 ring-inset ring-line-strong"
       }`}
     >
       {children}
