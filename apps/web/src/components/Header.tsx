@@ -19,7 +19,7 @@ export function Header({
   widthClass?: string;
 }) {
   return (
-    <header className="glass-header sticky top-0 z-30">
+    <header className="glass-header sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className={`mx-auto flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 ${widthClass}`}>
         <div className="flex items-center min-w-0 flex-1">{left}</div>
         {right && <div className="flex items-center gap-2 shrink-0">{right}</div>}
