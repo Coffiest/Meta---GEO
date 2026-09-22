@@ -37,7 +37,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "apps/web/public/table/table_v3.png"
-DST = ROOT / "apps/web/public/table/table_v3_alpha.png"
+# 同名で上書きするとブラウザやCDNのキャッシュで古い画像が出続けることがあるので、
+# 中身の意味が変わったら名前も変える。`table_v3_alpha.png`(内部が透明だった版)は残す。
+DST = ROOT / "apps/web/public/table/table_v3_filled.png"
+
+# 卓の内部を塗りつぶす色。globals.css の `--n-4`(#3A3A3C / カード面 L2)。
+# その場限りの値を作らず既存トークンから採る。この段を選んだ理由は下の to_rgba を参照。
+FILL = (58, 58, 60)
+
+# 外側を塗り広げるときに「壁」とみなすアルファのしきい値。輪郭線のアンチエイリアスが
+# これを下回るところまでを外側とする。20 / 40 / 80 のどれでも漏れないことを確認済み。
+WALL_ALPHA = 20
 
 
 def read_png_rgb(path):
@@ -123,6 +133,91 @@ def to_rgba(width, height, rgb):
     return bytes(rgba), chromatic, opaque
 
 
+def fill_interior(width, height, rgb, rgba):
+    """卓の内部を FILL で塗りつぶし、不透明にする。
+
+    プレイ画面の背景はサーキット基板のグリッド(`globals.css` の `.circuit-bg-grid`)。
+    卓の内部が透明のままだと、そのグリッドが卓を突き抜けて見えてしまう。卓は面として
+    読ませたいので、内部を不透明な一色で塗る。
+
+    CSSで卓の裏に面を敷くのでは駄目で、画像側でやる必要がある。卓はスーパー楕円
+    (角を強く丸めた長方形。y の 35%〜65% で幅が一定になり、真の楕円とは違う)で、
+    `border-radius` では同じ形を作れない。縁からはみ出すか隙間が空く。画像から導けば
+    形は定義上ぴったり一致する。
+
+    内部の求め方は「画像の縁から塗り広げて、到達できなかった画素」。卓の輪郭線が
+    閉じているので、これで内部だけが残る(しきい値 20/40/80 のどれでも漏れないことを
+    実測で確認した)。輪郭線そのものも「到達できない」側に入るため、線の下にも FILL が
+    敷かれる。線の外側のアンチエイリアスぶん(約2px)だけ塗りが広がるが、実機では
+    卓は 247 CSS px 幅に縮むので 0.5px 未満、見えない。
+
+    塗り方:
+
+        out_rgb = 元の色 + FILL × (255 - a) / 255
+        out_a   = 255
+
+    アンプリマルチプライした色を FILL の上へ通常合成するのと同じ式になる
+    (元の色 = 線の色 × a/255 なので、展開すると一致する)。
+    検算: a=0 → FILL、a=255 → 白、a=128 の中間調 → 157(通常合成の 156.5 と丸め差のみ)。
+    """
+    out = bytearray(rgba)
+    # 外側 = 画像の縁から4近傍でつながっている、壁より薄い画素。
+    outside = bytearray(width * height)
+    stack = []
+    for x in range(width):
+        for y in (0, height - 1):
+            i = y * width + x
+            if rgba[i * 4 + 3] <= WALL_ALPHA and not outside[i]:
+                outside[i] = 1
+                stack.append(i)
+    for y in range(height):
+        for x in (0, width - 1):
+            i = y * width + x
+            if rgba[i * 4 + 3] <= WALL_ALPHA and not outside[i]:
+                outside[i] = 1
+                stack.append(i)
+    while stack:
+        i = stack.pop()
+        x = i % width
+        y = i // width
+        if x > 0:
+            j = i - 1
+            if not outside[j] and rgba[j * 4 + 3] <= WALL_ALPHA:
+                outside[j] = 1
+                stack.append(j)
+        if x < width - 1:
+            j = i + 1
+            if not outside[j] and rgba[j * 4 + 3] <= WALL_ALPHA:
+                outside[j] = 1
+                stack.append(j)
+        if y > 0:
+            j = i - width
+            if not outside[j] and rgba[j * 4 + 3] <= WALL_ALPHA:
+                outside[j] = 1
+                stack.append(j)
+        if y < height - 1:
+            j = i + width
+            if not outside[j] and rgba[j * 4 + 3] <= WALL_ALPHA:
+                outside[j] = 1
+                stack.append(j)
+
+    fr, fg, fb = FILL
+    filled = 0
+    for i in range(width * height):
+        if outside[i]:
+            continue
+        filled += 1
+        a = rgba[i * 4 + 3]
+        inv = 255 - a
+        o = i * 4
+        # rgb[] は元の画素(= 線の色 × a/255 そのもの)。ここに FILL の残りを足す。
+        out[o] = min(255, rgb[i * 3] + (fr * inv + 127) // 255)
+        out[o + 1] = min(255, rgb[i * 3 + 1] + (fg * inv + 127) // 255)
+        out[o + 2] = min(255, rgb[i * 3 + 2] + (fb * inv + 127) // 255)
+        out[o + 3] = 255
+    return bytes(out), filled
+
+
 def write_png_rgba(path, width, height, rgba):
     stride = width * 4
     raw = bytearray()
@@ -141,14 +236,59 @@ def write_png_rgba(path, width, height, rgba):
     )
 
 
+def verify(width, height, rgba):
+    """塗りつぶしが漏れていないかを、書き出す前に確かめる。
+
+    flood fill が輪郭線の隙間から外へ漏れると、キャンバス全体が塗りつぶされてしまう。
+    見た目では「なんとなく大きい四角」になるだけで気づきにくいので、機械で確かめる。
+    """
+    def alpha(x, y):
+        return rgba[(y * width + x) * 4 + 3]
+
+    corners = [alpha(0, 0), alpha(width - 1, 0), alpha(0, height - 1), alpha(width - 1, height - 1)]
+    if any(corners):
+        raise SystemExit(f"四隅が透明でない {corners} ── 塗りが画像の外まで漏れている")
+
+    # 元画像には、目には見えないがアルファ 1〜3 の微細なノイズが全面に散っている。
+    # 「アルファが 0 でない」で外接矩形を採るとキャンバス全体になってしまい、漏れを
+    # 検出できない。実際に面として見えている画素だけを数える。
+    solid = 128
+    xs, ys = [], []
+    opaque = 0
+    for y in range(height):
+        row = rgba[y * width * 4 : (y + 1) * width * 4]
+        found = False
+        for x in range(width):
+            if row[x * 4 + 3] >= solid:
+                opaque += 1
+                if not found:
+                    xs.append(x)
+                    ys.append(y)
+                    found = True
+                last = x
+        if found:
+            xs.append(last)
+    if not xs:
+        raise SystemExit("不透明な画素が1つも無い ── 塗りつぶしが効いていない")
+    return (min(xs), max(xs), min(ys), max(ys)), opaque
+
+
 def main():
     width, height, rgb = read_png_rgb(SRC)
     rgba, chromatic, opaque = to_rgba(width, height, rgb)
+    rgba, filled = fill_interior(width, height, rgb, rgba)
+    box, opaque_after = verify(width, height, rgba)
     write_png_rgba(DST, width, height, rgba)
     total = width * height
+    cx, cy = width // 2, height // 2
+    center = tuple(rgba[(cy * width + cx) * 4 + k] for k in range(4))
     print(f"{SRC.name} {width}x{height} -> {DST.name}")
-    print(f"  不透明な画素: {opaque:,} / {total:,} ({opaque / total * 100:.1f}%)")
+    print(f"  線の画素(塗る前): {opaque:,} / {total:,} ({opaque / total * 100:.1f}%)")
     print(f"  有彩色の画素: {chromatic:,} ({chromatic / total * 100:.3f}%) ← 0 に近いほど screen 合成と厳密に一致する")
+    print(f"  塗りつぶした卓の内部: {filled:,} ({filled / total * 100:.1f}%)  色 #{FILL[0]:02x}{FILL[1]:02x}{FILL[2]:02x}")
+    print(f"  不透明な画素(塗った後): {opaque_after:,} ({opaque_after / total * 100:.1f}%)")
+    print(f"  卓の外接矩形: x {box[0]}..{box[1]}  y {box[2]}..{box[3]}  ← 元画像の輪郭 x 9..1012 / y 14..1519 と一致すること")
+    print(f"  中心の画素: RGBA{center}  ← アルファ 255 / 色が FILL なら成功")
     print(f"  ファイルサイズ: {SRC.stat().st_size:,} -> {DST.stat().st_size:,} bytes")
 
 
