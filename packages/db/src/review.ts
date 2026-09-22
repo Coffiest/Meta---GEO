@@ -767,6 +767,9 @@ export async function getHandTimeline(handId: string) {
           holeCards: true,
           isSmallBlind: true,
           isBigBlind: true,
+          // ショウダウンで公開された席を記録から判定するのに使う(ポット獲得者は公開して
+          // 初めて獲得できる)。卓上でも各自の増減は見えているため、公開してよい情報。
+          resultStackDelta: true,
           user: { select: { displayName: true, avatarKey: true } },
         },
       },

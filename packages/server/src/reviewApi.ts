@@ -12,6 +12,7 @@ import {
   checkAndConsumeReviewQuota,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { revealedSeatsFromRecord } from "./showdown.js";
 import { readJsonBodyLimited } from "./httpBody.js";
 
 /** 進行中のソルバー解析(hand|user または tournament|user)。多重起動を防ぐ。 */
@@ -176,7 +177,17 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         sendJson(res, 403, { error: "forbidden" });
         return true;
       }
-      sendJson(res, 200, { timeline });
+      // これは「プレイ中のハンド履歴」が使う経路。進行中のトーナメントで相手の非公開ハンドが
+      // 読めてしまうと不正になるため、ショウダウンで公開された席と本人以外の手札は伏せて返す。
+      // クライアント側で隠すだけでは応答にカードが載ったままになり、通信を覗けば読めてしまう。
+      const revealed = revealedSeatsFromRecord(timeline);
+      const maskedTimeline = {
+        ...timeline,
+        seats: timeline.seats.map((s) =>
+          s.userId === user.id || revealed.has(s.seatIndex) ? s : { ...s, holeCards: [] },
+        ),
+      };
+      sendJson(res, 200, { timeline: maskedTimeline });
       return true;
     }
 

@@ -96,11 +96,11 @@ function HandTimelineDetail({
             </span>
             <span className="flex shrink-0 gap-0.5">
               {s.holeCards.length === 2 ? (
-                s.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)
+                s.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="xs" />)
               ) : (
                 <>
-                  <PlayingCard faceDown size="sm" />
-                  <PlayingCard faceDown size="sm" />
+                  <PlayingCard faceDown size="xs" />
+                  <PlayingCard faceDown size="xs" />
                 </>
               )}
             </span>
@@ -123,7 +123,7 @@ function HandTimelineDetail({
               {boardCount > 0 && (
                 <span className="flex gap-0.5">
                   {timeline.board.slice(0, boardCount).map((c, i) => (
-                    <PlayingCard key={i} card={c} size="sm" />
+                    <PlayingCard key={i} card={c} size="xs" />
                   ))}
                 </span>
               )}
@@ -162,7 +162,7 @@ function HandTimelineDetail({
         {timeline.board.length > 0 && (
           <span className="flex gap-0.5">
             {timeline.board.map((c, i) => (
-              <PlayingCard key={i} card={c} size="sm" />
+              <PlayingCard key={i} card={c} size="xs" />
             ))}
           </span>
         )}
@@ -375,18 +375,18 @@ export function GameHandHistorySheet({
 
                     <div className="flex shrink-0 gap-1">
                       {row.heroCards.length === 2 ? (
-                        row.heroCards.map((c, j) => <PlayingCard key={j} card={c} size="sm" />)
+                        row.heroCards.map((c, j) => <PlayingCard key={j} card={c} size="xs" />)
                       ) : (
                         <>
-                          <PlayingCard faceDown size="sm" />
-                          <PlayingCard faceDown size="sm" />
+                          <PlayingCard faceDown size="xs" />
+                          <PlayingCard faceDown size="xs" />
                         </>
                       )}
                     </div>
 
                     <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
                       {row.board.length > 0 ? (
-                        row.board.map((c, j) => <PlayingCard key={j} card={c} size="sm" />)
+                        row.board.map((c, j) => <PlayingCard key={j} card={c} size="xs" />)
                       ) : (
                         <span className="text-[11px] text-fg-2">プリフロップ</span>
                       )}
