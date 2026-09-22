@@ -11,7 +11,9 @@ export interface HandEndedPayload {
     payouts: Record<string, number>;
     wonByFold: boolean;
   };
-  holeCards: Record<number, string[]>;
+  /** 公開された手札。ショウダウン等の公開義務があるときは両カード、ショウで片方だけ選んだ
+   *  ときはタップされた側だけが文字列で、もう片方はnull(伏せたまま)になる。 */
+  holeCards: Record<number, (string | null)[]>;
   /** MTTのとき: トーナメント全体の残り人数 */
   remainingPlayers?: number;
 }
@@ -262,9 +264,6 @@ const ACTION_ACK_MESSAGES: Record<string, string> = {
   HANDLER_ERROR: "サーバー内部エラーでアクションを処理できませんでした",
 };
 
-/** 各席のアクションバッジ(Call/Check等)の表示時間(ms)。ストリートが進んでも一瞬は残す。 */
-const SEAT_ACTION_BADGE_MS = 1700;
-
 export type GameKey = "sng" | "mtt";
 
 export interface PokerSocketParams {
@@ -279,8 +278,6 @@ export interface PokerSocketParams {
 
 export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
-  // 席ごとのアクションバッジ消去タイマー。座席index→timeout id。
-  const badgeTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   // 一度でも joinGame(新規参加)を送ったか。再接続時は resumeGame にして新規ゲームを作らせない。
   const hasJoinedRef = useRef(false);
   // 対局が開始したか(state を1度でも受信)。開始後の再接続は resumeGame(卓へ復帰)、
@@ -369,10 +366,6 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
   const stallCtxRef = useRef<"inHand" | "afterHand" | "turnExpired">("inHand");
 
   useEffect(() => {
-    const clearBadgeTimers = () => {
-      for (const id of Object.values(badgeTimersRef.current)) clearTimeout(id);
-      badgeTimersRef.current = {};
-    };
     const clearStallWatch = () => {
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
       stallTimerRef.current = null;
@@ -559,9 +552,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
         const prev = d.state;
         // 新しいハンドの開始判定: 前のハンドが完了済み or ボードが減った(=次のハンドのプリフロップ)
         const isNewHand = !prev || prev.isComplete || state.board.length < prev.board.length;
-        // アクションバッジは seatAction イベント側で管理する(ストリートを閉じる直前のアクションも
-        // 一瞬表示できるように)。ここでは新しいハンドの開始時にだけクリアする。
-        if (isNewHand) clearBadgeTimers();
+        // ストリートが進んだ(新しいコミュニティカードが開いた)判定。ストリートが閉じた=
+        // そのストリート中のアクションは全て役目を終えたので、新ハンド開始時と同様にバッジをクリアする。
+        const streetAdvanced = !isNewHand && Boolean(prev) && state.board.length > prev!.board.length;
         // 盤面が届いた=進行は生きている。停止監視(ハンド中/ハンド後とも)を解除する。
         // 注: ハンド終了後〜次ハンド開始までの間にstateが届くことはない(staged runoutのstateは
         // handEndedより前に届く)ため、ここで常に解除しても handEnded 側の15秒監視は妨げない。
@@ -578,7 +571,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
           lastHandDeltaBySeat: isNewHand ? null : d.lastHandDeltaBySeat,
           runoutHoleCards: isNewHand ? null : d.runoutHoleCards,
           actionError: null,
-          lastActionBySeat: isNewHand ? {} : d.lastActionBySeat,
+          // アクションバッジ(Raise/Call等の色付き表示)は、その席が次の意思決定をする(新しい
+          // seatActionで上書きされる)か、ここでストリートが進む/新ハンドが始まるまで保持する
+          // (以前は一定時間で自動的に消していたが、応答待ちの間に色が消えて「終わった」ように
+          // 見えるという指摘を受けて廃止した)。
+          lastActionBySeat: isNewHand || streetAdvanced ? {} : d.lastActionBySeat,
           matching: null,
           waiting: null,
           tableNotice: isNewHand ? null : d.tableNotice,
@@ -617,22 +614,15 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       setData((d) => ({ ...d, turnTimer: payload }));
     });
     // 各席のアクション(bet/raise/call/check/fold/allIn)をアイコン脇のバッジに表示する。状態更新と
-    // 独立して発火するため、ストリートを閉じるコール/チェックも消えずに一瞬表示される。一定時間後に消す。
+    // 独立して発火する。以前は一定時間(1.7秒)で自動的に消して控えめな金額表示へ戻していたが、
+    // ベット/レイズに他の席がまだ応答していない間に色が消えてしまい、「アクションが終わった」
+    // ように見えるという指摘を受けた。バッジは、その席が次の意思決定をする(新しいseatActionで
+    // 上書きされる)か、ストリートが進んで新しいコミュニティカードが開く(stateハンドラでクリア)
+    // まで、色を保ったまま表示し続ける。
     socket.on("seatAction", (payload: { seatIndex: number; kind: SeatActionKind; toAmount: number }) => {
       const { seatIndex, kind, toAmount } = payload;
       armWatchdog();
       setData((d) => ({ ...d, lastActionBySeat: { ...d.lastActionBySeat, [seatIndex]: { kind, toAmount } } }));
-      const timers = badgeTimersRef.current;
-      if (timers[seatIndex]) clearTimeout(timers[seatIndex]);
-      timers[seatIndex] = setTimeout(() => {
-        delete timers[seatIndex];
-        setData((d) => {
-          if (!(seatIndex in d.lastActionBySeat)) return d;
-          const next = { ...d.lastActionBySeat };
-          delete next[seatIndex];
-          return { ...d, lastActionBySeat: next };
-        });
-      }, SEAT_ACTION_BADGE_MS);
     });
     socket.on("showdownReveal", (payload: { holeCards: Record<number, string[]> }) =>
       setData((d) => ({ ...d, runoutHoleCards: payload.holeCards })),
@@ -648,7 +638,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
         }
 
         let handHistory = d.handHistory;
-        const heroCards = d.yourSeatIndex !== null ? payload.holeCards[d.yourSeatIndex] : undefined;
+        const heroRevealedCards = d.yourSeatIndex !== null ? payload.holeCards[d.yourSeatIndex] : undefined;
+        // ショウで片方だけ選んだ場合はnullが混ざるため、この履歴ストリップは両カードが
+        // 揃っているときだけ追加する(片方だけの手札は表示形式が異なり対象外)。
+        const heroCards =
+          heroRevealedCards && heroRevealedCards.every((c): c is string => c !== null) ? heroRevealedCards : undefined;
         const heroDelta = d.yourSeatIndex !== null ? lastHandDeltaBySeat[d.yourSeatIndex] : undefined;
         if (heroCards && heroCards.length === 2 && heroDelta !== undefined) {
           handHistory = [{ cards: heroCards, deltaChips: heroDelta }, ...d.handHistory].slice(0, 3);
@@ -735,7 +729,6 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     }
 
     return () => {
-      clearBadgeTimers();
       clearStallWatch();
       clearResyncFallback();
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
@@ -835,9 +828,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     if (trimmed.length > 0) socketRef.current?.emit("chat", { text: trimmed });
   }, []);
 
-  /** ハンドショウ: 自分の手札をハンド終了時に公開(ショウ)する意思をトグルする。 */
-  const showCards = useCallback((show: boolean) => {
-    socketRef.current?.emit("showCards", { show });
+  /** ハンドショウ: 自分の手札の1枚(cardIndex)をハンド終了時に公開(ショウ)する意思をトグルする。 */
+  const showCards = useCallback((cardIndex: number, show: boolean) => {
+    socketRef.current?.emit("showCards", { cardIndex, show });
   }, []);
 
   /** MTTリエントリ: バスト済みからレジクローズ前に-2,000で復帰する。 */

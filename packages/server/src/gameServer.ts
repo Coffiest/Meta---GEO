@@ -376,9 +376,10 @@ export class TableSession implements GameSession {
   private dbTournamentId: string | null = null;
   private players = new Map<number, SeatPlayer>();
   private humansBySeat = new Map<number, HumanSeat>();
-  // 自主的にハンドを公開(ショウ)する席。プレイ中に本人がカードをタップして意思表示し、
-  // ハンド終了時に公開義務の有無にかかわらず手札を公開する。ハンド開始ごとにリセットする。
-  private readonly showRequests = new Set<number>();
+  // 自主的にハンドを公開(ショウ)する席・カード。プレイ中に本人が手札の1枚ずつを個別に
+  // タップして意思表示し(片方だけ・両方どちらも可)、ハンド終了時に公開義務の有無に
+  // かかわらずタップされたカードだけを公開する。ハンド開始ごとにリセットする。
+  private readonly showRequests = new Map<number, Set<number>>();
   /** 同卓チャットのログ(直近50件)。再接続時にまとめて送る。 */
   private chatLog: ChatMessage[] = [];
   private finished = false;
@@ -564,12 +565,24 @@ export class TableSession implements GameSession {
       if (this.chatLog.length > 50) this.chatLog.shift();
       this.io.to(this.roomId).emit("chat", msg);
     });
-    // ハンドショウ: 本人がプレイ中にカードをタップして自主公開の意思をトグルする。
+    // ハンドショウ: 本人がプレイ中に手札の1枚ずつをタップして自主公開の意思をトグルする。
     // 記録のみ行い(他者へは即時通知しない)、ハンド終了時にまとめて公開する。
-    socket.on("showCards", (payload: { show?: boolean }) => {
+    socket.on("showCards", (payload: { show?: boolean; cardIndex?: number }) => {
       if (!this.hand || this.hand.isHandComplete()) return;
-      if (payload?.show === false) this.showRequests.delete(seatIndex);
-      else this.showRequests.add(seatIndex);
+      const cardIndex = payload?.cardIndex;
+      if (cardIndex !== 0 && cardIndex !== 1) return;
+      if (payload?.show === false) {
+        const seatSet = this.showRequests.get(seatIndex);
+        seatSet?.delete(cardIndex);
+        if (seatSet && seatSet.size === 0) this.showRequests.delete(seatIndex);
+      } else {
+        let seatSet = this.showRequests.get(seatIndex);
+        if (!seatSet) {
+          seatSet = new Set<number>();
+          this.showRequests.set(seatIndex, seatSet);
+        }
+        seatSet.add(cardIndex);
+      }
     });
     socket.on("disconnect", () => {
       if (human.socket !== socket) return;
@@ -1086,11 +1099,21 @@ export class TableSession implements GameSession {
       this.phase("recordHandSkipped", { hasStartedEvent: Boolean(started), handHadHuman });
     }
 
-    // 公開義務のある席 + 自主公開(ショウ)を選んだ席をクライアントへ公開する(それ以外はマック)
-    const revealedSeats = new Set([...computeRevealedSeats(hand), ...this.showRequests]);
-    const revealedHoleCards = Object.fromEntries(
-      [...hand.getAllHoleCards()].filter(([seat]) => revealedSeats.has(seat)).map(([seat, cards]) => [seat, cards.map(cardToString)]),
-    );
+    // 公開義務のある席(両カード)+ 自主公開(ショウ)を選んだ席・カードをクライアントへ公開する
+    // (それ以外はマック)。ショウは片方のカードだけを選べるので、公開義務の無い席は
+    // タップされたカードだけを文字列にし、もう片方はnull(伏せたまま)にする。
+    const compulsorySeats = computeRevealedSeats(hand);
+    const revealedHoleCards: Record<number, (string | null)[]> = {};
+    for (const [seat, cards] of hand.getAllHoleCards()) {
+      if (compulsorySeats.has(seat)) {
+        revealedHoleCards[seat] = cards.map(cardToString);
+      } else {
+        const shownCardIndices = this.showRequests.get(seat);
+        if (shownCardIndices && shownCardIndices.size > 0) {
+          revealedHoleCards[seat] = cards.map((c, i) => (shownCardIndices.has(i) ? cardToString(c) : null));
+        }
+      }
+    }
     this.showRequests.clear();
 
     tournament.settleFinishedHand();

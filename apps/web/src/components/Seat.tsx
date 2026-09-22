@@ -36,61 +36,6 @@ export interface SeatBadge {
 }
 
 /**
- * オールイン中のアバターを囲む発光リング。紫→シアンのグラデーションが回転する円環(背面)+
- * 外周のグロー+縁の高輝度リング(前面)の3層構成。グロー/回転リングは背面(z-0)、縁の
- * リングは前面(z-20)に置き、プレイヤーの顔は隠さない。
- * (出典: uiverse.io by xXJollyHAKERXx。紫(#BA42FF)→シアン(#00E1FF)の回転グラデーションを
- * リング状にマスクして移植。回転そのものは既存の allin-elec-spin キーフレームを流用)
- */
-function AllInElectric({ size }: { size: number }) {
-  const ringThickness = Math.max(3, size * 0.16);
-  const ringMask = `radial-gradient(farthest-side, transparent calc(100% - ${ringThickness}px), #000 calc(100% - ${ringThickness}px))`;
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      {/* 外周の紫→シアングロー(背面) */}
-      <div
-        className="absolute left-1/2 top-1/2 rounded-full"
-        style={{
-          width: size * 1.75,
-          height: size * 1.75,
-          zIndex: 0,
-          transform: "translate(-50%, -50%)",
-          background:
-            "radial-gradient(circle, rgba(186,66,255,0.45) 40%, rgba(0,225,255,0.22) 58%, rgba(0,225,255,0) 74%)",
-          filter: `blur(${Math.max(2, size * 0.05)}px)`,
-          animation: "allin-elec-glow 0.9s ease-in-out infinite",
-        }}
-      />
-      {/* 回転する紫→シアンのグラデーションリング(背面) */}
-      <div
-        className="absolute left-1/2 top-1/2 rounded-full"
-        style={{
-          width: size * 1.3,
-          height: size * 1.3,
-          zIndex: 0,
-          transform: "translate(-50%, -50%)",
-          backgroundImage: "linear-gradient(rgb(186, 66, 255) 35%, rgb(0, 225, 255))",
-          WebkitMask: ringMask,
-          mask: ringMask,
-          filter: "blur(1px)",
-          boxShadow: "0 -5px 20px 0 rgba(186,66,255,0.55), 0 5px 20px 0 rgba(0,225,255,0.55)",
-          animation: "allin-elec-spin 1.7s linear infinite",
-        }}
-      />
-      {/* 縁の高輝度リング(前面) */}
-      <div
-        className="absolute inset-0 rounded-full"
-        style={{
-          zIndex: 20,
-          boxShadow: `0 0 ${size * 0.12}px ${size * 0.03}px rgba(0,225,255,0.85), inset 0 0 ${size * 0.09}px 0 rgba(230,190,255,0.6)`,
-          animation: "allin-elec-glow 0.5s ease-in-out infinite",
-        }}
-      />
-    </div>
-  );
-}
-
-/**
  * ハンドショウ/ショウダウンで公開されるカードの「ペラッ」めくり演出。
  * 3Dの Y軸回転で、伏せた裏面(前面)→表面(背面)へ半回転して表を見せる。
  * reduced-motion 時やカード未確定時は演出せず、そのまま表示する。
@@ -171,10 +116,10 @@ export interface SeatViewProps {
   handRankLabel?: string | null;
   /** ハンドショウで公開された席。フォールド済みでも手札を表示し、相手席なら裏返る演出を再生する。 */
   shown?: boolean;
-  /** 自席のハンドショウ意思がON。カードに目のアイコンを重ねる。 */
-  showEyeIcon?: boolean;
-  /** 自席のカードをタップしたとき(ハンドショウのトグル)。 */
-  onCardsTap?: () => void;
+  /** 自席のハンドショウ意思。カードごとに独立してON/OFFできる(index 0/1に対応)。 */
+  heroShowArmed?: [boolean, boolean];
+  /** 自席のカードをタップしたとき(タップしたカードのindexを渡す。ハンドショウのトグル)。 */
+  onCardTap?: (cardIndex: number) => void;
   /** 卓上の金額表示モード(bb換算/点数)。 */
   displayMode?: AmountDisplayMode;
   /** 自席のスタック表示をタップしたとき(bb/点数の切り替え)。自席にだけ渡す。 */
@@ -204,8 +149,8 @@ export function Seat({
   onChatClick,
   handRankLabel = null,
   shown = false,
-  showEyeIcon = false,
-  onCardsTap,
+  heroShowArmed,
+  onCardTap,
   displayMode = "bb",
   onStackTap,
   aside = null,
@@ -246,14 +191,42 @@ export function Seat({
 
       {(() => {
         const cardSize = size === "lg" ? "xl" : "sm";
-        const cardsInner = (
+        const anyArmed = Boolean(heroShowArmed?.[0] || heroShowArmed?.[1]);
+        return (
           <div className="relative z-30 flex gap-1">
             {showCards &&
-              holeCards.map((c, i) =>
-                shown && !isHero ? (
+              holeCards.map((c, i) => {
+                if (shown && !isHero) {
                   // 相手席のハンドショウ/ショウダウン公開: 裏面→表面の「ペラッ」フリップ。
-                  <FlipRevealCard key={i} card={c ?? undefined} size={cardSize} delay={i * 0.09} />
-                ) : (
+                  return <FlipRevealCard key={i} card={c ?? undefined} size={cardSize} delay={i * 0.09} />;
+                }
+                if (isHero && onCardTap) {
+                  // 自席はカード1枚ずつ個別にタップしてハンドショウをトグルできる(2枚同時ではなく、
+                  // タップした方だけを終了時に公開する)。armed中はカードの縁が光る
+                  // (出典: uiverse.io by ElSombrero2。原案は:hoverで光るが、この光りは
+                  // 「ONの間ずっと効いている予約」を表すものなので、押した瞬間だけの
+                  // フィードバックではなくdata-on属性で駆動する)。
+                  const armed = heroShowArmed?.[i] ?? false;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => onCardTap(i)}
+                      aria-label={armed ? "このカードのショウを取り消す" : "このカードをショウする"}
+                      aria-pressed={armed}
+                      data-on={armed}
+                      className="hero-card-slot appearance-none bg-transparent p-0 pressable"
+                    >
+                      <PlayingCard
+                        card={revealCards ? c ?? undefined : undefined}
+                        faceDown={!revealCards}
+                        size={cardSize}
+                        dealDelay={i * 0.05}
+                      />
+                    </button>
+                  );
+                }
+                return (
                   <PlayingCard
                     key={i}
                     card={revealCards ? c ?? undefined : undefined}
@@ -261,14 +234,11 @@ export function Seat({
                     size={cardSize}
                     dealDelay={i * 0.05}
                   />
-                ),
-              )}
-            {/* ハンドショウ意思ON: カード束の周囲が光る。ハンド終了時に全員へ見せる、という
-                予約が効いていることを、押した本人にだけ分かる形で示す
-                (相手には何も伝わらない ― 意思は終了時にまとめて公開される)。 */}
-            {showEyeIcon && showCards && <span aria-hidden data-on="true" className="hand-show-glow" />}
-            {/* 補助として小さな目のアイコンも残す(発光だけだと色覚や輝度の環境差で拾えない)。 */}
-            {showEyeIcon && showCards && (
+                );
+              })}
+            {/* ハンドショウ意思ON(どちらか1枚でも): 押した本人にだけ分かる目のアイコンをカード束の
+                右上に重ねる(相手には何も伝わらない ― 意思は終了時にまとめて公開される)。 */}
+            {anyArmed && showCards && (
               <motion.span
                 aria-hidden
                 initial={{ opacity: 0, scale: 0.6 }}
@@ -279,20 +249,6 @@ export function Seat({
               </motion.span>
             )}
           </div>
-        );
-        // 自席かつハンド進行中はカードをタップしてハンドショウをトグルできる。
-        return onCardsTap ? (
-          <button
-            type="button"
-            onClick={onCardsTap}
-            aria-label={showEyeIcon ? "ハンドショウを取り消す" : "このハンドをショウする"}
-            aria-pressed={showEyeIcon}
-            className="appearance-none bg-transparent p-0 pressable"
-          >
-            {cardsInner}
-          </button>
-        ) : (
-          cardsInner
         );
       })()}
 
@@ -370,7 +326,6 @@ export function Seat({
         {!isEmpty && (
           <>
             <div className="relative">
-              {status === "allIn" && <AllInElectric size={size === "lg" ? 44 : 30} />}
               <div className="relative z-10">
                 <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 30} timer={isActingSeat ? timer : null} />
               </div>
@@ -420,34 +375,41 @@ export function Seat({
         )}
       </div>
 
-      <AnimatePresence mode="popLayout">
-        {badge && !isEmpty ? (
-          <motion.div
-            key={`badge-${badge.tone}-${badge.text}`}
-            initial={{ opacity: 0, scale: 0.5, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            transition={SPRING_SNAPPY}
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
-            style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
-          >
-            {badge.text}
-          </motion.div>
-        ) : (
-          streetContribution > 0 &&
-          !isEmpty && (
+      {/* バッジ/ベット額表示の行。どちらも出ない瞬間(フォールド直後で街道コントリビューションが
+          0、かつ直近アクションバッジも無いとき)に高さ0へ潰れないよう、min-hで場所を確保しておく。
+          潰れると、名前ピルがこの席ブロックの最下端になり(このアプリの外側は無いので)、名前ピル
+          を基準に配置している自席横のトグル(タイムバンク・チェック/フォールド予約)の中心が
+          卓の下端(y=597)を超えて、<main>のoverflow-hiddenで下端が欠けて見える不具合があった。 */}
+      <div className="min-h-[23px]">
+        <AnimatePresence mode="popLayout">
+          {badge && !isEmpty ? (
             <motion.div
-              key="contribution"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.6 }}
-              className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+              key={`badge-${badge.tone}-${badge.text}`}
+              initial={{ opacity: 0, scale: 0.5, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={SPRING_SNAPPY}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
+              style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
             >
-              {formatAmount(streetContribution, bigBlind, displayMode)}
+              {badge.text}
             </motion.div>
-          )
-        )}
-      </AnimatePresence>
+          ) : (
+            streetContribution > 0 &&
+            !isEmpty && (
+              <motion.div
+                key="contribution"
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+              >
+                {formatAmount(streetContribution, bigBlind, displayMode)}
+              </motion.div>
+            )
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

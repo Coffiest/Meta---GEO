@@ -150,29 +150,6 @@ function CountdownText({ endsAt, className }: { endsAt: number | null; className
   return <span className={className}>{formatCountdown(endsAt, now)}</span>;
 }
 
-/**
- * SNGマッチング待合室の残り秒数。サーバーは待合人数が変わった時だけ`secondsLeft`を送ってくるため、
- * 受信時点の値を元にした締切時刻(endsAt)を基準にクライアント側で毎秒カウントダウンする。
- */
-function useMatchingCountdown(secondsLeft: number | null): number | null {
-  const [endsAt, setEndsAt] = useState<number | null>(secondsLeft !== null ? Date.now() + secondsLeft * 1000 : null);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    setEndsAt(secondsLeft !== null ? Date.now() + secondsLeft * 1000 : null);
-    setNow(Date.now());
-  }, [secondsLeft]);
-
-  useEffect(() => {
-    if (endsAt === null) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [endsAt]);
-
-  if (endsAt === null) return null;
-  return Math.max(0, Math.ceil((endsAt - now) / 1000));
-}
-
 function SettingsPopover({
   onShowStructure,
   onShowHistory,
@@ -412,8 +389,9 @@ function GameScreen({
   const [leftResult, setLeftResult] = useState<TournamentOverInfo | null>(null);
   // 各相手のマーキング色(HEX)。userId→HEX。テーブルの席ドット表示用。
   const [markingBySeat, setMarkingBySeat] = useState<Record<string, string | null>>({});
-  // ハンドショウ: 自分の手札をハンド終了時に公開する意思(自席のカードをタップでトグル)。
-  const [heroShowIntent, setHeroShowIntent] = useState(false);
+  // ハンドショウ: 自分の手札をハンド終了時に公開する意思。2枚それぞれ独立にON/OFFできる
+  // (index 0/1が対応するカードをタップでトグル。片方だけ・両方どちらも可)。
+  const [heroShowIntent, setHeroShowIntent] = useState<[boolean, boolean]>([false, false]);
   // 「離席」と「チェック/フォールド予約」。自席の横のトグルとアクションバーの隅のトグルの
   // 両方から触るので、状態はここで持って両方へ配る(以前は ActionBar のローカル state で、
   // 同じ離席トグルが場所ごとに別実装になっていた)。
@@ -446,7 +424,6 @@ function GameScreen({
       return next;
     });
   }, []);
-  const matchingSecondsLeft = useMatchingCountdown(matching?.secondsLeft ?? null);
   // レジストレーションクローズの締切時刻(MTT・RC前のみ)。表示はCountdownTextに任せる。
   const regClosesAt =
     gameKey === "mtt" && !tournamentInfo?.registrationClosed ? tournamentInfo?.registrationClosesAt ?? null : null;
@@ -546,17 +523,21 @@ function GameScreen({
 
   // ハンドが終わったら次のハンドのためにショウ意思をリセットする(サーバー側も毎ハンド初期化)。
   useEffect(() => {
-    if (lastHandEnded) setHeroShowIntent(false);
+    if (lastHandEnded) setHeroShowIntent([false, false]);
   }, [lastHandEnded]);
 
-  // 自席のカードをタップしてショウ意思をトグルし、サーバーへ通知する。
-  const toggleHeroShow = useCallback(() => {
-    setHeroShowIntent((prev) => {
-      const next = !prev;
-      showCards(next);
-      return next;
-    });
-  }, [showCards]);
+  // 自席のカード(タップしたindexだけ)のショウ意思をトグルし、サーバーへ通知する。
+  const toggleHeroShow = useCallback(
+    (cardIndex: number) => {
+      setHeroShowIntent((prev) => {
+        const next: [boolean, boolean] = [...prev];
+        next[cardIndex] = !next[cardIndex];
+        showCards(cardIndex, next[cardIndex]);
+        return next;
+      });
+    },
+    [showCards],
+  );
 
   return (
     <div className="circuit-bg relative isolate flex h-[100dvh] flex-col overflow-hidden">
@@ -747,30 +728,34 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。右下にトースト風に表示する */}
+      {/* SNGマッチング待合室 / MTT開始待ち(4人揃うまで)。画面中央に表示する
+          (以前は右下のトースト風だったが、自席横のトグルと重なって位置が分かりにくい
+          という指摘を受け、中央固定へ変更した)。 */}
       <AnimatePresence>
         {(matching || waiting) && !state && (
-          <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 w-56 rounded-2xl glass-panel p-3.5"
-          >
-            <div className="flex items-center gap-2">
-              <Loader size="sm" label="待機中" />
-              <div className="text-xs font-semibold text-fg">
-                {matching?.starting ? "まもなく開始します…" : matching ? "マッチング中…" : "トーナメント開始準備中…"}
+          <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="pointer-events-auto w-full max-w-[260px] rounded-2xl glass-panel p-5 text-center"
+            >
+              <Loader size="lg" label="読み込み中" />
+              <div className="mt-2.5 text-xs font-semibold text-fg">
+                {matching ? "マッチング中…" : "トーナメント開始準備中…"}
               </div>
-            </div>
-            {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。 */}
-            {matching && (
-              <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
-            )}
-            {matchingSecondsLeft !== null && !matching?.starting && (
-              <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
-            )}
-            {waiting && <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>}
-          </motion.div>
+              {/* SNG(matching)のみ集合状況を表示。MTT(waiting)は人数やボット補充を一切匂わせない中立表示にする。
+                  途中で行の増減が起きて2段階に見えないよう、matching/waitingの間は常に同じ2行構成で固定する。 */}
+              {matching ? (
+                <>
+                  <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
+                  <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
+                </>
+              ) : (
+                <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>
+              )}
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -1011,6 +996,7 @@ function GameScreen({
   );
 }
 
+/** ハートの鼓動トレース(マッチング/開始待ちローディング)のパス。100×100基準。 */
 /**
  * 読み込み中の表示。何秒待っているのかを必ず出す —— 「読み込み中…」だけでは
  * 進んでいるのか固まっているのかが利用者にもこちらにも分からず、原因調査ができない。

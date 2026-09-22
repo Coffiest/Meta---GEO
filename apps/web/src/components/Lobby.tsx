@@ -17,7 +17,6 @@ import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
-import { RRPokerPromoBanner } from "./RRPokerPromoBanner";
 import { AppShareCard } from "./AppShareCard";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
@@ -844,7 +843,17 @@ function SingleLineChart({
   for (let v = Math.ceil(min / tickStep) * tickStep; v <= max; v += tickStep) yTicks.push(Math.round(v * 100) / 100);
   const xTickIdx = pickTickIndices(points.length, 6);
 
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(p.y).toFixed(1)}`).join(" ");
+  // 点と点を斜めの直線で繋ぐ滑らかな折れ線ではなく、値が変わった瞬間だけ垂直に跳ねる
+  // 「階段状」のステップ線にする(出典参考: 株価/ログのような生データ感のある見た目)。
+  // 各点で「前の値のまま横に伸びる→次の値へ垂直に跳ぶ」を繰り返す(step-after)。
+  const linePath = points
+    .map((p, i) => {
+      if (i === 0) return `M${toX(i).toFixed(1)},${toY(p.y).toFixed(1)}`;
+      const prevY = toY(points[i - 1]!.y);
+      const x = toX(i);
+      return `L${x.toFixed(1)},${prevY.toFixed(1)} L${x.toFixed(1)},${toY(p.y).toFixed(1)}`;
+    })
+    .join(" ");
   // 面塗り: 折れ線の下をプロット下端まで塗り、色→透明のグラデーションで陰影を付ける。
   const areaPath = `${linePath} L${toX(points.length - 1).toFixed(1)},${plotHeight} L${toX(0).toFixed(1)},${plotHeight} Z`;
   const gradId = `area-grad-${color.replace("#", "")}`;
@@ -881,7 +890,7 @@ function SingleLineChart({
         />
 
         <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
-        <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={linePath} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="miter" strokeLinecap="square" />
 
         {xTickIdx.map((i) => (
           <text key={i} x={toX(i)} y={height - 2} textAnchor="middle" className="fill-n-9" style={{ fontSize: 8 }}>
@@ -1326,8 +1335,6 @@ export function Lobby({
               onViewLeaderboard={() => setTab("leaderboard")}
               onViewHistory={() => setTab("tournaments")}
             />
-
-            <RRPokerPromoBanner />
 
             <AppShareCard />
 
