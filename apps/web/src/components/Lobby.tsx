@@ -22,6 +22,7 @@ import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
+import { InstallAppCard } from "./InstallAppCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
@@ -1314,6 +1315,10 @@ export function Lobby({
             <TabHeader command="./poker-art --boot" eyebrow="System online" title="Home" />
 
             <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
+
+            {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
+                (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
+            <InstallAppCard />
 
             <PushOptInCard accessToken={accessToken} />
 

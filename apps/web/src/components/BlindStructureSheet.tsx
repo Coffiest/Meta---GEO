@@ -214,8 +214,13 @@ export function BlindStructureSheet({
             >
               <div className="mt-4">
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">Prize Pool</p>
-                {/* RC後は「何位いくら」、RC前はプライズプール総額のみ(何位いくらは非公開)。 */}
-                {tournamentInfo?.registrationClosed && tournamentInfo.prizePool.length > 0 ? (
+                {/* RC後は「何位いくら」、RC前はプライズプール総額のみ(何位いくらは非公開)。
+                    registrationClosed を送ってくるのはMTTだけ。SNGは後乗り登録が無くフィールドも
+                    固定なので、最初から順位別ペイアウトが確定している ―― 未送信(undefined)は
+                    「確定済み」として扱う。以前はここをそのまま真偽判定していたため、サーバーが
+                    SNG_PAYOUTS(1位4000/2位2000)を送っているのに画面は
+                    「プライズ情報がありません。」のままだった(ユーザー報告)。 */}
+                {tournamentInfo && (tournamentInfo.registrationClosed ?? true) && tournamentInfo.prizePool.length > 0 ? (
                   <ul className="space-y-1.5">
                     {tournamentInfo.prizePool.map((p) => (
                       <li key={p.place} className="flex items-center justify-between rounded-xl border border-line px-3 py-2">

@@ -524,6 +524,19 @@ function GameScreen({
   /** 敗退したが、まだショーダウンを見せている最中か。 */
   const resultPending = Boolean(tournamentOver) && !resultReady;
 
+  // 卓で結果画面を出した時点で、その結果を「表示済み」として記録する。
+  // サーバーは tournamentOver をソケットへ送ると同時に、離席/切断中に終わった場合へ備えて
+  // 同じ結果を activeGames にも保存する。そのためロビーへ戻った直後の
+  // /api/lobby/active-game チェックがその結果を拾い、ホームやヒストリーの上に
+  // 同じ結果画面がもう一度出てしまっていた(ユーザー報告の不具合)。
+  // ここで印を付けておけば、離席中に終わった場合の「復帰時に1回だけ出す」動作は保ったまま、
+  // 自分で最後まで見届けた結果の二度出しだけを止められる。
+  const seenResult = (tournamentOver && resultReady ? tournamentOver : null) ?? leftResult;
+  useEffect(() => {
+    if (!seenResult) return;
+    markResumeResultSeen(resumeResultSignature(seenResult));
+  }, [seenResult]);
+
   // ハンドが終わったら次のハンドのためにショウ意思をリセットする(サーバー側も毎ハンド初期化)。
   useEffect(() => {
     if (lastHandEnded) setHeroShowIntent([false, false]);
