@@ -28,8 +28,8 @@ export function Header({
   );
 }
 
-/** メインロゴ画像。 */
-const LOGO_SRC = "/logos/Logo_s.png";
+/** メインロゴ画像。アプリアイコンと同じ原画から、ヘッダーの44px枠に合わせて切った版(scripts/app-icons.py)。 */
+const LOGO_SRC = "/logos/Logo_club_mark_256.png";
 
 /** RRPokerのロゴ(60x60画像+ワードマーク)と全く同じ寸法のロゴ枠。 */
 export function HeaderLogo() {
