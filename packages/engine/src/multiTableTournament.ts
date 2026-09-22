@@ -1,4 +1,4 @@
-import { computeButtonAssignment } from "./buttonRotation.js";
+import { computeButtonAssignment, nextPreviousBlinds, type PreviousBlindPositions } from "./buttonRotation.js";
 import { getBlindLevel, STARTING_STACK, type BlindLevel } from "./blindStructure.js";
 import { HandEngine } from "./handEngine.js";
 import { findEmptySeat, findRebalanceMove, findTableToBreak } from "./tableBalancer.js";
@@ -12,7 +12,9 @@ interface TableSeatState {
 interface TableState {
   readonly id: number;
   readonly seats: Map<number, TableSeatState>;
-  previousBigBlindFixedPos: number | null;
+  // 卓ごとに「前のハンドのSB席/BB席」を持つ(buttonRotation.ts のデッドボタン方式で次のハンドの
+  // BTN=前のSB席 / SB=前のBB席 になるため、BB位置だけでは足りない)。
+  previousBlinds: PreviousBlindPositions | null;
 }
 
 export interface MultiTableSeatInput {
@@ -83,7 +85,7 @@ export class MultiTableTournament {
 
     const numTables = Math.max(1, Math.ceil(config.players.length / config.tableSeatCount));
     for (let t = 0; t < numTables; t++) {
-      this.tables.push({ id: this.nextTableId++, seats: new Map(), previousBigBlindFixedPos: null });
+      this.tables.push({ id: this.nextTableId++, seats: new Map(), previousBlinds: null });
     }
 
     const seatCounters = new Array(numTables).fill(0) as number[];
@@ -179,7 +181,7 @@ export class MultiTableTournament {
       // 進行中(busy)の卓へはハンド途中に着席させない。非busyで空席のある卓が無ければ新設する。
       table = this.findTableWithMostRoom(busyTableIds);
       if (!table) {
-        table = { id: this.nextTableId++, seats: new Map(), previousBigBlindFixedPos: null };
+        table = { id: this.nextTableId++, seats: new Map(), previousBlinds: null };
         this.tables.push(table);
       }
       seatIndex = findEmptySeat([...table.seats.keys()], this.seatCount)!;
@@ -215,9 +217,9 @@ export class MultiTableTournament {
     const assignment = computeButtonAssignment({
       occupiedSeats: occupiedFixedPositions,
       seatCount: this.seatCount,
-      previousBigBlindFixedPos: table.previousBigBlindFixedPos,
+      previous: table.previousBlinds,
     });
-    table.previousBigBlindFixedPos = assignment.bigBlindSeat;
+    table.previousBlinds = nextPreviousBlinds(assignment);
 
     this.handNumber += 1;
     const level = this.getCurrentLevel();

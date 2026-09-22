@@ -1,4 +1,4 @@
-import { computeButtonAssignment } from "./buttonRotation.js";
+import { computeButtonAssignment, nextPreviousBlinds, type PreviousBlindPositions } from "./buttonRotation.js";
 import { getBlindLevel, STARTING_STACK, type BlindLevel } from "./blindStructure.js";
 import { HandEngine, type HandResult } from "./handEngine.js";
 import type { Card } from "./types/card.js";
@@ -45,7 +45,9 @@ export class Tournament {
   private readonly seats = new Map<number, TournamentSeatState>();
   private handNumber = 0;
   private levelIndex = 1;
-  private previousBigBlindFixedPos: number | null = null;
+  // 次のハンドのSB席は「前のハンドのBB席」、BTN席は「前のハンドのSB席」になる(buttonRotation.ts 参照)。
+  // そのため前のハンドのSB位置も覚えておく必要がある(デッドSBで空席だった場合もその位置を保持する)。
+  private previousBlinds: PreviousBlindPositions | null = null;
   private readonly events: TournamentEvent[] = [];
   private currentHand: HandEngine | null = null;
   private currentHandButtonInfo: { buttonFixedPos: number; smallBlindSeat: number | null; bigBlindSeat: number } | null =
@@ -123,9 +125,9 @@ export class Tournament {
     const assignment = computeButtonAssignment({
       occupiedSeats: occupiedFixedPositions,
       seatCount: this.seatCount,
-      previousBigBlindFixedPos: this.previousBigBlindFixedPos,
+      previous: this.previousBlinds,
     });
-    this.previousBigBlindFixedPos = assignment.bigBlindSeat;
+    this.previousBlinds = nextPreviousBlinds(assignment);
     this.currentHandButtonInfo = assignment;
 
     const level = this.getCurrentLevel();

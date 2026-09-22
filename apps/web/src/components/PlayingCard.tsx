@@ -34,7 +34,9 @@ const BACK_ASPECT = "aspect-[1108/1477]"; // public/cards/back.png
  * ―― 幅を固定すると、比率の違う画像がレターボックスされるか切り抜かれるかのどちらかになる。
  * 高さを揃えてあるので、表裏が混ざって並んでも行の高さは崩れない。
  */
-function dimsFor(size: "sm" | "md" | "lg" | "xl" | "board"): string {
+function dimsFor(size: "xs" | "sm" | "md" | "lg" | "xl" | "board"): string {
+  // ハンド履歴のように、1行へ「自分の2枚+ボード5枚」を横スクロール無しで収めたい場所用。
+  if (size === "xs") return "h-[30px] text-[7px]";
   // 小さい端末でも数字が読めるよう、席まわりのカードはわずかに大きくしてある。
   if (size === "sm") return "h-[43px] text-[10px]";
   if (size === "md") return "h-14 text-sm";
@@ -121,7 +123,7 @@ export function PlayingCard({
   dealDelay = 0,
 }: {
   card?: string;
-  size?: "sm" | "md" | "lg" | "xl" | "board";
+  size?: "xs" | "sm" | "md" | "lg" | "xl" | "board";
   faceDown?: boolean;
   dealDelay?: number;
 }) {
