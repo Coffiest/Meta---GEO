@@ -22,6 +22,7 @@ import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
+import { InstallAppCard } from "./InstallAppCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
@@ -159,36 +160,29 @@ function GameStartButton({
   const { t } = useI18n();
   const [devMttOpen, setDevMttOpen] = useState(devMtt);
 
-  // 発光グラデーションボタン(出典: uiverse.io by dexter-st、配色をアクセント1色へ
-  // 差し替え。詳細はglobals.cssの.foil-btn-*コメント参照)。押している間(:active)だけ
+  // 縁取り→塗りつぶしボタン(出典: uiverse.io by reshades、配色をアクセント1色へ
+  // 差し替え。詳細はglobals.cssの.line-fill-btnコメント参照)。押している間(:active)だけ
   // 反応するCSSに任せ、Framer MotionのwhileTapは使わない(二重に動くのを避ける)。
-  const label = (
-    <>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
-        <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
-      </span>
-      <EnterArrow className="h-5 w-5 shrink-0" />
-    </>
-  );
-
   return (
     <>
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={SPRING_MOVE}
-        className="foil-btn-wrapper pressable-lg w-full"
+        className="pressable-lg w-full"
       >
-        <button type="button" onClick={() => onJoin("sng")} aria-label={t("play.enter")} className="foil-btn flex items-center gap-4 px-5 py-4 text-left">
-          {label}
+        <button
+          type="button"
+          onClick={() => onJoin("sng")}
+          aria-label={t("play.enter")}
+          className="line-fill-btn flex w-full items-center gap-4 px-5 py-4 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
+            <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
+          </span>
+          <EnterArrow className="line-fill-arrow h-5 w-5 shrink-0" />
         </button>
-        <span className="foil-btn-layer" aria-hidden="true" />
-        <span className="foil-btn-layer" aria-hidden="true" />
-        <span className="foil-btn-overlay gap-4 px-5 py-4 text-left" aria-hidden="true">
-          {label}
-        </span>
-        <span className="foil-btn-light" aria-hidden="true" />
       </motion.div>
 
       <AnimatePresence>
@@ -1322,6 +1316,10 @@ export function Lobby({
 
             <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
 
+            {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
+                (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
+            <InstallAppCard />
+
             <PushOptInCard accessToken={accessToken} />
 
             <RRRatingCard
@@ -1696,23 +1694,15 @@ export function Lobby({
                             <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
                               <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-n-9">{group.tournamentLabel}</p>
                               {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。
-                                  出典: uiverse.io by dexter-st(発光グラデーションボタン。詳細はglobals.cssの
-                                  .foil-btn-*コメント参照)。ピル形状は--foil-radを9999pxへ上書きして表現。 */}
-                              <div className="foil-btn-wrapper foil-btn-pill shrink-0" style={{ "--foil-rad": "9999px" } as React.CSSProperties}>
-                                <button
-                                  onClick={() => setReviewTournamentId(group.tournamentId)}
-                                  className="foil-btn flex h-8 items-center gap-1.5 pl-2.5 pr-3 text-[11px] font-bold"
-                                >
-                                  <ReviewGlyph className="h-3.5 w-3.5" />
-                                  {t("lobby.reviewHand")}
-                                </button>
-                                <span className="foil-btn-layer" aria-hidden="true" />
-                                <span className="foil-btn-layer" aria-hidden="true" />
-                                <span className="foil-btn-overlay h-8 gap-1.5 pl-2.5 pr-3 text-[11px] font-bold" aria-hidden="true">
-                                  <ReviewGlyph className="h-3.5 w-3.5" />
-                                  {t("lobby.reviewHand")}
-                                </span>
-                              </div>
+                                  出典: uiverse.io by reshades(縁取り→塗りつぶしボタン。詳細はglobals.cssの
+                                  .line-fill-btnコメント参照)。 */}
+                              <button
+                                onClick={() => setReviewTournamentId(group.tournamentId)}
+                                className="line-fill-btn flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3 text-[11px] font-bold"
+                              >
+                                <ReviewGlyph className="h-3.5 w-3.5" />
+                                {t("lobby.reviewHand")}
+                              </button>
                             </div>
                             <div className="space-y-2">
                               {group.rows.map((h, i) => {

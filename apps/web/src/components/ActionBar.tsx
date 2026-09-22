@@ -6,7 +6,6 @@ import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "./Icon";
-import { CheckMark } from "./ui/CheckMark";
 
 interface Preset {
   label: string;
@@ -43,43 +42,6 @@ function ActionButton({
       className="action-fill-btn pressable flex h-[50px] flex-1 items-center justify-center shadow-e2"
     >
       <span className="af-label">{children}</span>
-    </button>
-  );
-}
-
-/**
- * 手番待ち中の予約系トグル(チェック/フォールド予約・離席)。
- *
- * 以前はアクションボタンと同じ 62px の大ボタン2つだったが、それだけで画面の高さを
- * 100px 近く食っていた。卓を大きく見せるほうが優先なので、枠の左右下隅に置く極小の
- * ピルにしてある。ONの間だけアクセント色が点く。
- * チェックボックス(uiverse.io by PriyanshuGupta28)の押しやすさ改善に合わせ、
- * 高さ28px→36pxへ(タップしやすい最小サイズに寄せる)。
- */
-function TinyToggle({
-  active,
-  onClick,
-  ariaLabel,
-  className,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  ariaLabel: string;
-  className: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={ariaLabel}
-      aria-pressed={active}
-      className={`pressable absolute bottom-0 flex h-9 items-center gap-1.5 rounded-full px-2.5 text-[10px] font-bold leading-none transition-colors ${className} ${
-        active ? "bg-accent/20 text-accent-hi ring-1 ring-inset ring-accent/60" : "glass-panel text-fg-3"
-      }`}
-    >
-      {children}
     </button>
   );
 }
@@ -439,28 +401,6 @@ export function ActionBar({
               </span>
               <span className="text-[11px] font-semibold tracking-wide text-fg-3">{t("action.waiting")}</span>
             </div>
-
-            {/* 次の手番で一度だけ自動実行する予約。左下の隅に極小で置く。 */}
-            <TinyToggle
-              className="left-0"
-              active={checkFoldArmed}
-              onClick={() => onToggleCheckFold(!checkFoldArmed)}
-              ariaLabel={t("action.armCheckFold")}
-            >
-              <CheckMark on={checkFoldArmed} className="h-5 w-5" />
-              <span>{t("action.checkFoldShort")}</span>
-            </TinyToggle>
-
-            {/* 離席。手動でOFFにするまで、手番のたびに自動でチェック/フォールドし続ける。 */}
-            <TinyToggle
-              className="right-0"
-              active={away}
-              onClick={() => onToggleAway(!away)}
-              ariaLabel={t("action.away")}
-            >
-              <CheckMark on={away} className="h-5 w-5" />
-              <span>{t("action.away")}</span>
-            </TinyToggle>
           </>
         )}
       </div>

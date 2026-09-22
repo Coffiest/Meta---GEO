@@ -564,8 +564,10 @@ function GeoDatabase() {
     nextStreetOf(street) !== null &&
     remainingActiveCount(street) >= 2;
 
+  // 面を透かすには、透かした先に見えるものが要る。沈んだ色のベタ塗りの上ではガラスの
+  // 透け感が全く読めないので、地に環境光のにじみを焼き込む(globals.cssの.geo-backdrop)。
   return (
-    <div className="min-h-screen bg-canvas-sunken">
+    <div className="geo-backdrop min-h-screen">
       <div className="max-w-3xl lg:max-w-6xl mx-auto">
         <Header
           widthClass="max-w-3xl lg:max-w-6xl"
@@ -613,7 +615,7 @@ function GeoDatabase() {
             <motion.button
               onClick={() => setSettingsOpen(true)}
               whileTap={{ scale: 0.94 }}
-              className="pressable glass-panel shrink-0 flex flex-col justify-center rounded-xl px-3 py-1.5 text-left"
+              className="glass-tile pressable shrink-0 flex flex-col justify-center rounded-xl px-3 py-1.5 text-left"
               aria-label="詳細設定を変更"
             >
               <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">

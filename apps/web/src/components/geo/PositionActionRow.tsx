@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { mergeOpenRaiseOptions, type TreeNode } from "@/lib/geoApi";
-import { bucketColor, bucketOrderIndex, bucketTextColor } from "./colors";
+import { bucketColor, bucketOrderIndex, bucketTintRgb } from "./colors";
 
 /**
  * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
@@ -24,7 +24,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel rounded-2xl p-6 text-center"
+        className="glass-tile rounded-2xl p-6 text-center"
       >
         <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
       </motion.div>
@@ -36,7 +36,7 @@ export function PositionActionRow({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel rounded-2xl p-6 text-center"
+        className="glass-tile rounded-2xl p-6 text-center"
       >
         <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
         <p className="text-sm text-fg-3">サンプルなし</p>
@@ -54,7 +54,7 @@ export function PositionActionRow({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl glass-panel p-3"
+      className="glass-tile rounded-2xl p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
         <p className="text-[11px] tracking-[0.2em] text-n-10 uppercase font-black">{node.position}</p>
@@ -78,20 +78,22 @@ export function PositionActionRow({
               transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
               whileTap={{ scale: 0.94 }}
               onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
-              className="pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl p-2.5 text-left shadow-e1"
-              style={{
-                background: bucketColor(opt.representativeBucket ?? opt.bucket),
-                // 面が明るいほど白文字が読めなくなるので、文字色は面の明るさから選び直す。
-                color: bucketTextColor(bucketColor(opt.representativeBucket ?? opt.bucket)),
-              }}
+              className="glass-tile-tint pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl py-2.5 pl-3 pr-2.5 text-left text-white"
+              style={{ ["--tile-tint" as string]: bucketTintRgb(opt.representativeBucket ?? opt.bucket) }}
             >
-              <div className="text-[11px] font-bold leading-tight">{bucketLabels[opt.bucket] ?? opt.bucket}</div>
+              {/* アクションの識別色は、透ける面ではなくこの不透明の帯が担う
+                  (半透明の前景に意味を担わせない)。 */}
+              <span aria-hidden className="tile-tint-bar absolute inset-y-0 left-0 w-[3px]" />
+              {/* 透ける面の上の文字は、字を一段太く・字間をわずかに開けて読みやすさを稼ぐ。 */}
+              <div className="text-[11px] font-black leading-tight tracking-[0.01em]">
+                {bucketLabels[opt.bucket] ?? opt.bucket}
+              </div>
               <div className="mt-0.5 text-lg font-black leading-tight tabular-nums">
                 {Math.round(opt.frequency * 100)}%
               </div>
               {node.isGto ? (
                 opt.evBb !== undefined && opt.evBb !== 0 ? (
-                  <div className="text-[9px] tabular-nums opacity-75">
+                  <div className="text-[9px] font-semibold tabular-nums opacity-80">
                     EV {opt.evBb >= 0 ? "+" : ""}
                     {opt.evBb.toFixed(2)}bb
                   </div>
@@ -99,13 +101,15 @@ export function PositionActionRow({
                   <div className="text-[9px] tabular-nums opacity-40">&nbsp;</div>
                 )
               ) : (
-                <div className="text-[9px] tabular-nums opacity-75">{opt.count}件</div>
+                <div className="text-[9px] font-semibold tabular-nums opacity-80">{opt.count}件</div>
               )}
             </motion.button>
           ))}
         </AnimatePresence>
       </div>
-      <div className="flex h-1.5 rounded-full overflow-hidden mt-2.5">
+      {/* 頻度の帯はデータそのものなので、面がガラスでも色は不透明のまま読ませる
+          (溝だけを暗く彫り込んで、帯が面から浮いて見えるようにする)。 */}
+      <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-black/35">
         {sortedOptions.map((opt) => (
           <motion.div
             key={opt.bucket}

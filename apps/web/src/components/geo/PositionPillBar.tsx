@@ -77,7 +77,7 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.9, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             transition={SPRING_SNAPPY}
-            className="shrink-0 flex items-center gap-1.5 rounded-xl glass-panel px-2.5 py-1.5"
+            className="glass-tile shrink-0 flex items-center gap-1.5 rounded-xl px-2.5 py-1.5"
           >
             <span className="text-[9px] font-black tracking-widest text-accent">{STREET_LABEL[item.street]}</span>
             <div className="flex gap-0.5">
@@ -87,7 +87,8 @@ export function PositionPillBar({
                   initial={{ opacity: 0, rotateY: 90 }}
                   animate={{ opacity: 1, rotateY: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="h-7 w-5 rounded-sm glass-panel flex flex-col items-center justify-center text-[8px] font-bold leading-none"
+                  /* ガラスの上にガラスは重ねない(可読性が破綻する)。カード面は不透明にする。 */
+                  className="flex h-7 w-5 flex-col items-center justify-center rounded-sm bg-surface text-[8px] font-bold leading-none ring-1 ring-inset ring-line"
                 >
                   <span className={suitTextClass(c)}>{c.slice(0, -1)}</span>
                   <span className={suitTextClass(c)}>{suitSymbol(c)}</span>
@@ -102,7 +103,7 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={SPRING_SNAPPY}
-            className="glass-chip shrink-0 rounded-xl ring-1 ring-accent overflow-hidden min-w-[90px]"
+            className="glass-tile shrink-0 overflow-hidden rounded-xl ring-1 ring-accent min-w-[90px]"
           >
             <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-accent">{item.position}</div>
             {sortedActiveOptions.length === 0 ? (
@@ -137,7 +138,7 @@ export function PositionPillBar({
             transition={SPRING_SNAPPY}
             disabled={item.state === "future"}
             onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
-            className={`glass-panel shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
+            className={`glass-tile shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
               item.state === "decided" ? "" : "opacity-40"
             }`}
           >
