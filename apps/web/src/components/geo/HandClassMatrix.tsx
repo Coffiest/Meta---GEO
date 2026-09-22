@@ -67,11 +67,11 @@ interface HoverState {
   anchorBottom: number;
 }
 
-/** ツールチップ(w-64=256px)の半幅+画面端との余白。マージンが半幅未満だと、画面端付近の
- * セルをタップしたときにツールチップの反対側が画面からはみ出て見切れる(実際に起きていた不具合)。 */
-const TOOLTIP_HALF_WIDTH = 128;
+/** ツールチップの幅(w-64=256px)と、画面端との余白。セルの真上/真下に中央を合わせたうえで、
+ * 左右どちらの端からもこの余白ぶんは内側に収める(画面端のセルでも見切れないようにする)。 */
+const TOOLTIP_WIDTH = 256;
+const TOOLTIP_HALF_WIDTH = TOOLTIP_WIDTH / 2;
 const TOOLTIP_EDGE_GUTTER = 12;
-const TOOLTIP_MARGIN = TOOLTIP_HALF_WIDTH + TOOLTIP_EDGE_GUTTER;
 
 /**
  * GTO Wizard型の169ハンドクラス・マトリクス。各セルは実測アクション頻度の色分け帯(アグレッション順、
@@ -106,10 +106,17 @@ export function HandClassMatrix({
   }
 
   const showAbove = hover ? hover.anchorTop > 180 : false;
-  const tooltipX = hover
-    ? Math.min(
-        Math.max(hover.anchorX, TOOLTIP_MARGIN),
-        (typeof window !== "undefined" ? window.innerWidth : 400) - TOOLTIP_MARGIN,
+  // ツールチップの「左端」を直接置く。以前は left にセルの中心を置いて
+  // transform:translateX(-50%) で中央寄せしていたが、この要素は Framer Motion が
+  // transform(scale/y)をアニメーションさせるため、styleに書いた translateX(-50%) は
+  // Motion が書き込む transform に上書きされて消えていた。中央寄せが効いていない状態で
+  // 「中央寄せ前提のはみ出し防止」を計算していたので、画面右寄りのセルでは
+  // ツールチップが半幅ぶん右へずれて画面外へ見切れていた(実測で116pxはみ出し)。
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 400;
+  const tooltipLeft = hover
+    ? Math.max(
+        TOOLTIP_EDGE_GUTTER,
+        Math.min(hover.anchorX - TOOLTIP_HALF_WIDTH, viewportWidth - TOOLTIP_WIDTH - TOOLTIP_EDGE_GUTTER),
       )
     : 0;
 
@@ -163,11 +170,10 @@ export function HandClassMatrix({
             transition={{ duration: 0.18, ease: "easeOut" }}
             style={{
               position: "fixed",
-              left: tooltipX,
+              left: tooltipLeft,
               [showAbove ? "bottom" : "top"]: showAbove
                 ? (typeof window !== "undefined" ? window.innerHeight : 800) - hover.anchorTop + 8
                 : hover.anchorBottom + 8,
-              transform: "translateX(-50%)",
             }}
             className="z-50 pointer-events-none w-64 rounded-2xl glass-panel shadow-e2 p-3.5"
           >
