@@ -11,7 +11,9 @@ export interface HandEndedPayload {
     payouts: Record<string, number>;
     wonByFold: boolean;
   };
-  holeCards: Record<number, string[]>;
+  /** 公開された手札。ショウダウン等の公開義務があるときは両カード、ショウで片方だけ選んだ
+   *  ときはタップされた側だけが文字列で、もう片方はnull(伏せたまま)になる。 */
+  holeCards: Record<number, (string | null)[]>;
   /** MTTのとき: トーナメント全体の残り人数 */
   remainingPlayers?: number;
 }
@@ -636,7 +638,11 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
         }
 
         let handHistory = d.handHistory;
-        const heroCards = d.yourSeatIndex !== null ? payload.holeCards[d.yourSeatIndex] : undefined;
+        const heroRevealedCards = d.yourSeatIndex !== null ? payload.holeCards[d.yourSeatIndex] : undefined;
+        // ショウで片方だけ選んだ場合はnullが混ざるため、この履歴ストリップは両カードが
+        // 揃っているときだけ追加する(片方だけの手札は表示形式が異なり対象外)。
+        const heroCards =
+          heroRevealedCards && heroRevealedCards.every((c): c is string => c !== null) ? heroRevealedCards : undefined;
         const heroDelta = d.yourSeatIndex !== null ? lastHandDeltaBySeat[d.yourSeatIndex] : undefined;
         if (heroCards && heroCards.length === 2 && heroDelta !== undefined) {
           handHistory = [{ cards: heroCards, deltaChips: heroDelta }, ...d.handHistory].slice(0, 3);
@@ -822,9 +828,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     if (trimmed.length > 0) socketRef.current?.emit("chat", { text: trimmed });
   }, []);
 
-  /** ハンドショウ: 自分の手札をハンド終了時に公開(ショウ)する意思をトグルする。 */
-  const showCards = useCallback((show: boolean) => {
-    socketRef.current?.emit("showCards", { show });
+  /** ハンドショウ: 自分の手札の1枚(cardIndex)をハンド終了時に公開(ショウ)する意思をトグルする。 */
+  const showCards = useCallback((cardIndex: number, show: boolean) => {
+    socketRef.current?.emit("showCards", { cardIndex, show });
   }, []);
 
   /** MTTリエントリ: バスト済みからレジクローズ前に-2,000で復帰する。 */

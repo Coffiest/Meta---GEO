@@ -3,13 +3,15 @@
 /**
  * 読み込み中の表示。アプリ全体でこの1つに統一する。
  *
- * 3つの玉が順番に跳ね、それぞれの真下で影が伸縮する(出典: uiverse.io by mobinkakei)。
- * 玉の色は `currentColor` なので、置いた場所の文字色をそのまま拾う ―― 暗い画面では
- * 明るい玉に、白い卓画面では暗い玉になり、呼び出し側で色を渡す必要がない。
- *
- * 原寸は 200×60。`size` は相似縮小の倍率で、キーフレームが px 直書きである以上、
- * 比率を保つには全体を拡縮するしかない(個別に幅だけ縮めると跳ねの高さが合わなくなる)。
+ * ハートの輪郭を描き進めながら、光点が同じ輪郭上を旅する(出典: uiverse.io by G27XLEO。
+ * 原案の赤は、アクセントは1色のみ運用というこのアプリのきまりに合わせアクセント色へ
+ * 差し替えてある)。SVGのviewBoxで比率を持たせているので、ラッパーの幅高さを変えるだけで
+ * 相似縮小できる(pxキーフレーム直書きだった旧・跳ねる玉版のように全体をtransform:scaleする
+ * 必要がない)。
  */
+const HEART_PULSE_PATH =
+  "M50 88 C18 62 6 40 6 24 C6 10 18 2 32 2 C42 2 50 8 50 20 C50 8 58 2 68 2 C82 2 94 10 94 24 C94 40 82 62 50 88 Z";
+
 const SCALE: Record<"sm" | "md" | "lg", number> = {
   /** ボタンや行の中に混ぜる用。 */
   sm: 0.3,
@@ -36,14 +38,10 @@ export function Loader({
       className={`loader inline-block shrink-0 ${className}`}
       style={{ ["--loader-scale" as string]: SCALE[size] }}
     >
-      <span className="loader-stage" aria-hidden="true">
-        <span className="loader-ball" />
-        <span className="loader-ball" />
-        <span className="loader-ball" />
-        <span className="loader-shadow" />
-        <span className="loader-shadow" />
-        <span className="loader-shadow" />
-      </span>
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" className="loader-heart">
+        <path className="loader-heart-line" pathLength={1} d={HEART_PULSE_PATH} />
+        <path className="loader-heart-point" pathLength={1} d={HEART_PULSE_PATH} />
+      </svg>
     </span>
   );
 }

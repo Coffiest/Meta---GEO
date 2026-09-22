@@ -16,9 +16,9 @@ interface Preset {
 /**
  * アクションボタン。
  *
- * 面の中を発光する円がゆっくり漂う(意匠の出典: uiverse.io by Ashon-G / CSSは globals.css の
- * `.action-glow`)。色は意味に対応させる: フォールド=青(降りる) / チェック・コール=緑(応答) /
- * ベット・レイズ=赤(強い意思表示)。
+ * 押すと塗りが左から右へ広がって反転する(意匠の出典: uiverse.io by alexroumi / CSSは
+ * globals.css の `.action-fill-btn`)。色は意味に対応させる: フォールド=青(降りる) /
+ * チェック・コール=緑(応答) / ベット・レイズ=赤(強い意思表示)。
  */
 function ActionButton({
   tone,
@@ -40,16 +40,9 @@ function ActionButton({
       aria-label={ariaLabel}
       onClick={onClick}
       data-tone={tone}
-      className="action-glow pressable flex h-[50px] flex-1 items-center justify-center shadow-e2"
+      className="action-fill-btn pressable flex h-[50px] flex-1 items-center justify-center shadow-e2"
     >
-      <span aria-hidden className="ag-wrapper">
-        <span className="ag-circle ag-1" />
-        <span className="ag-circle ag-2" />
-        <span className="ag-circle ag-3" />
-        <span className="ag-circle ag-4" />
-        <span className="ag-circle ag-5" />
-      </span>
-      <span className="ag-label">{children}</span>
+      <span className="af-label">{children}</span>
     </button>
   );
 }

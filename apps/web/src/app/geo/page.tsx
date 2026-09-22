@@ -34,7 +34,6 @@ import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { APP_VERSION } from "@/lib/version";
-import { CardRingSpinner } from "@/components/effects/CardRingSpinner";
 import { Loader } from "@/components/ui/Loader";
 
 /** localStorage キー: database タブ(/geo)を一度でも開いたか。ホームの「解放」トーストを止める信号。 */
@@ -99,7 +98,7 @@ function ElapsedText({ startedAt }: { startedAt: number }) {
     const timer = setInterval(() => setSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
-  // 通常の待ち時間はCardRingSpinner(アニメーション)だけで示す。文字での「読み込み中」表記は
+  // 通常の待ち時間はLoader(アニメーション)だけで示す。文字での「読み込み中」表記は
   // アニメーションと重複するため出さない(ユーザー指示)。長引いた場合だけ理由を文章で出す。
   if (sec < SLOW_HINT_AFTER_SEC) return null;
   return <span>時間がかかっています…({sec}秒経過)</span>;
@@ -681,14 +680,14 @@ function GeoDatabase() {
           {loading || solving ? (
             <div className="glass-panel rounded-2xl p-8 text-center text-sm text-fg-2">
               <div className="flex flex-col items-center justify-center gap-2">
-                <CardRingSpinner size={32} />
+                <Loader size="md" />
                 <span className="font-mono">
                   {solving ? (
                     "GTOソルバーで計算中…(この局面の初回は数十秒かかります)"
                   ) : reconnecting ? (
                     `接続を再試行中…(${failure?.attempt ?? 1}回目)`
                   ) : requestStartedAt !== null ? (
-                    // 長引いた場合だけ理由を伝える(通常はCardRingSpinnerのアニメーションのみ)。
+                    // 長引いた場合だけ理由を伝える(通常はLoaderのアニメーションのみ)。
                     <ElapsedText startedAt={requestStartedAt} />
                   ) : null}
                   <span className="term-cursor ml-0.5 bg-fg-3" style={{ width: 4, height: 12, verticalAlign: "-2px" }} aria-hidden="true" />

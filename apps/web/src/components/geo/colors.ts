@@ -3,7 +3,13 @@ import { OPEN_RAISE_BUCKET, PREFLOP_BUCKETS, POSTFLOP_BUCKETS, type PostflopBuck
 /**
  * アクションカラー(オーナー指示の固定4色。サイズ帯による濃淡は付けず、そのまま使う)。
  *   Fold=青 #4D7AB3 / Call・Check=緑 #7CB570 / Bet・Raise=赤 #DD4D45 /
- *   とても大きいBet・Raise・Allin=茶 #722722
+ *   とても大きいBet(ポット100%超)=茶 #722722
+ *
+ * allInには専用色を持たせない。Open Raise統合バケット(mergeOpenRaiseByBucket)は
+ * representativeBucket(最多件数だったraise2-5/raise5+/allInのいずれか)で色を決めるため、
+ * allInだけ別色にすると「たまたまallInが最多だったセルだけ違う色に見える」という
+ * 見た目のバグになる(ユーザー報告)。allInもBET_RAISE_COLORにそろえ、Open Raiseは
+ * 常に同じ赤で表示されるようにする。
  */
 const FOLD_COLOR = "#4D7AB3";
 const CALL_COLOR = "#7CB570";
@@ -15,7 +21,7 @@ export const PREFLOP_BUCKET_COLOR: Record<PreflopBucket, string> = {
   call: CALL_COLOR,
   "raise2-5": BET_RAISE_COLOR, // オープンレンジ(2〜5bb)
   "raise5+": BET_RAISE_COLOR, // 5bb超(主に3bet/4bet)
-  allIn: HUGE_BET_RAISE_COLOR,
+  allIn: BET_RAISE_COLOR,
 };
 
 export const POSTFLOP_BUCKET_COLOR: Record<PostflopBucket, string> = {
@@ -26,7 +32,7 @@ export const POSTFLOP_BUCKET_COLOR: Record<PostflopBucket, string> = {
   "bet60-80": BET_RAISE_COLOR,
   "bet80-100": BET_RAISE_COLOR,
   "bet100+": HUGE_BET_RAISE_COLOR, // とても大きいbet(ポット100%超)
-  allIn: HUGE_BET_RAISE_COLOR,
+  allIn: BET_RAISE_COLOR,
 };
 
 /**
