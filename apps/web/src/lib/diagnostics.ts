@@ -6,6 +6,18 @@
  * 「プレイ中に端末が熱くなる」「動かなくなる」といった不具合は、原因が
  * 画面に何も出ないまま起きるため報告が難しい。ここで拾った内容は
  * DiagnosticsToaster がトーストとして表示する。
+ *
+ * ここに出すのは「読んだ人が次に何をすればいいか分かるもの」だけにする。
+ * 以前は window の error / unhandledrejection を拾って
+ * 「画面の処理でエラーが発生しました。」という赤いトーストを出していたが、これはやめた:
+ *   - 文面から利用者が取れる行動が無い(スタックを見せられても困る)。
+ *   - この仕組みの出力を読んでいるのは画面のトーストだけで、送信も保存もしていない。
+ *     つまり利用者を驚かせるだけで、こちらの原因調査には何も残らなかった。
+ *   - window の error は同一ページで走る第三者スクリプト(AdSense等)の例外も拾うため、
+ *     アプリ自体は正常でも赤いトーストが出てしまっていた(利用者から報告のあった事象)。
+ * 捕捉していない例外はブラウザのコンソールには従来どおり出るので、調査手段は失われない。
+ * 利用者が対処できる異常には、それぞれ専用のUIが既にある(接続断の再同期バナーと
+ * /diagnostics、GEO取得失敗の再試行カード、下の高負荷警告)。
  */
 
 export type DiagnosticKind = "error" | "warn" | "info";
@@ -59,7 +71,7 @@ export function subscribeDiagnostics(listener: Listener): () => void {
 let installed = false;
 
 /**
- * グローバルなエラー捕捉と「描画が重い」検知を1度だけ仕込む。
+ * 「描画が重い」検知を1度だけ仕込む。
  *
  * 重さの検知は longtask(50ms以上メインスレッドを占有したタスク)の合計時間で判定する。
  * 監視ウィンドウの半分以上をlongtaskで使っていれば、端末が発熱する水準の負荷とみなす。
@@ -68,21 +80,7 @@ export function installDiagnostics(): () => void {
   if (installed || typeof window === "undefined") return () => {};
   installed = true;
 
-  const onError = (event: ErrorEvent) => {
-    reportDiagnostic("error", "画面の処理でエラーが発生しました。", `${event.message}\n${event.filename}:${event.lineno}`);
-  };
-  const onRejection = (event: PromiseRejectionEvent) => {
-    const reason = event.reason;
-    const detail = reason instanceof Error ? `${reason.message}\n${reason.stack ?? ""}` : String(reason);
-    reportDiagnostic("error", "通信または内部処理が失敗しました。", detail);
-  };
-  window.addEventListener("error", onError);
-  window.addEventListener("unhandledrejection", onRejection);
-
-  const cleanups: (() => void)[] = [
-    () => window.removeEventListener("error", onError),
-    () => window.removeEventListener("unhandledrejection", onRejection),
-  ];
+  const cleanups: (() => void)[] = [];
 
   // メインスレッドの占有時間を監視して、発熱水準の負荷を検知する。
   const WINDOW_MS = 10_000;
@@ -109,7 +107,7 @@ export function installDiagnostics(): () => void {
       observer.observe({ entryTypes: ["longtask"] });
       cleanups.push(() => observer.disconnect());
     } catch {
-      // longtaskに未対応のブラウザ(iOS Safariなど)。負荷検知だけ諦め、エラー捕捉は継続する。
+      // longtaskに未対応のブラウザ(iOS Safariなど)。この端末では負荷検知だけ諦める。
     }
   }
 
