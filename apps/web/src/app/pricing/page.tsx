@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { startCheckout, SubscriptionUnavailableError, useSubscriptionStatus, openBillingPortal } from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
+import { isIOSNativeApp } from "@/lib/nativeApp";
+import { IOSWebBillingNotice } from "@/components/IOSWebBillingNotice";
 
 const FEATURES = [
   "棋譜解析を24時間の待ち時間なしで無制限に実行",
@@ -25,6 +27,10 @@ export default function PricingPage() {
   const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // App Store配布のiOSアプリ内かどうか(サーバーサイドレンダー時はfalse扱いのまま、
+  // マウント後にUAを見て確定させる)。trueなら課金ボタン自体を出さずウェブへ誘導する。
+  const [iosApp, setIosApp] = useState(false);
+  useEffect(() => setIosApp(isIOSNativeApp()), []);
 
   async function handleSubscribe() {
     if (!accessToken) {
@@ -135,18 +141,26 @@ export default function PricingPage() {
                   <p className="mt-1 text-center text-[11px] leading-relaxed text-fg-2">
                     クーポンを追加で適用すると、この無料期間がさらに1ヶ月ずつ延びます。
                   </p>
-                  <button
-                    onClick={handleSubscribe}
-                    disabled={submitting}
-                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
-                  >
-                    {submitting ? (
-                      <Loader size="sm" />
-                    ) : (
-                      "期間終了後も続けて使う(月額に登録)"
-                    )}
-                  </button>
+                  {/* iOSアプリ内では課金導線(月額登録)自体を出さず、ウェブへ誘導する。 */}
+                  {iosApp ? (
+                    <IOSWebBillingNotice variant="pricing" />
+                  ) : (
+                    <button
+                      onClick={handleSubscribe}
+                      disabled={submitting}
+                      className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <Loader size="sm" />
+                      ) : (
+                        "期間終了後も続けて使う(月額に登録)"
+                      )}
+                    </button>
+                  )}
                 </>
+              ) : iosApp ? (
+                // iOSアプリ内では契約管理(Stripeカスタマーポータル)への導線も出さず、ウェブへ誘導する。
+                <IOSWebBillingNotice variant="manage" />
               ) : (
                 <button
                   onClick={handleManage}
@@ -156,6 +170,8 @@ export default function PricingPage() {
                 </button>
               )}
             </div>
+          ) : iosApp ? (
+            <IOSWebBillingNotice variant="pricing" />
           ) : (
             <button
               onClick={handleSubscribe}
@@ -184,7 +200,9 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-4 text-[11px] leading-relaxed text-fg-2">
-          決済はStripeを通じて安全に処理され、解約・支払い方法の変更はいつでも契約管理ページから行えます。
+          {iosApp
+            ? "決済はウェブ版のStripeを通じて安全に処理され、解約・支払い方法の変更もウェブ版の契約管理ページから行えます。"
+            : "決済はStripeを通じて安全に処理され、解約・支払い方法の変更はいつでも契約管理ページから行えます。"}
           本アプリはバーチャルチップ専用で、チップの購入・換金や実際の金銭を賭けることは一切できません。
         </p>
         <Link href="/legal/tokushoho" className="mt-2 inline-block text-[11px] text-fg-2 underline decoration-dotted underline-offset-2">

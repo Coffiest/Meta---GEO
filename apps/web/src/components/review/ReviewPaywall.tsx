@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { startCheckout, SubscriptionUnavailableError } from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
+import { isIOSNativeApp } from "@/lib/nativeApp";
+import { IOSWebBillingNotice } from "@/components/IOSWebBillingNotice";
 
 /**
  * 棋譜解析の無料枠(24時間ローリング1回)を使い切ったときに、モーダル総括の代わりに表示する
@@ -59,6 +61,9 @@ export function ReviewPaywall({
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // App Store配布のiOSアプリ内かどうか。trueならStripe課金ボタンを出さずウェブへ誘導する。
+  const [iosApp, setIosApp] = useState(false);
+  useEffect(() => setIosApp(isIOSNativeApp()), []);
 
   const onSubscribe = async () => {
     if (!accessToken) {
@@ -145,28 +150,37 @@ export function ReviewPaywall({
           ))}
         </div>
 
-        <motion.button
-          variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onSubscribe}
-          disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
-        >
-          {busy ? (
-            <Loader size="sm" />
-          ) : (
-            <>
-              使い放題プランに登録
-              <Icon name="chevron-right" className="h-4 w-4" />
-            </>
-          )}
-        </motion.button>
+        {/* iOSアプリ内では課金ボタン自体を出さず、ウェブへ誘導する(Apple審査ガイドライン3.1.1対応)。 */}
+        {iosApp ? (
+          <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
+            <IOSWebBillingNotice variant="pricing" />
+          </motion.div>
+        ) : (
+          <>
+            <motion.button
+              variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onSubscribe}
+              disabled={busy}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
+            >
+              {busy ? (
+                <Loader size="sm" />
+              ) : (
+                <>
+                  使い放題プランに登録
+                  <Icon name="chevron-right" className="h-4 w-4" />
+                </>
+              )}
+            </motion.button>
 
-        {msg && (
-          <div className="mt-2 text-center">
-            <p className="text-[11px] font-bold text-crimson-300">{msg}</p>
-            <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
-          </div>
+            {msg && (
+              <div className="mt-2 text-center">
+                <p className="text-[11px] font-bold text-crimson-300">{msg}</p>
+                <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
+              </div>
+            )}
+          </>
         )}
 
         <p className="mt-3 text-center text-[10px] leading-relaxed text-fg-3">
