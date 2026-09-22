@@ -158,6 +158,55 @@ body {
     0 -20px 60px -20px rgb(0 0 0 / 0.8);
 }
 
+/* ── 透けるタイル(データベースタブのポジションピル・アクションカード) ──────────
+   `.glass-panel` よりさらに薄く着色し、下の背景がはっきり透けて見えるガラス。
+   面が小さいぶんパネルより薄く見せてよい(大きい面ほど厚い、の対応を崩さない)一方、
+   透け感を上げると縁が消えて面の存在が読めなくなるので、上端の明るいスペキュラと
+   全周のヘアラインは `.glass-panel` より強く出して輪郭を保つ。
+
+   タイル自体は着色を持たない。アクションの色(赤=Bet/Raise・緑=Call・青=Fold)は
+   `.glass-tile-tint` に `--tile-tint`(スペース区切りRGB)を渡して面の淡い染めと縁の色に使う
+   ―― 色そのものは半透明の面ではなく、必ず不透明の帯(.tile-tint-bar)でも併記する
+   (半透明の前景に意味を担わせない、というきまり)。 */
+.glass-tile {
+  background: rgb(var(--n-3) / 0.22);
+  backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.24),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.28),
+    0 8px 22px -14px rgb(0 0 0 / 0.75);
+}
+.glass-tile-tint {
+  background: linear-gradient(to bottom, rgb(var(--tile-tint) / 0.34), rgb(var(--tile-tint) / 0.18));
+  backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 0 0.5px rgb(var(--tile-tint) / 0.6),
+    inset 0 -1px 0 rgb(0 0 0 / 0.28),
+    0 8px 22px -14px rgb(0 0 0 / 0.75);
+}
+/* アクションの識別色は、透けた面ではなくこの不透明な帯が担う。 */
+.tile-tint-bar {
+  background: rgb(var(--tile-tint));
+}
+
+/* データベースタブの地。ガラスは「透かした先に見えるもの」が無いと、ただの暗い面に
+   見えてしまう(実際、沈んだ色のベタ塗りの上では透け感が全く読めなかった)。
+   沈んだ地に環境光のにじみを焼き込み、その上に .glass-tile を浮かせることで、
+   面ごしに背景の色が透けて屈折する ―― ガラスであることが初めて目に見える。
+   位置は%指定なのでページ全体の高さに散り、どこまでスクロールしても面の背後に光がある。 */
+.geo-backdrop {
+  background-color: rgb(var(--n-0));
+  background-image:
+    radial-gradient(36rem 26rem at 6% 1%, rgb(var(--accent) / 0.13), transparent 70%),
+    radial-gradient(30rem 22rem at 96% 18%, rgb(var(--accent-hi) / 0.07), transparent 72%),
+    radial-gradient(40rem 28rem at 12% 55%, rgb(var(--accent-lo) / 0.09), transparent 72%),
+    radial-gradient(34rem 26rem at 92% 82%, rgb(var(--accent) / 0.08), transparent 72%);
+}
+
 /* ガラスの上を滑る選択インジケータ(タブバーの現在地など)。面ではなく
    「光の当たっている部分」として描くので、塗りではなく明るいアルファで作る。 */
 .glass-indicator {
@@ -447,12 +496,19 @@ textarea:focus-visible,
   .glass-footer,
   .glass-bar,
   .glass-panel,
-  .glass-sheet {
+  .glass-sheet,
+  .glass-tile,
+  .glass-tile-tint {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .glass-panel {
+  .glass-panel,
+  .glass-tile {
     background: rgb(var(--n-3));
+  }
+  /* 透過を減らす設定では、アクションの色は透けた染めではなく不透明の面で示す。 */
+  .glass-tile-tint {
+    background: rgb(var(--tile-tint));
   }
   .glass-bar,
   .glass-sheet {
@@ -474,8 +530,14 @@ textarea:focus-visible,
   }
   .glass-bar,
   .glass-panel,
-  .glass-sheet {
+  .glass-sheet,
+  .glass-tile {
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32);
+  }
+  /* 色の面は、輪郭を同色の不透明線ではっきり描いてから塗りを濃くする。 */
+  .glass-tile-tint {
+    background: rgb(var(--tile-tint) / 0.8);
+    box-shadow: inset 0 0 0 1px rgb(var(--tile-tint));
   }
   .aura {
     opacity: 0.4;
@@ -594,18 +656,6 @@ textarea:focus-visible,
     0 2px 8px -2px rgb(0 0 0 / 0.5);
 }
 
-/* .segmented-glider と同じガラス片の配合を、スライドする絶対配置ではなく単体の要素として
-   置けるよう独立させたもの。GEO Databaseのポジションピル(PositionPillBar)の選択中ピルなど、
-   「タブのように選ばれている1枚」をリキッドグラスで示したい箇所で使う。 */
-.glass-chip {
-  background: rgb(255 255 255 / 0.14);
-  backdrop-filter: blur(10px) saturate(180%);
-  -webkit-backdrop-filter: blur(10px) saturate(180%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 -1px 0 rgb(0 0 0 / 0.2),
-    0 2px 8px -2px rgb(0 0 0 / 0.5);
-}
 
 /* ── プレイ画面の背景(サーキット基板グリッド) ───────────────────────
    出典: uiverse.io by Gautammsharma。原案は#0f0f0f地に緑(green-500/emerald-500)の

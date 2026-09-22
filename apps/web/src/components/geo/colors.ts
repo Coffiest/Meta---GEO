@@ -62,6 +62,16 @@ export function bucketOrderIndex(bucket: string): number {
 }
 
 /**
+ * バケットの色を、CSS変数へ渡せるスペース区切りRGB("221 77 69")で返す。
+ * ガラス面の染め(`rgb(var(--tile-tint) / 0.34)`)のように、同じ色を複数の不透明度で
+ * 使い回す箇所で必要になる ―― 16進のままでは不透明度を掛けられないため。
+ */
+export function bucketTintRgb(bucket: string): string {
+  const hex = bucketColor(bucket);
+  return [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16)).join(" ");
+}
+
+/**
  * 塗りつぶしたセルの上に置く文字色。地の明るさから白/黒どちらが読めるかを選び直す。
  * 閾値0.35は、この4色すべてで4.3:1以上になる点を実測で選んだ。
  */
