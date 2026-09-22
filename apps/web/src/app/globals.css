@@ -892,130 +892,33 @@ textarea:focus-visible,
   opacity: 0.3;
 }
 
-/* ── 発光グラデーションボタン(卓へ移動してプレイ開始・棋譜解析) ─────────────
-   出典: uiverse.io by dexter-st。原案は赤地に白/青の虹色スワールだが、アクセントは
-   1色のみ運用というこのアプリのきまりに合わせ、ティール(アクセント)+白の単色系
-   スワールへ配色を差し替えた。実体のクリック可能なボタン(.foil-btn)の上に、回転する
-   グラデーション層(.foil-btn-layer、mix-blend-modeで下の色と混ざる)を重ね、さらにその
-   上へ読める文字だけを持つオーバーレイ(.foil-btn-overlay、pointer-events:none)を重ねる
-   三層構造。回転レイヤーが外側のページ背景まで巻き込まないよう、ラッパーに
-   isolation:isolate を与えて合成をボタン内部だけに閉じ込めてある。
-   既定は幅いっぱい(Play開始ボタン用)。内容に合わせた小さめのピル(棋譜解析ボタン等)
-   にするときは .foil-btn-pill を併用する ―― ボタン本体に width:100% が付いたままだと、
-   横幅が未確定(shrink-to-fit)なラッパーの中で「本体」と「文字オーバーレイ」の
-   サイズが噛み合わず、文字が二重に見えてしまう(検証済みの既知の落とし穴)。 */
-.foil-btn-wrapper {
-  --foil-rad: 22px;
+/* ── 縁取り→塗りつぶしボタン(卓へ移動してプレイ開始・棋譜解析) ───────────────
+   出典: uiverse.io by reshades。原案は透明地+青の縁取りで、`:hover`で背景が
+   その色一色に塗りつぶされ、右肩の矢印アイコンが右へスライドする。このアプリでは
+   (1)アクセントは1色のみ運用というきまりに合わせ縁取り・塗りつぶしいずれもアクセント色
+   へ差し替え、(2)タッチ端末向けに`:hover`ではなく`:active`(触れた瞬間に反応、離すと
+   同じ経路で戻る)へ差し替えてある。塗りつぶし後の文字色は、コントラスト規定により
+   アクセント面の上は黒(--on-accent)を使う。以前の発光グラデーションボタン
+   (出典: uiverse.io by dexter-st、回転する虹色スワール+mix-blend-modeの三層構造)から
+   置き換え。矢印を持つ箇所は矢印要素に .line-fill-arrow を添えるとスライドする
+   (矢印が無い箇所は縁取り/塗りつぶしの色変化だけで構わない)。 */
+.line-fill-btn {
   position: relative;
-  display: flex;
-  align-items: center;
-  overflow: clip;
-  isolation: isolate;
-  border: 1.5px solid rgb(var(--accent) / 0.5);
-  border-radius: var(--foil-rad);
-}
-/* 内容に合わせた小さめのピル用(棋譜解析ボタン等)。ラッパーを内容ぶんだけに縮め、
-   ボタン本体もそれに合わせて縮める(前述の「文字が二重に見える」問題を避けるため)。 */
-.foil-btn-pill {
-  display: inline-flex;
-  width: auto;
-}
-.foil-btn-pill .foil-btn {
-  width: auto;
-}
-.foil-btn {
-  position: relative;
-  z-index: -1;
-  width: 100%;
-  border: none;
-  border-radius: var(--foil-rad);
-  font: inherit;
-  color: rgb(var(--on-accent));
-  background-color: rgb(var(--accent));
-  box-shadow: inset 0 0 10px 6px rgb(var(--accent-lo));
-  text-shadow: 0 1px 3px rgb(255 255 255 / 0.4);
+  border: 1.5px solid rgb(var(--accent));
+  border-radius: 22px;
+  background-color: transparent;
+  color: rgb(var(--accent-hi));
   cursor: pointer;
-  mix-blend-mode: color-dodge;
-  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 240ms ease, color 240ms ease;
 }
-.foil-btn-layer {
-  position: absolute;
-  pointer-events: none;
-  left: -160%;
-  width: 500%;
-  aspect-ratio: 1;
-  background: radial-gradient(
-    ellipse at 65% 180%,
-    rgb(var(--accent)),
-    rgb(var(--n-11)),
-    rgb(var(--accent)),
-    rgb(var(--n-11)),
-    rgb(var(--accent)),
-    rgb(var(--n-11)),
-    rgb(var(--accent)),
-    rgb(var(--n-11)),
-    rgb(var(--accent)),
-    rgb(var(--n-11)),
-    rgb(var(--accent))
-  );
-  mix-blend-mode: difference;
-  animation: foil-btn-rotate 8s linear infinite;
-}
-.foil-btn-layer:last-of-type {
-  mix-blend-mode: color-dodge;
-}
-@keyframes foil-btn-rotate {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.foil-btn-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  border-radius: var(--foil-rad);
-  font: inherit;
+.line-fill-btn:active {
+  background-color: rgb(var(--accent));
   color: rgb(var(--on-accent));
-  text-shadow: 0 0 4px rgb(var(--accent-hi));
-  box-shadow:
-    inset 0 -4px 4px 0 rgb(0 0 0 / 0.35),
-    inset 0 4px 4px 0 rgb(var(--accent-hi) / 0.3);
-  mix-blend-mode: multiply;
-  transition: transform 0.2s ease;
 }
-.foil-btn-wrapper:active .foil-btn-overlay {
-  transform: scale(0.97);
+.line-fill-arrow {
+  transition: transform 240ms ease;
 }
-.foil-btn-wrapper:active .foil-btn {
-  color: transparent;
-  text-shadow: none;
-}
-.foil-btn-light {
-  position: absolute;
-  pointer-events: none;
-  z-index: 1;
-  width: 80%;
-  height: 1.6rem;
-  border-radius: 50px;
-  background-color: rgb(255 255 255 / 0.3);
-  filter: blur(5px);
-  animation: foil-btn-pulse 3s ease-in-out infinite;
-}
-@keyframes foil-btn-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.15;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .foil-btn-layer,
-  .foil-btn-light {
-    animation: none !important;
-  }
+.line-fill-btn:active .line-fill-arrow {
+  transform: translateX(4px);
 }
