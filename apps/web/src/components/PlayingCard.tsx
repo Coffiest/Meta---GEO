@@ -27,7 +27,7 @@ function cardToAssetName(card: string): string {
    以前は両方を表面基準の固定 w×h に押し込んでいて、裏面だけ object-cover で
    **左右が切り落とされていた**。 */
 const FACE_ASPECT = "aspect-[744/1039]"; // public/cards/{1-13}{suit}.png
-const BACK_ASPECT = "aspect-[1108/1477]"; // public/cards/back.png
+const BACK_ASPECT = "aspect-[744/982]"; // public/cards/back_v2.png(scripts/card-back.py が書き出す寸法)
 
 /**
  * 高さと文字サイズだけを決める。幅は面ごとの `aspect-[…]` から決まるので指定しない
@@ -84,13 +84,18 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
 /**
  * 伏せカード。
  *
- * 読んでいる画像は今まで通り `/table/bg-pattern.jpeg`(1108×1477)。`public/cards/back.png` も
- * 同じ寸法で置いてあるが**別の絵**(明るいグレー)なので、勝手に差し替えない ―― 直すのは
- * 切り抜きだけ、という指示のため。
+ * 絵柄はオーナー支給の裏面デザイン。原画 `public/cards/back_source.jpg` から
+ * `scripts/card-back.py` が `public/cards/back_v2.png`(744×982)を書き出す。
+ * **差し替えるときはスクリプトを再実行し、上の BACK_ASPECT も出力寸法へ合わせること。**
+ * (旧: `/table/bg-pattern.jpeg` 1108×1477。比率が違うので枠の指定を変えないと歪む。)
  *
- * 直したのは `object-cover` だったこと。枠が表面基準の比率(744:1039)で、裏面(1108:1477)は
- * それより横長なので、cover で高さに合わせると**左右が切り落とされていた**。
- * 枠に裏面自身の比率を持たせ、object-contain にしてある(比率が一致するので余白も出ない)。
+ * 角の外側が黒く塗られている画像だが、透過にする必要はない ―― 顔札と同じく `rounded-md`
+ * (6px)で丸めており、その半径のほうが原画の角丸(幅の4.6%、描画時で約1.5px)より大きいので、
+ * 黒い画素は必ず切り落とされる。
+ *
+ * 枠は表と裏で別々の `aspect-[…]` を持たせ、`object-contain` で描く。共通の比率に押し込むと、
+ * 比率の違うほうが切り抜かれるかレターボックスされる(以前 `object-cover` で裏面の左右が
+ * 切り落とされていた)。
  */
 function CardBack({ dims }: { dims: string }) {
   const [imgFailed, setImgFailed] = useState(false);
@@ -99,7 +104,7 @@ function CardBack({ dims }: { dims: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src="/table/bg-pattern.jpeg"
+        src="/cards/back_v2.png"
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
