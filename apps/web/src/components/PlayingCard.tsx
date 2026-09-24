@@ -27,7 +27,7 @@ function cardToAssetName(card: string): string {
    以前は両方を表面基準の固定 w×h に押し込んでいて、裏面だけ object-cover で
    **左右が切り落とされていた**。 */
 const FACE_ASPECT = "aspect-[744/1039]"; // public/cards/{1-13}{suit}.png
-const BACK_ASPECT = "aspect-[744/982]"; // public/cards/back_v2.png(scripts/card-back.py が書き出す寸法)
+const BACK_ASPECT = "aspect-[744/982]"; // public/cards/back_v3.png(scripts/card-back.py が書き出す寸法)
 
 /**
  * 高さと文字サイズだけを決める。幅は面ごとの `aspect-[…]` から決まるので指定しない
@@ -85,13 +85,19 @@ function CardFace({ card, dims }: { card: string; dims: string }) {
  * 伏せカード。
  *
  * 絵柄はオーナー支給の裏面デザイン。原画 `public/cards/back_source.jpg` から
- * `scripts/card-back.py` が `public/cards/back_v2.png`(744×982)を書き出す。
+ * `scripts/card-back.py` が `public/cards/back_v3.png`(744×982)を書き出す。
  * **差し替えるときはスクリプトを再実行し、上の BACK_ASPECT も出力寸法へ合わせること。**
  * (旧: `/table/bg-pattern.jpeg` 1108×1477。比率が違うので枠の指定を変えないと歪む。)
  *
- * 角の外側が黒く塗られている画像だが、透過にする必要はない ―― 顔札と同じく `rounded-md`
- * (6px)で丸めており、その半径のほうが原画の角丸(幅の4.6%、描画時で約1.5px)より大きいので、
- * 黒い画素は必ず切り落とされる。
+ * **裏面は顔札と違い、CSSで一切クリップしない。** 絵に角丸と白い縁が描き込まれているので、
+ * `rounded-md`(6px)を掛けると絵の上からさらに削ることになる。絵の角丸は幅の4.4%しかなく、
+ * 自席(幅61px)でも2.7px・相手の席(幅33px)なら1.5pxなので、6pxで丸めると黒い台紙どころか
+ * **白い縁と中身まで削れて四隅が切り落とされて見えていた**。台紙の黒は画像側で透過にしてある
+ * (scripts/card-back.py)ので、クリップしなくても黒は出ない。
+ *
+ * 同じ理由で `ring` も付けない(角丸の形が絵と合わず、透明な四隅の外をなぞってしまう)。
+ * 落ち影も付けない ―― box-shadow は透明部分を無視して長方形の影を落とすうえ、
+ * ダーク面では元々ほとんど見えない。白い縁が卓との境目になる。
  *
  * 枠は表と裏で別々の `aspect-[…]` を持たせ、`object-contain` で描く。共通の比率に押し込むと、
  * 比率の違うほうが切り抜かれるかレターボックスされる(以前 `object-cover` で裏面の左右が
@@ -104,11 +110,11 @@ function CardBack({ dims }: { dims: string }) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src="/cards/back_v2.png"
+        src="/cards/back_v3.png"
         alt=""
         draggable={false}
         onError={() => setImgFailed(true)}
-        className={`${dims} ${BACK_ASPECT} select-none rounded-md object-contain shadow-e1 ring-1 ring-black/40`}
+        className={`${dims} ${BACK_ASPECT} block select-none object-contain`}
       />
     );
   }
