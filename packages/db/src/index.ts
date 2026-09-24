@@ -5,6 +5,7 @@ export * from "./geoTree.js";
 export * from "./rrRating.js";
 export * from "./rankedEntries.js";
 export * from "./playerNotes.js";
+export * from "./playerModeration.js";
 export * from "./referral.js";
 export * from "./leaderboard.js";
 export * from "./solverSpot.js";

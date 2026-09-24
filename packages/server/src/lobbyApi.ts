@@ -22,6 +22,9 @@ import {
   upsertPlayerNote,
   type PlayerNoteColor,
   deleteAccount,
+  getBlockedUserIds,
+  setPlayerBlocked,
+  reportPlayer,
 } from "@meta-geo/db";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
@@ -395,6 +398,61 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const idsParam = url.searchParams.get("userIds") ?? "";
       const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 12);
       sendJson(res, 200, await getPlayerNotesForTargets(author.id, ids));
+      return true;
+    }
+
+    // 自分がブロックしている相手のUser.id一覧(チャットの表示フィルタリング用)。
+    if (url.pathname === "/api/lobby/player-blocks" && req.method === "GET") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      sendJson(res, 200, { blockedUserIds: await getBlockedUserIds(user.id) });
+      return true;
+    }
+
+    // 相手のブロック/ブロック解除(App Store審査ガイドライン1.2「ユーザー生成コンテンツ」対応)。
+    // ブロックすると、以降その相手のチャット発言は自分の画面にだけ表示されなくなる。
+    if (url.pathname === "/api/lobby/player-block" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const targetUserId = typeof body["targetUserId"] === "string" ? body["targetUserId"] : null;
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "targetUserId is required" });
+        return true;
+      }
+      const blocked = body["blocked"] !== false;
+      await setPlayerBlocked(user.id, targetUserId, blocked);
+      sendJson(res, 200, { blocked });
+      return true;
+    }
+
+    // ユーザーからの通報(App Store審査ガイドライン1.2「ユーザー生成コンテンツ」対応)。
+    // 自動処理は行わず、運営が後から確認するための記録のみを残す。
+    if (url.pathname === "/api/lobby/player-report" && req.method === "POST") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const body = await readJsonBody(req);
+      const targetUserId = typeof body["targetUserId"] === "string" ? body["targetUserId"] : null;
+      if (!targetUserId) {
+        sendJson(res, 400, { error: "targetUserId is required" });
+        return true;
+      }
+      const reason = typeof body["reason"] === "string" ? body["reason"] : "other";
+      const context = typeof body["context"] === "string" ? body["context"] : "";
+      await reportPlayer(user.id, targetUserId, reason, context);
+      sendJson(res, 200, { ok: true });
       return true;
     }
 

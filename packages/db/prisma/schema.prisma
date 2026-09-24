@@ -195,6 +195,41 @@ model PlayerNote {
   @@index([targetUserId])
 }
 
+/// ユーザーからの通報。チャット等のユーザー生成コンテンツに対する必須の通報導線
+/// (App Store審査ガイドライン1.2「ユーザー生成コンテンツ」対応)。管理者が内容を確認するための
+/// 記録のみを残し、自動処理(即時BAN等)は行わない。
+model PlayerReport {
+  id             String   @id @default(uuid())
+  /// 通報した本人のUser.id
+  reporterUserId String
+  /// 通報された相手のUser.id
+  reportedUserId String
+  /// 理由の分類。"harassment"(嫌がらせ)|"inappropriate"(不適切な発言)|"cheating"(不正行為)|"other"。
+  reason         String
+  /// 補足(問題のメッセージ本文など)。自由記述、無くてもよい。
+  context        String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@index([reporterUserId])
+  @@index([reportedUserId])
+}
+
+/// ユーザーによるブロック。ブロックした相手のチャット発言は、ブロックした本人の画面にのみ
+/// 表示されなくなる(App Store審査ガイドライン1.2「ユーザー生成コンテンツ」対応)。
+/// 双方向ではなく片方向(blockerだけがblockedを見えなくする)。
+model PlayerBlock {
+  id            String   @id @default(uuid())
+  /// ブロックした本人のUser.id
+  blockerUserId String
+  /// ブロックされた相手のUser.id
+  blockedUserId String
+  createdAt     DateTime @default(now())
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockerUserId])
+  @@index([blockedUserId])
+}
+
 /// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
 /// (別に「現在残高」フィールドをキャッシュしない。導出元は常にこの台帳の1本にする)。
 model BankrollTransaction {

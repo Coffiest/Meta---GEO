@@ -20,6 +20,7 @@ import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { WelcomeTour, hasTourBeenSeen } from "@/components/WelcomeTour";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
+import { fetchBlockedUserIds } from "@/lib/playerModeration";
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "@/components/Icon";
@@ -473,6 +474,42 @@ function GameScreen({
     setMarkingBySeat((prev) => ({ ...prev, [userId]: color ? PLAYER_NOTE_COLOR_HEX[color] : null }));
   };
 
+  // 自分がブロックしている相手のUser.id一覧(チャットの吹き出し/ログを自分の画面だけで隠すため)。
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!accessToken) return;
+    let alive = true;
+    void fetchBlockedUserIds(accessToken).then((ids) => {
+      if (alive) setBlockedUserIds(ids);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [accessToken]);
+
+  const handleBlockChanged = (userId: string, blocked: boolean) => {
+    setBlockedUserIds((prev) => (blocked ? [...new Set([...prev, userId])] : prev.filter((id) => id !== userId)));
+  };
+
+  // ブロック中の相手の発言は、自分の画面だけで吹き出し/ログから取り除く(サーバー側の
+  // 配信自体は変えない。ブロックは一方向・自分だけの表示フィルタのため)。
+  const filteredSeatBubbles = useMemo(() => {
+    if (blockedUserIds.length === 0) return seatBubbles;
+    const out: Record<number, { text: string; ts: number }> = {};
+    for (const [seatIndexStr, bubble] of Object.entries(seatBubbles)) {
+      const seatIndex = Number(seatIndexStr);
+      const uid = players[seatIndex]?.userId;
+      if (uid && blockedUserIds.includes(uid)) continue;
+      out[seatIndex] = bubble;
+    }
+    return out;
+  }, [seatBubbles, players, blockedUserIds]);
+
+  const filteredChatLog = useMemo(() => {
+    if (blockedUserIds.length === 0) return chatLog;
+    return chatLog.filter((m) => !blockedUserIds.includes(m.userId));
+  }, [chatLog, blockedUserIds]);
+
   // ゲーム開始時点のスタッツを一度だけ取得(結果画面の増減表示のbaseline)。
   useEffect(() => {
     if (!accessToken || statsBefore) return;
@@ -663,7 +700,7 @@ function GameScreen({
             turnTimer={turnTimer}
             onPlayerTap={(info) => setTappedPlayer(info)}
             markingBySeat={markingBySeat}
-            seatBubbles={seatBubbles}
+            seatBubbles={filteredSeatBubbles}
             onHeroChatClick={() => setChatInputOpen(true)}
             heroShowIntent={heroShowIntent}
             onToggleHeroShow={toggleHeroShow}
@@ -964,7 +1001,7 @@ function GameScreen({
       <AnimatePresence>
         {chatLogOpen && (
           <ChatLogSheet
-            messages={chatLog}
+            messages={filteredChatLog}
             yourSeatIndex={yourSeatIndex}
             players={players}
             myDisplayName={displayName}
@@ -983,6 +1020,7 @@ function GameScreen({
             accessToken={accessToken}
             onClose={() => setTappedPlayer(null)}
             onSaved={handleMarkingSaved}
+            onBlockChanged={handleBlockChanged}
           />
         )}
       </AnimatePresence>

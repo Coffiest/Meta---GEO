@@ -15,6 +15,14 @@ import {
   type PlayerNoteColor,
   type PublicPlayerProfile,
 } from "@/lib/playerNotes";
+import {
+  PLAYER_REPORT_REASONS,
+  PLAYER_REPORT_REASON_LABEL,
+  fetchBlockedUserIds,
+  reportPlayer,
+  setPlayerBlocked,
+  type PlayerReportReason,
+} from "@/lib/playerModeration";
 import { LoaderBlock } from "./ui/Loader";
 
 /** 対戦相手をタップしたときに開くプレイヤー詳細モーダル。
@@ -25,12 +33,15 @@ export function PlayerDetailModal({
   accessToken,
   onClose,
   onSaved,
+  onBlockChanged,
 }: {
   target: { userId: string; displayName: string; avatarKey: string | null };
   accessToken: string | undefined;
   onClose: () => void;
   /** メモ保存後、テーブル側のマーキング表示を更新するためのコールバック。 */
   onSaved?: (userId: string, color: PlayerNoteColor | null) => void;
+  /** ブロック状態が変わったとき、テーブル側のチャット表示フィルタを更新するためのコールバック。 */
+  onBlockChanged?: (userId: string, blocked: boolean) => void;
 }) {
   const [profile, setProfile] = useState<PublicPlayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +49,13 @@ export function PlayerDetailModal({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reportReason, setReportReason] = useState<PlayerReportReason>("harassment");
+  const [reportContext, setReportContext] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
 
   const hasProfile = Boolean(target.userId);
 
@@ -53,12 +71,14 @@ export function PlayerDetailModal({
     void Promise.all([
       fetchPlayerProfile(accessToken, target.userId),
       fetchPlayerNote(accessToken, target.userId),
+      fetchBlockedUserIds(accessToken),
     ])
-      .then(([prof, noteData]) => {
+      .then(([prof, noteData, blockedIds]) => {
         if (!alive) return;
         setProfile(prof ?? syntheticPlayerProfile(target.userId, target.displayName, target.avatarKey));
         setColor(noteData.color);
         setNote(noteData.note);
+        setBlocked(blockedIds.includes(target.userId));
         setLoading(false);
       })
       .catch(() => {
@@ -83,6 +103,26 @@ export function PlayerDetailModal({
     setSavedTick(true);
     onSaved?.(target.userId, saved.color);
     window.setTimeout(() => setSavedTick(false), 1400);
+  }
+
+  async function handleToggleBlock() {
+    if (!accessToken || blockBusy) return;
+    setBlockBusy(true);
+    const next = !blocked;
+    const result = await setPlayerBlocked(accessToken, target.userId, next);
+    setBlocked(result);
+    setBlockBusy(false);
+    onBlockChanged?.(target.userId, result);
+  }
+
+  async function handleSendReport() {
+    if (!accessToken || reportSending) return;
+    setReportSending(true);
+    await reportPlayer(accessToken, target.userId, reportReason, reportContext);
+    setReportSending(false);
+    setReportSent(true);
+    setReporting(false);
+    setReportContext("");
   }
 
   const s = profile?.stats;
@@ -208,6 +248,83 @@ export function PlayerDetailModal({
             {!accessToken && (
               <p className="mt-2 text-center text-[11px] text-fg-3">メモの保存にはログインが必要です。</p>
             )}
+
+            {/* ブロック・通報。全プレイヤーに同一のUIを出す(相手の種別で分岐させない)。 */}
+            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Safety</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleBlock}
+                disabled={blockBusy || !accessToken}
+                className={`pressable flex-1 rounded-xl border py-2.5 text-[12px] font-bold disabled:opacity-50 ${
+                  blocked ? "border-line-strong bg-surface-2 text-fg" : "border-line text-fg-2"
+                }`}
+              >
+                {blockBusy ? "処理中…" : blocked ? "ブロック解除" : "この相手をブロック"}
+              </button>
+              {!reporting && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReporting(true);
+                    setReportSent(false);
+                  }}
+                  disabled={!accessToken}
+                  className="pressable flex-1 rounded-xl border border-line py-2.5 text-[12px] font-bold text-fg-2 disabled:opacity-50"
+                >
+                  通報する
+                </button>
+              )}
+            </div>
+            {blocked && (
+              <p className="mt-2 text-[11px] text-fg-3">ブロック中は、このプレイヤーの発言が自分の画面に表示されなくなります。</p>
+            )}
+
+            {reporting && (
+              <div className="mt-3 rounded-xl glass-panel p-3">
+                <p className="mb-2 text-[11px] font-bold text-fg">通報の理由を選んでください</p>
+                <div className="flex flex-wrap gap-2">
+                  {PLAYER_REPORT_REASONS.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setReportReason(r)}
+                      className={`pressable rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
+                        reportReason === r ? "border-line-strong bg-surface-2 text-fg" : "border-line text-fg-3"
+                      }`}
+                    >
+                      {PLAYER_REPORT_REASON_LABEL[r]}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={reportContext}
+                  onChange={(e) => setReportContext(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="状況の補足(任意)"
+                  className="mt-2 w-full resize-none rounded-lg border border-line bg-transparent p-2 text-sm text-fg outline-none placeholder:text-fg-faint focus:ring-2 focus:ring-line-strong"
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReporting(false)}
+                    className="pressable flex-1 rounded-lg border border-line py-2 text-[12px] font-semibold text-fg-2"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendReport}
+                    disabled={reportSending}
+                    className="pressable flex-1 rounded-lg bg-accent py-2 text-[12px] font-black text-on-accent disabled:opacity-50"
+                  >
+                    {reportSending ? "送信中…" : "通報を送信"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {reportSent && <p className="mt-2 text-[11px] text-fg-3">通報を受け付けました。ご協力ありがとうございます。</p>}
           </>
         )}
       </motion.div>
