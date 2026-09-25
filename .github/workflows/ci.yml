@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # PRを開いただけでは実行が作られないことが実際にあった(#214 / #215)。ブランチへ
+  # push すれば動くが、そのためだけに中身の無いコミットを積むのは筋が悪い。
+  # 手動で回せる口を用意しておく(Actionsタブ → CI → Run workflow)。
+  workflow_dispatch:
 
 jobs:
   test:
@@ -51,6 +55,11 @@ jobs:
 
       - name: Test engine, db, server
         run: pnpm -r --filter=./packages/* run test
+
+      # 未定義のTailwindクラスはビルドも型チェックも素通りし、色が出ないだけになる。
+      # 旧パレット(ink/navy/gold/felt/rose)の再混入は grep でしか止められないため、ここで落とす。
+      - name: Check design tokens
+        run: pnpm --filter @meta-geo/web run lint:tokens
 
       - name: Build web
         run: pnpm --filter @meta-geo/web run build

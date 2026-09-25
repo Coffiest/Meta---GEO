@@ -1,4 +1,4 @@
-import { computeButtonAssignment } from "./buttonRotation.js";
+import { computeButtonAssignment, nextPreviousBlinds, type PreviousBlindPositions } from "./buttonRotation.js";
 import { getBlindLevel, STARTING_STACK, type BlindLevel } from "./blindStructure.js";
 import { HandEngine, type HandResult } from "./handEngine.js";
 import type { Card } from "./types/card.js";
@@ -45,7 +45,9 @@ export class Tournament {
   private readonly seats = new Map<number, TournamentSeatState>();
   private handNumber = 0;
   private levelIndex = 1;
-  private previousBigBlindFixedPos: number | null = null;
+  // 次のハンドのSB席は「前のハンドのBB席」、BTN席は「前のハンドのSB席」になる(buttonRotation.ts 参照)。
+  // そのため前のハンドのSB位置も覚えておく必要がある(デッドSBで空席だった場合もその位置を保持する)。
+  private previousBlinds: PreviousBlindPositions | null = null;
   private readonly events: TournamentEvent[] = [];
   private currentHand: HandEngine | null = null;
   private currentHandButtonInfo: { buttonFixedPos: number; smallBlindSeat: number | null; bigBlindSeat: number } | null =
@@ -93,6 +95,18 @@ export class Tournament {
     return [...this.seats.values()];
   }
 
+  /**
+   * チップを破棄しての離脱など、ハンドの結果によらず強制的にその席を「今バストした」扱いにする。
+   * 呼ばない場合、離脱者は以降のハンドで自動フォールドし続けるだけの席として残り、ブラインドで
+   * 少しずつ減る以外は負けないため、実際にプレイして敗退した他のプレイヤーより良い着順になって
+   * しまう(離脱=即敗退という直感に反する)。既にバスト済みなら何もしない。
+   */
+  forceEliminate(seatIndex: number): void {
+    const seat = this.seats.get(seatIndex);
+    if (!seat || seat.bustedAtHand !== null) return;
+    seat.bustedAtHand = this.handNumber;
+  }
+
   getEvents(): readonly TournamentEvent[] {
     return this.events;
   }
@@ -111,9 +125,9 @@ export class Tournament {
     const assignment = computeButtonAssignment({
       occupiedSeats: occupiedFixedPositions,
       seatCount: this.seatCount,
-      previousBigBlindFixedPos: this.previousBigBlindFixedPos,
+      previous: this.previousBlinds,
     });
-    this.previousBigBlindFixedPos = assignment.bigBlindSeat;
+    this.previousBlinds = nextPreviousBlinds(assignment);
     this.currentHandButtonInfo = assignment;
 
     const level = this.getCurrentLevel();

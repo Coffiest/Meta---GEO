@@ -1,5 +1,6 @@
 import { type Card, computeAllInEquity, parseCard } from "@meta-geo/engine";
 import { prisma } from "./client.js";
+import { RR_RATING_SHRINKAGE_K, computeRRRatingPopulationStats, ratingFromAdjustedRoi } from "./rrRating.js";
 
 /**
  * 収支(バンクロール)はTenFourPokerと同様の「±方式」: 残高という疑似通貨を貯める仕組みではなく、
@@ -80,6 +81,28 @@ export async function recordPayout(params: { userId: string; tournamentId: strin
       tournamentId: params.tournamentId,
       amount: params.amount,
       kind: "payout",
+    },
+  });
+}
+
+/**
+ * 参加費(バイイン)を返金する。サーバー側の異常(ショウダウンのクラッシュ・卓の異常終了など)で
+ * トーナメントが正常に進行できなかった場合の「最低限の保証」として、参加費を台帳へ+側で戻す。
+ * 同一トーナメント×ユーザーにつき1回だけ(冪等)。二重返金や正常終了時の誤返金を防ぐ。
+ */
+export async function refundBuyIn(params: { userId: string; tournamentId: string; amount: number }): Promise<void> {
+  if (params.amount <= 0) return;
+  const already = await prisma.bankrollTransaction.findFirst({
+    where: { userId: params.userId, tournamentId: params.tournamentId, kind: "refund" },
+    select: { id: true },
+  });
+  if (already) return;
+  await prisma.bankrollTransaction.create({
+    data: {
+      userId: params.userId,
+      tournamentId: params.tournamentId,
+      amount: params.amount,
+      kind: "refund",
     },
   });
 }
@@ -195,7 +218,7 @@ async function getPreflopStats(userId: string): Promise<PreflopStats> {
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   const [entries, leaderboard, preflop] = await Promise.all([
     prisma.tournamentEntry.findMany({
-      where: { userId, tournament: { status: "finished" } },
+      where: { userId, finishPosition: { not: null } },
       select: { payout: true, tournament: { select: { buyIn: true } } },
     }),
     getLeaderboard(100000),
@@ -229,6 +252,114 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     threeBetOpportunities: preflop.threeBetOpportunities,
     threeBetRate: preflop.threeBetOpportunities > 0 ? preflop.threeBetCount / preflop.threeBetOpportunities : 0,
   };
+}
+
+export interface BankrollGraphPoint {
+  /** 何トーナメント目か(1始まり、表示範囲内での連番) */
+  tournamentIndex: number;
+  /** 累計収支(賞金累計 − バイイン累計) */
+  cumulativeProfit: number;
+  /** 累計の得た金額(賞金) */
+  cumulativePayout: number;
+  /** その時点までの累計ROI = 累計賞金 ÷ 累計バイイン(1.5なら150%) */
+  roi: number;
+}
+
+/**
+ * Statsタブの「ROI / 収支 / 得た金額」3本の折れ線グラフ用に、終了済みトーナメントごとの
+ * 累計推移を古い順に返す。集計の定義はgetPlayerStatsのROI/収支/得た金額と同一。
+ */
+export async function getBankrollGraph(userId: string, limit = 1000): Promise<BankrollGraphPoint[]> {
+  // 「直近limitトーナメント」を対象にするため、新しい順に取得してから古い順へ並べ替える
+  const entriesDesc = await prisma.tournamentEntry.findMany({
+    where: { userId, finishPosition: { not: null } },
+    orderBy: { tournament: { createdAt: "desc" } },
+    take: limit,
+    select: { payout: true, tournament: { select: { buyIn: true } } },
+  });
+  const entries = entriesDesc.reverse();
+
+  let cumBuyIn = 0;
+  let cumPayout = 0;
+  return entries.map((e, i) => {
+    cumBuyIn += e.tournament.buyIn;
+    cumPayout += e.payout;
+    return {
+      tournamentIndex: i + 1,
+      cumulativeProfit: cumPayout - cumBuyIn,
+      cumulativePayout: cumPayout,
+      roi: cumBuyIn > 0 ? cumPayout / cumBuyIn : 0,
+    };
+  });
+}
+
+export interface TournamentHistoryPoint {
+  tournamentId: string;
+  gameType: string;
+  finishedAt: Date;
+  buyIn: number;
+  payout: number;
+  /** 賞金 − バイイン */
+  pnl: number;
+  finishPosition: number | null;
+  seatCount: number;
+  /**
+   * このトナメを終えた時点でのトナメ偏差値(近似値)。母集団のmu/sigmaは現在値を使い、
+   * 本人の累計ROIだけをそのトナメまでのプレフィックスに絞って再計算する。RRPokerのように
+   * 完了時点のmu/sigmaをスナップショット保存してはいないため、厳密な過去再現ではなく
+   * 「その時点までの自分の成績で見た偏差値」の近似トレンドである点に留意。
+   */
+  rrRatingAfter: number;
+  /** 直前のトナメからのrrRatingAfterの変動(先頭の1件はnull)。 */
+  rrRatingDelta: number | null;
+}
+
+/**
+ * ホーム画面「トナメ偏差値」カード下のTournament History折れ線グラフ用に、終了済み
+ * トーナメントごとの個別損益(累計ではない)と、そのトナメ終了時点の偏差値推移を古い順に返す。
+ */
+export async function getTournamentHistory(userId: string, limit = 20): Promise<TournamentHistoryPoint[]> {
+  const [entriesDesc, populationStats] = await Promise.all([
+    prisma.tournamentEntry.findMany({
+      where: { userId, finishPosition: { not: null } },
+      orderBy: { tournament: { createdAt: "desc" } },
+      take: limit,
+      select: {
+        payout: true,
+        finishPosition: true,
+        tournament: { select: { id: true, gameType: true, buyIn: true, seatCount: true, finishedAt: true, createdAt: true } },
+      },
+    }),
+    computeRRRatingPopulationStats(),
+  ]);
+
+  const entriesAsc = entriesDesc.reverse();
+  let cumBuyIns = 0;
+  let cumPayouts = 0;
+  let prevRating: number | null = null;
+
+  return entriesAsc.map((e, i) => {
+    cumBuyIns += e.tournament.buyIn;
+    cumPayouts += e.payout;
+    const roi = cumBuyIns > 0 ? cumPayouts / cumBuyIns : 0;
+    const n = i + 1;
+    const adjustedRoi = (n / (n + RR_RATING_SHRINKAGE_K)) * roi + (RR_RATING_SHRINKAGE_K / (n + RR_RATING_SHRINKAGE_K)) * populationStats.mu;
+    const rrRatingAfter = ratingFromAdjustedRoi(adjustedRoi, populationStats);
+    const rrRatingDelta = prevRating === null ? null : Number((rrRatingAfter - prevRating).toFixed(2));
+    prevRating = rrRatingAfter;
+    return {
+      tournamentId: e.tournament.id,
+      gameType: e.tournament.gameType,
+      finishedAt: e.tournament.finishedAt ?? e.tournament.createdAt,
+      buyIn: e.tournament.buyIn,
+      payout: e.payout,
+      pnl: e.payout - e.tournament.buyIn,
+      finishPosition: e.finishPosition,
+      seatCount: e.tournament.seatCount,
+      rrRatingAfter,
+      rrRatingDelta,
+    };
+  });
 }
 
 export interface HandProfitPoint {
@@ -366,7 +497,7 @@ export interface LeaderboardRow {
  */
 export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
   const entries = await prisma.tournamentEntry.findMany({
-    where: { tournament: { status: "finished" }, user: { isBot: false } },
+    where: { finishPosition: { not: null }, user: { isBot: false } },
     select: {
       payout: true,
       tournament: { select: { buyIn: true } },
@@ -410,14 +541,33 @@ export interface HandHistoryRow {
   /** ヒーローの収支(チップ) */
   deltaChips: number;
   bigBlind: number;
+  tournamentId: string;
+  /** トーナメント内のハンド番号(#n)。プレイ中のハンド履歴との突き合わせ用。 */
+  handNumber: number;
+  /** トナメごとのグルーピング用の見出し(ゲーム種別+開始日時)。 */
+  tournamentLabel: string;
+  isFavorite: boolean;
 }
 
 const POSITION_TABLE_6MAX = ["BTN", "SB", "BB", "UTG", "HJ", "CO"];
 
-/** 指定ユーザーのハンド履歴(TenFourのHand History画面相当)。新しい順。 */
-export async function getUserHandHistory(userId: string, limit = 100): Promise<HandHistoryRow[]> {
+/**
+ * 指定ユーザーのハンド履歴(TenFourのHand History画面相当)。新しい順。
+ * `favoritesOnly` を渡すと、お気に入り登録済みのハンドだけに絞り込む。
+ * `tournamentId` を渡すと、そのトーナメントのハンドだけに絞り込む(プレイ中のハンド履歴詳細用)。
+ */
+export async function getUserHandHistory(
+  userId: string,
+  limit = 100,
+  favoritesOnly = false,
+  tournamentId?: string,
+): Promise<HandHistoryRow[]> {
   const seats = await prisma.handSeat.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(favoritesOnly ? { isFavorite: true } : {}),
+      ...(tournamentId ? { hand: { is: { tournamentId } } } : {}),
+    },
     orderBy: { hand: { createdAt: "desc" } },
     take: limit,
     include: {
@@ -428,7 +578,9 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
           board: true,
           buttonFixedPos: true,
           levelBigBlind: true,
-          tournament: { select: { seatCount: true } },
+          tournamentId: true,
+          handNumber: true,
+          tournament: { select: { seatCount: true, gameType: true, createdAt: true } },
         },
       },
     },
@@ -437,6 +589,8 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
   return seats.map((s) => {
     const seatCount = s.hand.tournament.seatCount;
     const offset = (((s.seatIndex - s.hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
+    const tournamentStart = s.hand.tournament.createdAt;
+    const gameLabel = s.hand.tournament.gameType === "mtt" ? "MTT" : "Sit & Go";
     return {
       handId: s.hand.id,
       playedAt: s.hand.createdAt,
@@ -445,8 +599,17 @@ export async function getUserHandHistory(userId: string, limit = 100): Promise<H
       board: s.hand.board,
       deltaChips: s.resultStackDelta,
       bigBlind: s.hand.levelBigBlind,
+      tournamentId: s.hand.tournamentId,
+      handNumber: s.hand.handNumber,
+      tournamentLabel: `${gameLabel} ・ ${tournamentStart.toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      isFavorite: s.isFavorite,
     };
   });
+}
+
+/** ハンドのお気に入り登録状態をトグルする。指定ユーザーの座席行が存在しなければ何もしない。 */
+export async function setHandFavorite(userId: string, handId: string, isFavorite: boolean): Promise<void> {
+  await prisma.handSeat.updateMany({ where: { userId, handId }, data: { isFavorite } });
 }
 
 export interface PayoutPlace {
@@ -471,14 +634,14 @@ export interface MttPrizeStructure {
 
 /**
  * WSOPメインイベント準拠のMTTプライズ構造。
- *  - 還元率93%(WSOP $10Kバイインのうち$9,300がプールに入るのと同率)
+ *  - 還元率90%(オーナー指定。プール = バイイン総額 × 0.9)
  *  - 入賞はフィールドの上位15%(最低2名)
  *  - ミニマムキャッシュはバイインの約1.5倍(2025年ME: $10Kバイインで$15,000ミンキャッシュ)
  *  - 上位はべき乗則で減衰(大規模フィールドで1位がプールの11〜15%になるWSOPの実カーブに近似)
  *  - 2名入賞の小規模フィールドは65/35
  */
 export function computeMttPrizeStructure(fieldSize: number, buyIn: number): MttPrizeStructure {
-  const prizePool = Math.round((fieldSize * buyIn * 0.93) / 10) * 10;
+  const prizePool = Math.round((fieldSize * buyIn * 0.9) / 10) * 10;
   if (fieldSize <= 1 || prizePool <= 0) return { fieldSize, prizePool: 0, places: [] };
 
   const paidPlaces = Math.max(2, Math.round(fieldSize * 0.15));

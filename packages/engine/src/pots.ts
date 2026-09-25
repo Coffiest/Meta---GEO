@@ -73,10 +73,15 @@ export function settlePots(input: SettlementInput): Map<string, number> {
     let remainder = pot.amount - share * winners.length;
     for (const w of winners) addPayout(w, share);
 
+    // 端数(割り切れない分)はボタンに近い勝者から配る。ただし seatOrderFromButton に勝者IDが
+    // 1人も含まれない不整合時でも、winners自体を順序フォールバックに使う。これをしないと
+    // `orderedWinners.length===0` で `i % 0 = NaN` となり、undefinedキー(=席に無いID)の受取が
+    // 生まれ、後段の座席引き当てで例外→ショウダウンがクラッシュしてハンドが固まる原因になる。
     const orderedWinners = input.seatOrderFromButton.filter((id) => winners.includes(id));
+    const distributionOrder = orderedWinners.length > 0 ? orderedWinners : winners;
     let i = 0;
     while (remainder > 0) {
-      const w = orderedWinners[i % orderedWinners.length]!;
+      const w = distributionOrder[i % distributionOrder.length]!;
       addPayout(w, 1);
       remainder--;
       i++;

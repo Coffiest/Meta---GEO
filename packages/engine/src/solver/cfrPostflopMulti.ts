@@ -1,0 +1,594 @@
+import type { Card } from "../types/card.js";
+import { evaluateBest, type HandRank } from "../handEvaluator.js";
+
+/**
+ * HandRank を compareHandRank と完全同順序の単調整数キーへ畳み込む。
+ * ショーダウン符号の内側ループ(nO×nI回)を整数比較にして、役評価の再計算を排除するために使う。
+ * ranks は5要素以下(降順キッカー)・各値2..14なので、15進6桁で衝突なく表現できる。
+ * (compareHandRank は category → ranks の辞書順で、欠損要素は0として扱う。同じ規則で畳み込む)
+ */
+export function handRankKey(r: HandRank): number {
+  let k = r.category;
+  for (let i = 0; i < 6; i++) k = k * 15 + (r.ranks[i] ?? 0);
+  return k;
+}
+
+/**
+ * 多ストリートHUポストフロップCFR(チャンスノード=次カード配布を厳密列挙)。
+ *
+ * リバー専用の cfrPostflop.ts を一般化し、ターン(4枚ボード→リバー44枚を列挙)や
+ * リバー(5枚ボード=チャンスなし)を同一エンジンで厳密に解く。フロップ(3枚)は
+ * 列挙数が大きい(47×46)ため本段階では対象外(後続でチャンスサンプリングを追加)。
+ *
+ * ベースライン: ルート(開始ストリート)のポット rootPot を「既に場にある賞金」とみなし、
+ * 各端点のOOP効用 = 勝ち分 − 当ゲームでの自拠出 − rootPot/2 (ゼロサム)。
+ */
+
+export interface HandCombo {
+  a: Card;
+  b: Card;
+  weight: number;
+}
+
+export interface PostflopSolveInput {
+  /** 3〜5枚のボード(4=ターン/5=リバーは厳密。3=フロップは sampleChance の使用を推奨)。 */
+  board: Card[];
+  oop: HandCombo[];
+  ip: HandCombo[];
+  potBb: number;
+  stackBb: number;
+  betSizes?: number[];
+  iterations?: number;
+  allowRaise?: boolean;
+  /**
+   * チャンスノード(次カード配布)で列挙する枚数の上限。省略時は全列挙(厳密)。
+   * 指定時はデッキから決定的な等間隔サブサンプリングで選ぶ(ランク/スートが均等に散る)。
+   * フロップ(3枚ボード)ではターン×リバーの全列挙が47×46で爆発するため、これで抑える。
+   */
+  sampleChance?: number;
+}
+
+export interface ActionEv {
+  action: string;
+  frequency: number;
+}
+
+export interface PostflopSolveResult {
+  oopRoot: ActionEv[];
+  oopEvBb: number;
+  iterations: number;
+}
+
+const SUIT_IDX: Record<string, number> = { spades: 0, hearts: 1, diamonds: 2, clubs: 3 };
+function cardIndex(c: Card): number {
+  return c.rank * 4 + SUIT_IDX[c.suit]!;
+}
+
+interface Cmb {
+  i0: number;
+  i1: number;
+  w: number;
+  cards: Card[];
+}
+function toCmb(h: HandCombo): Cmb {
+  return { i0: cardIndex(h.a), i1: cardIndex(h.b), w: h.weight, cards: [h.a, h.b] };
+}
+function conflict(a: Cmb, b: Cmb): boolean {
+  return a.i0 === b.i0 || a.i0 === b.i1 || a.i1 === b.i0 || a.i1 === b.i1;
+}
+function usesCard(c: Cmb, idx: number): boolean {
+  return c.i0 === idx || c.i1 === idx;
+}
+
+/**
+ * a の各コンボについて、同一カードを使う(=同時に成立し得ない) b のインデックス列。
+ * 端点評価では「相手レンジ全体の集計から衝突分を差し引く」形にするため、この索引を使う。
+ * レンジは解の間ずっと固定なので1回だけ作れば足りる。
+ */
+function buildConflicts(a: Cmb[], b: Cmb[]): Int32Array[] {
+  return a.map((ca) => {
+    const idx: number[] = [];
+    for (let j = 0; j < b.length; j++) if (conflict(ca, b[j]!)) idx.push(j);
+    return Int32Array.from(idx);
+  });
+}
+
+/** 昇順 keys の中で v 未満の要素数。 */
+function countLess(keys: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid]! < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** 昇順 keys の中で v 以下の要素数(= v より大きい要素の開始位置)。 */
+function countLessEqual(keys: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keys[mid]! <= v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * ボードごとのショーダウン評価用の前計算。
+ * 役の強さを単調整数キーへ畳み、相手レンジをキー昇順に並べた累積和で
+ * 「勝ち質量・負け質量」を O(1) 参照できるようにする(境界位置は前計算)。
+ */
+interface BoardShowdown {
+  /** OOP/IP 各コンボの役キー。 */
+  oKey: Float64Array;
+  iKey: Float64Array;
+  /** キー昇順のインデックス列(累積和をこの順で作る)。 */
+  sortedO: Int32Array;
+  sortedI: Int32Array;
+  /** OOPコンボ i に対する、IP側キー昇順列での「未満件数」と「超の開始位置」。 */
+  ltI: Int32Array;
+  gtI: Int32Array;
+  /** IPコンボ j に対する、OOP側キー昇順列での「未満件数」と「超の開始位置」。 */
+  ltO: Int32Array;
+  gtO: Int32Array;
+}
+
+type Terminal =
+  | { kind: "showdown"; boardKey: string; board: Card[]; matched: number }
+  | { kind: "fold"; folder: 0 | 1 };
+
+interface DecisionNode {
+  kind: "decision";
+  id: number;
+  player: 0 | 1;
+  actions: string[];
+  children: TreeNode[];
+}
+interface ChanceNode {
+  kind: "chance";
+  children: { cardIdx: number; node: TreeNode }[];
+}
+type TreeNode = DecisionNode | ChanceNode | Terminal;
+
+const CARD_BY_INDEX: Card[] = (() => {
+  const suits = ["spades", "hearts", "diamonds", "clubs"] as const;
+  const arr: Card[] = [];
+  for (let r = 2; r <= 14; r++) for (let s = 0; s < 4; s++) arr[r * 4 + s] = { rank: r as Card["rank"], suit: suits[s]! };
+  return arr;
+})();
+
+/**
+ * ゲーム木を構築する。cum=[累計拠出0,累計拠出1]。facingはcumから導出。
+ */
+function buildGameTree(
+  rootPot: number,
+  stack: number,
+  boardStart: number[],
+  betSizes: number[],
+  allowRaise: boolean,
+  sampleChance?: number,
+): { root: TreeNode; decisionNodes: DecisionNode[]; showdowns: Terminal[] } {
+  let nextId = 0;
+  const decisionNodes: DecisionNode[] = [];
+  const showdowns: Terminal[] = [];
+
+  function closeStreet(board: number[], cum: [number, number]): TreeNode {
+    const matched = Math.min(cum[0], cum[1]);
+    if (board.length >= 5) {
+      const key = [...board].sort((a, b) => a - b).join(",");
+      const t: Terminal = { kind: "showdown", boardKey: key, board: board.map((i) => CARD_BY_INDEX[i]!), matched };
+      showdowns.push(t);
+      return t;
+    }
+    // チャンス: 次の1枚を列挙(sampleChance指定時は決定的な等間隔サブサンプリングで抑える)。
+    const used = new Set(board);
+    const candidates: number[] = [];
+    for (let c = 8; c < 60; c++) {
+      if (!CARD_BY_INDEX[c]) continue;
+      if (used.has(c)) continue;
+      candidates.push(c);
+    }
+    let picked = candidates;
+    if (sampleChance && sampleChance > 0 && sampleChance < candidates.length) {
+      // 等間隔ストライドで選ぶ(決定的・resume安全)。開始オフセットをボード和で回し、偏りを散らす。
+      picked = [];
+      const stride = candidates.length / sampleChance;
+      const offset = board.reduce((a, b) => a + b, 0) % Math.max(1, Math.floor(stride));
+      for (let k = 0; k < sampleChance; k++) {
+        picked.push(candidates[Math.min(candidates.length - 1, Math.floor(offset + k * stride))]!);
+      }
+    }
+    const children: { cardIdx: number; node: TreeNode }[] = [];
+    for (const c of picked) {
+      children.push({ cardIdx: c, node: build([...board, c], 0, [cum[0], cum[1]], false, allowRaise ? 1 : 0) });
+    }
+    return { kind: "chance", children };
+  }
+
+  function build(
+    board: number[],
+    toAct: 0 | 1,
+    cum: [number, number],
+    passedCheck: boolean,
+    raisesLeft: number,
+  ): TreeNode {
+    const other = (toAct === 0 ? 1 : 0) as 0 | 1;
+    const facing = cum[other] - cum[toAct];
+    const behind = stack - cum[toAct];
+    const currentPot = rootPot + cum[0] + cum[1];
+    const node: DecisionNode = { kind: "decision", id: nextId++, player: toAct, actions: [], children: [] };
+    decisionNodes.push(node);
+
+    if (facing > 1e-15) {
+      node.actions.push("fold");
+      node.children.push({ kind: "fold", folder: toAct });
+
+      const toCall = Math.min(facing, behind);
+      const c2: [number, number] = [cum[0], cum[1]];
+      c2[toAct] = cum[toAct] + toCall;
+      node.actions.push("call");
+      node.children.push(closeStreet(board, c2));
+
+      if (allowRaise && raisesLeft > 0 && behind > toCall + 1e-9) {
+        const c3: [number, number] = [cum[0], cum[1]];
+        c3[toAct] = stack; // オールインレイズ
+        node.actions.push("allin");
+        node.children.push(build(board, other, c3, false, raisesLeft - 1));
+      }
+      return node;
+    }
+
+    // チェック
+    node.actions.push("check");
+    if (passedCheck) node.children.push(closeStreet(board, cum));
+    else node.children.push(build(board, other, cum, true, raisesLeft));
+
+    for (const f of betSizes) {
+      const amt = Math.min(f * currentPot, behind);
+      if (amt <= 1e-9) continue;
+      const c2: [number, number] = [cum[0], cum[1]];
+      c2[toAct] = cum[toAct] + amt;
+      node.actions.push(`bet${f}`);
+      node.children.push(build(board, other, c2, false, raisesLeft));
+    }
+    return node;
+  }
+
+  const root = build(boardStart, 0, [0, 0], false, allowRaise ? 1 : 0);
+  return { root, decisionNodes, showdowns };
+}
+
+/** 決定ノードの戦略(平均)問い合わせ結果。 */
+export interface NodeStrategy {
+  /** 手番(0=OOP, 1=IP)。 */
+  player: 0 | 1;
+  actions: string[];
+  /** その手番のレンジ(フィルタ済みコンボ)。 */
+  combos: HandCombo[];
+  /** combos[i] のアクション別平均頻度。 */
+  perCombo: number[][];
+  /** レンジ全体のアクション別平均頻度(重み加重)。 */
+  aggregate: number[];
+}
+
+/** 準備済みソルバー(反復と問い合わせを分離し、非同期実行やノード別取り出しを可能にする)。 */
+function prepareSolver(input: PostflopSolveInput) {
+  const betSizes = input.betSizes ?? [0.75];
+  const iterations = input.iterations ?? 400;
+  const allowRaise = input.allowRaise ?? true;
+  const P = input.potBb;
+  const boardStartIdx = input.board.map(cardIndex);
+  const boardSet = new Set(boardStartIdx);
+
+  const oop = input.oop.map(toCmb).filter((c) => !usesAny(c, boardSet) && c.w > 0);
+  const ip = input.ip.map(toCmb).filter((c) => !usesAny(c, boardSet) && c.w > 0);
+  const nO = oop.length;
+  const nI = ip.length;
+
+  const { root, decisionNodes, showdowns } = buildGameTree(P, input.stackBb, boardStartIdx, betSizes, allowRaise, input.sampleChance);
+
+  // 同時に成立し得ない(同一カードを使う)相手コンボの索引。端点評価の補正に使う(レンジは固定なので1回)。
+  const conflIpOfOop = buildConflicts(oop, ip);
+  const conflOopOfIp = buildConflicts(ip, oop);
+
+  // ショーダウン評価をボードごとに前計算(反復間で不変)。
+  // 役評価(evaluateBest=C(7,5)=21通り総当たり)は各コンボ1回だけ行い、単調整数キーへ畳む。
+  // さらにキー昇順の並びと境界位置を持たせ、端点評価を「相手レンジの累積和 − 衝突分」で求められるように
+  // する。これで端点あたりの計算量が O(nTrav×nOpp) から O(nOpp + nTrav×衝突数) に落ちる
+  // (以前は nO×nI の符号表をボードごとに作り、端点ごとに二重ループしていた)。
+  const showdownByBoard = new Map<string, BoardShowdown>();
+  for (const t of showdowns) {
+    if (t.kind !== "showdown" || showdownByBoard.has(t.boardKey)) continue;
+    const oKey = new Float64Array(nO);
+    for (let i = 0; i < nO; i++) oKey[i] = handRankKey(evaluateBest([...t.board, ...oop[i]!.cards]));
+    const iKey = new Float64Array(nI);
+    for (let j = 0; j < nI; j++) iKey[j] = handRankKey(evaluateBest([...t.board, ...ip[j]!.cards]));
+
+    const sortedO = Int32Array.from({ length: nO }, (_, i) => i).sort((a, b) => oKey[a]! - oKey[b]!);
+    const sortedI = Int32Array.from({ length: nI }, (_, j) => j).sort((a, b) => iKey[a]! - iKey[b]!);
+    const sortedOKeys = new Float64Array(nO);
+    for (let k = 0; k < nO; k++) sortedOKeys[k] = oKey[sortedO[k]!]!;
+    const sortedIKeys = new Float64Array(nI);
+    for (let k = 0; k < nI; k++) sortedIKeys[k] = iKey[sortedI[k]!]!;
+
+    const ltI = new Int32Array(nO);
+    const gtI = new Int32Array(nO);
+    for (let i = 0; i < nO; i++) {
+      ltI[i] = countLess(sortedIKeys, oKey[i]!);
+      gtI[i] = countLessEqual(sortedIKeys, oKey[i]!);
+    }
+    const ltO = new Int32Array(nI);
+    const gtO = new Int32Array(nI);
+    for (let j = 0; j < nI; j++) {
+      ltO[j] = countLess(sortedOKeys, iKey[j]!);
+      gtO[j] = countLessEqual(sortedOKeys, iKey[j]!);
+    }
+    showdownByBoard.set(t.boardKey, { oKey, iKey, sortedO, sortedI, ltI, gtI, ltO, gtO });
+  }
+
+  // 相手レンジの累積和バッファ(呼び出しごとに使い切るので再利用してよい)。
+  const prefBuf = new Float64Array(Math.max(nO, nI) + 1);
+
+  const regret: Float64Array[] = [];
+  const stratSum: Float64Array[] = [];
+  for (const n of decisionNodes) {
+    const cnt = n.player === 0 ? nO : nI;
+    regret[n.id] = new Float64Array(cnt * n.actions.length);
+    stratSum[n.id] = new Float64Array(cnt * n.actions.length);
+  }
+
+  function strategy(nodeId: number, nActions: number, cnt: number): Float64Array {
+    const r = regret[nodeId]!;
+    const s = new Float64Array(cnt * nActions);
+    for (let c = 0; c < cnt; c++) {
+      let sum = 0;
+      for (let a = 0; a < nActions; a++) {
+        const v = r[c * nActions + a]!;
+        if (v > 0) sum += v;
+      }
+      for (let a = 0; a < nActions; a++) {
+        const v = r[c * nActions + a]!;
+        s[c * nActions + a] = sum > 0 ? (v > 0 ? v / sum : 0) : 1 / nActions;
+      }
+    }
+    return s;
+  }
+
+  /**
+   * 端点(ショーダウン/フォールド)での手番側コンボごとの利得。
+   *
+   * どちらの端点も「相手レンジ全体の集計から、同一カードを使う(=あり得ない)コンボ分を差し引く」形で
+   * 求める。ショーダウンは役キー昇順の累積和で勝ち/負け質量を取り、衝突分だけキー比較で補正する。
+   * 素朴な二重ループと数学的に同一(勝ち +stake / 負け −stake / 引き分け 0、衝突は除外)。
+   */
+  function terminalValue(t: Terminal, traverser: 0 | 1, reachOpp: Float64Array): Float64Array {
+    const nTrav = traverser === 0 ? nO : nI;
+    const nOpp = traverser === 0 ? nI : nO;
+    const out = new Float64Array(nTrav);
+    const confl = traverser === 0 ? conflIpOfOop : conflOopOfIp;
+
+    if (t.kind === "showdown") {
+      const sd = showdownByBoard.get(t.boardKey)!;
+      const stake = P / 2 + t.matched;
+      const sortedOpp = traverser === 0 ? sd.sortedI : sd.sortedO;
+      const travKey = traverser === 0 ? sd.oKey : sd.iKey;
+      const oppKey = traverser === 0 ? sd.iKey : sd.oKey;
+      const ltOpp = traverser === 0 ? sd.ltI : sd.ltO;
+      const gtOpp = traverser === 0 ? sd.gtI : sd.gtO;
+      // pref[k] = 相手レンジをキー昇順に並べた先頭k件の到達確率和。
+      prefBuf[0] = 0;
+      for (let k = 0; k < nOpp; k++) prefBuf[k + 1] = prefBuf[k]! + reachOpp[sortedOpp[k]!]!;
+      const total = prefBuf[nOpp]!;
+      for (let i = 0; i < nTrav; i++) {
+        // 自分のキーより弱い相手の質量=勝ち、強い相手の質量=負け(この時点では衝突分も含む)。
+        let win = prefBuf[ltOpp[i]!]!;
+        let loss = total - prefBuf[gtOpp[i]!]!;
+        const ki = travKey[i]!;
+        const cl = confl[i]!;
+        for (let m = 0; m < cl.length; m++) {
+          const j = cl[m]!;
+          const rj = reachOpp[j]!;
+          if (rj === 0) continue;
+          const kj = oppKey[j]!;
+          if (kj < ki) win -= rj;
+          else if (kj > ki) loss -= rj;
+        }
+        out[i] = (win - loss) * stake;
+      }
+      return out;
+    }
+
+    const travWins = t.folder !== traverser;
+    const val = (travWins ? 1 : -1) * (P / 2);
+    let total = 0;
+    for (let j = 0; j < nOpp; j++) total += reachOpp[j]!;
+    for (let i = 0; i < nTrav; i++) {
+      let reachValid = total;
+      const cl = confl[i]!;
+      for (let m = 0; m < cl.length; m++) reachValid -= reachOpp[cl[m]!]!;
+      out[i] = reachValid * val;
+    }
+    return out;
+  }
+
+  function walk(n: TreeNode, traverser: 0 | 1, reachTrav: Float64Array, reachOpp: Float64Array): Float64Array {
+    if (n.kind === "showdown" || n.kind === "fold") return terminalValue(n, traverser, reachOpp);
+
+    if (n.kind === "chance") {
+      const nTrav = traverser === 0 ? nO : nI;
+      const nOpp = traverser === 0 ? nI : nO;
+      const travCombos = traverser === 0 ? oop : ip;
+      const oppCombos = traverser === 0 ? ip : oop;
+      // 相手reach加重の厳密正規化。各ランナウト c は「相手が到達しうる質量(roSum)」で重み付けし、
+      // ヒーローの未見枚数(cnt)ではなく相手reachの総和で割る。これにより、相手ハンドがブロックする
+      // ランナウト(相手が居られない=roSum減)が平均を希釈しなくなる(旧実装の 1/cnt 割りの除去バイアス解消)。
+      // 全列挙でもサブサンプリング(sampleChance)でも一貫して正しい重み付けになる。
+      const num = new Float64Array(nTrav);
+      const denReach = new Float64Array(nTrav);
+      let reachOppTotal = 0;
+      for (let j = 0; j < nOpp; j++) reachOppTotal += reachOpp[j]!;
+      for (const ch of n.children) {
+        const c = ch.cardIdx;
+        // このランナウトで無効になるコンボの reach を0に。
+        const rt = new Float64Array(nTrav);
+        for (let i = 0; i < nTrav; i++) rt[i] = usesCard(travCombos[i]!, c) ? 0 : reachTrav[i]!;
+        const ro = new Float64Array(nOpp);
+        let roSum = 0;
+        for (let j = 0; j < nOpp; j++) {
+          const v = usesCard(oppCombos[j]!, c) ? 0 : reachOpp[j]!;
+          ro[j] = v;
+          roSum += v;
+        }
+        const cv = walk(ch.node, traverser, rt, ro);
+        for (let i = 0; i < nTrav; i++) {
+          if (usesCard(travCombos[i]!, c)) continue;
+          num[i] = num[i]! + cv[i]!;
+          denReach[i] = denReach[i]! + roSum;
+        }
+      }
+      const out = new Float64Array(nTrav);
+      for (let i = 0; i < nTrav; i++) out[i] = denReach[i]! > 0 ? (num[i]! * reachOppTotal) / denReach[i]! : 0;
+      return out;
+    }
+
+    const nActions = n.actions.length;
+    if (n.player === traverser) {
+      const cnt = traverser === 0 ? nO : nI;
+      const sigma = strategy(n.id, nActions, cnt);
+      const nodeVal = new Float64Array(cnt);
+      const actionVals: Float64Array[] = [];
+      for (let a = 0; a < nActions; a++) {
+        const rt = new Float64Array(cnt);
+        for (let c = 0; c < cnt; c++) rt[c] = reachTrav[c]! * sigma[c * nActions + a]!;
+        const cv = walk(n.children[a]!, traverser, rt, reachOpp);
+        actionVals.push(cv);
+        for (let c = 0; c < cnt; c++) nodeVal[c] = nodeVal[c]! + sigma[c * nActions + a]! * cv[c]!;
+      }
+      const r = regret[n.id]!;
+      const ss = stratSum[n.id]!;
+      for (let c = 0; c < cnt; c++) {
+        for (let a = 0; a < nActions; a++) {
+          const rv = r[c * nActions + a]! + (actionVals[a]![c]! - nodeVal[c]!);
+          r[c * nActions + a] = rv > 0 ? rv : 0;
+          ss[c * nActions + a] = ss[c * nActions + a]! + reachTrav[c]! * sigma[c * nActions + a]!;
+        }
+      }
+      return nodeVal;
+    }
+
+    const cntOpp = n.player === 0 ? nO : nI;
+    const sigmaOpp = strategy(n.id, nActions, cntOpp);
+    const nTrav = traverser === 0 ? nO : nI;
+    const total = new Float64Array(nTrav);
+    for (let a = 0; a < nActions; a++) {
+      const ro = new Float64Array(cntOpp);
+      for (let c = 0; c < cntOpp; c++) ro[c] = reachOpp[c]! * sigmaOpp[c * nActions + a]!;
+      const cv = walk(n.children[a]!, traverser, reachTrav, ro);
+      for (let i = 0; i < nTrav; i++) total[i] = total[i]! + cv[i]!;
+    }
+    return total;
+  }
+
+  const reachO = new Float64Array(nO);
+  for (let i = 0; i < nO; i++) reachO[i] = oop[i]!.w;
+  const reachI = new Float64Array(nI);
+  for (let j = 0; j < nI; j++) reachI[j] = ip[j]!.w;
+
+  let oopEv = 0;
+  function iterate(): void {
+    const vo = walk(root, 0, reachO, reachI);
+    walk(root, 1, reachI, reachO);
+    let ev = 0;
+    let wsum = 0;
+    for (let i = 0; i < nO; i++) {
+      ev += vo[i]!;
+      wsum += reachO[i]!;
+    }
+    oopEv = wsum > 0 ? ev / wsum : 0;
+  }
+
+  function cmbToHandCombo(c: Cmb): HandCombo {
+    return { a: c.cards[0]!, b: c.cards[1]!, weight: c.w };
+  }
+
+  /** ノードの平均戦略(コンボ別+集約)を取り出す。 */
+  function strategyOf(node: DecisionNode): NodeStrategy {
+    const player = node.player;
+    const combos = player === 0 ? oop : ip;
+    const cnt = combos.length;
+    const nActions = node.actions.length;
+    const ss = stratSum[node.id]!;
+    const perCombo: number[][] = [];
+    const aggregate = new Array<number>(nActions).fill(0);
+    let wsum = 0;
+    for (let c = 0; c < cnt; c++) {
+      let cs = 0;
+      for (let a = 0; a < nActions; a++) cs += ss[c * nActions + a]!;
+      const row = new Array<number>(nActions);
+      for (let a = 0; a < nActions; a++) row[a] = cs > 0 ? ss[c * nActions + a]! / cs : 1 / nActions;
+      perCombo.push(row);
+      const w = combos[c]!.w;
+      wsum += w;
+      for (let a = 0; a < nActions; a++) aggregate[a] = aggregate[a]! + w * row[a]!;
+    }
+    for (let a = 0; a < nActions; a++) aggregate[a] = wsum > 0 ? aggregate[a]! / wsum : 0;
+    return { player, actions: node.actions, combos: combos.map(cmbToHandCombo), perCombo, aggregate };
+  }
+
+  /** 開始ストリート内でアクションパスを辿った先の決定ノードの戦略。チャンス/端点に当たったら null。 */
+  function queryNode(path: string[]): NodeStrategy | null {
+    let node: TreeNode = root;
+    for (const act of path) {
+      if (node.kind !== "decision") return null;
+      const idx = node.actions.indexOf(act);
+      if (idx < 0) return null;
+      node = node.children[idx]!;
+    }
+    if (node.kind !== "decision") return null;
+    return strategyOf(node);
+  }
+
+  function finalize(): PostflopSolveResult {
+    const rootStrat = strategyOf(root as DecisionNode);
+    return {
+      oopRoot: rootStrat.actions.map((a, idx) => ({ action: a, frequency: rootStrat.aggregate[idx]! })),
+      oopEvBb: oopEv,
+      iterations,
+    };
+  }
+
+  return { iterations, iterate, finalize, queryNode };
+}
+
+export function solvePostflopHu(input: PostflopSolveInput): PostflopSolveResult {
+  const s = prepareSolver(input);
+  for (let it = 0; it < s.iterations; it++) s.iterate();
+  return s.finalize();
+}
+
+/** 反復と問い合わせつきの解ハンドル。 */
+export interface PostflopSolveHandle {
+  result: PostflopSolveResult;
+  queryNode: (path: string[]) => NodeStrategy | null;
+}
+
+/**
+ * 非同期版: 毎反復ごとにイベントループへ譲る(setImmediate)。
+ * 対戦サーバー内で他のリクエスト/ソケットを塞がずにオンデマンド計算するために使う。
+ */
+export async function solvePostflopHuAsync(input: PostflopSolveInput): Promise<PostflopSolveHandle> {
+  const s = prepareSolver(input);
+  for (let it = 0; it < s.iterations; it++) {
+    s.iterate();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  return { result: s.finalize(), queryNode: s.queryNode };
+}
+
+function usesAny(c: Cmb, board: Set<number>): boolean {
+  return board.has(c.i0) || board.has(c.i1);
+}

@@ -46,18 +46,18 @@ describe("computePayoutStructure (SNG fixed prizes + MTT delegation)", () => {
   });
 });
 
-describe("computeMttPrizeStructure (WSOP-style: 93% return rate, top ~15% paid)", () => {
-  it("pays roughly 15% of the field, totalling exactly 93% of the prize pool", () => {
+describe("computeMttPrizeStructure (WSOP-style: 90% return rate, top ~15% paid)", () => {
+  it("pays roughly 15% of the field, totalling exactly 90% of the prize pool", () => {
     const { places, prizePool } = computeMttPrizeStructure(40, 500);
     expect(places).toHaveLength(6); // round(40*0.15) = 6
-    expect(prizePool).toBe(Math.round((40 * 500 * 0.93) / 10) * 10);
+    expect(prizePool).toBe(Math.round((40 * 500 * 0.9) / 10) * 10);
     expect(places.reduce((sum, p) => sum + p.amount, 0)).toBe(prizePool);
     for (let i = 1; i < places.length; i++) {
       expect(places[i]!.amount).toBeLessThanOrEqual(places[i - 1]!.amount);
     }
   });
 
-  it("pays at least 2 places for a 12-player MTT field, totalling exactly the (93%) prize pool", () => {
+  it("pays at least 2 places for a 12-player MTT field, totalling exactly the (90%) prize pool", () => {
     const { places, prizePool } = computeMttPrizeStructure(12, 2000);
     expect(places.length).toBeGreaterThanOrEqual(2);
     expect(prizePool).toBeLessThan(12 * 2000);

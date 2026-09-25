@@ -1,65 +1,99 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { Icon } from "./Icon";
+
+/** リングの再描画間隔(ms)。10fpsあれば秒読みのリングとして十分滑らかに見える。 */
+const RING_PAINT_INTERVAL_MS = 100;
 
 /**
  * 残り持ち時間をアバターの周囲を一周する円弧で表現するリング(SunVy Poker方式)。
- * endsAt(ms epoch)までの残量をrequestAnimationFrameで描画する。
+ *
+ * 重要(端末の発熱対策): 以前はrequestAnimationFrameのたびにsetStateしていたため、
+ * 手番が回っている間ずっと毎秒60回のReact再描画が走り、スマートフォンが異常に発熱していた。
+ * 現在はReactのstateを一切使わず、ref経由でSVG属性とテキストを直接書き換える。
+ * 更新も10fpsに間引く(見た目は変わらない)。
  */
 function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationMs: number; size: number }) {
-  const [fraction, setFraction] = useState(1);
+  const arcRef = useRef<SVGCircleElement | null>(null);
+  const secondsRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number>(0);
 
+  const stroke = 2.5;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+
   useEffect(() => {
-    const tick = () => {
+    let lastPaintAt = -Infinity;
+    let lastSeconds = -1;
+    const tick = (ts: number) => {
       const remaining = Math.max(0, endsAt - Date.now());
-      setFraction(Math.min(1, remaining / durationMs));
+      if (ts - lastPaintAt >= RING_PAINT_INTERVAL_MS) {
+        lastPaintAt = ts;
+        const fraction = durationMs > 0 ? Math.min(1, remaining / durationMs) : 0;
+        const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
+        const arc = arcRef.current;
+        if (arc) {
+          arc.setAttribute("stroke-dashoffset", String(circumference * (1 - fraction)));
+          arc.setAttribute("stroke", color);
+        }
+        const seconds = Math.ceil(remaining / 1000);
+        const node = secondsRef.current;
+        if (node) {
+          if (seconds !== lastSeconds) {
+            node.textContent = String(seconds);
+            lastSeconds = seconds;
+          }
+          node.style.color = color;
+        }
+      }
       if (remaining > 0) rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [endsAt, durationMs]);
+  }, [endsAt, durationMs, circumference]);
 
-  const stroke = 3;
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const color = fraction > 0.5 ? "#1fae70" : fraction > 0.2 ? "#f59e0b" : "#e5484d";
+  const initialSeconds = Math.ceil(Math.max(0, endsAt - Date.now()) / 1000);
 
   return (
-    <svg width={size} height={size} className="absolute inset-0 -rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={stroke} />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference * (1 - fraction)}
-      />
-    </svg>
+    <>
+      <svg width={size} height={size} className="absolute inset-0 -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} />
+        <circle
+          ref={arcRef}
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#1fae70"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={0}
+        />
+      </svg>
+      {/* 残り秒数をアイコン中央に数字表示(SunVy/ポーカーチェイス方式)。黒フチ白抜きで視認性確保。 */}
+      <div
+        ref={secondsRef}
+        className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center font-black tabular-nums"
+        style={{
+          fontSize: Math.round(size * 0.42),
+          color: "#1fae70",
+          textShadow: "0 1px 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.9)",
+        }}
+      >
+        {initialSeconds}
+      </div>
+    </>
   );
 }
 
-const INITIAL_BG_CLASSES = [
-  "bg-gradient-to-br from-mint-500 to-emerald-700",
-  "bg-gradient-to-br from-azure-500 to-blue-700",
-  "bg-gradient-to-br from-crimson-500 to-rose-700",
-  "bg-gradient-to-br from-amber-500 to-orange-700",
-  "bg-gradient-to-br from-violet-500 to-purple-700",
-];
-
-function hashToIndex(input: string, mod: number): number {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  return h % mod;
-}
-
+/** アイコン未設定のプレイヤー用の人型シルエット。頭文字や個体別のキャラは使わず、
+ * 全員この共通アイコンにする(誰であるかを見た目で推測させないため)。
+ * 円形コンテナ(overflow-hidden)で肩の両端が自然にトリミングされ、胸像風のアバターになる。 */
 /**
  * ユーザーのアイコン表示。カメラロールから選んだ画像(data URI)が設定されていればそれを、
- * 未設定なら表示名の頭文字を色付き円で表示する(プリセットアバターは廃止)。
+ * 未設定(BOT含む)なら共通のモノクロ人型シルエットを表示する(頭文字・BOTキャラアバターは廃止)。
  */
 export function Avatar({
   avatarKey,
@@ -68,14 +102,17 @@ export function Avatar({
   timer,
 }: {
   avatarKey: string | null | undefined;
-  /** avatarKey未設定時の頭文字アバターに使う表示名。省略時は "?"。 */
+  /** 現状は未使用だが、呼び出し側の互換性のため受け取る(将来のツールチップ等に備える)。 */
   displayName?: string;
   size?: number;
-  timer?: { endsAt: number; durationMs: number } | null;
+  timer?: { endsAt: number; durationMs: number; timeBank?: boolean } | null;
 }) {
   const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
-  const initial = (displayName?.trim()?.[0] ?? "?").toUpperCase();
-  const bgClass = INITIAL_BG_CLASSES[hashToIndex(displayName ?? "?", INITIAL_BG_CLASSES.length)];
+  // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
+  // width/heightがコンテナいっぱいのまま縮まらず(right/bottomのinsetが無視される)リングと
+  // 中心がズレる原因になっていたため、top/left/width/heightをすべてpx値で明示する。
+  const pad = timer ? 6 : 3;
+  const innerBoxStyle = { top: pad, left: pad, width: size - pad * 2, height: size - pad * 2 };
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -85,15 +122,35 @@ export function Avatar({
           src={avatarKey}
           alt=""
           draggable={false}
-          className="absolute inset-[3px] rounded-full object-cover select-none ring-1 ring-black/20"
+          className="absolute rounded-full object-cover select-none ring-1 ring-white/10"
+          style={innerBoxStyle}
         />
       ) : (
         <div
-          className={`absolute inset-[3px] rounded-full ${bgClass} flex items-center justify-center select-none ring-1 ring-black/20 text-white font-bold`}
-          style={{ fontSize: size * 0.4 }}
+          className="absolute rounded-full bg-surface flex items-end justify-center select-none ring-[1.5px] ring-line-strong text-fg overflow-hidden"
+          style={innerBoxStyle}
         >
-          {initial}
+          <Icon
+            name="user"
+            filled
+            className=""
+            style={{ width: size - pad * 2, height: size - pad * 2 }}
+          />
         </div>
+      )}
+      {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。
+          画像/BOT/頭文字いずれのアバターでも一様に効くよう、内側ボックスに黒の半透明を重ねる。 */}
+      {timer && (
+        <div aria-hidden className="pointer-events-none absolute z-20 rounded-full bg-black/70" style={innerBoxStyle} />
+      )}
+      {/* タイムバンクで延長された手番は、金色の脈打つリングを重ねて「延長中」だと分かるようにする。
+          相手が誰であっても同じ条件・同じ見た目で描画する(描画の差で相手の種別が推測できてはいけない)。 */}
+      {timer?.timeBank && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-[25] animate-time-bank-ring rounded-full"
+          style={{ boxShadow: "0 0 0 2px rgb(var(--accent)), 0 0 12px 2px rgb(var(--accent) / 0.6)" }}
+        />
       )}
       {timer && <CountdownRing endsAt={timer.endsAt} durationMs={timer.durationMs} size={size} />}
     </div>

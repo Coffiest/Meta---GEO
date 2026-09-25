@@ -1,0 +1,36 @@
+name: Purge GEO History
+
+# GEOのプレイ履歴(テストプレイで溜まったHand/HandSeat/HandAction/HandPot/HandReview/
+# ReviewDecision)を本番DBから全削除するワンショット手動ワークフロー。誤爆防止のため
+# workflow_dispatch(手動実行)のみで、confirm入力に "DELETE" を打たないと実行しない。
+# 保持: GtoSolution・アカウント・Tournament/TournamentEntry・BankrollTransaction。
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'GEOプレイ履歴を本番から全削除します。実行するには "DELETE" と入力してください。'
+        required: true
+        default: ""
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard on confirmation input
+        if: ${{ inputs.confirm != 'DELETE' }}
+        run: |
+          echo "confirm 入力が 'DELETE' ではないため中止します。"
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @meta-geo/db run generate
+      - name: Purge GEO play history
+        run: pnpm --filter @meta-geo/db exec tsx scripts/purgeGeoHistory.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

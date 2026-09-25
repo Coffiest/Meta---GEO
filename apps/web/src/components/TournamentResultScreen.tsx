@@ -1,0 +1,440 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
+import type { TournamentOverInfo } from "@/lib/socket";
+import { useCountUp } from "@/lib/useCountUp";
+import { useI18n } from "@/lib/i18n";
+import { prewarmTournamentReview } from "@/lib/reviewApi";
+import { PROD_URL, buildMilestoneShareUrl, shareOrTweet } from "@/lib/share";
+import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
+import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
+import { Icon } from "./Icon";
+import { DigitRoll } from "./effects/DigitRoll";
+
+const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+
+/** 結果画面で使う、集計スタッツ+偏差値のスナップショット。 */
+export interface ResultStatsSnapshot {
+  profit: number;
+  roi: number;
+  itmRate: number;
+  nationalRank: number | null;
+  totalRankedPlayers: number;
+  /** 通算参加トーナメント数(マイルストーン検出に使う)。 */
+  tournamentsPlayed: number;
+}
+
+/** ログイン中ユーザーのスタッツ+全国順位を取得してスナップショットにまとめる。 */
+export async function fetchResultSnapshot(accessToken: string): Promise<ResultStatsSnapshot | null> {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/lobby/stats`, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return null;
+    const s = (await res.json()) as ResultStatsSnapshot;
+    return {
+      profit: s.profit ?? 0,
+      roi: s.roi ?? 0,
+      itmRate: s.itmRate ?? 0,
+      nationalRank: s.nationalRank ?? null,
+      totalRankedPlayers: s.totalRankedPlayers ?? 0,
+      tournamentsPlayed: s.tournamentsPlayed ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** target値まで滑らかにカウントアップするフック(before→afterのアニメ表示用)。 */
+type DeltaTone = "up" | "down" | "flat";
+
+/** 1つの指標カード: ラベル + カウントアップする現在値 + 「+OO / -OO」の増減バッジ。 */
+function MetricCard({
+  label,
+  from,
+  to,
+  format,
+  delta,
+  deltaText,
+  deltaTone,
+  delay,
+}: {
+  label: string;
+  from: number;
+  to: number;
+  format: (v: number) => string;
+  delta: boolean;
+  deltaText: string;
+  deltaTone: DeltaTone;
+  delay: number;
+}) {
+  const v = useCountUp(from, to, 1200, delay);
+  const toneClass = deltaTone === "up" ? "text-mint-400 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-300 bg-crimson-500/10" : "text-fg-2 bg-n-2";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: delay / 1000, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-2xl glass-panel p-4"
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-fg-3">{label}</p>
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <span className="text-[22px] font-black tabular-nums text-fg">{format(v)}</span>
+        {delta && (
+          <motion.span
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: delay / 1000 + 1.1, type: "spring", stiffness: 520, damping: 20 }}
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${toneClass}`}
+          >
+            {deltaText}
+          </motion.span>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+/** 英語の序数表記(1st / 2nd / 3rd / 4th ...)。着順を「1th.」風に大きく見せるために使う。 */
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+/**
+ * トーナメント結果画面。上半分に着順を超特大表示(SNGは「1st.」風の序数、MTTは「6 / 521」の
+ * 着順/エントリー数)。その下に獲得プライズと、今回で自分の成績(収支/ROI/インマネ率/全国ランク)が
+ * どう変化したかを数字カウントアップ+増減バッジで表示。さらに目立つ「棋譜解析」ボタン、
+ * 最後に「閉じる(ホームへ)」「シェア」ボタンをバランスよく並べる。
+ */
+export function TournamentResultScreen({
+  info,
+  accessToken,
+  statsBefore,
+  tournamentId,
+  gameKey,
+  totalEntrants,
+  displayName,
+  onExit,
+  canReEntry,
+  reEntryCost,
+  onReEntry,
+}: {
+  info: TournamentOverInfo;
+  accessToken: string | undefined;
+  statsBefore: ResultStatsSnapshot | null;
+  /** このトーナメントのDB ID。あれば「棋譜解析へ」導線を出す。 */
+  tournamentId?: string | null;
+  /** ゲーム種別。MTTは着順/エントリー数表記にする。 */
+  gameKey?: "sng" | "mtt";
+  /** 総エントリー数(MTTの「6 / 521」表記用)。 */
+  totalEntrants?: number | null;
+  /** ログイン中ユーザーの表示名(X共有カードに載せる)。 */
+  displayName?: string;
+  onExit: () => void;
+  /** MTTリエントリ可能か(レジクローズ前・満員でない)。 */
+  canReEntry?: boolean;
+  /** リエントリの参加費(チップ)。 */
+  reEntryCost?: number;
+  /** リエントリ実行(-2000演出後にサーバーへ通知)。 */
+  onReEntry?: () => void;
+}) {
+  const { t } = useI18n();
+  const [after, setAfter] = useState<ResultStatsSnapshot | null>(null);
+  const [shared, setShared] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // リエントリ演出: ボタン押下→「-2,000」を見せてからサーバーへreEntryを送る。
+  const [reEntering, setReEntering] = useState(false);
+  const doReEntry = () => {
+    if (reEntering || !onReEntry) return;
+    setReEntering(true);
+    setTimeout(() => onReEntry(), 900); // -2,000演出を見せてから復帰
+  };
+
+  useEffect(() => {
+    if (!accessToken) return;
+    void fetchResultSnapshot(accessToken).then(setAfter);
+  }, [accessToken]);
+
+  // 事前計算: リザルトを見ている間に棋譜解析のソルバー計算をバックグラウンドで先回りして始める。
+  useEffect(() => {
+    if (!accessToken || !tournamentId) return;
+    void prewarmTournamentReview(tournamentId, accessToken);
+  }, [accessToken, tournamentId]);
+
+  const isWin = info.yourFinishPosition === 1;
+  const before = statsBefore;
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const roiPct = (v: number) => `${(v * 100).toFixed(0)}%`;
+  const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
+
+  const pos = info.yourFinishPosition;
+  // MTTは「着順 / 総エントリー数」、それ以外(SNG)は「1st.」風の英語序数で超特大表示する。
+  const useRatio = gameKey === "mtt" && pos != null && totalEntrants != null && totalEntrants > 0;
+  const rankPlain = pos == null ? t("result.finished") : useRatio ? `${pos} / ${totalEntrants}` : ordinal(pos);
+  // 序数の接尾辞(st/nd/rd/th)だけを取り出す。数字部分はDigitRollでオドメーターめくり表示するため。
+  const rankSuffix = pos != null && !useRatio ? ordinal(pos).replace(String(pos), "") : "";
+
+  // X共有カード用の共有URL(/share/result?...)を組み立てる。展開時にOGP画像として
+  // /api/og/result の動的カードが表示される。表示名・着順・獲得・全国順位を載せる。
+  function buildShareUrl(): string {
+    const p = new URLSearchParams();
+    if (displayName) p.set("name", displayName);
+    if (pos != null) p.set("pos", String(pos));
+    if (useRatio && totalEntrants != null) p.set("entrants", String(totalEntrants));
+    if (info.yourPayout > 0) p.set("payout", String(info.yourPayout));
+    if (after?.nationalRank != null) p.set("rank", String(after.nationalRank));
+    p.set("mode", gameKey === "mtt" ? "mtt" : "sng");
+    return `${PROD_URL}/share/result?${p.toString()}`;
+  }
+
+  // Xのintentツイート。結果を一言添えてワンタップ投稿できるようにする。
+  async function handleShare() {
+    const rank = pos != null ? (useRatio ? `${pos} / ${totalEntrants}位` : ordinal(pos)) : null;
+    const head = pos === 1 ? "優勝しました" : rank ? `${rank}でフィニッシュ` : "プレイしました";
+    const prize = info.yourPayout > 0 ? ` 獲得 +${info.yourPayout.toLocaleString()}` : "";
+    const text = `Poker ARTのトーナメントで${head}！${prize}`;
+    const outcome = await shareOrTweet({
+      text,
+      url: buildShareUrl(),
+      surface: "result",
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
+    // 共有シートを閉じただけ(cancelled)は成功扱いにしない。押した手応えだけ出すと誤解を招く。
+    if (outcome === "shared" || outcome === "tweet") {
+      setShared(true);
+      window.setTimeout(() => setShared(false), 1600);
+    }
+  }
+
+  // 今回のトーナメントで超えた節目(全国TOP◯◯入り / 通算◯◯戦)。あれば専用バナーを出す。
+  const milestone = detectMilestone(before, after);
+
+  /** マイルストーン専用のシェア。結果カードではなく到達カードを展開させる。 */
+  async function handleMilestoneShare() {
+    if (!milestone) return;
+    await shareOrTweet({
+      surface: "milestone",
+      text: buildMilestoneShareText(milestone),
+      url: buildMilestoneShareUrl({
+        displayName,
+        kind: milestone.kind,
+        n: milestone.n,
+        totalRankedPlayers: milestone.totalRankedPlayers,
+      }),
+      hashtags: ["ポーカーアート", "ポーカー"],
+    });
+  }
+
+  // 各指標の増減。beforeが取れないゲスト等では増減バッジは出さず現在値のみ表示。
+  function delta(cur: number, prev: number | undefined, fmt: (v: number) => string, higherBetter = true): { text: string; tone: DeltaTone; show: boolean } {
+    if (prev === undefined || before === null) return { text: "", tone: "flat", show: false };
+    const d = cur - prev;
+    const tone: DeltaTone = Math.abs(d) < 1e-9 ? "flat" : (d > 0) === higherBetter ? "up" : "down";
+    return { text: `${d > 0 ? "+" : d < 0 ? "" : "±"}${fmt(Math.abs(d)).replace("+", "")}`, tone, show: true };
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="glass fixed inset-0 z-30 flex items-center justify-center overflow-y-auto px-5 py-8"
+    >
+      <div className="w-full max-w-sm">
+        {/* 着順ヘッダー(上半分・超特大) */}
+        <motion.div
+          initial={{ opacity: 0, y: -12, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={SPRING_SNAPPY}
+          className="mb-6 pt-4 text-center"
+        >
+          {isWin && (
+            <Icon name="trophy" className="mx-auto mb-3 h-14 w-14 text-accent" />
+          )}
+          <p className="text-[11px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
+          <p
+            className={`mt-2 flex items-center justify-center font-black leading-[0.9] text-fg ${
+              useRatio ? "text-[64px] tracking-[-0.035em]" : "text-[88px] tracking-[-0.035em]"
+            }`}
+          >
+            {!useRatio && pos != null ? (
+              // SNG: 着順の数字だけオドメーターめくりで登場させ、接尾辞(st/nd/rd/th)と「.」は静的に添える。
+              <>
+                <DigitRoll value={pos} fontSize={88} fontWeight={900} textColor="rgb(245 245 247)" gap={0} />
+                <span className="tabular-nums">{rankSuffix}</span>
+                <span className="text-accent">.</span>
+              </>
+            ) : (
+              <span className="tabular-nums">{rankPlain}</span>
+            )}
+          </p>
+          {info.yourPayout > 0 && (
+            <motion.p
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.25, type: "spring", stiffness: 460, damping: 20 }}
+              className="mt-3 inline-block rounded-full bg-accent/15 px-5 py-1.5 text-[18px] font-black tabular-nums text-accent"
+            >
+              {t("result.prizePrefix")} +{info.yourPayout.toLocaleString()}
+            </motion.p>
+          )}
+        </motion.div>
+
+        {/* 指標カード群(収支/ROI/インマネ率/全国ランク) = 成績がどう変化したか */}
+        {after ? (
+          <div className="grid grid-cols-2 gap-2.5">
+            <MetricCard
+              label={t("result.m.profit")}
+              from={before?.profit ?? after.profit}
+              to={after.profit}
+              format={(v) => signed(v)}
+              delta={(before?.profit ?? undefined) !== undefined}
+              {...(() => {
+                const d = delta(after.profit, before?.profit, (v) => Math.round(v).toLocaleString());
+                return { deltaText: d.text, deltaTone: d.tone, delay: 200 };
+              })()}
+            />
+            <MetricCard
+              label="ROI"
+              from={before?.roi ?? after.roi}
+              to={after.roi}
+              format={roiPct}
+              delta={before?.roi !== undefined}
+              {...(() => {
+                const d = delta(after.roi, before?.roi, (v) => `${Math.round(v * 100)}pt`);
+                return { deltaText: d.text, deltaTone: d.tone, delay: 320 };
+              })()}
+            />
+            <MetricCard
+              label={t("result.m.itmRate")}
+              from={before?.itmRate ?? after.itmRate}
+              to={after.itmRate}
+              format={pct}
+              delta={before?.itmRate !== undefined}
+              {...(() => {
+                const d = delta(after.itmRate, before?.itmRate, (v) => `${(v * 100).toFixed(1)}pt`);
+                return { deltaText: d.text, deltaTone: d.tone, delay: 440 };
+              })()}
+            />
+            <MetricCard
+              label={t("result.m.rank")}
+              from={before?.nationalRank ?? after.nationalRank ?? 0}
+              to={after.nationalRank ?? 0}
+              format={(v) => (after.nationalRank ? t("result.place", { n: Math.round(v) }) : "—")}
+              delta={before?.nationalRank != null && after.nationalRank != null}
+              {...(() => {
+                // 順位は小さいほど良い。before-after が正なら順位が上がった(↑)。
+                if (before?.nationalRank == null || after.nationalRank == null) return { deltaText: "", deltaTone: "flat" as DeltaTone, delay: 560 };
+                const up = before.nationalRank - after.nationalRank;
+                const tone: DeltaTone = up > 0 ? "up" : up < 0 ? "down" : "flat";
+                return { deltaText: up === 0 ? "±0" : `${up > 0 ? "↑" : "↓"}${Math.abs(up)}`, deltaTone: tone, delay: 560 };
+              })()}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-n-2" />
+            ))}
+          </div>
+        )}
+
+        {/* マイルストーン到達バナー。今回の結果で節目を超えたときだけ出し、そのままXへ自慢させる。 */}
+        {milestone && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="mt-6 rounded-2xl border border-accent-lo/40 bg-accent/10 p-4"
+          >
+            <div className="flex items-center gap-3">
+              {/* 勲章マーク。絵文字禁止のためSVGで実装。 */}
+              <Icon name="medal" className="h-9 w-9 shrink-0 text-accent" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-accent">Milestone</p>
+                <p className="truncate text-[19px] font-black leading-tight text-fg">{milestone.headline}</p>
+                <p className="truncate text-[11px] font-semibold text-fg-2">{milestone.caption}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => void handleMilestoneShare()}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-[14px] font-black text-on-accent pressable"
+            >
+              {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
+              <Icon name="logo-x" className="h-[15px] w-[15px]" />
+              到達をシェアする
+            </button>
+          </motion.div>
+        )}
+
+        {/* 棋譜解析(局後検討)への導線 = 一番目立たせる主役CTA。tournamentIdがあるときだけ。モーダルで開く。 */}
+        {tournamentId && (
+          <button
+            onClick={() => setReviewOpen(true)}
+            className="group mt-6 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-5 text-[17px] font-black text-on-accent shadow-glow ring-1 ring-accent-lo/40 pressable"
+          >
+            <Icon name="graph-up" className="h-6 w-6" />
+            {t("result.reviewCta")}
+          </button>
+        )}
+
+        {/* MTTリエントリ(レジクローズ前・満員でないとき)。押下→-2,000演出→復帰。 */}
+        {canReEntry && onReEntry && (
+          <button
+            onClick={doReEntry}
+            disabled={reEntering}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson-600 py-4 text-[15px] font-black text-white shadow-[0_10px_24px_-10px_rgba(220,38,38,0.6)] pressable disabled:opacity-90"
+          >
+            {reEntering ? (
+              <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()} …復帰中</span>
+            ) : (
+              <>
+                <Icon name="refresh" className="h-5 w-5" />
+                リエントリ（−{(reEntryCost ?? 2000).toLocaleString()}）
+              </>
+            )}
+          </button>
+        )}
+
+        {/* 閉じる(ホームへ) / シェア をバランスよく並べる */}
+        <div className={`grid grid-cols-2 gap-2.5 ${tournamentId || canReEntry ? "mt-3" : "mt-6"}`}>
+          <button
+            onClick={onExit}
+            className="rounded-2xl glass-panel py-3.5 text-sm font-black text-fg pressable"
+          >
+            {t("common.close")}
+          </button>
+          <button
+            onClick={() => void handleShare()}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-n-4 py-3.5 text-sm font-black text-white pressable"
+          >
+            {/* X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */}
+            <Icon name="logo-x" className="h-[16px] w-[16px]" />
+            {shared ? t("result.shareOpened") : t("result.shareX")}
+          </button>
+        </div>
+      </div>
+
+      {/* 棋譜解析モーダル(総括→再生)。 */}
+      <AnimatePresence>
+        {reviewOpen && tournamentId && (
+          <TournamentReviewModal
+            tournamentId={tournamentId}
+            accessToken={accessToken}
+            onClose={() => setReviewOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
