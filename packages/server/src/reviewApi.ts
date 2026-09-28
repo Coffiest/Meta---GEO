@@ -51,6 +51,18 @@ async function resolveDbUser(verified: VerifiedUser) {
   return getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
 }
 
+/**
+ * App Store配布のiOSアプリ(WKWebView)からのHTTPリクエストかどうかを判定する。
+ * ネイティブ側で `customUserAgent`/`applicationNameForUserAgent` に付与したトークンが
+ * HTTPのUser-Agentヘッダーにそのまま乗って届くことを利用する(apps/web/src/lib/nativeApp.ts
+ * の `IOS_APP_UA_TOKEN` と同じ文字列。パッケージが分かれているため値を直接複製している)。
+ */
+function isRequestFromIOSApp(req: IncomingMessage): boolean {
+  const ua = req.headers["user-agent"];
+  const value = Array.isArray(ua) ? ua[0] : ua;
+  return Boolean(value?.includes("PokerARTApp"));
+}
+
 export async function handleReviewApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (!url.pathname.startsWith("/api/review/")) return false;
@@ -109,7 +121,13 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
       }
       // 課金ゲート: 無料枠は24時間ローリングで1回まで。超過かつサブスク未加入なら402(ペイウォール)。
       // 同一トナメの再解析は消費しない(冪等)ため、ポーリング再POSTでも二重消費しない。
-      const quota = await checkAndConsumeReviewQuota(user.id, tournamentId);
+      //
+      // App Store配布のiOSアプリ(WKWebView)からのリクエストは、ネイティブ側で設定した
+      // customUserAgentトークンがHTTPのUser-Agentヘッダーにそのまま乗って届く。この端末では
+      // App内課金を提供していないため、ウェブ等で契約済みのユーザーであっても、このアプリ内では
+      // サブスクによる無料枠バイパスを適用しない(Apple審査ガイドライン3.1.1対応)。
+      const isIOSApp = isRequestFromIOSApp(req);
+      const quota = await checkAndConsumeReviewQuota(user.id, tournamentId, { ignoreActiveSubscription: isIOSApp });
       if (!quota.allowed) {
         sendJson(res, 402, {
           error: "quota_exceeded",

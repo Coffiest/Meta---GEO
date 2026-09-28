@@ -151,13 +151,22 @@ async function recentReviewTimes(userId: string): Promise<Date[]> {
 
 /**
  * 棋譜解析の無料枠を判定し、許可される場合は消費(行を作成)する。
- * - サブスク加入者は常にallowed(消費しない)。
+ * - サブスク加入者は常にallowed(消費しない)。ただし `ignoreActiveSubscription` が
+ *   trueの場合はこのバイパスを行わない(App Store配布のiOSアプリからの呼び出し用。
+ *   Apple審査ガイドライン3.1.1対応: App内課金を提供していないため、ウェブ等で契約済みの
+ *   ユーザーであっても、iOSアプリ内では無料枠を超えた解析にアクセスさせてはいけない)。
  * - 同一トナメを既に解析済みなら再解析は無料(消費しない・冪等)。
  * - 直近24時間の解析件数が上限に達していれば拒否(nextFreeAt=最古の解析+24h)。
  */
-export async function checkAndConsumeReviewQuota(userId: string, tournamentId: string): Promise<ReviewQuotaCheck> {
+export async function checkAndConsumeReviewQuota(
+  userId: string,
+  tournamentId: string,
+  opts: { ignoreActiveSubscription?: boolean } = {},
+): Promise<ReviewQuotaCheck> {
   const { active } = await getSubscriptionStatusForUser(userId);
-  if (active) return { allowed: true, remaining: FREE_REVIEW_LIMIT, limit: FREE_REVIEW_LIMIT, nextFreeAt: null };
+  if (active && !opts.ignoreActiveSubscription) {
+    return { allowed: true, remaining: FREE_REVIEW_LIMIT, limit: FREE_REVIEW_LIMIT, nextFreeAt: null };
+  }
 
   const existing = await prisma.reviewUsage.findUnique({
     where: { userId_tournamentId: { userId, tournamentId } },
