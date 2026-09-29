@@ -23,6 +23,7 @@ import {
   type Classification,
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { KnowledgeNotes } from "@/components/review/KnowledgeNotes";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
 import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
@@ -244,6 +245,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
         </div>
       )}
       <GeoSolution d={d} />
+      <KnowledgeNotes decision={d} />
     </div>
   );
 }

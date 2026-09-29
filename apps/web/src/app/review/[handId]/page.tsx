@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { fetchHandReview, type HandReviewResponse, type ReviewedDecision } from "@/lib/reviewApi";
 import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { KnowledgeNotes } from "@/components/review/KnowledgeNotes";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor, bucketTextColor } from "@/components/geo/colors";
@@ -81,6 +82,8 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
           </div>
         </div>
       )}
+
+      <KnowledgeNotes decision={d} />
     </motion.div>
   );
 }
