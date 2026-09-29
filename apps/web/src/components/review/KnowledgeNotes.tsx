@@ -1,25 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
-import { matchKnowledge } from "@/lib/reviewKnowledge";
+import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import type { ReviewedDecision } from "@/lib/reviewApi";
 
 /**
  * 決定に添える「なぜそうなのか」の解説。
  *
  * 格付け(9段階)は「どれくらい損か」しか言わないので、それだけでは直しようがない。
- * ここでオーナーが書いた知識のうち、その決定の条件に当てはまるものを引いて添える。
+ * ここでオーナーが書いた知識のうち、その決定の条件(ストリート・ポジション・スタック・
+ * ボードの質感・自分の手の当たり方・ポットの形)に当てはまるものを引いて添える。
+ * **格付けそのものには手を出さない** ―― バッジは今までどおり GTO 基準のまま。
  *
  * 既定では畳んである。解析は一覧性が命で、全決定に文章が開いたまま並ぶと
  * スクロールが伸びて「どこが悪かったのか」の把握が先に潰れるため。
  *
  * 当てはまる知識が無ければ**何も描かない**(「該当なし」は情報量ゼロで場所だけ取る)。
  */
-export function KnowledgeNotes({ decision }: { decision: ReviewedDecision }) {
-  const notes = matchKnowledge(decision, REVIEW_KNOWLEDGE);
+export function KnowledgeNotes({ decision, context }: { decision: ReviewedDecision; context?: KnowledgeContext }) {
+  // ボードはその決定の時点まで切って判定する(最終ボードで見ると質感がずれる)。
+  const facts = useMemo(
+    () => (context ? factsForDecision(decision.street, context) : EMPTY_FACTS),
+    [decision.street, context]
+  );
+  const notes = matchKnowledge(decision, REVIEW_KNOWLEDGE, facts);
   if (notes.length === 0) return null;
   return (
     <div className="mt-2.5 space-y-1.5">

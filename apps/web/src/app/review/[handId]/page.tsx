@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/useAuth";
@@ -8,6 +8,7 @@ import { fetchHandReview, type HandReviewResponse, type ReviewedDecision } from 
 import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { KnowledgeNotes } from "@/components/review/KnowledgeNotes";
+import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor, bucketTextColor } from "@/components/geo/colors";
@@ -20,7 +21,7 @@ function bucketLabel(street: string, bucket: string): string {
   return (table as Record<string, string>)[bucket] ?? bucket;
 }
 
-function DecisionCard({ d }: { d: ReviewedDecision }) {
+function DecisionCard({ d, context }: { d: ReviewedDecision; context: KnowledgeContext | undefined }) {
   const meta = d.classification ? CLASSIFICATION_META[d.classification] : null;
   return (
     <motion.div
@@ -83,7 +84,7 @@ function DecisionCard({ d }: { d: ReviewedDecision }) {
         </div>
       )}
 
-      <KnowledgeNotes decision={d} />
+      <KnowledgeNotes decision={d} context={context} />
     </motion.div>
   );
 }
@@ -147,6 +148,21 @@ export default function ReviewHandPage() {
   const review = data?.review;
   const timeline = data?.timeline;
   const heroSeat = timeline?.seats.find((s) => s.userId === review?.heroUserId);
+  // 知識の引き当てに使う文脈。ボードは決定ごとにストリートで切るので、ここでは
+  // ハンド全体の材料だけをまとめて渡す。
+  const knowledgeContext = useMemo<KnowledgeContext | undefined>(
+    () =>
+      timeline
+        ? {
+            board: timeline.board,
+            heroHoleCards: heroSeat?.holeCards ?? [],
+            actions: timeline.actions,
+            buttonFixedPos: timeline.buttonFixedPos,
+            seatCount: timeline.seats.length,
+          }
+        : undefined,
+    [timeline, heroSeat]
+  );
 
   return (
     <div className="min-h-screen bg-surface">
@@ -207,7 +223,7 @@ export default function ReviewHandPage() {
             {/* 意思決定リスト */}
             <div className="space-y-2.5">
               {review.decisions.map((d) => (
-                <DecisionCard key={d.sequenceNumber} d={d} />
+                <DecisionCard key={d.sequenceNumber} d={d} context={knowledgeContext} />
               ))}
               {review.decisions.length === 0 && (
                 <p className="text-sm text-fg-3 text-center py-8">このハンドにあなたの意思決定はありません。</p>

@@ -24,6 +24,7 @@ import {
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { KnowledgeNotes } from "@/components/review/KnowledgeNotes";
+import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
 import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
@@ -197,7 +198,7 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
 }
 
 /** 意思決定パネル(バッジ + アクション名 + EV損 + GTO推奨チップ + GEO母集団解)。主語はhero=あなた/相手=名前。 */
-function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string }) {
+function DecisionPanel({ d, subject, context }: { d: ReviewedDecision; subject: string; context?: KnowledgeContext }) {
   if (d.classification === null) {
     if (d.outOfScopeReason === "solving") {
       return (
@@ -245,7 +246,7 @@ function DecisionPanel({ d, subject }: { d: ReviewedDecision; subject: string })
         </div>
       )}
       <GeoSolution d={d} />
-      <KnowledgeNotes decision={d} />
+      <KnowledgeNotes decision={d} context={context} />
     </div>
   );
 }
@@ -455,6 +456,20 @@ export function TournamentReviewModal({
   const currentHand = step ? handById.get(step.handId) ?? null : null;
   const heroSeatIndex = currentHand?.timeline.seats.find((s) => s.userId === heroUserId)?.seatIndex ?? null;
   const heroCards = currentHand?.timeline.seats.find((s) => s.userId === heroUserId)?.holeCards ?? [];
+  // 解説の引き当てに使う文脈。ハンドが切り替わるたびに作り直す。
+  const knowledgeContext = useMemo<KnowledgeContext | null>(
+    () =>
+      currentHand
+        ? {
+            board: currentHand.timeline.board,
+            heroHoleCards: heroCards,
+            actions: currentHand.timeline.actions,
+            buttonFixedPos: currentHand.timeline.buttonFixedPos,
+            seatCount: currentHand.timeline.seats.length,
+          }
+        : null,
+    [currentHand, heroCards]
+  );
 
   const goTo = useCallback(
     (idx: number) => setStepIndex(Math.max(0, Math.min(steps.length - 1, idx))),
@@ -565,6 +580,8 @@ export function TournamentReviewModal({
                     ? "あなた"
                     : playersFromTimeline(currentHand.timeline)[step.actorSeat]?.displayName ?? `Seat ${step.actorSeat + 1}`
                 }
+                // 知識は自分のプレイについて書かれたものなので、相手の決定には添えない。
+                context={step.actorIsHero ? knowledgeContext ?? undefined : undefined}
               />
             ) : step.actorIsHero ? (
               <p className="text-[13px] font-semibold text-fg-2">

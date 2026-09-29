@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewedDecision } from "../src/lib/reviewApi";
-import { MAX_NOTES_PER_DECISION, gtoTopBucket, matchKnowledge, type KnowledgeEntry } from "../src/lib/reviewKnowledge";
+import {
+  EMPTY_FACTS,
+  MAX_NOTES_PER_DECISION,
+  boardUpTo,
+  factsForDecision,
+  gtoTopBucket,
+  matchKnowledge,
+  type KnowledgeEntry,
+} from "../src/lib/reviewKnowledge";
 
 /**
  * 棋譜解析に添える知識の、引き当ての単体テスト。
@@ -125,15 +133,15 @@ describe("matchKnowledge", () => {
     const general = entry("general", {});
     const specific = entry("specific", { street: ["preflop"], heroPos: ["BTN"], effStackBb: { max: 50 } });
     const middle = entry("middle", { heroPos: ["BTN"] });
-    const got = matchKnowledge(decision(), [general, middle, specific], 10);
+    const got = matchKnowledge(decision(), [general, middle, specific], EMPTY_FACTS, 10);
     expect(got.map((e) => e.id)).toEqual(["specific", "middle", "general"]);
   });
 
   it("条件の数が同じなら定義順を保つ", () => {
     const a = entry("a", { heroPos: ["BTN"] });
     const b = entry("b", { street: ["preflop"] });
-    expect(matchKnowledge(decision(), [a, b], 10).map((e) => e.id)).toEqual(["a", "b"]);
-    expect(matchKnowledge(decision(), [b, a], 10).map((e) => e.id)).toEqual(["b", "a"]);
+    expect(matchKnowledge(decision(), [a, b], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["a", "b"]);
+    expect(matchKnowledge(decision(), [b, a], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["b", "a"]);
   });
 
   it("既定では1決定あたりの件数が上限で切られる", () => {
@@ -143,5 +151,82 @@ describe("matchKnowledge", () => {
 
   it("知識が空なら何も返さない", () => {
     expect(matchKnowledge(decision(), [])).toEqual([]);
+  });
+});
+
+describe("boardUpTo", () => {
+  const board = ["As", "7h", "2d", "Kc", "3s"];
+
+  it("その決定の時点で開いていた枚数だけ切り出す", () => {
+    expect(boardUpTo("preflop", board)).toEqual([]);
+    expect(boardUpTo("flop", board)).toEqual(["As", "7h", "2d"]);
+    expect(boardUpTo("turn", board)).toEqual(["As", "7h", "2d", "Kc"]);
+    expect(boardUpTo("river", board)).toEqual(board);
+  });
+
+  it("知らないストリート名なら丸ごと返す(切り落として情報を失わない)", () => {
+    expect(boardUpTo("showdown", board)).toEqual(board);
+  });
+});
+
+describe("ボード・手・ポットを条件にした引き当て", () => {
+  const ctx = {
+    board: ["As", "7h", "2d", "Kc", "3s"],
+    heroHoleCards: ["Ah", "Qd"],
+    actions: [
+      { seatIndex: 3, street: "preflop", kind: "raise" },
+      { seatIndex: 2, street: "preflop", kind: "call" },
+    ],
+    buttonFixedPos: 0,
+    seatCount: 6,
+  };
+
+  it("フロップの決定は、リバーまでのボードでは判定されない", () => {
+    // フロップ A72 は H-M-L。ここにリバーの K が入ると別の形になってしまう。
+    const flopOnly = entry("flopShape", { boardShape: ["H-M-L"] });
+    const withRiver = entry("riverShape", { boardShape: ["H-H-M-L-L"] });
+    const facts = factsForDecision("flop", ctx);
+    expect(matchKnowledge(decision({ street: "flop" }), [flopOnly, withRiver], facts).map((e) => e.id)).toEqual([
+      "flopShape",
+    ]);
+  });
+
+  it("ボードが無い決定には、ボードの条件を書いた知識は当たらない", () => {
+    const e = entry("needsBoard", { boardSuit: ["rainbow"] });
+    const facts = factsForDecision("preflop", ctx);
+    expect(matchKnowledge(decision({ street: "preflop" }), [e], facts)).toHaveLength(0);
+  });
+
+  it("自分の手の当たり方で絞れる", () => {
+    const facts = factsForDecision("flop", ctx); // AQ on A72 → トップペア/グッドキッカー
+    expect(matchKnowledge(decision(), [entry("tp", { made: ["topPair"] })], facts)).toHaveLength(1);
+    expect(matchKnowledge(decision(), [entry("set", { made: ["trips"] })], facts)).toHaveLength(0);
+    expect(matchKnowledge(decision(), [entry("gk", { kicker: ["good"] })], facts)).toHaveLength(1);
+  });
+
+  it("anyDraw は挙げたうちどれか1つでも成立していれば当たる", () => {
+    const wet = {
+      ...ctx,
+      board: ["9s", "8s", "2d", "Kc", "3h"],
+      heroHoleCards: ["Js", "Ts"], // フラドロ + オープンエンド
+    };
+    const facts = factsForDecision("flop", wet);
+    expect(matchKnowledge(decision(), [entry("d1", { anyDraw: ["flushDraw"] })], facts)).toHaveLength(1);
+    expect(matchKnowledge(decision(), [entry("d2", { anyDraw: ["gutshot", "flushDraw"] })], facts)).toHaveLength(1);
+    expect(matchKnowledge(decision(), [entry("d3", { anyDraw: ["nutFlushDraw"] })], facts)).toHaveLength(0);
+  });
+
+  it("ポットの形で絞れる", () => {
+    const facts = factsForDecision("flop", ctx); // レイズ1回 → SRP
+    expect(matchKnowledge(decision(), [entry("srp", { potType: ["srp"] })], facts)).toHaveLength(1);
+    expect(matchKnowledge(decision(), [entry("3bet", { potType: ["threeBet"] })], facts)).toHaveLength(0);
+  });
+
+  it("手札が見えない決定には、手の条件を書いた知識は当たらない", () => {
+    const blind = { ...ctx, heroHoleCards: [] };
+    const facts = factsForDecision("flop", blind);
+    expect(matchKnowledge(decision(), [entry("needsHand", { made: ["topPair"] })], facts)).toHaveLength(0);
+    // ボードだけの条件なら当たる。
+    expect(matchKnowledge(decision(), [entry("boardOnly", { boardSuit: ["rainbow"] })], facts)).toHaveLength(1);
   });
 });

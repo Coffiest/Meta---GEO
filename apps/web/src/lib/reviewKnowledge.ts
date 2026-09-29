@@ -1,5 +1,8 @@
 import type { Classification } from "./classification";
 import type { ReviewedDecision } from "./reviewApi";
+import { readBoardTexture, type BoardTexture, type DrawDensity, type RankBand, type SuitPattern } from "./boardTexture";
+import { readHandStrength, type HandStrength, type KickerBand, type MadeCategory } from "./handStrength";
+import { readPotShape, type PotShape, type PotType } from "./potShape";
 
 /**
  * 棋譜解析に、オーナーが書いたポーカー知識を添えるための仕組み。
@@ -47,6 +50,80 @@ export interface KnowledgeWhen {
   actionBucket?: string[];
   /** GTO が最も高い頻度で取る手。 */
   gtoTopBucket?: string[];
+
+  // ── ボードの質感(`boardTexture.ts`)。帯は L=2〜4 / M=5〜9 / H=T〜A ──
+  /** 帯の並び(例 "H-L-L")。フロップの3枚を高い順に並べたもの。 */
+  boardShape?: string[];
+  /** ボードの最高ランクの帯。 */
+  boardHighBand?: RankBand[];
+  /** スートの散り方。5枚のボードでは "twotone" はほぼ常に真になるので注意。 */
+  boardSuit?: SuitPattern[];
+  /** フラッシュが成立しうるか(同じスートが3枚以上)。 */
+  boardFlushPossible?: boolean;
+  /** ドローの多寡。 */
+  boardDraws?: DrawDensity[];
+  /** ペアが乗っているか。 */
+  boardPaired?: boolean;
+  /** ペアのランクの帯(【ミドルペアボード】の「ロー/ミドル/ハイがペア」)。 */
+  boardPairBand?: RankBand[];
+  /** ブロードウェイの枚数(ノートの「2BW」= 2)。 */
+  boardBroadwayCount?: RangeCond;
+  /** ハイと2番目のランク差(【A〜Jhi HMnSD】の「HM」)。 */
+  boardHmGap?: RangeCond;
+
+  // ── 自分の手(`handStrength.ts`)──
+  /** 出来ている役。 */
+  made?: MadeCategory[];
+  /** トップペアのときのキッカーの段。 */
+  kicker?: KickerBand[];
+  /** 成立しているドロー。ここに挙げたもののうち**どれか1つでも**成立していれば当たり。 */
+  anyDraw?: (keyof HandStrength["draws"])[];
+
+  // ── ポットの形(`potShape.ts`)──
+  potType?: PotType[];
+  /** ブラインド同士か(ノートの「BvB」)。 */
+  blindVsBlind?: boolean;
+}
+
+/** 決定そのものには乗っていない、ハンド全体から導ける文脈。 */
+export interface KnowledgeContext {
+  board: readonly string[];
+  heroHoleCards: readonly (string | null)[];
+  actions: readonly { seatIndex: number; street: string; kind: string }[];
+  buttonFixedPos: number;
+  seatCount: number;
+}
+
+/** 文脈から、条件判定に使う3つの読み取り結果を作る。決定ごとに作り直さないよう外で1回作る。 */
+export interface KnowledgeFacts {
+  texture: BoardTexture | null;
+  hand: HandStrength | null;
+  pot: PotShape;
+}
+
+/** そのストリートの時点で開いていたボードの枚数。 */
+const BOARD_CARDS_BY_STREET: Record<string, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
+/**
+ * その決定の時点で見えていたボードを切り出す。
+ *
+ * タイムラインが持っているのは**最終的な5枚**なので、そのままフロップの決定に使うと
+ * 「フロップでは A-L-L だったのに、リバーまで含めて判定してしまう」ことになる。
+ * ストリートで切ること。
+ */
+export function boardUpTo(street: string, board: readonly string[]): string[] {
+  const n = BOARD_CARDS_BY_STREET[street];
+  return board.slice(0, n === undefined ? board.length : n);
+}
+
+/** 1つの決定について、条件判定に使う読み取り結果を作る。 */
+export function factsForDecision(street: string, ctx: KnowledgeContext): KnowledgeFacts {
+  const board = boardUpTo(street, ctx.board);
+  return {
+    texture: readBoardTexture(board),
+    hand: readHandStrength(ctx.heroHoleCards, board),
+    pot: readPotShape(ctx.actions, { buttonFixedPos: ctx.buttonFixedPos, seatCount: ctx.seatCount }),
+  };
 }
 
 export interface KnowledgeEntry {
@@ -74,9 +151,11 @@ function inRange(value: number | null | undefined, cond: RangeCond | undefined):
   return true;
 }
 
-function inSet(value: string | null | undefined, allowed: string[] | undefined): boolean {
+function inSet(value: string | null | undefined, allowed: readonly (string | null)[] | undefined): boolean {
   if (!allowed) return true;
-  if (value === null || value === undefined) return false;
+  // 候補に null が書かれている場合だけ、値が無いことを「当たり」とみなす
+  // (「キッカーの段が無い = トップペアではない」を条件にしたいときのため)。
+  if (value === null || value === undefined) return allowed.includes(null);
   return allowed.includes(value);
 }
 
@@ -93,18 +172,10 @@ export function gtoTopBucket(d: ReviewedDecision): string | null {
 
 /** `when` に実際に書かれている条件の数。多いほど具体的な知識とみなす。 */
 function specificity(when: KnowledgeWhen): number {
-  let n = 0;
-  if (when.street) n++;
-  if (when.heroPos) n++;
-  if (when.classification) n++;
-  if (when.effStackBb) n++;
-  if (when.facingSizeBb) n++;
-  if (when.actionBucket) n++;
-  if (when.gtoTopBucket) n++;
-  return n;
+  return Object.values(when).filter((v) => v !== undefined).length;
 }
 
-function matches(entry: KnowledgeEntry, d: ReviewedDecision): boolean {
+function matches(entry: KnowledgeEntry, d: ReviewedDecision, facts: KnowledgeFacts): boolean {
   const w = entry.when;
   if (!inSet(d.street, w.street)) return false;
   if (!inSet(d.heroPos, w.heroPos)) return false;
@@ -113,6 +184,38 @@ function matches(entry: KnowledgeEntry, d: ReviewedDecision): boolean {
   if (!inRange(d.facingSizeBb, w.facingSizeBb)) return false;
   if (!inSet(d.actionTaken.bucket, w.actionBucket)) return false;
   if (!inSet(gtoTopBucket(d), w.gtoTopBucket)) return false;
+
+  // ボードの質感。プリフロップにはボードが無いので、質感の条件が書いてあれば当たらない。
+  const t = facts.texture;
+  if (w.boardShape || w.boardHighBand || w.boardSuit || w.boardDraws || w.boardPaired !== undefined ||
+      w.boardPairBand || w.boardBroadwayCount || w.boardHmGap || w.boardFlushPossible !== undefined) {
+    if (!t) return false;
+  }
+  if (t) {
+    if (!inSet(t.shape, w.boardShape)) return false;
+    if (!inSet(t.bands[0], w.boardHighBand)) return false;
+    if (!inSet(t.suit, w.boardSuit)) return false;
+    if (w.boardFlushPossible !== undefined && t.flushPossible !== w.boardFlushPossible) return false;
+    if (!inSet(t.draws, w.boardDraws)) return false;
+    if (w.boardPaired !== undefined && t.isPaired !== w.boardPaired) return false;
+    if (!inSet(t.pairBand, w.boardPairBand)) return false;
+    if (!inRange(t.broadwayCount, w.boardBroadwayCount)) return false;
+    if (!inRange(t.hmGap, w.boardHmGap)) return false;
+  }
+
+  // 自分の手。手札が見えない決定(相手の決定など)では、手の条件が書いてあれば当たらない。
+  const h = facts.hand;
+  if ((w.made || w.kicker || w.anyDraw) && !h) return false;
+  if (h) {
+    if (!inSet(h.made, w.made)) return false;
+    if (!inSet(h.kicker, w.kicker)) return false;
+    // anyDraw は「挙げたもののうちどれか1つでも成立していれば当たり」。
+    if (w.anyDraw && !w.anyDraw.some((k) => h.draws[k])) return false;
+  }
+
+  if (!inSet(facts.pot.type, w.potType)) return false;
+  if (w.blindVsBlind !== undefined && facts.pot.isBlindVsBlind !== w.blindVsBlind) return false;
+
   return true;
 }
 
@@ -125,11 +228,19 @@ function matches(entry: KnowledgeEntry, d: ReviewedDecision): boolean {
 export function matchKnowledge(
   decision: ReviewedDecision,
   entries: readonly KnowledgeEntry[],
+  facts: KnowledgeFacts = EMPTY_FACTS,
   limit: number = MAX_NOTES_PER_DECISION
 ): KnowledgeEntry[] {
   const hit = entries
     .map((entry, index) => ({ entry, index, score: specificity(entry.when) }))
-    .filter(({ entry }) => matches(entry, decision))
+    .filter(({ entry }) => matches(entry, decision, facts))
     .sort((a, b) => b.score - a.score || a.index - b.index);
   return hit.slice(0, Math.max(0, limit)).map(({ entry }) => entry);
 }
+
+/** 文脈が無いとき(プリフロップのみの決定など)の既定。 */
+export const EMPTY_FACTS: KnowledgeFacts = {
+  texture: null,
+  hand: null,
+  pot: { type: "srp", raiseCount: 1, isBlindVsBlind: false },
+};
