@@ -141,6 +141,34 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     expect(flopCheck.classification).toBeNull();
   });
 
+  it("ポストフロップ: GTOのソルバー解析を待つ間も、Notionの評価(バッジ)は最初から付いている", () => {
+    seq = 0;
+    const hand: ExtractHand = {
+      buttonFixedPos: 0,
+      levelBigBlind: BB,
+      board: ["Ks", "7h", "2d", "9c", "3s"],
+      seats: seats(40, 0, ["Ah", "Kd"]),
+      actions: [
+        ...blindsAndAnte(),
+        act(3, "preflop", "fold", null, 250),
+        act(4, "preflop", "fold", null, 250),
+        act(5, "preflop", "fold", null, 250),
+        act(0, "preflop", "raise", 250, 250), // hero(BTN) 2.5bbオープン
+        act(1, "preflop", "fold", null, 500),
+        act(2, "preflop", "call", 250, 500), // BB コール → HUフロップへ
+        act(2, "flop", "check", null, 650),
+        act(0, "flop", "bet", 215, 650), // hero CB 33%(ドライなKハイ)
+      ],
+    };
+    const r = analyzeExtractedHand(hand, "u0")!;
+    const cb = r.decisions.find((x) => x.street === "flop")!;
+    expect(cb.strategy?.reason).toBe("cbDryHigh");
+    expect(cb.classification).toBe("best");
+    // GTOのEV損はソルバー待ち。バッジは先に出せる(クライアントはEV損だけ後から埋まる)。
+    expect(cb.outOfScopeReason).toBe("solving");
+    expect(cb.evLossBb).toBeNull();
+  });
+
   it("3betライン(2レイズ以上)は対象外理由つきで分類なし", () => {
     seq = 0;
     const hand: ExtractHand = {
