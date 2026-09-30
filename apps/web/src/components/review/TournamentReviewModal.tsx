@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
+import { SPRING_SHEET } from "@/lib/motion";
 import {
   fetchTournamentReview,
   fetchTournamentReviewSummary,
   type ReviewedDecision,
-  type ReviewHandTimeline,
   type ReviewQuotaInfo,
   type TournamentReview,
-  type TournamentReviewHand,
   type TournamentReviewSummary,
 } from "@/lib/reviewApi";
 import { useSubscriptionStatus } from "@/lib/subscription";
@@ -22,15 +20,9 @@ import {
   type Classification,
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
-import { DecisionHeadline } from "@/components/review/DecisionHeadline";
-import { actionLabel, decisionInfo, STREET_EN } from "@/lib/actionNotation";
-import type { KnowledgeContext } from "@/lib/reviewKnowledge";
-import { PokerTable } from "@/components/PokerTable";
-import { PlayingCard } from "@/components/PlayingCard";
-import { buildTournamentReplay, playersFromTimeline, revealedFromTimeline, type ReplayStep } from "@/lib/replay";
-import { OPEN_RAISE_BUCKET, OPEN_RAISE_SOURCE_BUCKETS, PREFLOP_DISPLAY_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
-import { bucketColor, bucketTextColor } from "@/components/geo/colors";
-import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
+import { ReviewReplayView, HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
+import { STREET_EN } from "@/lib/actionNotation";
+import { buildTournamentReplay } from "@/lib/replay";
 import { useCountUp } from "@/lib/useCountUp";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -38,41 +30,12 @@ import { AdSlot } from "@/components/AdSlot";
  * トーナメント棋譜解析。Appleネイティブ(iOS HIG)風のデザイン言語で構成する:
  *  - 総括: グラバー付きのシート(systemGroupedBackground)+ラージタイトル+白のインセット
  *    グループカード。GTOスコアはリングゲージ+カウントアップで演出。
- *  - 再生: すりガラス(backdrop-blur)のヘッダー/コントロールバー+フローティングの評価カード。
+ *  - 再生: `ReviewReplayView`(chess.com と同じ配置: 評価カードが上、卓が中央、手の一覧が下)。
  * アニメーションはスプリング+スタッガー(ease-out系)で統一し、reduced-motion時は簡略化する。
  * 画面遷移ではなくモーダルで開く(確定仕様)。呼び出し側で AnimatePresence によりマウント制御。
  */
 
 const STREET_LABEL = STREET_EN;
-
-/**
- * mergeOpenRaiseOptions(geoApi.ts)は件数(count)を持つ本来のActionOption向けで、
- * ここで扱うGEO解の頻度チップは頻度(frequency)のみの軽量な型(GeoDecisionInfo.options)。
- * 同じ対象バケット(raise2-5/raise5+/allIn)を頻度の単純合算で「Open Raise」1つへ統合する、
- * この型専用の版。
- */
-function mergeOpenRaiseFrequencies(
-  options: { bucket: string; frequency: number }[],
-): { bucket: string; frequency: number; representativeBucket?: string }[] {
-  const sources = options.filter((o) => OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
-  if (sources.length === 0) return options;
-  const rest = options.filter((o) => !OPEN_RAISE_SOURCE_BUCKETS.includes(o.bucket));
-  const frequency = sources.reduce((sum, o) => sum + o.frequency, 0);
-  const representativeBucket = [...sources].sort((a, b) => b.frequency - a.frequency)[0]?.bucket;
-  return [...rest, { bucket: OPEN_RAISE_BUCKET, frequency, ...(representativeBucket ? { representativeBucket } : {}) }];
-}
-
-function bucketLabel(street: string, bucket: string): string {
-  // プリフロップは表示専用のOpen Raise統合バケット("openRaise")のラベルも解決できるよう、
-  // 生バケットのラベル表(PREFLOP_BUCKET_LABELS)ではなく統合込みの表を使う。
-  const table = street === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
-  return (table as Record<string, string>)[bucket] ?? bucket;
-}
-
-/** iOSのグループリスト背景(systemGroupedBackground)。 */
-const SHEET_BG = "#232326";
-/** iOSのヘアライン分割線。 */
-const HAIRLINE = "rgba(255,255,255,0.10)";
 
 /** 無料要約画面の広告枠スロットID。未設定の間はAdSlot自体が非表示になる。 */
 const ADSENSE_REVIEW_SLOT = process.env["NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID"];
@@ -125,102 +88,6 @@ function ScoreRing({ score }: { score: number | null }) {
         </span>
         <span className="mt-1 text-[11px] font-semibold text-fg-2">GTOスコア</span>
       </div>
-    </div>
-  );
-}
-
-/** GEO母集団解(頻度チップ + タップで169レンジ表を展開)。heroの決定でn≥5000のときのみ。 */
-function GeoSolution({ d }: { d: ReviewedDecision }) {
-  const [open, setOpen] = useState(false);
-  if (!d.geo) return null;
-  const geo = d.geo;
-  const isPreflop = d.street === "preflop";
-  const bucketTable = isPreflop ? PREFLOP_DISPLAY_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
-  // プリフロップはRaise 2-5bb/Raise 5bb+/Allinを表示専用の「Open Raise」1つへ統合する
-  // (PositionPillBar/PositionActionRow/HandClassMatrixと表示を揃える。ユーザー指示)。
-  const options: { bucket: string; frequency: number; representativeBucket?: string }[] = isPreflop
-    ? mergeOpenRaiseFrequencies(geo.options)
-    : geo.options;
-  const shown = [...options].filter((o) => o.frequency > 0).sort((a, b) => b.frequency - a.frequency);
-  return (
-    <div className="mt-2.5 rounded-2xl bg-mint-500/[0.08] px-3 py-2.5">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="pressable flex w-full items-center gap-2 text-left"
-        aria-expanded={open}
-      >
-        <span className="inline-flex items-center gap-1 rounded-full bg-mint-500/15 px-2 py-0.5 text-[11px] font-black text-mint-400">
-          <Icon name="graph-up" className="h-3 w-3" />
-          GEO解
-        </span>
-        <span className="text-[11px] font-semibold text-fg-2 tabular-nums">母集団 n={geo.sampleSize.toLocaleString()}</span>
-        <Icon name="chevron-down" className={`ml-auto h-4 w-4 text-fg-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {shown.map((o) => {
-          // 統合後の「openRaise」バケットは単体では色を持たないため、統合前の実バケットのうち
-          // 最多件数だったもの(representativeBucket)へ解決する(HandClassMatrixと同じ規則)。
-          const color = bucketColor(o.representativeBucket ?? o.bucket);
-          return (
-            <div key={o.bucket} className="rounded-full px-2.5 py-1" style={{ background: color, color: bucketTextColor(color) }}>
-              <span className="text-[11px] font-bold">{bucketLabel(d.street, o.bucket)}</span>
-              <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(o.frequency * 100)}%</span>
-            </div>
-          );
-        })}
-      </div>
-      {open && (
-        <div className="mt-2.5">
-          <HandClassMatrix matrix={geo.matrix} bucketLabels={bucketTable} mergeOpenRaise={isPreflop} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 再生の1手を「UTG bet 33%」の形で書く。 */
-function stepNotation(step: Extract<ReplayStep, { type: "action" }>, timeline: ReviewHandTimeline): string {
-  return actionLabel(timeline.actions, step.sequenceNumber, {
-    buttonFixedPos: timeline.buttonFixedPos,
-    bigBlind: timeline.levelBigBlind,
-  });
-}
-
-/**
- * 意思決定パネル。chess.com と同じ並び: 上にバリィの台詞、下に評価と「UTG bet 33%」の表記、
- * その下に GTO推奨の頻度と GEO母集団解。評価が付くのは自分の決定だけ。
- */
-function DecisionPanel({
-  d,
-  notation,
-  info,
-  context,
-}: {
-  d: ReviewedDecision;
-  notation: string;
-  info: string;
-  context?: KnowledgeContext;
-}) {
-  return (
-    <div>
-      <DecisionHeadline decision={d} notation={notation} info={info} context={context} />
-      {d.gtoActions && d.gtoActions.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {d.gtoActions
-            .filter((a) => a.frequency > 0)
-            .map((a) => (
-              <div key={a.bucket} className="rounded-full px-2.5 py-1" style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}>
-                <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
-                <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(a.frequency * 100)}%</span>
-                <span className="ml-1 text-[9px] font-bold tabular-nums opacity-80">
-                  EV{a.evBb >= 0 ? "+" : ""}
-                  {a.evBb.toFixed(1)}
-                </span>
-              </div>
-            ))}
-        </div>
-      )}
-      <GeoSolution d={d} />
     </div>
   );
 }
@@ -383,11 +250,6 @@ export function TournamentReviewModal({
     () => (data && heroUserId ? buildTournamentReplay(data.hands, heroUserId) : null),
     [data, heroUserId]
   );
-  const handById = useMemo(() => {
-    const m = new Map<string, TournamentReviewHand>();
-    for (const h of data?.hands ?? []) m.set(h.handId, h);
-    return m;
-  }, [data]);
 
   // 総括: 分類カウント / 総ロスEV / ワースト・ベスト。
   const summary = useMemo(() => {
@@ -427,24 +289,6 @@ export function TournamentReviewModal({
   }, [data]);
 
   const steps = replay?.steps ?? [];
-  const step: ReplayStep | null = steps[stepIndex] ?? null;
-  const currentHand = step ? handById.get(step.handId) ?? null : null;
-  const heroSeatIndex = currentHand?.timeline.seats.find((s) => s.userId === heroUserId)?.seatIndex ?? null;
-  const heroCards = currentHand?.timeline.seats.find((s) => s.userId === heroUserId)?.holeCards ?? [];
-  // 解説の引き当てに使う文脈。ハンドが切り替わるたびに作り直す。
-  const knowledgeContext = useMemo<KnowledgeContext | null>(
-    () =>
-      currentHand
-        ? {
-            board: currentHand.timeline.board,
-            heroHoleCards: heroCards,
-            actions: currentHand.timeline.actions,
-            buttonFixedPos: currentHand.timeline.buttonFixedPos,
-            seatCount: currentHand.timeline.seats.length,
-          }
-        : null,
-    [currentHand, heroCards]
-  );
 
   const goTo = useCallback(
     (idx: number) => setStepIndex(Math.max(0, Math.min(steps.length - 1, idx))),
@@ -472,160 +316,17 @@ export function TournamentReviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [view, stepIndex, goTo]);
 
-  // ================= 再生ビュー(全画面) =================
-  if (view === "replay" && data && replay && step && currentHand) {
-    const total = steps.length;
-    const seatCount = Math.max(6, currentHand.timeline.seats.length);
+  // ================= 再生ビュー(全画面。chess.com と同じ配置: 解説が上・手の一覧が下) =================
+  if (view === "replay" && data && replay && steps[stepIndex]) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[70] flex flex-col overflow-hidden"
-        style={{ background: SHEET_BG }}
-      >
-        {/* すりガラスのナビゲーションバー */}
-        <header
-          className="glass-header shrink-0 flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5"
-        >
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setView("detail")}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-fg"
-            aria-label="総括へ戻る"
-          >
-            <Icon name="chevron-left" className="h-4 w-4" />
-          </motion.button>
-          <p className="text-[16px] font-bold tracking-tight text-fg">棋譜解析</p>
-          <p className="ml-auto rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-fg-2 tabular-nums">
-            Hand #{step.handNumber} · {stepIndex + 1}/{total}
-          </p>
-        </header>
-
-        {/* テーブル(通し再生) */}
-        <main className="flex-1 min-h-0 flex flex-col justify-center px-2 overflow-hidden">
-          <PokerTable
-            state={step.snapshot}
-            yourSeatIndex={heroSeatIndex}
-            yourCards={heroCards}
-            seatCount={seatCount}
-            revealedHoleCards={revealedFromTimeline(currentHand.timeline)}
-            players={playersFromTimeline(currentHand.timeline)}
-            bigBlind={currentHand.timeline.levelBigBlind}
-            lastActionBySeat={step.type === "action" ? { [step.actorSeat]: step.seatAction } : {}}
-            lastHandDeltaBySeat={null}
-            turnTimer={null}
-          />
-        </main>
-
-        {/* 下部: フローティングの評価カード(ステップごとにフェードライズ) */}
-        <div className="shrink-0 px-4 pt-1">
-          <motion.div
-            key={stepIndex}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={SPRING_MOVE}
-            className="min-h-[76px] glass-panel rounded-[20px] px-4 py-3 flex flex-col justify-center shadow-e2"
-            style={{ border: `0.5px solid ${HAIRLINE}` }}
-          >
-            {step.type === "handStart" ? (
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-[15px] font-bold tracking-tight text-fg">Hand #{step.handNumber}</p>
-                  <p className="text-[11px] font-medium text-fg-2 tabular-nums">
-                    ブラインド {step.smallBlind.toLocaleString()}/{step.bigBlind.toLocaleString()}
-                    {step.ante > 0 ? ` (アンティ ${step.ante.toLocaleString()})` : ""}
-                  </p>
-                </div>
-                {step.heroCards.length === 2 && (
-                  <div className="ml-auto flex gap-1">
-                    {step.heroCards.map((c, i) => (
-                      <div key={i} className="w-9">
-                        <PlayingCard card={c} size="sm" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : step.decision && step.actorIsHero ? (
-              <DecisionPanel
-                d={step.decision}
-                notation={stepNotation(step, currentHand.timeline)}
-                info={decisionInfo(step.decision.street, step.decision.effStackBb, step.decision.potBb)}
-                context={knowledgeContext ?? undefined}
-              />
-            ) : (
-              // 評価の付かない手(相手の手・自分の定型の手)は表記だけ。相手の手札は分からない
-              // 前提なので、相手のアクションには評価を付けない(オーナー確定)。
-              <p className={`text-[14px] font-black tracking-[-0.01em] ${step.actorIsHero ? "text-fg" : "text-fg-3"}`}>
-                {stepNotation(step, currentHand.timeline)}
-              </p>
-            )}
-          </motion.div>
-        </div>
-
-        {/* コントロール: すりガラスのバー(◀︎ ▶︎ + シークバー + 分類ピン) */}
-        <div className="shrink-0 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)]">
-          <div
-            className="glass-panel rounded-[22px] px-3.5 pb-3 pt-1.5"
-            style={{ border: `0.5px solid ${HAIRLINE}` }}
-          >
-            <div className="relative mx-12 h-6">
-              {/* ピン(タップでジャンプ)。仕様: ? / ?? / !! のみ。 */}
-              {total > 1 &&
-                replay.pins.map((pin, i) => (
-                  <button
-                    key={i}
-                    onClick={() => goTo(pin.stepIndex)}
-                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform pressable"
-                    style={{ left: `${(pin.stepIndex / (total - 1)) * 100}%` }}
-                    aria-label={CLASSIFICATION_META[pin.classification as Classification]?.label ?? pin.classification}
-                  >
-                    <svg width={14} height={14} viewBox="0 0 14 14">
-                      <circle
-                        cx="7"
-                        cy="7"
-                        r="5.5"
-                        fill={CLASSIFICATION_META[pin.classification as Classification]?.color ?? "#999"}
-                        stroke="#ffffff"
-                        strokeWidth="1.5"
-                      />
-                    </svg>
-                  </button>
-                ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => goTo(stepIndex - 1)}
-                disabled={stepIndex <= 0}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-fg disabled:opacity-30"
-                aria-label="前のアクション"
-              >
-                <Icon name="chevron-left" className="h-5 w-5" />
-              </motion.button>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0, total - 1)}
-                value={stepIndex}
-                onChange={(e) => goTo(Number(e.target.value))}
-                className="flex-1 accent-accent"
-                aria-label="シークバー"
-              />
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => goTo(stepIndex + 1)}
-                disabled={stepIndex >= total - 1}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-n-4 text-white shadow-e2 disabled:opacity-30"
-                aria-label="次のアクション"
-              >
-                <Icon name="chevron-right" className="h-5 w-5" />
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <ReviewReplayView
+        hands={data.hands}
+        replay={replay}
+        heroUserId={heroUserId}
+        stepIndex={stepIndex}
+        goTo={goTo}
+        onBack={() => setView("detail")}
+      />
     );
   }
 
