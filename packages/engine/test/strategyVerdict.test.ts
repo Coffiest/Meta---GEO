@@ -268,12 +268,12 @@ describe("ディレイCB・バレル", () => {
     expect(judgeBet(d(0.3), ["Ah", "Kd"], board).grade).toBe("inaccuracy");
   });
 
-  it("ターンバレルはポラライズした手で大きめが最善、微妙な手は緩手", () => {
-    const board = ["Ks", "7h", "2d", "Ac", "3s"];
+  it("ノートに無いターン(ストレート完成)のバレルは、一般のポラライズで判定する", () => {
+    const board = ["Ks", "9h", "5d", "7c", "3s"]; // 5-7-9 でストレートが完成しうる
     const b = (f: number) => info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2 });
-    expect(judgeBet(b(0.75), ["Ah", "Kd"], board).grade).toBe("best"); // 2P
-    expect(judgeBet(b(0.75), ["Qh", "Jd"], board).grade).toBe("best"); // エア
-    const mid = judgeBet(b(0.75), ["7c", "6d"], board); // ミドルペア
+    expect(judgeBet(b(0.75), ["Kh", "9d"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // 2P
+    expect(judgeBet(b(0.75), ["Qh", "Jd"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // エア
+    const mid = judgeBet(b(0.75), ["9c", "6d"], board); // ミドルペア
     expect(mid.reason).toBe("barrelMarginal");
     expect(mid.grade).toBe("inaccuracy");
   });
@@ -383,5 +383,75 @@ describe("プローブ(Notion【プローブベット】の簡易戦略)", () =>
     expect(judgeBet(pr(0.33), ["Kh", "Qd"], board, SPR)).toMatchObject({ reason: "probeFlush", grade: "best" });
     expect(judgeBet(pr(0.33), ["Ad", "Jh"], board, SPR).reason).toBe("probeCheckHand");
     expect(judgeBet(pr(0.33), ["7d", "6h"], board, SPR).reason).toBe("probeCheckHand");
+  });
+});
+
+describe("ダブルバレル(Notion【ダブルバレル】)", () => {
+  const b = (f: number) =>
+    info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2 });
+
+  describe("オーバーカード(K83→A): 75%", () => {
+    const board = ["Kh", "8d", "3h", "As", "2c"];
+    it("ATキッカー以上のトップペアは75%で最善", () => {
+      expect(judgeBet(b(0.75), ["Ad", "Td"], board)).toMatchObject({ reason: "dbOvercard", grade: "best" });
+    });
+    it("ガットショットのブラフも75%で最善、33%はずれ(緩手)", () => {
+      expect(judgeBet(b(0.75), ["Qc", "Jc"], board)).toMatchObject({ reason: "dbOvercard", grade: "best" });
+      expect(judgeBet(b(0.33), ["Qc", "Jc"], board).grade).toBe("inaccuracy");
+    });
+    it("トップセット(KK)はチェックに回す手", () => {
+      expect(judgeBet(b(0.75), ["Kc", "Ks"], board)).toMatchObject({ reason: "dbCheckHand", grade: "inaccuracy" });
+    });
+    it("キッカーの弱いトップペアは打たない手", () => {
+      expect(judgeBet(b(0.75), ["Ad", "5c"], board)).toMatchObject({ reason: "dbWeakHand", grade: "inaccuracy" });
+    });
+  });
+
+  describe("ペアカード(K83→8): 75%", () => {
+    const board = ["Kh", "8d", "3h", "8s", "2c"];
+    it("トリップスは75%で最善", () => {
+      expect(judgeBet(b(0.75), ["8c", "7c"], board)).toMatchObject({ reason: "dbPaired", grade: "best" });
+    });
+    it("ナッツのフルハウス(KK)だけチェックに回す", () => {
+      expect(judgeBet(b(0.75), ["Kc", "Ks"], board)).toMatchObject({ reason: "dbCheckHand" });
+    });
+    it("フラッシュドローのブラフは75%で最善", () => {
+      expect(judgeBet(b(0.75), ["Qh", "Jh"], board)).toMatchObject({ reason: "dbPaired", grade: "best" });
+    });
+  });
+
+  describe("フラッシュ完成カード(K83→J♥): 50%", () => {
+    const board = ["Kh", "8d", "3h", "Jh", "2c"];
+    it("弱いフラッシュは50%で最善", () => {
+      expect(judgeBet(b(0.5), ["7h", "6h"], board)).toMatchObject({ reason: "dbFlush", grade: "best" });
+    });
+    it("強いフラッシュはチェックに回す", () => {
+      expect(judgeBet(b(0.5), ["Ah", "5h"], board)).toMatchObject({ reason: "dbCheckHand" });
+    });
+    it("ワンペア以上のフラッシュドローはチェック、ペアなしのフラッシュドローはブラフ", () => {
+      expect(judgeBet(b(0.5), ["Kd", "Th"], board)).toMatchObject({ reason: "dbCheckHand" });
+      expect(judgeBet(b(0.5), ["Th", "9c"], board)).toMatchObject({ reason: "dbFlush", grade: "best" });
+    });
+    it("ピュアブラフはしない", () => {
+      expect(judgeBet(b(0.5), ["6c", "5d"], board)).toMatchObject({ reason: "dbWeakHand" });
+    });
+  });
+
+  describe("ラグ(K83→6): 180%", () => {
+    const board = ["Kh", "8d", "3h", "6s", "2c"];
+    it("KJキッカー以上のトップペアは180%で最善、75%はずれ", () => {
+      expect(judgeBet(b(1.8), ["Kd", "Jc"], board)).toMatchObject({ reason: "dbRag", grade: "best" });
+      expect(judgeBet(b(0.75), ["Kd", "Jc"], board).grade).toBe("inaccuracy");
+    });
+    it("KTキッカーのトップペアは打たない手(KJ以上だけ)", () => {
+      expect(judgeBet(b(1.8), ["Kd", "Tc"], board)).toMatchObject({ reason: "dbWeakHand" });
+    });
+    it("トップセット以外のセットはバリュー、トップセットはチェック", () => {
+      expect(judgeBet(b(1.8), ["8c", "8s"], board)).toMatchObject({ reason: "dbRag", grade: "best" });
+      expect(judgeBet(b(1.8), ["Kc", "Ks"], board)).toMatchObject({ reason: "dbCheckHand" });
+    });
+    it("キッカーの弱いAハイはブラフ", () => {
+      expect(judgeBet(b(1.8), ["Ac", "4d"], board)).toMatchObject({ reason: "dbRag", grade: "best" });
+    });
   });
 });

@@ -18,7 +18,7 @@
  */
 
 import { BET_SIZE_BANDS, type BetRoleInfo, type BetSizeClass, type BetStreet } from "./betRole.js";
-import { readBoardTexture, type BoardTexture } from "./boardTexture.js";
+import { parseBoardCard, readBoardTexture, type BoardTexture } from "./boardTexture.js";
 import { readHandStrength, type HandStrength, type MadeCategory } from "./handStrength.js";
 import type { PotType } from "./potShape.js";
 
@@ -50,7 +50,8 @@ export type StrategyTag =
   | "barrel"
   | "checkRaise"
   | "riverBlock"
-  | "probe";
+  | "probe"
+  | "doubleBarrel";
 
 /** 評価の理由。解説の引き当てキー。 */
 export type StrategyReason =
@@ -96,7 +97,14 @@ export type StrategyReason =
   | "probeAce"
   | "probeFlush"
   | "probeRepeat"
-  | "probeCheckHand";
+  | "probeCheckHand"
+  // ダブルバレル(ターンに落ちたカードの種類ごと。Notion【ダブルバレル】)
+  | "dbOvercard"
+  | "dbPaired"
+  | "dbFlush"
+  | "dbRag"
+  | "dbCheckHand"
+  | "dbWeakHand";
 
 /** 直前のストリートから、盤面のどこが変わったか。ドンクの理由の主役。 */
 export type BoardChange = "flushCompleted" | "paired" | "straightMove" | "overcard" | "blank";
@@ -186,6 +194,8 @@ interface Ctx {
   board: readonly string[];
   /** 手札にAがあるか(プローブの「Aハイ」の判定)。 */
   holeHasAce: boolean;
+  /** 手札(読めたものだけ)。キッカーやポケットペアの判定に使う。 */
+  hole: { rank: number; suit: string }[];
   hand: HandStrength | null;
   /** ターン時点の手(フラドロが外れたかの判定用)。 */
   turnHand: HandStrength | null;
@@ -347,6 +357,93 @@ const delayedCbet: Rule = (c) => {
 };
 
 /**
+ * ダブルバレル(フロップでCBを打ち、ターンでも打つ)。Notion【ダブルバレル】の表どおり。
+ * ターンに落ちたカードで4通りに分け、それぞれ打つ手(バリュー / ブラフ)・チェックに回す手・サイズが決まっている。
+ *
+ *  - オーバーカード(例 K83→A): 75%。バリュー=セット・ツーペア・ATキッカー以上のトップペア、
+ *    ブラフ=ガットショット・フラッシュドロー・Q/Jハイ。トップセットはチェックに回してチェックレンジを強化
+ *  - ペアカード(例 K83→8): 75%。バリュー=フルハウス・トリップス・KTキッカー以上のトップペア、
+ *    ブラフ=フラッシュドロー・キッカーの弱いA〜Tハイ。ナッツのフルハウスだけチェック
+ *  - フラッシュ完成カード(例 K83→J♥): 50%。バリュー=弱いフラッシュ・セット・ツーペア・KTキッカー以上のトップペア、
+ *    チェック=強いフラッシュ・ワンペア以上のフラッシュドロー・トップセット、
+ *    ブラフ=ストレートドロー・ペアなしのフラッシュドロー(ピュアブラフはしない)
+ *  - ラグ(例 K83→6): 180%。バリュー=トップセット以外のセット・ツーペア・KJキッカー以上のトップペア、
+ *    ブラフ=ストレートドロー・ペアなしのフラッシュドロー・キッカーの弱いA/Q/Jハイ
+ *
+ * ストレート完成カードはノートに無いので、この表では評価せず、下の一般的なバレルの判定に回す。
+ * 頻度(どれも50%)は1ハンドでは判定できないので、解説で伝える。
+ */
+const doubleBarrel: Rule = (c) => {
+  if (c.info.role !== "turnBarrel" || c.info.street !== "turn" || !c.hand || !c.size) return null;
+  const turn = readProbeTurn(c.board);
+  const flop = readBoardTexture(c.board.slice(0, 3));
+  const turnTex = readBoardTexture(c.board.slice(0, 4));
+  if (!turn || !flop || !turnTex || turn === "straight") return null;
+
+  const h = c.hand;
+  const d = h.draws;
+  const ranks = c.hole.map((x) => x.rank);
+  const pocketPair = ranks.length === 2 && ranks[0] === ranks[1];
+  const set = h.made === "trips" && pocketPair;
+  const topSet = set && ranks[0] === flop.highRank;
+  const tripsNotSet = h.made === "trips" && !pocketPair;
+  const fullHousePlus = h.made === "fullHouse" || h.made === "quads" || h.made === "straightFlush";
+  const madeStrong = h.made === "straight" || h.made === "flush" || fullHousePlus;
+  // トップペア(ターンのボードの最高ランクに手札が当たっている)と、そのキッカー。
+  const topRank = turnTex.highRank;
+  const topHit = !pocketPair && ranks.includes(topRank);
+  const kicker = topHit ? Math.max(...ranks.filter((r) => r !== topRank), 0) : 0;
+  const fd = d.flushDraw || d.nutFlushDraw;
+  const sd = d.openEnded || d.gutshot;
+  const noPair = h.made === "highCard";
+  const highCard = noPair ? Math.max(...ranks, 0) : 0;
+  const pairOrBetter = !noPair;
+
+  let reason: StrategyReason;
+  let value = false;
+  let bluff = false;
+  let check = false;
+  let size: BetSizeClass;
+
+  if (turn === "ace" || turn === "overcard") {
+    reason = "dbOvercard";
+    size = "medium";
+    check = topSet;
+    value = (set && !topSet) || tripsNotSet || h.made === "twoPair" || madeStrong || (topHit && kicker >= 10);
+    bluff = d.gutshot || d.openEnded || fd || (noPair && (highCard === 12 || highCard === 11));
+  } else if (turn === "repeat") {
+    reason = "dbPaired";
+    size = "medium";
+    // ナッツのフルハウス(フロップの最高ランクのポケットペア)だけチェック。
+    check = fullHousePlus && pocketPair && ranks[0] === flop.highRank;
+    value = fullHousePlus || h.made === "trips" || (topHit && kicker >= 10);
+    bluff = fd || (noPair && highCard >= 10);
+  } else if (turn === "flush") {
+    reason = "dbFlush";
+    size = "small";
+    const flushSuit = ["s", "h", "d", "c"].find(
+      (su) => c.board.slice(0, 4).filter((b) => b.endsWith(su)).length >= 3
+    );
+    const mySuited = c.hole.filter((x) => x.suit === flushSuit).map((x) => x.rank);
+    const strongFlush = h.made === "flush" && Math.max(...mySuited, 0) >= 12;
+    check = strongFlush || (fd && pairOrBetter) || topSet;
+    value =
+      (h.made === "flush" && !strongFlush) || (set && !topSet) || h.made === "twoPair" || (topHit && kicker >= 10);
+    bluff = sd || (fd && noPair);
+  } else {
+    reason = "dbRag";
+    size = "overbet";
+    check = topSet;
+    value = (set && !topSet) || tripsNotSet || h.made === "twoPair" || madeStrong || (topHit && kicker >= 11);
+    bluff = sd || (fd && noPair) || (noPair && (highCard === 14 || highCard === 12 || highCard === 11));
+  }
+
+  if (check) return { tag: "doubleBarrel", reason: "dbCheckHand", grade: "inaccuracy" };
+  if (!value && !bluff) return { tag: "doubleBarrel", reason: "dbWeakHand", grade: "inaccuracy" };
+  return { tag: "doubleBarrel", reason, grade: gradeBySizeGap(c.size, [size]) };
+};
+
+/**
  * ターン/リバーバレル: ポラライズ(強い手とエア/ドローで打ち、微妙な手はチェック)して大きめに。
  * トリプルバレルもダブルバレルと同じ戦略。
  */
@@ -480,7 +577,7 @@ const probe: Rule = (c) => {
 };
 
 /** 上から順に見て、最初に当たったものを採る。 */
-const RULES: readonly Rule[] = [flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, barrel];
+const RULES: readonly Rule[] = [flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, doubleBarrel, barrel];
 
 /**
  * 1つのベット/レイズを評価する。
@@ -503,6 +600,9 @@ export function judgeBet(
     info,
     board,
     holeHasAce: hole.some((h) => typeof h === "string" && h.startsWith("A")),
+    hole: hole
+      .map((h) => (typeof h === "string" ? parseBoardCard(h) : null))
+      .filter((x): x is { rank: number; suit: string } => x !== null),
     hand: readHandStrength(hole, boardAt(street, board)),
     turnHand: street === "river" ? readHandStrength(hole, boardAt("turn", board)) : null,
     tex: readBoardTexture(boardAt(street, board)),
