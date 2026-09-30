@@ -155,7 +155,7 @@ function DecisionPanel({
 
 /**
  * 手の一覧(chess.com の手順リストに当たる)。今のハンドの手を横一列に並べる。
- * 自分の手は評価バッジ付き、相手の手は薄い色。ストリートが変わるところに小さな区切り。
+ * 自分の手は評価バッジ付きで、文字もバッジと同じ色。相手の手は薄い色。ストリートが変わるところに小さな区切り。
  * 今の手は強調し、手が進むと自動で横スクロールして中央に寄せる。タップでその手へ。
  */
 function ReplayMoveStrip({
@@ -221,6 +221,8 @@ function ReplayMoveStrip({
               ref={(el) => void (el ? refs.current.set(idx, el) : refs.current.delete(idx))}
               onClick={() => goTo(idx)}
               className={`${base} ${s.actorIsHero ? "text-fg" : "text-fg-3"}`}
+              // 評価の付いた自分の手は、バッジと同じ色の文字にする(chess.com の手順リストと同じ)。
+              style={c ? { color: CLASSIFICATION_META[c as Classification]?.color } : undefined}
               aria-current={current ? "step" : undefined}
             >
               {c && <ClassificationBadge classification={c as Classification} size={16} />}
