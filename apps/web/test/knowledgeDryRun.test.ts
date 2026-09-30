@@ -307,3 +307,38 @@ describe("戦略判定・役割の解説", () => {
     for (const id of ids) expect(strategyBound).not.toContain(id);
   });
 });
+
+/**
+ * プリフロップのミスは、降りすぎか参加しすぎかをバリィが言い分ける。
+ * 自分の手と GTO の最頻手を比べて向きを決める。
+ */
+describe("プリフロップのミスの向き", () => {
+  const pre = ctx([], ["7h", "2c"], SRP);
+  const pf = (bucket: string, kind: string, gto: { bucket: string; frequency: number; evBb: number }[], classification: ReviewedDecision["classification"]) =>
+    d({ street: "preflop", actionTaken: { kind, bucket, toAmount: null }, gtoActions: gto, classification });
+
+  it("フォールドしたが GTO は参加 → 降りすぎ", () => {
+    const x = pf("fold", "fold", [{ bucket: "raise2-5", frequency: 0.9, evBb: 1 }, { bucket: "fold", frequency: 0.1, evBb: 0 }], "blunder");
+    expect(idsFor(x, pre, 50)[0]).toBe("preflop-overfold");
+  });
+
+  it("参加したが GTO はフォールド → 参加しすぎ", () => {
+    const x = pf("call", "call", [{ bucket: "fold", frequency: 1, evBb: 0 }, { bucket: "call", frequency: 0, evBb: -1 }], "mistake");
+    expect(idsFor(x, pre, 50)[0]).toBe("preflop-overplay");
+  });
+
+  it("コールしたが GTO はレイズ → 消極的", () => {
+    const x = pf("call", "call", [{ bucket: "raise2-5", frequency: 0.8, evBb: 1 }, { bucket: "call", frequency: 0.2, evBb: 0.2 }], "mistake");
+    expect(idsFor(x, pre, 50)[0]).toBe("preflop-too-passive");
+  });
+
+  it("レイズしたが GTO はコール → レイズしすぎ", () => {
+    const x = pf("raise2-5", "raise", [{ bucket: "call", frequency: 0.8, evBb: 1 }, { bucket: "raise2-5", frequency: 0.2, evBb: 0.5 }], "mistake");
+    expect(idsFor(x, pre, 50)[0]).toBe("preflop-too-aggressive");
+  });
+
+  it("正しい手(常識)には出さない", () => {
+    const x = pf("fold", "fold", [{ bucket: "raise2-5", frequency: 0.9, evBb: 1 }, { bucket: "fold", frequency: 0.1, evBb: 0 }], "book");
+    expect(idsFor(x, pre, 50)).not.toContain("preflop-overfold");
+  });
+});

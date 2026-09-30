@@ -1025,6 +1025,76 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     when: { street: ["flop"], heroPos: ["BB"], blindVsBlind: true, actionBucket: ["checkOrCall"] },
   },
 
+  // ═════════════════════════ プリフロップのミス(降りすぎ / 参加しすぎ) ═════════════════════════
+  // 自分の手と、GTO が最も高い頻度で取る手を比べて、ミスの向きを言い分ける。
+  // 悪手・大悪手のときだけ出す(正しい手には出さない)。条件が多いので他のプリフロップの話より先に来る。
+  {
+    id: "preflop-overfold",
+    title: "プリフロップの降りすぎ(オーバーフォールド)",
+    summary:
+      "ここはフォールドしすぎだよ。このハンドとポジションなら、GTOは参加する場面なんだ。もっと積極的に参加してみよう。",
+    body:
+      "自分はフォールドしたが、GTOはこの場面でコールかレイズを最も多く選ぶ。\n" +
+      "降りすぎると、ブラインドやアンティを取られるだけになり、相手のスチールも通しやすくなる。\n\n" +
+      "下のGTO推奨の頻度で、どのアクションで参加すればよかったかを確認しよう。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["fold"],
+      gtoTopBucket: ["call", "raise2-5", "raise5+", "allIn"],
+    },
+  },
+  {
+    id: "preflop-overplay",
+    title: "プリフロップの参加しすぎ(ルース)",
+    summary:
+      "ここは参加しすぎだよ。このハンドは、GTOならフォールドする場面なんだ。無理に参加せず、降りる判断も大事にしようね。",
+    body:
+      "自分は参加したが、GTOはこの場面でフォールドを最も多く選ぶ。\n" +
+      "弱いハンドで参加しすぎると、ポストフロップで難しい判断が増え、チップを失いやすくなる。\n\n" +
+      "下のGTO推奨の頻度で、このハンドがどれくらいフォールドされているかを確認しよう。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["call", "raise2-5", "raise5+", "allIn"],
+      gtoTopBucket: ["fold"],
+    },
+  },
+  {
+    id: "preflop-too-passive",
+    title: "プリフロップの消極的な参加",
+    summary:
+      "参加するのはいいけど、ここはコールよりレイズがいい場面だよ。このハンドなら主導権を取りにいこう。",
+    body:
+      "自分はコールで参加したが、GTOはこの場面でレイズ(オールインを含む)を最も多く選ぶ。\n" +
+      "レイズで参加すると、相手を降ろせるうえに、ポストフロップで主導権を持てる。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["call"],
+      gtoTopBucket: ["raise2-5", "raise5+", "allIn"],
+    },
+  },
+  {
+    id: "preflop-too-aggressive",
+    title: "プリフロップのレイズしすぎ",
+    summary:
+      "参加するのはいいけど、ここはレイズよりコールで十分な場面だよ。レイズしすぎると、強い手にだけ続けられちゃうんだ。",
+    body:
+      "自分はレイズ(オールインを含む)で参加したが、GTOはこの場面でコールを最も多く選ぶ。\n" +
+      "レイズすると、降りてくれる弱い手が少なく、続けてくるのは強い手ばかりになりやすい。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["raise2-5", "raise5+", "allIn"],
+      gtoTopBucket: ["call"],
+    },
+  },
+
   // ═════════════════════════ スクイーズ ═════════════════════════
   {
     id: "squeeze",
