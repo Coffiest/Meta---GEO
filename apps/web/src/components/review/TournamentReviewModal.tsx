@@ -14,7 +14,6 @@ import {
   type TournamentReviewSummary,
 } from "@/lib/reviewApi";
 import { useSubscriptionStatus } from "@/lib/subscription";
-import { isIOSNativeApp } from "@/lib/nativeApp";
 import { ReviewPaywall } from "@/components/review/ReviewPaywall";
 import {
   CLASSIFICATION_META,
@@ -283,8 +282,6 @@ export function TournamentReviewModal({
   // 行い、iOSアプリではサブスク加入者でも無料枠バイパスを適用しない(Apple審査ガイドライン
   // 3.1.1対応)。表示側もこれに合わせて「使い放題」バッジを出さないようにする(実際は
   // 使い放題ではないのに出すと矛盾するため)。
-  const [iosApp, setIosApp] = useState(false);
-  useEffect(() => setIosApp(isIOSNativeApp()), []);
 
   // 無料要約の取得(常時・課金ゲート無し)。
   useEffect(() => {
@@ -797,7 +794,7 @@ export function TournamentReviewModal({
             <h2 className="text-[28px] font-bold leading-tight tracking-tight text-fg">局後検討</h2>
             <div className="mt-1 flex items-center gap-1.5">
               <p className="text-[13px] font-medium text-fg-2">総括レポート</p>
-              {subStatus?.active && !iosApp ? (
+              {subStatus?.active ? (
                 <span className="rounded-full bg-accent px-2 py-[2px] text-[10px] font-bold text-on-accent">
                   {subStatus.status === "referral" ? "招待特典で使い放題" : "使い放題"}
                 </span>
