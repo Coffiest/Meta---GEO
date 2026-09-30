@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
+import { barrelComment } from "@/lib/barrelComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { Loader } from "@/components/ui/Loader";
 import { CLASSIFICATION_META, outOfScopeLabel, type Classification } from "@/lib/classification";
@@ -75,7 +76,16 @@ export function DecisionHeadline({
     [decision.street, context]
   );
   const c = decision.classification;
-  const note = c && context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined;
+  // ダブル/トリプルバレルの表で評価した手(チェックを含む)は、場合分けから台詞を組み立てる。
+  const barrel = decision.strategy?.barrel;
+  const note = c
+    ? barrel
+      ? barrelComment(barrel, context?.board)
+      : context
+        ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0]
+        : undefined
+    : undefined;
+  const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
   // GTOのEV損は、バッジの根拠(プリフロップ=GTO / ポストフロップ=Notion)に関わらず出す。
   // 「GTO」と明記して、バッジと数字の根拠の違いが読めるようにする。
@@ -126,7 +136,13 @@ export function DecisionHeadline({
 
       {/* その下: バリィの解説 */}
       <div className="mt-2.5">
-        <KnowledgeBody summary={line} title={note?.title} body={note?.body} sourceUrl={note?.sourceUrl} />
+        <KnowledgeBody
+          summary={line}
+          points={points}
+          title={note?.title}
+          body={note?.body}
+          sourceUrl={note && "sourceUrl" in note ? note.sourceUrl : undefined}
+        />
       </div>
       {info && <p className="mt-2 text-[11px] font-semibold tabular-nums text-fg-3">{info}</p>}
     </div>
@@ -172,11 +188,14 @@ function ArtisticPop({ color, children }: { color: string; children: React.React
  */
 function KnowledgeBody({
   summary,
+  points,
   title,
   body,
   sourceUrl,
 }: {
   summary: string;
+  /** 台詞の下に常時出す要点(ダブル/トリプルバレルのノートの打ち方)。 */
+  points?: { label: string; text: string }[] | undefined;
   title?: string | undefined;
   body?: string | undefined;
   sourceUrl?: string | undefined;
@@ -209,6 +228,16 @@ function KnowledgeBody({
             <span className="min-w-0 flex-1">
               {speaker && <span className="mb-0.5 block text-[10px] font-black text-accent">{speaker.name}</span>}
               <span className="block text-[12px] font-semibold leading-[1.6] text-fg">{summary}</span>
+              {points && points.length > 0 && (
+                <span className="mt-1.5 block space-y-0.5 border-t border-line pt-1.5">
+                  {points.map((p) => (
+                    <span key={p.label} className="flex gap-1.5 text-[11px] leading-[1.6]">
+                      <span className="w-[4.2em] shrink-0 font-black text-fg-3">{p.label}</span>
+                      <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
             {expandable && (
               <Icon

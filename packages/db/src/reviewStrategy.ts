@@ -1,7 +1,10 @@
 import {
+  judgeBarrelCheck,
   judgeBet,
+  readBarrelCheckSpots,
   readBetRoles,
   readPotShape,
+  type BarrelVerdict,
   type BetRole,
   type BoardChange,
   type NotionGrade,
@@ -31,25 +34,38 @@ import type { ReviewedDecision } from "./review.js";
  */
 
 export interface DecisionStrategy {
-  role: BetRole;
+  /** ベットの役割。チェックの評価(ダブル/トリプルバレルを打たなかった)では null。 */
+  role: BetRole | null;
   tag: StrategyTag | null;
   reason: StrategyReason | null;
   /** Notion に基づく評価。null ならどのルールにも当たらず、GTO の格付けのまま。 */
   grade: NotionGrade | null;
   boardChange: BoardChange | null;
+  /** ダブル/トリプルバレルの表で評価したときの場合分け(バリィの解説の材料)。それ以外は null。 */
+  barrel: BarrelVerdict | null;
 }
 
-/** 各決定に、ベットの役割と戦略判定を載せる。ベット/レイズ以外の決定は null のまま。 */
+/**
+ * 各決定に、ベットの役割と戦略判定を載せる。
+ * ベット/レイズに加えて、ダブル/トリプルバレルを打てた場面の**チェック**も表で評価する
+ * (「打たなかった」も選択なので、打つべき手なら咎め、打たない手なら褒める)。それ以外の決定は null。
+ */
 export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[]): void {
   const roles = readBetRoles(hand.actions, { buttonFixedPos: hand.buttonFixedPos, seatCount: SEAT_COUNT });
   const bySeq = new Map(roles.map((r) => [r.sequenceNumber, r]));
   const holeBySeat = new Map(hand.seats.map((s) => [s.seatIndex, s.holeCards]));
   const potType = readPotShape(hand.actions, { buttonFixedPos: hand.buttonFixedPos, seatCount: SEAT_COUNT }).type;
 
+  const checkSpots = new Map(readBarrelCheckSpots(hand.actions).map((s) => [s.sequenceNumber, s]));
+
   for (const d of decisions) {
     const info = bySeq.get(d.sequenceNumber);
     if (!info) {
-      d.strategy = null;
+      const spot = d.actionTaken.kind === "check" ? checkSpots.get(d.sequenceNumber) : undefined;
+      const v = spot ? judgeBarrelCheck(spot, holeBySeat.get(d.seatIndex) ?? [], hand.board) : null;
+      d.strategy = v
+        ? { role: null, tag: v.tag, reason: v.reason, grade: v.grade, boardChange: v.boardChange, barrel: v.barrel }
+        : null;
       continue;
     }
     const v = judgeBet(info, holeBySeat.get(d.seatIndex) ?? [], hand.board, {
@@ -57,7 +73,14 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
       spr: d.potBb > 0 ? d.effStackBb / d.potBb : null,
       isAllIn: d.actionTaken.bucket === "allIn",
     });
-    d.strategy = { role: info.role, tag: v.tag, reason: v.reason, grade: v.grade, boardChange: v.boardChange };
+    d.strategy = {
+      role: info.role,
+      tag: v.tag,
+      reason: v.reason,
+      grade: v.grade,
+      boardChange: v.boardChange,
+      barrel: v.barrel,
+    };
   }
 }
 

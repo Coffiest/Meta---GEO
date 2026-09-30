@@ -1,5 +1,6 @@
 import type { KnowledgeEntry } from "@/lib/reviewKnowledge";
 import { ANY_BET, BET_BUCKETS, BIG_BET, HUGE_BET } from "@/lib/reviewKnowledge";
+import { DOUBLE_BARREL_BODY } from "./barrelTable";
 
 /**
  * 棋譜解析に添える、ポーカー知識の解説。
@@ -48,28 +49,6 @@ const PROBE_BODY =
   "【不利ボード】\n" +
   "・ストレート完成・ラグ・Aが落ちた時・フラッシュ完成カード: 打つ手とサイズは同じで、頻度は20%\n" +
   "・ターンリピート: レンジでチェック";
-
-/**
- * Notion【ダブルバレル】。フロップでCBを打ち、ターンでも打つときの、ターンのカードごとの打ち方。
- * ダブルバレルの解説の詳細で共通して出す。
- */
-const DOUBLE_BARREL_BODY =
-  "ダブルバレル = フロップでCBを打ったプレイヤーが、ターンでもベットすること。\n" +
-  "例はフロップ K♥8♦3♥。どのターンも頻度は50%くらい。\n\n" +
-  "【オーバーカードが落ちた時(例 A♠)】75%。ポラライズ戦略。強いワンペア以上とドローで打つ\n" +
-  "・バリュー: セット、ツーペア、AT以上のトップペア。トップセット(KK)はチェックに回してチェックレンジを強化\n" +
-  "・ブラフ: 全てのガットショットと一部のフラッシュドロー(半分くらいはチェックレンジに残す)、Qハイ・Jハイ\n\n" +
-  "【ペアカードが落ちた時(例 8♠)】75%。トリップス以上とドローでポラライズ\n" +
-  "・バリュー: フルハウス、トリップス、KT以上のトップペア。ナッツのフルハウス(KK)だけチェック\n" +
-  "・ブラフ: 全てのフラッシュドロー、キッカーの弱いA〜Tハイ\n\n" +
-  "【フラッシュ完成カードが落ちた時(例 J♥)】50%\n" +
-  "・バリュー: 弱いフラッシュ、一部のセット、全てのツーペア、KT以上のトップペア\n" +
-  "・チェック: 強いフラッシュ、ワンペア以上のフラッシュドロー、トップセット(KK)\n" +
-  "・ブラフ: 全てのストレートドロー、ペアなしのフラッシュドロー。ピュアブラフはしない\n\n" +
-  "【ラグが落ちた時(例 6♠)】180%\n" +
-  "・バリュー: トップセット以外のセット、ツーペア、KJ以上のトップペア\n" +
-  "・ブラフ: 全てのストレートドロー、ペアなしのフラッシュドロー、キッカーの弱いA・Q・Jハイ\n\n" +
-  "トリプルバレル(リバーバレル)と、チェックレイズされたあとの戦略も、ダブルバレルと同じ考え方。";
 
 export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   // ═════════════════════════ 戦略判定(バッジを上書きした手の理由) ═════════════════════════
@@ -559,82 +538,64 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     when: { strategyReason: ["probeFlush"] },
   },
 
-  // ───────── ダブルバレル(Notion【ダブルバレル】) ─────────
+  // ───────── ダブル/トリプルバレル(Notion【ダブルバレル】) ─────────
+  // 実際の台詞は、評価の場合分け(`strategy.barrel`)から `lib/barrelComment.ts` が組み立てる
+  // (打った/チェックした × 手 × サイズのずれ)。ここは場合分けが無いときの予備。
   {
-    id: "verdict-db-check-hand",
-    title: "ダブルバレルでチェックに回す手",
-    summary:
-      "この手はターンでチェックに回して、チェックレンジを守る手なんだ。強い手を全部打つと、チェックしたときに狙われやすくなるよ。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbCheckHand"] },
-  },
-  {
-    id: "verdict-db-weak-hand",
-    title: "ダブルバレルしない手",
-    summary:
-      "ダブルバレルは強い手とドローで打つポラライズ戦略なんだ。この手は打たずにチェックしようね。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbWeakHand"] },
-  },
-  {
-    id: "verdict-db-overcard-ok",
-    title: "オーバーカードのダブルバレル",
-    summary:
-      "オーバーカードが落ちたターンで75%のダブルバレル、ばっちりだね！ここは半分くらいの頻度で打つポラライズの場面だよ。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbOvercard"], classification: ["best"] },
-  },
-  {
-    id: "verdict-db-overcard-off",
-    title: "オーバーカードのダブルバレルのサイズ",
-    summary: "オーバーカードが落ちたターンのダブルバレルは、75%くらいのサイズがおすすめだよ。",
+    id: "verdict-db-overcard",
+    title: "オーバーカードが落ちたターンのダブルバレル",
+    summary: "オーバーカードが落ちたターンのダブルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
     body: DOUBLE_BARREL_BODY,
     when: { strategyReason: ["dbOvercard"] },
   },
   {
-    id: "verdict-db-paired-ok",
-    title: "ペアカードのダブルバレル",
-    summary:
-      "ボードがペアになったターンで75%のダブルバレル、いいね！トリップス以上とドローで、ポラライズして打つ場面だよ。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbPaired"], classification: ["best"] },
-  },
-  {
-    id: "verdict-db-paired-off",
-    title: "ペアカードのダブルバレルのサイズ",
-    summary: "ボードがペアになったターンのダブルバレルは、75%くらいのサイズがおすすめだよ。",
+    id: "verdict-db-paired",
+    title: "ペアカードが落ちたターンのダブルバレル",
+    summary: "ペアカードが落ちたターンのダブルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
     body: DOUBLE_BARREL_BODY,
     when: { strategyReason: ["dbPaired"] },
   },
   {
-    id: "verdict-db-flush-ok",
-    title: "フラッシュ完成カードのダブルバレル",
-    summary:
-      "フラッシュが完成しうるターンで50%のダブルバレル、ばっちりだね！ここはピュアブラフをせずに打つ場面だよ。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbFlush"], classification: ["best"] },
-  },
-  {
-    id: "verdict-db-flush-off",
-    title: "フラッシュ完成カードのダブルバレルのサイズ",
-    summary: "フラッシュが完成しうるターンのダブルバレルは、50%くらいのサイズがおすすめだよ。",
+    id: "verdict-db-flush",
+    title: "フラッシュ完成カードが落ちたターンのダブルバレル",
+    summary: "フラッシュ完成カードが落ちたターンのダブルバレルは、頻度50%・50%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
     body: DOUBLE_BARREL_BODY,
     when: { strategyReason: ["dbFlush"] },
   },
   {
-    id: "verdict-db-rag-ok",
-    title: "ラグのターンのダブルバレル",
-    summary:
-      "ラグのターンで大きなオーバーベット、ばっちりだね！ここは180%くらいで、強い手とドローで打つ場面だよ。",
-    body: DOUBLE_BARREL_BODY,
-    when: { strategyReason: ["dbRag"], classification: ["best"] },
-  },
-  {
-    id: "verdict-db-rag-off",
-    title: "ラグのターンのダブルバレルのサイズ",
-    summary: "ラグのターンのダブルバレルは、180%くらいの大きなオーバーベットがおすすめだよ。",
+    id: "verdict-db-rag",
+    title: "ラグが落ちたターンのダブルバレル",
+    summary: "ラグが落ちたターンのダブルバレルは、頻度50%・180%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
     body: DOUBLE_BARREL_BODY,
     when: { strategyReason: ["dbRag"] },
+  },
+  {
+    id: "verdict-tb-overcard",
+    title: "オーバーカードが落ちたリバーのトリプルバレル",
+    summary: "オーバーカードが落ちたリバーのトリプルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbOvercard"] },
+  },
+  {
+    id: "verdict-tb-paired",
+    title: "ペアカードが落ちたリバーのトリプルバレル",
+    summary: "ペアカードが落ちたリバーのトリプルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbPaired"] },
+  },
+  {
+    id: "verdict-tb-flush",
+    title: "フラッシュ完成カードが落ちたリバーのトリプルバレル",
+    summary: "フラッシュ完成カードが落ちたリバーのトリプルバレルは、頻度50%・50%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbFlush"] },
+  },
+  {
+    id: "verdict-tb-rag",
+    title: "ラグが落ちたリバーのトリプルバレル",
+    summary: "ラグが落ちたリバーのトリプルバレルは、頻度50%・180%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbRag"] },
   },
 
   // ═════════════════════════ ベットの役割(定義そのものを説明する) ═════════════════════════
@@ -675,10 +636,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     title: "リバーバレル(トリプルバレル)とは",
     summary:
       "リバーバレルだね。ダブルバレルと同じ考え方で大丈夫だよ。強い手とブラフで打って、微妙な手はチェックしよう。",
-    body:
-      "リバーバレル = ターンでベットしたプレイヤーが、リバーでもベットすること。\n" +
-      "フロップから続けて打っていればトリプルバレル。\n\n" +
-      "トリプルバレルの戦略は、ダブルバレルと全く一緒。チェックレイズされたあとの戦略も同じ。",
+    body: DOUBLE_BARREL_BODY,
     priority: 0.5,
     when: { role: ["riverBarrel"] },
   },

@@ -197,8 +197,10 @@ describe("戦略判定・役割の解説", () => {
     dbPaired: true,
     dbFlush: true,
     dbRag: true,
-    dbCheckHand: true,
-    dbWeakHand: true,
+    tbOvercard: true,
+    tbPaired: true,
+    tbFlush: true,
+    tbRag: true,
   } satisfies Record<StrategyReason, true>;
 
   const ALL_ROLES = {
@@ -226,6 +228,7 @@ describe("戦略判定・役割の解説", () => {
     riverBlock: true,
     probe: true,
     doubleBarrel: true,
+    tripleBarrel: true,
   } satisfies Record<StrategyTag, true>;
 
   const river = ctx(["As", "7h", "2d", "Kc", "3s"], ["2h", "9c"], SRP);
@@ -250,7 +253,7 @@ describe("戦略判定・役割の解説", () => {
 
   it("タグの一覧が型と一致している(増えたときの取りこぼし防止)", () => {
     // 型に足したら satisfies が型エラーで知らせる。ここは数の固定。
-    expect(Object.keys(ALL_TAGS)).toHaveLength(13);
+    expect(Object.keys(ALL_TAGS)).toHaveLength(14);
   });
 
   it("理由ごとの解説は、評価(最善/ずれ)で言い分けたものが正しく引ける", () => {
