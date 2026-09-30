@@ -107,7 +107,7 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     expect(d.evLossBb!).toBeLessThan(0.8);
   });
 
-  it("HUポストフロップ: トップセットで相手のフロップ・オールインをコール → 正着", () => {
+  it("HUポストフロップ: 相手のオールインへのコールは、相手の手札を使わず対象外になる", () => {
     seq = 0;
     const hand: ExtractHand = {
       buttonFixedPos: 0,
@@ -129,9 +129,13 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     };
     const r = analyzeExtractedHand(hand, "u2")!;
     const flopCall = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "call")!;
-    expect(flopCall.gtoActions).toBeTruthy();
-    expect(flopCall.evLossBb).toBe(0);
-    expect(["best", "great", "artistic"]).toContain(flopCall.classification);
+    // 棋譜解析では相手の手札は分からない前提(オーナー確定)。相手の実際の手札で格付けしない。
+    expect(flopCall.gtoActions).toBeNull();
+    expect(flopCall.classification).toBeNull();
+    expect(flopCall.outOfScopeReason).toBe("vs-allin");
+    // 相手の手札を差し替えても、結果は1文字も変わらない(相手の手札を読んでいない証拠)。
+    const swapped = analyzeExtractedHand({ ...hand, seats: seats(20, 2, ["As", "Ah"], 0, ["2s", "2h"]) }, "u2")!;
+    expect(swapped.decisions).toEqual(r.decisions);
     // チェック(通常ノード)はソルバー未接続なので分類なし(解析待ち)。
     const flopCheck = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "check")!;
     expect(flopCheck.classification).toBeNull();

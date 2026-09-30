@@ -87,6 +87,8 @@ export function outOfScopeLabel(reason: string | null, analyzable: boolean): str
       return "GTOレンジ外のプリフロップ";
     case "solver-failed":
       return "ソルバー解析に失敗";
+    case "vs-allin":
+      return "相手のオールインへの対応は、相手の手札が分からないため評価しない";
     default:
       return "未対応スポット";
   }

@@ -1124,6 +1124,7 @@ export function Lobby({
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
   const [reviewTournamentId, setReviewTournamentId] = useState<string | null>(null);
+  const [reviewHandId, setReviewHandId] = useState<string | null>(null);
   // Historyタブの表示種別: ハンド履歴 / トーナメント履歴(過去トナメの棋譜解析への導線)。
   const [historyView, setHistoryView] = useState<"hands" | "tournaments">("hands");
   const [bankrollGraph, setBankrollGraph] = useState<BankrollGraphPoint[] | null>(null);
@@ -1697,7 +1698,10 @@ export function Lobby({
                                   出典: uiverse.io by reshades(縁取り→塗りつぶしボタン。詳細はglobals.cssの
                                   .line-fill-btnコメント参照)。 */}
                               <button
-                                onClick={() => setReviewTournamentId(group.tournamentId)}
+                                onClick={() => {
+                                  setReviewHandId(null);
+                                  setReviewTournamentId(group.tournamentId);
+                                }}
                                 className="line-fill-btn flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3 text-[11px] font-bold"
                               >
                                 <ReviewGlyph className="h-3.5 w-3.5" />
@@ -1711,7 +1715,11 @@ export function Lobby({
                                 const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
                                 // ハンド行そのものをタップで棋譜解析へ(トナメ単位の解析に一本化済み)。
                                 // お気に入り★だけは行タップと分離するため stopPropagation する。
-                                const openReview = () => setReviewTournamentId(group.tournamentId);
+                                // 行から開いたときは、そのハンドの頭から再生を始める。
+                                const openReview = () => {
+                                  setReviewHandId(h.handId);
+                                  setReviewTournamentId(group.tournamentId);
+                                };
                                 return (
                                   <motion.div
                                     key={h.handId}
@@ -1859,7 +1867,11 @@ export function Lobby({
           <TournamentReviewModal
             tournamentId={reviewTournamentId}
             accessToken={accessToken}
-            onClose={() => setReviewTournamentId(null)}
+            initialHandId={reviewHandId}
+            onClose={() => {
+              setReviewTournamentId(null);
+              setReviewHandId(null);
+            }}
           />
         )}
       </AnimatePresence>

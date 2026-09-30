@@ -90,9 +90,8 @@ export interface ReviewHandTimeline {
 
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
+  /** 通し再生用のタイムライン。本人以外の手札は空で届く(サーバーが伏せる)。 */
   timeline: ReviewHandTimeline;
-  /** hero以外の全プレイヤー(BOT含む)の分類済み決定。再生バッジ専用。要約件数には含めない。 */
-  villainDecisions: ReviewedDecision[];
 }
 
 export interface TournamentReview {
