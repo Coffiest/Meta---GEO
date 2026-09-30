@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandOf, readBoardTexture } from "../src/lib/boardTexture";
+import { bandOf, readBoardTexture } from "../src/review/boardTexture";
 
 /**
  * ボード質感の判定。ここが狂うと、解説がまるで関係ない局面に出る(あるいは一生出ない)。

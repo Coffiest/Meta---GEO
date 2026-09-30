@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blindSeatsOf, readPotShape } from "../src/lib/potShape";
+import { blindSeatsOf, readPotShape } from "../src/review/potShape";
 
 /**
  * ポットの形(SRP / 3betPot / リンプ / BvB)の判定。

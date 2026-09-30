@@ -1,8 +1,29 @@
 import type { Classification } from "./classification";
+import type { PostflopBucket, PreflopBucket } from "./geoApi";
 import type { ReviewedDecision } from "./reviewApi";
-import { readBoardTexture, type BoardTexture, type DrawDensity, type RankBand, type SuitPattern } from "./boardTexture";
-import { readHandStrength, type HandStrength, type KickerBand, type MadeCategory } from "./handStrength";
-import { readPotShape, type PotShape, type PotType } from "./potShape";
+// engine は**モジュール単位で**インポートする(他の web のコードと同じ)。ルート
+// (`@meta-geo/engine`)は deck.ts 経由で `node:crypto` を取り込むので、ブラウザ向けの
+// バンドルに入れるとビルドが落ちる。
+import type { BetRole } from "@meta-geo/engine/src/review/betRole.js";
+import {
+  readBoardTexture,
+  type BoardTexture,
+  type DrawDensity,
+  type RankBand,
+  type SuitPattern,
+} from "@meta-geo/engine/src/review/boardTexture.js";
+import {
+  readHandStrength,
+  type HandStrength,
+  type KickerBand,
+  type MadeCategory,
+} from "@meta-geo/engine/src/review/handStrength.js";
+import { readPotShape, type PotShape, type PotType } from "@meta-geo/engine/src/review/potShape.js";
+import type {
+  BoardChange,
+  StrategyReason,
+  StrategyTag,
+} from "@meta-geo/engine/src/review/strategyVerdict.js";
 
 /**
  * 棋譜解析に、オーナーが書いたポーカー知識を添えるための仕組み。
@@ -20,6 +41,25 @@ import { readPotShape, type PotShape, type PotType } from "./potShape";
 
 /** 解析対象のストリート。showdown には決定が無いので含めない。 */
 export type KnowledgeStreet = "preflop" | "flop" | "turn" | "river";
+
+/**
+ * hero が実際に取った手のバケット。`geoApi.ts` の語彙(サーバーの `geoTree.ts` と同じ)そのもの。
+ *
+ * **型で縛っている理由**: ここを `string` にしていた頃、存在しない名前(`bet33` / `bet75` /
+ * `raise50` など)で条件を書いてしまい、ベット/レイズを条件にした解説が実データでは一度も
+ * 当たらなくなっていた。テストも同じ架空の名前で組んでいたので通ってしまった。
+ * ポストフロップのレイズもベットと同じ `bet…` のバケットになる(`raise…` は無い)。
+ */
+export type ActionBucket = PreflopBucket | PostflopBucket;
+
+/** ポストフロップのベット/レイズ(額あり)のバケット。 */
+export const BET_BUCKETS: ActionBucket[] = ["bet20-40", "bet40-60", "bet60-80", "bet80-100", "bet100+"];
+/** ベット全般(オールインを含む)。「打った」ことだけを条件にするとき。 */
+export const ANY_BET: ActionBucket[] = [...BET_BUCKETS, "allIn"];
+/** 大きめのベット(ポットの60%以上)とオールイン。 */
+export const BIG_BET: ActionBucket[] = ["bet60-80", "bet80-100", "bet100+", "allIn"];
+/** ポットサイズ前後以上。 */
+export const HUGE_BET: ActionBucket[] = ["bet80-100", "bet100+", "allIn"];
 
 /** 数値の範囲条件。書いた側だけを判定する(min だけ / max だけ、も可)。 */
 export interface RangeCond {
@@ -46,8 +86,8 @@ export interface KnowledgeWhen {
   effStackBb?: RangeCond;
   /** 直面しているベットサイズ(bb)。直面していない決定には当たらない。 */
   facingSizeBb?: RangeCond;
-  /** hero が実際に取った手(geoApi と同じバケット語彙)。 */
-  actionBucket?: string[];
+  /** hero が実際に取った手。語彙は `ActionBucket`。 */
+  actionBucket?: ActionBucket[];
   /** GTO が最も高い頻度で取る手。 */
   gtoTopBucket?: string[];
 
@@ -78,6 +118,16 @@ export interface KnowledgeWhen {
   kicker?: KickerBand[];
   /** 成立しているドロー。ここに挙げたもののうち**どれか1つでも**成立していれば当たり。 */
   anyDraw?: (keyof HandStrength["draws"])[];
+
+  // ── ベットの役割と戦略判定(サーバーが決定に載せる `strategy`)──
+  /** ベットの役割(ドンク/CB/ディレイCB/バレル/プローブ/チェックレイズ)。 */
+  role?: BetRole[];
+  /** 戦略判定のタグ(シンバリュー/マージナル/フラドロミス・ブラフ/ドンクの良し悪し)。 */
+  strategyTag?: StrategyTag[];
+  /** 戦略判定の理由。 */
+  strategyReason?: StrategyReason[];
+  /** 直前のストリートから盤面のどこが変わったか(ドンクの理由に使う)。 */
+  boardChange?: BoardChange[];
 
   // ── ポットの形(`potShape.ts`)──
   potType?: PotType[];
@@ -143,6 +193,14 @@ export interface KnowledgeEntry {
   body: string;
   /** 出典(Notion のページURL)。あれば画面に小さく導線を出す。 */
   sourceUrl?: string;
+  /**
+   * 並び順の微調整(既定 0)。条件の数に足して比べる。
+   *
+   * 条件の数だけで順位が決まると、「役割の説明」(条件が少ない)が「サイズの一般論」(条件が多い)に
+   * 負けたり、逆に一般論が具体的な話を押しのけたりする。**個別の局面の話 > 役割の説明 > 一般論**
+   * の順に並べるための調整用。多用しない(条件の書き方で解決できるならそちらを先に)。
+   */
+  priority?: number;
   when: KnowledgeWhen;
 }
 
@@ -183,9 +241,19 @@ export function gtoTopBucket(d: ReviewedDecision): string | null {
   return top ? top.bucket : null;
 }
 
+/**
+ * 戦略判定に当たる知識の加点。これがあると、条件の数に関係なく先頭に来る。
+ *
+ * 判定でバッジを上書きした手には、**上書きの理由を説明する解説が必ず出る**必要がある。
+ * ボード条件の多い一般論(「A-L-Lはチェック多め」)が先に出ると、バッジは「大悪手」なのに
+ * 解説は別の話、という食い違いになる。
+ */
+const STRATEGY_BONUS = 100;
+
 /** `when` に実際に書かれている条件の数。多いほど具体的な知識とみなす。 */
 function specificity(when: KnowledgeWhen): number {
-  return Object.values(when).filter((v) => v !== undefined).length;
+  const n = Object.values(when).filter((v) => v !== undefined).length;
+  return when.strategyTag || when.strategyReason ? n + STRATEGY_BONUS : n;
 }
 
 function matches(entry: KnowledgeEntry, d: ReviewedDecision, facts: KnowledgeFacts): boolean {
@@ -226,6 +294,16 @@ function matches(entry: KnowledgeEntry, d: ReviewedDecision, facts: KnowledgeFac
     if (w.anyDraw && !w.anyDraw.some((k) => h.draws[k])) return false;
   }
 
+  // ベットの役割と戦略判定。ベット/レイズ以外の決定(strategy が null)には、書いてあれば当たらない。
+  if (w.role || w.strategyTag || w.strategyReason || w.boardChange) {
+    const st = d.strategy;
+    if (!st) return false;
+    if (!inSet(st.role, w.role)) return false;
+    if (!inSet(st.tag, w.strategyTag)) return false;
+    if (!inSet(st.reason, w.strategyReason)) return false;
+    if (!inSet(st.boardChange, w.boardChange)) return false;
+  }
+
   if (!inSet(facts.pot.type, w.potType)) return false;
   if (w.blindVsBlind !== undefined && facts.pot.isBlindVsBlind !== w.blindVsBlind) return false;
 
@@ -245,7 +323,7 @@ export function matchKnowledge(
   limit: number = MAX_NOTES_PER_DECISION
 ): KnowledgeEntry[] {
   const hit = entries
-    .map((entry, index) => ({ entry, index, score: specificity(entry.when) }))
+    .map((entry, index) => ({ entry, index, score: specificity(entry.when) + (entry.priority ?? 0) }))
     .filter(({ entry }) => matches(entry, decision, facts))
     .sort((a, b) => b.score - a.score || a.index - b.index);
   return hit.slice(0, Math.max(0, limit)).map(({ entry }) => entry);

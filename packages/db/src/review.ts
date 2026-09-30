@@ -23,6 +23,7 @@ import {
   type GtoActionEV,
 } from "./reviewClassify.js";
 import { getGeoNodeForReviewSpot, type HandClassMatrixResult } from "./geoTree.js";
+import { applyStrategyOverrides, attachStrategies, type DecisionStrategy } from "./reviewStrategy.js";
 
 /**
  * 局後検討のオーケストレーション。1ハンド×1hero(自分)の意思決定を抽出→GTO基準で分類→永続化する。
@@ -186,6 +187,11 @@ export interface ReviewedDecision {
   actionName: string;
   /** GEO母集団解(n≥5000のときのみ非null)。頻度+169レンジ表。heroの決定にのみ付く。 */
   geo: GeoDecisionInfo | null;
+  /**
+   * ベットの役割(ドンク/CB/バレル等)と戦略判定。ベット/レイズ以外の決定は null。
+   * 判定で上書きされた場合、`classification` にはもう反映済み(`evLossBb` はGTO由来のまま)。
+   */
+  strategy: DecisionStrategy | null;
 }
 
 export interface ReviewResult {
@@ -311,6 +317,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       classification,
       actionName: actionNameOf(d, spot),
       geo: null,
+      strategy: null,
     };
   });
 }
@@ -346,6 +353,10 @@ export function analyzeExtractedHand(
   if (!heroSeatEntry) return null;
   const heroDecisions = extractHeroDecisions(hand, heroUserId);
   const decisions = analyzeDecisions(hand, heroSeatEntry.seatIndex, heroDecisions);
+  // 戦略判定(ドンク/シンバリュー/マージナル等)を載せて、分類済みの決定はバッジを上書きする。
+  // ソルバー結果のマージやGEOの上書きの後にも、同じ applyStrategyOverrides を呼び直す。
+  attachStrategies(hand, decisions);
+  applyStrategyOverrides(decisions);
   return { decisions, summary: summarize(decisions) };
 }
 
@@ -425,6 +436,8 @@ async function enrichHeroDecisionsWithGeo(
       d.classification = "artistic";
     }
   }
+  // GEOの「芸術的」より戦略判定を優先する(マージナルベットが芸術的に化けない)。
+  applyStrategyOverrides(decisions);
 }
 
 /** 解析結果を HandReview / ReviewDecision に永続化(upsert)する。 */
@@ -548,6 +561,8 @@ export async function applySavedSolverResults(
     }
     solving = decisions.some((d) => d.outOfScopeReason === "solving");
   }
+  // マージした保存済みの分類は、その時点のもの。戦略判定のバッジをかぶせ直す。
+  applyStrategyOverrides(decisions);
   return solving;
 }
 
@@ -940,6 +955,8 @@ export async function enrichAndSaveReview(handId: string, heroUserId: string): P
     }
   }
 
+  // ソルバーが埋めた分類にも戦略判定を効かせてから集計・保存する。
+  applyStrategyOverrides(analyzed.decisions);
   const summary = summarize(analyzed.decisions);
   const result: ReviewResult = { handId, heroUserId, decisions: analyzed.decisions, ...summary };
   await saveReview(result);

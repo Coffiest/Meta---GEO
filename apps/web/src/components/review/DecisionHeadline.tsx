@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
+import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { CLASSIFICATION_META } from "@/lib/classification";
 import type { ReviewedDecision } from "@/lib/reviewApi";
@@ -16,8 +17,10 @@ import type { ReviewedDecision } from "@/lib/reviewApi";
  * バッジ・手の名前・格付けのラベル・EV損を**1行にまとめ**、その下に解説の1〜2文を
  * **常時**出す。詳しい話はタップで開く。
  *
- * 格付けそのものには手を出さない ―― バッジは今までどおり「GTO最善からのEV損」。
- * 解説はオーナーが Notion に書いた知識から、その局面の条件に当たったものを引いている。
+ * バッジはサーバーが決めた格付け(GTOのEV損 + 戦略判定での上書き)をそのまま出す。
+ * 解説はオーナーの知識から、その局面の条件に当たったものを引く。バッジを戦略判定で
+ * 上書きした手には、その理由の解説が必ず先に出る(`reviewKnowledge.ts` の戦略加点)。
+ * 話し手のキャラクターは `data/reviewSpeaker.ts`(未設定の間は情報アイコンだけ)。
  *
  * 解説は**1件だけ**。常時表示にした以上、2件並べると決定ごとに文章の塊が2つ積まれて
  * 一覧性が壊れる(`MAX_NOTES_PER_DECISION`)。
@@ -84,8 +87,19 @@ function KnowledgeBody({
         aria-expanded={open}
         className="pressable flex w-full items-start gap-2 px-2.5 py-2 text-left"
       >
-        <Icon name="info" className="mt-[2px] h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="min-w-0 flex-1 text-[12px] font-semibold leading-[1.6] text-fg-2">{summary}</span>
+        {REVIEW_SPEAKER ? (
+          <img
+            src={REVIEW_SPEAKER.avatarSrc}
+            alt={REVIEW_SPEAKER.name}
+            className="h-7 w-7 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <Icon name="info" className="mt-[2px] h-3.5 w-3.5 shrink-0 text-accent" />
+        )}
+        <span className="min-w-0 flex-1">
+          {REVIEW_SPEAKER && <span className="mb-0.5 block text-[10px] font-black text-fg-3">{REVIEW_SPEAKER.name}</span>}
+          <span className="block text-[12px] font-semibold leading-[1.6] text-fg-2">{summary}</span>
+        </span>
         <Icon
           name="chevron-right"
           className={`mt-[2px] h-3 w-3 shrink-0 text-fg-3 transition-transform duration-200 ${open ? "rotate-90" : ""}`}

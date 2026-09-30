@@ -42,6 +42,7 @@ function decision(over: Partial<ReviewedDecision> = {}): ReviewedDecision {
     classification: "best",
     actionName: "レイズ 2.5bb",
     geo: null,
+    strategy: null,
     ...over,
   };
 }
@@ -152,6 +153,44 @@ describe("matchKnowledge", () => {
 
   it("知識が空なら何も返さない", () => {
     expect(matchKnowledge(decision(), [])).toEqual([]);
+  });
+
+  it("戦略判定に当たる知識は、条件の数に関係なく先頭に来る", () => {
+    const board = entry("boardHeavy", { street: ["river"], heroPos: ["BTN"], effStackBb: { max: 100 }, classification: ["best"] });
+    const verdict = entry("verdict", { strategyTag: ["marginalBet"] });
+    const d = decision({
+      street: "river",
+      strategy: { role: "otherBet", tag: "marginalBet", reason: "marginalWeakHand", override: "blunder", boardChange: null },
+    });
+    expect(matchKnowledge(d, [board, verdict], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["verdict", "boardHeavy"]);
+  });
+
+  it("priority は条件の数に足して比べる(役割の説明を一般論より上に置くための調整)", () => {
+    const generic = entry("generic", { street: ["river"], heroPos: ["BTN"] });
+    const role: KnowledgeEntry = { ...entry("role", { role: ["probe"] }), priority: 1.5 };
+    const d = decision({
+      street: "river",
+      strategy: { role: "probe", tag: null, reason: null, override: null, boardChange: null },
+    });
+    // 条件数は generic=2 / role=1。priority を足して role=2.5 になり、先に来る。
+    expect(matchKnowledge(d, [generic, role], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["role", "generic"]);
+  });
+
+  it("役割・判定・盤面変化の条件は、strategy が無い決定(ベット以外)には当たらない", () => {
+    const e = entry("needsRole", { role: ["cbet"] });
+    expect(matchKnowledge(decision({ strategy: null }), [e])).toHaveLength(0);
+    const cbet = decision({
+      strategy: { role: "cbet", tag: null, reason: null, override: null, boardChange: null },
+    });
+    expect(matchKnowledge(cbet, [e])).toHaveLength(1);
+  });
+
+  it("役割が違えば当たらない", () => {
+    const e = entry("probeOnly", { role: ["probe"] });
+    const donk = decision({
+      strategy: { role: "donk", tag: null, reason: null, override: null, boardChange: null },
+    });
+    expect(matchKnowledge(donk, [e])).toHaveLength(0);
   });
 });
 

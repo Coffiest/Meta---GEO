@@ -14,7 +14,7 @@
  *   ボトムヒット = ボードの最下位ランクにヒット
  */
 
-import { parseBoardCard } from "./boardTexture";
+import { parseBoardCard } from "./boardTexture.js";
 
 /** 出来上がっている役(強い順)。 */
 export type MadeCategory =

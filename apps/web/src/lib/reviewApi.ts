@@ -1,3 +1,5 @@
+import type { BetRole } from "@meta-geo/engine/src/review/betRole.js";
+import type { BoardChange, StrategyReason, StrategyTag } from "@meta-geo/engine/src/review/strategyVerdict.js";
 import type { Classification } from "./classification";
 import type { HandClassMatrixResult } from "./geoApi";
 
@@ -14,6 +16,18 @@ export interface GeoDecisionInfo {
   sampleSize: number;
   options: { bucket: string; frequency: number }[];
   matrix: HandClassMatrixResult;
+}
+
+/**
+ * ベットの役割(ドンク/CB/バレル等)と戦略判定(サーバーのreviewStrategy.tsと同形)。
+ * 上書きが起きた場合、`classification` にはもう反映済み。相手が誰でも同じ形で返る。
+ */
+export interface DecisionStrategy {
+  role: BetRole;
+  tag: StrategyTag | null;
+  reason: StrategyReason | null;
+  override: "artistic" | "mistake" | "blunder" | null;
+  boardChange: BoardChange | null;
 }
 
 export interface ReviewedDecision {
@@ -34,6 +48,8 @@ export interface ReviewedDecision {
   actionName: string;
   /** GEO母集団解(n≥5000のときのみ非null)。heroの決定にのみ付く。 */
   geo: GeoDecisionInfo | null;
+  /** ベットの役割と戦略判定。ベット/レイズ以外の決定は null。 */
+  strategy: DecisionStrategy | null;
 }
 
 export interface ReviewResult {
