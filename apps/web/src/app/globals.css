@@ -972,3 +972,165 @@ textarea:focus-visible,
 .line-fill-btn:active .line-fill-arrow {
   transform: translateX(4px);
 }
+
+/* ============================================================================
+   起動画面(スプラッシュ)。`components/LaunchSplash.tsx`。
+   iOS のネイティブアプリの起動演出と同じく、アイコンのタイルが現れて光り、ワードマークが並び、
+   少し手前へ抜けながら消えてアプリが現れる。JSより前の最初の描画から動かす必要があるので、
+   出現から退場まで全てキーフレームで書く(触って動かすものではないので、スプリングである必要は無い)。
+   曲線は cubic-bezier(0.16, 1, 0.3, 1)(行き過ぎの無い、臨界減衰のスプリングに近い減速)。
+   ============================================================================ */
+.launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(40rem 28rem at 50% 42%, rgb(var(--accent) / 0.10), transparent 70%),
+    rgb(var(--n-1));
+  animation: splash-out 380ms 1370ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  -webkit-tap-highlight-color: transparent;
+}
+/* タップで早送り。今の不透明度から素早く消す。 */
+.launch-splash.launch-splash-skip {
+  animation: splash-skip 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.launch-splash-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  /* 退場のとき、少し手前へ抜ける(アプリへ入っていく方向)。 */
+  animation: splash-stage-out 380ms 1370ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+/* アイコンの後ろに広がる発光。 */
+.launch-splash-bloom {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  width: 360px;
+  height: 360px;
+  margin: -180px 0 0 -180px;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgb(var(--accent) / 0.55), rgb(var(--accent) / 0.12) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: splash-bloom 1100ms 120ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+/* タイルの縁から1回だけ広がる光の輪。 */
+.launch-splash-ring {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  margin-left: -60px;
+  border-radius: 27px;
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.8);
+  opacity: 0;
+  pointer-events: none;
+  animation: splash-ring 1000ms 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+/* アイコンのタイル。ホーム画面のアイコンと同じ原画(地色込み)を角丸の枠に収める。 */
+.launch-splash-icon {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 27px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgb(var(--accent) / 0.35),
+    0 18px 48px -12px rgb(var(--accent) / 0.55);
+  opacity: 0;
+  animation: splash-icon-in 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.launch-splash-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* タイルの上を1回だけ走る光(スペキュラ)。 */
+.launch-splash-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: splash-sheen 900ms 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.launch-splash-word {
+  display: flex;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgb(var(--n-11));
+}
+.launch-splash-word > span {
+  display: inline-block;
+  opacity: 0;
+  animation: splash-letter 560ms calc(460ms + var(--i) * 38ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes splash-icon-in {
+  0% { opacity: 0; transform: scale(0.62); filter: blur(14px); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+@keyframes splash-bloom {
+  0% { opacity: 0; transform: scale(0.3); }
+  55% { opacity: 1; }
+  100% { opacity: 0.6; transform: scale(1); }
+}
+@keyframes splash-ring {
+  0% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+@keyframes splash-sheen {
+  to { transform: translateX(120%); }
+}
+@keyframes splash-letter {
+  0% { opacity: 0; transform: translateY(12px); filter: blur(6px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes splash-stage-out {
+  to { transform: scale(1.14); }
+}
+@keyframes splash-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@keyframes splash-skip {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* モーション低減: 拡大縮小・ぼかし・光の輪と走る光は出さず、不透明度の変化だけで出して消す。
+   全体の「アニメーションを0秒にする」指定より後ろ・具体的なセレクタで上書きする。 */
+@media (prefers-reduced-motion: reduce) {
+  .launch-splash {
+    animation: splash-out 300ms 800ms ease forwards !important;
+  }
+  .launch-splash.launch-splash-skip {
+    animation: splash-skip 150ms ease forwards !important;
+  }
+  .launch-splash-stage {
+    animation: none !important;
+  }
+  .launch-splash-icon,
+  .launch-splash-word > span {
+    opacity: 1;
+    animation: none !important;
+  }
+  .launch-splash-ring,
+  .launch-splash-icon::after {
+    display: none;
+  }
+  .launch-splash-bloom {
+    opacity: 0.6;
+    animation: none !important;
+  }
+}

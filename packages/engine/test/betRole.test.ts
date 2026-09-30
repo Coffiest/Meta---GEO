@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBetRoles, sizeClassOf, type RoleAction } from "../src/review/betRole.js";
+import { readBarrelCheckSpots, readBetRoles, sizeClassOf, type RoleAction } from "../src/review/betRole.js";
 
 /**
  * ベットの役割判定のテスト。
@@ -232,5 +232,62 @@ describe("サイズと位置", () => {
     const r = readBetRoles(a, TABLE)[0];
     expect(r?.potFraction).toBeNull();
     expect(r?.sizeClass).toBeNull();
+  });
+});
+
+describe("ダブル/トリプルバレルを打てた場面のチェック", () => {
+  it("フロップで打った人がターンで先にチェック → ダブルバレルの場面", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "call", 33),
+      act(BB, "turn", "check"),
+      act(BTN, "turn", "check"),
+    ];
+    const spots = readBarrelCheckSpots(a);
+    // BB のチェックは(フロップで打っていないので)場面ではない。BTN のチェックバックだけ。
+    expect(spots).toEqual([{ sequenceNumber: a[a.length - 1]!.sequenceNumber, seatIndex: BTN, street: "turn" }]);
+  });
+
+  it("フロップ・ターンで打った人のリバーのチェック → トリプルバレルの場面。ターンで打っていなければ場面ではない", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "call", 33),
+      act(BB, "turn", "check"),
+      act(BTN, "turn", "bet", 100, 166),
+      act(BB, "turn", "call", 100),
+      act(BB, "river", "check"),
+      act(BTN, "river", "check"),
+    ];
+    expect(readBarrelCheckSpots(a).map((s) => [s.seatIndex, s.street])).toEqual([[BTN, "river"]]);
+
+    const b = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "call", 33),
+      act(BB, "turn", "check"),
+      act(BTN, "turn", "check"),
+      act(BB, "river", "check"),
+      act(BTN, "river", "check"),
+    ];
+    expect(readBarrelCheckSpots(b).map((s) => s.street)).toEqual(["turn"]);
+  });
+
+  it("相手に先に打たれたストリートはチェックの場面にならない(ドンクへのレイズもバレルの表の対象外)", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "call", 33),
+      act(BB, "turn", "bet", 50, 166),
+      act(BTN, "turn", "raise", 200),
+    ];
+    expect(readBarrelCheckSpots(a)).toEqual([]);
+    const raise = readBetRoles(a, TABLE).find((r) => r.seatIndex === BTN && r.street === "turn");
+    expect(raise?.firstOnStreet).toBe(false);
   });
 });

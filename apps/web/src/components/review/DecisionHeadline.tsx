@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
+import { barrelComment } from "@/lib/barrelComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { Loader } from "@/components/ui/Loader";
 import { CLASSIFICATION_META, outOfScopeLabel, type Classification } from "@/lib/classification";
@@ -28,11 +29,24 @@ const GRADE_LINE: Record<Classification, string> = {
   blunder: "ここは大きく損をしちゃう手だよ。次は気をつけようね。",
 };
 
+/** 見出しの「○○手です」(chess.com の「絶妙手です」に当たる)。 */
+const GRADE_SENTENCE: Record<Classification, string> = {
+  artistic: "絶妙手です",
+  best: "最善手です",
+  great: "素晴らしい手です",
+  excellent: "良手です",
+  good: "良手です",
+  book: "常識的な手です",
+  inaccuracy: "緩手です",
+  mistake: "悪手です",
+  blunder: "大悪手です",
+};
+
 /**
  * 1手ぶんの局後検討。chess.com の Game Review と同じ並び(オーナー確定):
  *
- *   1. 上: 解説役「バリィ」の台詞(吹き出し)。タップで詳しい話が開く
- *   2. 下: 評価のバッジ + その手の表記(`UTG bet 33%` / `BB x/r` …)+ 評価名
+ *   1. 上: 評価のバッジ + その手の表記(`UTG bet 33%` / `BB x/r` …)+「○○手です」(+ GTOのEV損)
+ *   2. 下: 解説役「バリィ」の台詞(吹き出し)。タップで詳しい話が開く
  *   3. その下: 情報(`Flop · ES 40BB · Pot 6.5BB`。ES = エフェクティブスタック)
  *
  * バッジはサーバーが決めた格付け(プリフロップはGTOのEV損、ポストフロップはNotionの評価)。
@@ -62,7 +76,16 @@ export function DecisionHeadline({
     [decision.street, context]
   );
   const c = decision.classification;
-  const note = c && context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined;
+  // ダブル/トリプルバレルの表で評価した手(チェックを含む)は、場合分けから台詞を組み立てる。
+  const barrel = decision.strategy?.barrel;
+  const note = c
+    ? barrel
+      ? barrelComment(barrel, context?.board)
+      : context
+        ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0]
+        : undefined
+    : undefined;
+  const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
   // GTOのEV損は、バッジの根拠(プリフロップ=GTO / ポストフロップ=Notion)に関わらず出す。
   // 「GTO」と明記して、バッジと数字の根拠の違いが読めるようにする。
@@ -81,29 +104,24 @@ export function DecisionHeadline({
 
   return (
     <div>
-      <KnowledgeBody summary={line} title={note?.title} body={note?.body} sourceUrl={note?.sourceUrl} />
-
-      <div className="mt-3 flex items-center gap-2">
+      {/* 1行目: 評価バッジ・その手の表記(UTG bet 33% など)・「○○手です」。chess.com の局後検討と同じ並び。 */}
+      <div className="flex items-center gap-2">
         {c === "artistic" ? (
           // key で決定ごとに作り直し、絶妙手の手に来るたびに1回だけ演出する。
           <ArtisticPop key={decision.sequenceNumber} color={meta?.color ?? "#14b8a6"}>
-            <ClassificationBadge classification={c} size={22} />
+            <ClassificationBadge classification={c} size={24} />
           </ArtisticPop>
         ) : c ? (
-          <ClassificationBadge classification={c} size={22} />
+          <ClassificationBadge classification={c} size={24} />
         ) : solving ? (
           <Loader size="sm" />
         ) : (
-          <Icon name="info" className="h-[18px] w-[18px] shrink-0 text-fg-3" />
+          <Icon name="info" className="h-[20px] w-[20px] shrink-0 text-fg-3" />
         )}
-        <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.01em] text-fg">{notation}</p>
-        {meta ? (
-          <span className="shrink-0 text-[13px] font-black" style={{ color: meta.color }}>
-            {meta.label}
-          </span>
-        ) : (
-          <span className="shrink-0 text-[12px] font-bold text-fg-3">{solving ? "解析中" : "対象外"}</span>
-        )}
+        <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.01em] text-fg">
+          {notation}
+          <span className="ml-2 font-bold">{c ? GRADE_SENTENCE[c] : solving ? "解析中です" : "解析の対象外です"}</span>
+        </p>
         {evLoss !== null && evLoss > 0.02 && (
           <span className="shrink-0 rounded-lg bg-crimson-500/15 px-1.5 py-0.5 text-[11px] font-black tabular-nums text-crimson-300">
             GTO −{evLoss.toFixed(2)}bb
@@ -115,7 +133,18 @@ export function DecisionHeadline({
           </span>
         )}
       </div>
-      {info && <p className="mt-1 pl-[30px] text-[11px] font-semibold tabular-nums text-fg-3">{info}</p>}
+
+      {/* その下: バリィの解説 */}
+      <div className="mt-2.5">
+        <KnowledgeBody
+          summary={line}
+          points={points}
+          title={note?.title}
+          body={note?.body}
+          sourceUrl={note && "sourceUrl" in note ? note.sourceUrl : undefined}
+        />
+      </div>
+      {info && <p className="mt-2 text-[11px] font-semibold tabular-nums text-fg-3">{info}</p>}
     </div>
   );
 }
@@ -159,11 +188,14 @@ function ArtisticPop({ color, children }: { color: string; children: React.React
  */
 function KnowledgeBody({
   summary,
+  points,
   title,
   body,
   sourceUrl,
 }: {
   summary: string;
+  /** 台詞の下に常時出す要点(ダブル/トリプルバレルのノートの打ち方)。 */
+  points?: { label: string; text: string }[] | undefined;
   title?: string | undefined;
   body?: string | undefined;
   sourceUrl?: string | undefined;
@@ -196,6 +228,16 @@ function KnowledgeBody({
             <span className="min-w-0 flex-1">
               {speaker && <span className="mb-0.5 block text-[10px] font-black text-accent">{speaker.name}</span>}
               <span className="block text-[12px] font-semibold leading-[1.6] text-fg">{summary}</span>
+              {points && points.length > 0 && (
+                <span className="mt-1.5 block space-y-0.5 border-t border-line pt-1.5">
+                  {points.map((p) => (
+                    <span key={p.label} className="flex gap-1.5 text-[11px] leading-[1.6]">
+                      <span className="w-[4.2em] shrink-0 font-black text-fg-3">{p.label}</span>
+                      <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
             {expandable && (
               <Icon

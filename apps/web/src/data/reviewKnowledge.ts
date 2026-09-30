@@ -1,5 +1,6 @@
 import type { KnowledgeEntry } from "@/lib/reviewKnowledge";
 import { ANY_BET, BET_BUCKETS, BIG_BET, HUGE_BET } from "@/lib/reviewKnowledge";
+import { DOUBLE_BARREL_BODY } from "./barrelTable";
 
 /**
  * 棋譜解析に添える、ポーカー知識の解説。
@@ -537,6 +538,66 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     when: { strategyReason: ["probeFlush"] },
   },
 
+  // ───────── ダブル/トリプルバレル(Notion【ダブルバレル】) ─────────
+  // 実際の台詞は、評価の場合分け(`strategy.barrel`)から `lib/barrelComment.ts` が組み立てる
+  // (打った/チェックした × 手 × サイズのずれ)。ここは場合分けが無いときの予備。
+  {
+    id: "verdict-db-overcard",
+    title: "オーバーカードが落ちたターンのダブルバレル",
+    summary: "オーバーカードが落ちたターンのダブルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["dbOvercard"] },
+  },
+  {
+    id: "verdict-db-paired",
+    title: "ペアカードが落ちたターンのダブルバレル",
+    summary: "ペアカードが落ちたターンのダブルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["dbPaired"] },
+  },
+  {
+    id: "verdict-db-flush",
+    title: "フラッシュ完成カードが落ちたターンのダブルバレル",
+    summary: "フラッシュ完成カードが落ちたターンのダブルバレルは、頻度50%・50%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["dbFlush"] },
+  },
+  {
+    id: "verdict-db-rag",
+    title: "ラグが落ちたターンのダブルバレル",
+    summary: "ラグが落ちたターンのダブルバレルは、頻度50%・180%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["dbRag"] },
+  },
+  {
+    id: "verdict-tb-overcard",
+    title: "オーバーカードが落ちたリバーのトリプルバレル",
+    summary: "オーバーカードが落ちたリバーのトリプルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbOvercard"] },
+  },
+  {
+    id: "verdict-tb-paired",
+    title: "ペアカードが落ちたリバーのトリプルバレル",
+    summary: "ペアカードが落ちたリバーのトリプルバレルは、頻度50%・75%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbPaired"] },
+  },
+  {
+    id: "verdict-tb-flush",
+    title: "フラッシュ完成カードが落ちたリバーのトリプルバレル",
+    summary: "フラッシュ完成カードが落ちたリバーのトリプルバレルは、頻度50%・50%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbFlush"] },
+  },
+  {
+    id: "verdict-tb-rag",
+    title: "ラグが落ちたリバーのトリプルバレル",
+    summary: "ラグが落ちたリバーのトリプルバレルは、頻度50%・180%で打つよ。打つ手と打たない手は、ノートの表で決まっているんだ。",
+    body: DOUBLE_BARREL_BODY,
+    when: { strategyReason: ["tbRag"] },
+  },
+
   // ═════════════════════════ ベットの役割(定義そのものを説明する) ═════════════════════════
   {
     id: "role-cbet",
@@ -566,10 +627,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     title: "ターンバレル(ダブルバレル)とは",
     summary:
       "ターンバレルだね。フロップに続けて打つベットだよ。チェックレイズされたあとも、同じ考え方で大丈夫。",
-    body:
-      "ターンバレル = フロップでCBを打ったプレイヤーが、ターンでもベットすること(ダブルバレル)。\n\n" +
-      "ダブルバレルについて、チェックレイズをされたあとの戦略も、トリプルバレル(リバーバレル)の戦略も、\n" +
-      "ダブルバレルと全く一緒。",
+    body: DOUBLE_BARREL_BODY,
     priority: 0.5,
     when: { role: ["turnBarrel"] },
   },
@@ -578,10 +636,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     title: "リバーバレル(トリプルバレル)とは",
     summary:
       "リバーバレルだね。ダブルバレルと同じ考え方で大丈夫だよ。強い手とブラフで打って、微妙な手はチェックしよう。",
-    body:
-      "リバーバレル = ターンでベットしたプレイヤーが、リバーでもベットすること。\n" +
-      "フロップから続けて打っていればトリプルバレル。\n\n" +
-      "トリプルバレルの戦略は、ダブルバレルと全く一緒。チェックレイズされたあとの戦略も同じ。",
+    body: DOUBLE_BARREL_BODY,
     priority: 0.5,
     when: { role: ["riverBarrel"] },
   },
@@ -1023,6 +1078,76 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "BBは2/3くらいの頻度でチェックバックする。レンジでBMCBを打てるボードは存在しない。\n" +
       "ボードのハイカードのランクとベットサイズが比例する。",
     when: { street: ["flop"], heroPos: ["BB"], blindVsBlind: true, actionBucket: ["checkOrCall"] },
+  },
+
+  // ═════════════════════════ プリフロップのミス(降りすぎ / 参加しすぎ) ═════════════════════════
+  // 自分の手と、GTO が最も高い頻度で取る手を比べて、ミスの向きを言い分ける。
+  // 悪手・大悪手のときだけ出す(正しい手には出さない)。条件が多いので他のプリフロップの話より先に来る。
+  {
+    id: "preflop-overfold",
+    title: "プリフロップの降りすぎ(オーバーフォールド)",
+    summary:
+      "ここはフォールドしすぎだよ。このハンドとポジションなら、GTOは参加する場面なんだ。もっと積極的に参加してみよう。",
+    body:
+      "自分はフォールドしたが、GTOはこの場面でコールかレイズを最も多く選ぶ。\n" +
+      "降りすぎると、ブラインドやアンティを取られるだけになり、相手のスチールも通しやすくなる。\n\n" +
+      "下のGTO推奨の頻度で、どのアクションで参加すればよかったかを確認しよう。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["fold"],
+      gtoTopBucket: ["call", "raise2-5", "raise5+", "allIn"],
+    },
+  },
+  {
+    id: "preflop-overplay",
+    title: "プリフロップの参加しすぎ(ルース)",
+    summary:
+      "ここは参加しすぎだよ。このハンドは、GTOならフォールドする場面なんだ。無理に参加せず、降りる判断も大事にしようね。",
+    body:
+      "自分は参加したが、GTOはこの場面でフォールドを最も多く選ぶ。\n" +
+      "弱いハンドで参加しすぎると、ポストフロップで難しい判断が増え、チップを失いやすくなる。\n\n" +
+      "下のGTO推奨の頻度で、このハンドがどれくらいフォールドされているかを確認しよう。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["call", "raise2-5", "raise5+", "allIn"],
+      gtoTopBucket: ["fold"],
+    },
+  },
+  {
+    id: "preflop-too-passive",
+    title: "プリフロップの消極的な参加",
+    summary:
+      "参加するのはいいけど、ここはコールよりレイズがいい場面だよ。このハンドなら主導権を取りにいこう。",
+    body:
+      "自分はコールで参加したが、GTOはこの場面でレイズ(オールインを含む)を最も多く選ぶ。\n" +
+      "レイズで参加すると、相手を降ろせるうえに、ポストフロップで主導権を持てる。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["call"],
+      gtoTopBucket: ["raise2-5", "raise5+", "allIn"],
+    },
+  },
+  {
+    id: "preflop-too-aggressive",
+    title: "プリフロップのレイズしすぎ",
+    summary:
+      "参加するのはいいけど、ここはレイズよりコールで十分な場面だよ。レイズしすぎると、強い手にだけ続けられちゃうんだ。",
+    body:
+      "自分はレイズ(オールインを含む)で参加したが、GTOはこの場面でコールを最も多く選ぶ。\n" +
+      "レイズすると、降りてくれる弱い手が少なく、続けてくるのは強い手ばかりになりやすい。",
+    priority: 10,
+    when: {
+      street: ["preflop"],
+      classification: ["mistake", "blunder"],
+      actionBucket: ["raise2-5", "raise5+", "allIn"],
+      gtoTopBucket: ["call"],
+    },
   },
 
   // ═════════════════════════ スクイーズ ═════════════════════════

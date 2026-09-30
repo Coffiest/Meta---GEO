@@ -93,11 +93,12 @@ function straightDraws(ranks: Set<number>): { openEnded: boolean; gutshot: boole
     if (have !== 4) continue;
     const missing = window.find((r) => !s.has(r))!;
     if (missing === window[0] || missing === window[4]) {
-      // 端が抜けている = 連続4枚。もう片端も伸ばせるならオープンエンド。
+      // 端が抜けている = 連続4枚。両端とも伸ばせるならオープンエンド。
+      // 片側が盤の端(A234 / JQKA)なら、完成するカードは1種類だけなのでガットショットと同じ。
       const run = missing === window[0] ? window.slice(1) : window.slice(0, 4);
       const below = run[0]! - 1;
       const above = run[3]! + 1;
-      if ((below >= 1 && !s.has(below)) || (above <= 14 && !s.has(above))) openEnded = true;
+      if (below >= 1 && !s.has(below) && above <= 14 && !s.has(above)) openEnded = true;
       else gutshot = true;
     } else {
       gutshot = true;

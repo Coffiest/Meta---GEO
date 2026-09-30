@@ -113,6 +113,65 @@ describe("attachStrategies", () => {
   });
 });
 
+/**
+ * BTN が CB → BB コール → ターンは BB チェック・BTN チェックバック(ダブルバレルを打たなかった)。
+ * ボードは K♥8♦3♥ → 6♠(ラグ)。
+ */
+function turnCheckBackHand(btnHole: string[]): { hand: ExtractHand; checkSeq: number } {
+  seq = 0;
+  const actions = [
+    act(1, "preflop", "postBlind", 50, 0),
+    act(2, "preflop", "postBlind", 100, 50),
+    act(3, "preflop", "fold"),
+    act(4, "preflop", "fold"),
+    act(5, "preflop", "fold"),
+    act(0, "preflop", "raise", 250),
+    act(1, "preflop", "fold"),
+    act(2, "preflop", "call", 250),
+    act(2, "flop", "check"),
+    act(0, "flop", "bet", 180, 550),
+    act(2, "flop", "call", 180),
+    act(2, "turn", "check"),
+  ];
+  const check = act(0, "turn", "check", null, 910);
+  actions.push(check);
+  const hand: ExtractHand = {
+    buttonFixedPos: 0,
+    levelBigBlind: 100,
+    board: ["Kh", "8d", "3h", "6s", "2c"],
+    seats: [
+      { seatIndex: 0, userId: "u-btn", startingStack: 5000, holeCards: btnHole },
+      { seatIndex: 2, userId: "u-bb", startingStack: 5000, holeCards: ["Qd", "Jd"] },
+    ],
+    actions,
+  };
+  return { hand, checkSeq: check.sequenceNumber };
+}
+
+describe("ダブルバレルを打たなかったチェック", () => {
+  const checkDecision = (checkSeq: number) =>
+    decision({ sequenceNumber: checkSeq, street: "turn", seatIndex: 0, actionTaken: { kind: "check", bucket: "checkOrCall", toAmount: null } });
+
+  it("バリュー(セット)をチェックすると悪手、場合分けも載る", () => {
+    const { hand, checkSeq } = turnCheckBackHand(["8c", "8s"]);
+    const d = checkDecision(checkSeq);
+    attachStrategies(hand, [d]);
+    applyNotionGrades([d]);
+    expect(d.strategy).toMatchObject({ role: null, tag: "doubleBarrel", reason: "dbRag" });
+    expect(d.strategy?.barrel).toMatchObject({ action: "check", situation: "checkValue", handKey: "set" });
+    expect(d.classification).toBe("mistake");
+  });
+
+  it("打たない手(ショーダウンバリュー)をチェックすれば最善", () => {
+    const { hand, checkSeq } = turnCheckBackHand(["Kd", "5c"]);
+    const d = checkDecision(checkSeq);
+    attachStrategies(hand, [d]);
+    applyNotionGrades([d]);
+    expect(d.strategy?.barrel?.situation).toBe("checkShowdownOk");
+    expect(d.classification).toBe("best");
+  });
+});
+
 describe("applyNotionGrades", () => {
   it("分類が付いている決定は、格付けだけ上書きされ、EV損は残る", () => {
     const { hand, betSeq } = riverBetHand(["2h", "9c"], ["Qh", "Jd"]);

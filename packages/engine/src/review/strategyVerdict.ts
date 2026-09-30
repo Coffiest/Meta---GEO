@@ -17,8 +17,9 @@
  * 全席を同じロジックで判定する(種別による分岐は持たない)。
  */
 
-import { BET_SIZE_BANDS, type BetRoleInfo, type BetSizeClass, type BetStreet } from "./betRole.js";
-import { readBoardTexture, type BoardTexture } from "./boardTexture.js";
+import { judgeBarrel, type BarrelCard, type BarrelVerdict } from "./barrelPlan.js";
+import { BET_SIZE_BANDS, type BarrelCheckSpot, type BetRoleInfo, type BetSizeClass, type BetStreet } from "./betRole.js";
+import { parseBoardCard, readBoardTexture, type BoardTexture } from "./boardTexture.js";
 import { readHandStrength, type HandStrength, type MadeCategory } from "./handStrength.js";
 import type { PotType } from "./potShape.js";
 
@@ -50,7 +51,9 @@ export type StrategyTag =
   | "barrel"
   | "checkRaise"
   | "riverBlock"
-  | "probe";
+  | "probe"
+  | "doubleBarrel"
+  | "tripleBarrel";
 
 /** 評価の理由。解説の引き当てキー。 */
 export type StrategyReason =
@@ -96,7 +99,18 @@ export type StrategyReason =
   | "probeAce"
   | "probeFlush"
   | "probeRepeat"
-  | "probeCheckHand";
+  | "probeCheckHand"
+  // ダブルバレル(ターンに落ちたカードの種類ごと。Notion【ダブルバレル】)。
+  // 打った/チェックした・手・サイズの場合分けは `StrategyVerdict.barrel` に載る
+  | "dbOvercard"
+  | "dbPaired"
+  | "dbFlush"
+  | "dbRag"
+  // トリプルバレル(リバー)。表はダブルバレルと同じ
+  | "tbOvercard"
+  | "tbPaired"
+  | "tbFlush"
+  | "tbRag";
 
 /** 直前のストリートから、盤面のどこが変わったか。ドンクの理由の主役。 */
 export type BoardChange = "flushCompleted" | "paired" | "straightMove" | "overcard" | "blank";
@@ -107,6 +121,8 @@ export interface StrategyVerdict {
   /** Notion に基づく評価。null ならどのルールにも当たらなかった(GTOバッジのまま)。 */
   grade: NotionGrade | null;
   boardChange: BoardChange | null;
+  /** ダブル/トリプルバレルの表で評価したときの場合分け(解説の材料)。それ以外は null。 */
+  barrel: BarrelVerdict | null;
 }
 
 /** 決定そのものの外から渡す文脈。 */
@@ -186,6 +202,10 @@ interface Ctx {
   board: readonly string[];
   /** 手札にAがあるか(プローブの「Aハイ」の判定)。 */
   holeHasAce: boolean;
+  /** 手札(読めたものだけ)。キッカーやポケットペアの判定に使う。 */
+  hole: { rank: number; suit: string }[];
+  /** 手札(そのまま)。 */
+  holeRaw: readonly (string | null)[];
   hand: HandStrength | null;
   /** ターン時点の手(フラドロが外れたかの判定用)。 */
   turnHand: HandStrength | null;
@@ -203,6 +223,7 @@ interface Hit {
   tag: StrategyTag;
   reason: StrategyReason;
   grade: NotionGrade;
+  barrel?: BarrelVerdict;
 }
 
 type Rule = (c: Ctx) => Hit | null;
@@ -346,6 +367,35 @@ const delayedCbet: Rule = (c) => {
   return { tag: "delayedCbet", reason: "delayedCbSize", grade: gradeBySizeGap(c.size, ["medium", "large"]) };
 };
 
+const BARREL_REASON: Record<"turn" | "river", Record<BarrelCard, StrategyReason>> = {
+  turn: { overcard: "dbOvercard", paired: "dbPaired", flush: "dbFlush", rag: "dbRag" },
+  river: { overcard: "tbOvercard", paired: "tbPaired", flush: "tbFlush", rag: "tbRag" },
+};
+
+function barrelHit(v: BarrelVerdict): Hit {
+  return {
+    tag: v.street === "turn" ? "doubleBarrel" : "tripleBarrel",
+    reason: BARREL_REASON[v.street][v.card],
+    grade: v.grade,
+    barrel: v,
+  };
+}
+
+/**
+ * ダブルバレル(フロップで打ち、ターンでも自分から打つ)と、トリプルバレル(フロップ・ターンに続けて
+ * リバーでも打つ)。Notion【ダブルバレル】の表で評価する(中身は `barrelPlan.ts`)。
+ * トリプルバレルもダブルバレルと同じ表(オーナー確定)。ストレート完成カードは表に無いので、
+ * 下の一般的なバレルの判定に回す。相手のベットへのレイズは対象外。
+ */
+const tableBarrel: Rule = (c) => {
+  if (c.info.firstOnStreet === false || !c.size) return null;
+  const turn = c.info.role === "turnBarrel" && c.info.street === "turn";
+  const river = c.info.role === "riverBarrel" && c.info.street === "river" && c.info.streak >= 3;
+  if (!turn && !river) return null;
+  const v = judgeBarrel(turn ? "turn" : "river", c.holeRaw, c.board, { kind: "bet", size: c.size });
+  return v ? barrelHit(v) : null;
+};
+
 /**
  * ターン/リバーバレル: ポラライズ(強い手とエア/ドローで打ち、微妙な手はチェック)して大きめに。
  * トリプルバレルもダブルバレルと同じ戦略。
@@ -480,7 +530,9 @@ const probe: Rule = (c) => {
 };
 
 /** 上から順に見て、最初に当たったものを採る。 */
-const RULES: readonly Rule[] = [flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, barrel];
+// ダブル/トリプルバレルの表は、リバーの一般則(フラドロミス・シンバリュー …)より先に見る。
+// トリプルバレルはダブルバレルと同じ表で評価する、というオーナーの指示のため。外れたフラドロの扱いは表の側でも同じ(悪手)。
+const RULES: readonly Rule[] = [tableBarrel, flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, barrel];
 
 /**
  * 1つのベット/レイズを評価する。
@@ -503,6 +555,10 @@ export function judgeBet(
     info,
     board,
     holeHasAce: hole.some((h) => typeof h === "string" && h.startsWith("A")),
+    hole: hole
+      .map((h) => (typeof h === "string" ? parseBoardCard(h) : null))
+      .filter((x): x is { rank: number; suit: string } => x !== null),
+    holeRaw: hole,
     hand: readHandStrength(hole, boardAt(street, board)),
     turnHand: street === "river" ? readHandStrength(hole, boardAt("turn", board)) : null,
     tex: readBoardTexture(boardAt(street, board)),
@@ -515,7 +571,26 @@ export function judgeBet(
   };
   for (const rule of RULES) {
     const hit = rule(ctx);
-    if (hit) return { ...hit, boardChange: ctx.change };
+    if (hit) {
+      const { barrel = null, ...rest } = hit;
+      return { ...rest, barrel, boardChange: ctx.change };
+    }
   }
-  return { tag: null, reason: null, grade: null, boardChange: ctx.change };
+  return { tag: null, reason: null, grade: null, boardChange: ctx.change, barrel: null };
+}
+
+/**
+ * ダブル/トリプルバレルを打てた場面での**チェック**を、同じ表で評価する。
+ * バリュー/ブラフの手を打たなかったら、ずれの大きさでバッジ。チェックに回す手・打たない手なら褒める。
+ * 表で評価できない(ストレート完成カード・手札が見えない)なら null(GTOのバッジのまま)。
+ */
+export function judgeBarrelCheck(
+  spot: BarrelCheckSpot,
+  hole: readonly (string | null)[],
+  board: readonly string[]
+): StrategyVerdict | null {
+  const v = judgeBarrel(spot.street, hole, board, { kind: "check" });
+  if (!v) return null;
+  const hit = barrelHit(v);
+  return { tag: hit.tag, reason: hit.reason, grade: hit.grade, barrel: v, boardChange: readBoardChange(spot.street, board) };
 }

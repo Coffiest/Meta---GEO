@@ -76,6 +76,22 @@ export interface BetRoleInfo {
   streak: number;
   /** ドンクのうち、前のストリートで(ベットに)コールした人が先に打ったもの。 */
   leadAfterCall: boolean;
+  /**
+   * そのストリートで最初のベットか(レイズではない)。ダブル/トリプルバレルの表は、
+   * 相手のベットへのレイズではなく、自分から打つベットにだけ当てる。省略時は true とみなす。
+   */
+  firstOnStreet?: boolean;
+}
+
+/**
+ * ダブル/トリプルバレルを打てた場面でのチェック。
+ * ターン: フロップの最後のアグレッサーが、ターンでまだ誰も打っていないときにチェック。
+ * リバー: フロップとターンの両方で最後のアグレッサーだった人が、リバーでまだ誰も打っていないときにチェック。
+ */
+export interface BarrelCheckSpot {
+  sequenceNumber: number;
+  seatIndex: number;
+  street: "turn" | "river";
 }
 
 export interface BetRoleTable {
@@ -229,6 +245,7 @@ export function readBetRoles(actions: readonly RoleAction[], table: BetRoleTable
       sizeClass: potFraction === null ? null : sizeClassOf(potFraction),
       streak,
       leadAfterCall,
+      firstOnStreet,
     });
 
     st.aggressionSeen = true;
@@ -236,5 +253,32 @@ export function readBetRoles(actions: readonly RoleAction[], table: BetRoleTable
     if (a.toAmount !== null) st.contribution.set(a.seatIndex, a.toAmount);
   }
 
+  return out;
+}
+
+/**
+ * ダブル/トリプルバレルを打てた場面で、チェックを選んだ決定を拾う(`BarrelCheckSpot`)。
+ * ベットの評価(`readBetRoles`)と対になる。チェックも「打たなかった」という選択として表で評価するため。
+ */
+export function readBarrelCheckSpots(actions: readonly RoleAction[]): BarrelCheckSpot[] {
+  const lastAggressor: Record<string, number | null> = { flop: null, turn: null, river: null };
+  const out: BarrelCheckSpot[] = [];
+  for (const a of actions) {
+    if (!POSTFLOP.includes(a.street)) continue;
+    if (isAggression(a.kind)) {
+      lastAggressor[a.street] = a.seatIndex;
+      continue;
+    }
+    if (a.kind !== "check" || lastAggressor[a.street] !== null) continue;
+    if (a.street === "turn" && lastAggressor["flop"] === a.seatIndex) {
+      out.push({ sequenceNumber: a.sequenceNumber, seatIndex: a.seatIndex, street: "turn" });
+    } else if (
+      a.street === "river" &&
+      lastAggressor["flop"] === a.seatIndex &&
+      lastAggressor["turn"] === a.seatIndex
+    ) {
+      out.push({ sequenceNumber: a.sequenceNumber, seatIndex: a.seatIndex, street: "river" });
+    }
+  }
   return out;
 }
