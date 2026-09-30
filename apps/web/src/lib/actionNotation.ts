@@ -105,3 +105,17 @@ export function actionLabel(
   if (!a) return "";
   return `${positionOfSeat(a.seatIndex, table.buttonFixedPos)} ${actionNotation(actions, sequenceNumber, table.bigBlind)}`;
 }
+
+/** 棋譜解析・ハンド履歴でのストリート名(オーナー確定: 英語表記)。 */
+export const STREET_EN: Record<string, string> = {
+  preflop: "Preflop",
+  flop: "Flop",
+  turn: "Turn",
+  river: "River",
+  showdown: "Showdown",
+};
+
+/** 表記の下に出す情報(例 `Flop · ES 40BB · Pot 6.5BB`)。ES = エフェクティブスタック。 */
+export function decisionInfo(street: string, effStackBb: number, potBb: number): string {
+  return `${STREET_EN[street] ?? street} · ES ${effStackBb.toFixed(0)}BB · Pot ${potBb.toFixed(1)}BB`;
+}

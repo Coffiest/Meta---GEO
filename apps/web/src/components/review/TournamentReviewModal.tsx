@@ -24,7 +24,7 @@ import {
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionHeadline } from "@/components/review/DecisionHeadline";
-import { actionLabel } from "@/lib/actionNotation";
+import { actionLabel, decisionInfo, STREET_EN } from "@/lib/actionNotation";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -44,7 +44,7 @@ import { AdSlot } from "@/components/AdSlot";
  * 画面遷移ではなくモーダルで開く(確定仕様)。呼び出し側で AnimatePresence によりマウント制御。
  */
 
-const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
+const STREET_LABEL = STREET_EN;
 
 /**
  * mergeOpenRaiseOptions(geoApi.ts)は件数(count)を持つ本来のActionOption向けで、
@@ -178,8 +178,6 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
     </div>
   );
 }
-
-const STREET_JA: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
 
 /** 再生の1手を「UTG bet 33%」の形で書く。 */
 function stepNotation(step: Extract<ReplayStep, { type: "action" }>, timeline: ReviewHandTimeline): string {
@@ -556,7 +554,7 @@ export function TournamentReviewModal({
               <DecisionPanel
                 d={step.decision}
                 notation={stepNotation(step, currentHand.timeline)}
-                info={`${STREET_JA[step.decision.street] ?? step.decision.street} · 有効 ${step.decision.effStackBb.toFixed(0)}bb · ポット ${step.decision.potBb.toFixed(1)}bb`}
+                info={decisionInfo(step.decision.street, step.decision.effStackBb, step.decision.potBb)}
                 context={knowledgeContext ?? undefined}
               />
             ) : (

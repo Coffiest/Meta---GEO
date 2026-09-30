@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { actionLabel, actionNotation, positionOfSeat, type NotationAction } from "../src/lib/actionNotation";
+import {
+  actionLabel,
+  actionNotation,
+  decisionInfo,
+  positionOfSeat,
+  type NotationAction,
+} from "../src/lib/actionNotation";
 
 /**
  * 1手の短い表記(`UTG bet 33%` / `BB x/r` など)のテスト。
@@ -85,5 +91,12 @@ describe("表記", () => {
   it("チェックそのものは check", () => {
     const a = [...preflop(), act(2, "flop", "check", null, 550)];
     expect(actionLabel(a, a.at(-1)!.sequenceNumber, table)).toBe("BB check");
+  });
+});
+
+describe("情報の行", () => {
+  it("ストリートは英語、スタックは ES(エフェクティブスタック)で書く", () => {
+    expect(decisionInfo("preflop", 40, 1.5)).toBe("Preflop · ES 40BB · Pot 1.5BB");
+    expect(decisionInfo("river", 12.4, 30)).toBe("River · ES 12BB · Pot 30.0BB");
   });
 });

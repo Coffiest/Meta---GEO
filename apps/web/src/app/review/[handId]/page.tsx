@@ -7,13 +7,12 @@ import { useAuth } from "@/lib/useAuth";
 import { fetchHandReview, type HandReviewResponse, type ReviewedDecision } from "@/lib/reviewApi";
 import { DecisionHeadline } from "@/components/review/DecisionHeadline";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
-import { actionLabel } from "@/lib/actionNotation";
+import { actionLabel, decisionInfo } from "@/lib/actionNotation";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { Footer } from "@/components/Footer";
 
-const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
 
 function bucketLabel(street: string, bucket: string): string {
   const table = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
@@ -39,7 +38,7 @@ function DecisionCard({
       <DecisionHeadline
         decision={d}
         notation={notation}
-        info={`${STREET_LABEL[d.street] ?? d.street} · 有効 ${d.effStackBb.toFixed(0)}bb · ポット ${d.potBb.toFixed(1)}bb`}
+        info={decisionInfo(d.street, d.effStackBb, d.potBb)}
         context={context}
       />
 
