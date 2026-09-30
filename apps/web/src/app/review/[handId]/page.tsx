@@ -227,7 +227,7 @@ export default function ReviewHandPage() {
 
             <p className="text-[10px] text-fg-3 mt-4 leading-relaxed">
               v1のGTO基準はプリフロップのRFI(最初の開き)のみ対応。フェイスやポストフロップHUはソルバー実装後に解析対象になります。
-              芸術的(エクスプロイト検出)は母集団データ蓄積後に解禁予定。
+              絶妙手(エクスプロイト検出)は母集団データ蓄積後に解禁予定。
             </p>
           </>
         ) : null}

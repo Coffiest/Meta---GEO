@@ -1,5 +1,10 @@
 import type { BetRole } from "@meta-geo/engine/src/review/betRole.js";
-import type { BoardChange, StrategyReason, StrategyTag } from "@meta-geo/engine/src/review/strategyVerdict.js";
+import type {
+  BoardChange,
+  NotionGrade,
+  StrategyReason,
+  StrategyTag,
+} from "@meta-geo/engine/src/review/strategyVerdict.js";
 import type { Classification } from "./classification";
 import type { HandClassMatrixResult } from "./geoApi";
 
@@ -19,14 +24,16 @@ export interface GeoDecisionInfo {
 }
 
 /**
- * ベットの役割(ドンク/CB/バレル等)と戦略判定(サーバーのreviewStrategy.tsと同形)。
- * 上書きが起きた場合、`classification` にはもう反映済み。相手が誰でも同じ形で返る。
+ * ベットの役割(ドンク/CB/バレル等)と、Notion に基づく評価(サーバーのreviewStrategy.tsと同形)。
+ * 評価がある場合、`classification` にはもう反映済み(ポストフロップはGTOではなくこちらで判定)。
+ * 相手が誰でも同じ形で返る。
  */
 export interface DecisionStrategy {
   role: BetRole;
   tag: StrategyTag | null;
   reason: StrategyReason | null;
-  override: "artistic" | "mistake" | "blunder" | null;
+  /** Notion に基づく評価。null ならどのルールにも当たらず、バッジはGTOのまま。 */
+  grade: NotionGrade | null;
   boardChange: BoardChange | null;
 }
 

@@ -160,7 +160,7 @@ describe("matchKnowledge", () => {
     const verdict = entry("verdict", { strategyTag: ["marginalBet"] });
     const d = decision({
       street: "river",
-      strategy: { role: "otherBet", tag: "marginalBet", reason: "marginalWeakHand", override: "blunder", boardChange: null },
+      strategy: { role: "otherBet", tag: "marginalBet", reason: "marginalWeakHand", grade: "blunder", boardChange: null },
     });
     expect(matchKnowledge(d, [board, verdict], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["verdict", "boardHeavy"]);
   });
@@ -170,7 +170,7 @@ describe("matchKnowledge", () => {
     const role: KnowledgeEntry = { ...entry("role", { role: ["probe"] }), priority: 1.5 };
     const d = decision({
       street: "river",
-      strategy: { role: "probe", tag: null, reason: null, override: null, boardChange: null },
+      strategy: { role: "probe", tag: null, reason: null, grade: null, boardChange: null },
     });
     // 条件数は generic=2 / role=1。priority を足して role=2.5 になり、先に来る。
     expect(matchKnowledge(d, [generic, role], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["role", "generic"]);
@@ -180,7 +180,7 @@ describe("matchKnowledge", () => {
     const e = entry("needsRole", { role: ["cbet"] });
     expect(matchKnowledge(decision({ strategy: null }), [e])).toHaveLength(0);
     const cbet = decision({
-      strategy: { role: "cbet", tag: null, reason: null, override: null, boardChange: null },
+      strategy: { role: "cbet", tag: null, reason: null, grade: null, boardChange: null },
     });
     expect(matchKnowledge(cbet, [e])).toHaveLength(1);
   });
@@ -188,7 +188,7 @@ describe("matchKnowledge", () => {
   it("役割が違えば当たらない", () => {
     const e = entry("probeOnly", { role: ["probe"] });
     const donk = decision({
-      strategy: { role: "donk", tag: null, reason: null, override: null, boardChange: null },
+      strategy: { role: "donk", tag: null, reason: null, grade: null, boardChange: null },
     });
     expect(matchKnowledge(donk, [e])).toHaveLength(0);
   });

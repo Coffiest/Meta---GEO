@@ -23,7 +23,7 @@ export interface ClassificationMeta {
 }
 
 export const CLASSIFICATION_META: Record<Classification, ClassificationMeta> = {
-  artistic: { label: "芸術的", glyph: "!!", color: "#14b8a6" },
+  artistic: { label: "絶妙手", glyph: "!!", color: "#14b8a6" },
   best: { label: "最善", glyph: "★", color: "#22a06b" },
   great: { label: "素晴らしい", glyph: "!", color: "#3b82f6" },
   excellent: { label: "良手", glyph: "", color: "#34a853" },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyStrategyOverrides, attachStrategies } from "../src/reviewStrategy.js";
+import { applyNotionGrades, attachStrategies } from "../src/reviewStrategy.js";
+import { summarizeReviewedDecisions } from "../src/review.js";
 import type { ExtractHand } from "../src/reviewExtract.js";
 import type { ReviewedDecision } from "../src/review.js";
 
@@ -82,7 +83,7 @@ describe("attachStrategies", () => {
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0 });
     attachStrategies(hand, [d]);
     expect(d.strategy?.tag).toBe("marginalBet");
-    expect(d.strategy?.override).toBe("blunder");
+    expect(d.strategy?.grade).toBe("blunder");
   });
 
   it("ベット/レイズではない決定には判定が載らない(null)", () => {
@@ -96,7 +97,7 @@ describe("attachStrategies", () => {
     const { hand, betSeq } = riverBetHand([], ["Qh", "Jd"]);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0 });
     attachStrategies(hand, [d]);
-    expect(d.strategy?.override).toBeNull();
+    expect(d.strategy?.grade).toBeNull();
   });
 
   it("席の持ち主が誰でも、同じ手・同じ局面なら同じ判定になる", () => {
@@ -112,31 +113,31 @@ describe("attachStrategies", () => {
   });
 });
 
-describe("applyStrategyOverrides", () => {
+describe("applyNotionGrades", () => {
   it("分類が付いている決定は、格付けだけ上書きされ、EV損は残る", () => {
     const { hand, betSeq } = riverBetHand(["2h", "9c"], ["Qh", "Jd"]);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0, classification: "best", evLossBb: 0 });
     attachStrategies(hand, [d]);
-    applyStrategyOverrides([d]);
+    applyNotionGrades([d]);
     expect(d.classification).toBe("blunder");
     expect(d.evLossBb).toBe(0);
   });
 
-  it("分類が付いていない決定(GTOの基準なし)は、判定があっても付けない", () => {
+  it("GTOの分類が無い決定(マルチウェイ等)にも、Notion の評価は付く(EV損は null のまま)", () => {
     const { hand, betSeq } = riverBetHand(["2h", "9c"], ["Qh", "Jd"]);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0, classification: null, evLossBb: null });
     attachStrategies(hand, [d]);
-    applyStrategyOverrides([d]);
-    expect(d.classification).toBeNull();
-    expect(d.strategy?.tag).toBe("marginalBet"); // 解説用の判定そのものは残る
+    applyNotionGrades([d]);
+    expect(d.classification).toBe("blunder");
+    expect(d.evLossBb).toBeNull();
   });
 
   it("何度呼んでも結果は同じ", () => {
     const { hand, betSeq } = riverBetHand(["2h", "9c"], ["Qh", "Jd"]);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0, classification: "good" });
     attachStrategies(hand, [d]);
-    applyStrategyOverrides([d]);
-    applyStrategyOverrides([d]);
+    applyNotionGrades([d]);
+    applyNotionGrades([d]);
     expect(d.classification).toBe("blunder");
   });
 
@@ -145,14 +146,24 @@ describe("applyStrategyOverrides", () => {
     const { hand, betSeq } = riverBetHand(["Ah", "Qd"], ["8h", "9d"]);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0, classification: "good" });
     attachStrategies(hand, [d]);
-    applyStrategyOverrides([d]);
+    applyNotionGrades([d]);
     expect(d.strategy?.tag).toBe("thinValue");
     expect(d.classification).toBe("artistic");
   });
 
   it("判定が無い決定の格付けには触らない", () => {
     const d = decision({ classification: "inaccuracy", strategy: null });
-    applyStrategyOverrides([d]);
+    applyNotionGrades([d]);
     expect(d.classification).toBe("inaccuracy");
+  });
+});
+
+describe("集計", () => {
+  it("件数はバッジの付いた全決定、GTO精度はEV損が分かる決定だけで数える", () => {
+    const withEv = decision({ sequenceNumber: 1, classification: "best", evLossBb: 0 });
+    const notionOnly = decision({ sequenceNumber: 2, classification: "blunder", evLossBb: null });
+    const s = summarizeReviewedDecisions([withEv, notionOnly]);
+    expect(s.mistakeCount).toBe(1); // EV損の無い大悪手も数える
+    expect(s.gtoAccuracy).toBe(100); // 平均はEV損0の1件だけ
   });
 });

@@ -23,7 +23,7 @@ import {
   type GtoActionEV,
 } from "./reviewClassify.js";
 import { getGeoNodeForReviewSpot, type HandClassMatrixResult } from "./geoTree.js";
-import { applyStrategyOverrides, attachStrategies, type DecisionStrategy } from "./reviewStrategy.js";
+import { applyNotionGrades, attachStrategies, type DecisionStrategy } from "./reviewStrategy.js";
 
 /**
  * 局後検討のオーケストレーション。1ハンド×1hero(自分)の意思決定を抽出→GTO基準で分類→永続化する。
@@ -332,12 +332,16 @@ function summarize(decisions: ReviewedDecision[]): {
   mistakeCount: number;
   artisticCount: number;
 } {
-  const classified = decisions.filter((d) => d.classification !== null && d.evLossBb !== null);
-  if (classified.length === 0) return { gtoAccuracy: null, totalEvLossBb: null, mistakeCount: 0, artisticCount: 0 };
-  const totalEvLossBb = classified.reduce((s, d) => s + (d.evLossBb ?? 0), 0);
-  const avg = totalEvLossBb / classified.length;
-  const mistakeCount = classified.filter((d) => d.classification && isMistake(d.classification)).length;
-  const artisticCount = classified.filter((d) => d.classification === "artistic").length;
+  // 件数(悪手・絶妙手)はバッジの付いた全決定で数える。ポストフロップは Notion の評価で、
+  // GTOの基準が無い(EV損が null の)決定にもバッジが付くため。
+  // GTO精度%は、EV損が分かる決定だけで平均する(数字の意味を変えない)。
+  const graded = decisions.filter((d) => d.classification !== null);
+  const withEv = graded.filter((d) => d.evLossBb !== null);
+  const mistakeCount = graded.filter((d) => d.classification && isMistake(d.classification)).length;
+  const artisticCount = graded.filter((d) => d.classification === "artistic").length;
+  if (withEv.length === 0) return { gtoAccuracy: null, totalEvLossBb: null, mistakeCount, artisticCount };
+  const totalEvLossBb = withEv.reduce((s, d) => s + (d.evLossBb ?? 0), 0);
+  const avg = totalEvLossBb / withEv.length;
   return { gtoAccuracy: gtoAccuracyPct(avg), totalEvLossBb, mistakeCount, artisticCount };
 }
 
@@ -353,10 +357,10 @@ export function analyzeExtractedHand(
   if (!heroSeatEntry) return null;
   const heroDecisions = extractHeroDecisions(hand, heroUserId);
   const decisions = analyzeDecisions(hand, heroSeatEntry.seatIndex, heroDecisions);
-  // 戦略判定(ドンク/シンバリュー/マージナル等)を載せて、分類済みの決定はバッジを上書きする。
-  // ソルバー結果のマージやGEOの上書きの後にも、同じ applyStrategyOverrides を呼び直す。
+  // ポストフロップの Notion 評価を載せて、バッジを置き換える(当たらない手は GTO のまま)。
+  // ソルバー結果のマージやGEOの上書きの後にも、同じ applyNotionGrades を呼び直す。
   attachStrategies(hand, decisions);
-  applyStrategyOverrides(decisions);
+  applyNotionGrades(decisions);
   return { decisions, summary: summarize(decisions) };
 }
 
@@ -436,8 +440,8 @@ async function enrichHeroDecisionsWithGeo(
       d.classification = "artistic";
     }
   }
-  // GEOの「芸術的」より戦略判定を優先する(マージナルベットが芸術的に化けない)。
-  applyStrategyOverrides(decisions);
+  // GEOの「芸術的」より Notion の評価を優先する(ポストフロップは Notion で判定する方針)。
+  applyNotionGrades(decisions);
 }
 
 /** 解析結果を HandReview / ReviewDecision に永続化(upsert)する。 */
@@ -561,8 +565,8 @@ export async function applySavedSolverResults(
     }
     solving = decisions.some((d) => d.outOfScopeReason === "solving");
   }
-  // マージした保存済みの分類は、その時点のもの。戦略判定のバッジをかぶせ直す。
-  applyStrategyOverrides(decisions);
+  // マージした保存済みの分類は、その時点のもの。Notion の評価をかぶせ直す。
+  applyNotionGrades(decisions);
   return solving;
 }
 
@@ -687,10 +691,11 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     });
   }
 
-  const allClassified = reviewed.flatMap((h) => h.decisions).filter((d) => d.classification !== null && d.evLossBb !== null);
+  // 件数はバッジの付いた全決定、GTO精度はEV損が分かる決定だけ(summarize と同じ考え方)。
+  const allClassified = reviewed.flatMap((h) => h.decisions).filter((d) => d.classification !== null);
+  const withEv = allClassified.filter((d) => d.evLossBb !== null);
   const totalDecisions = reviewed.reduce((s, h) => s + h.decisions.length, 0);
-  const avg =
-    allClassified.length > 0 ? allClassified.reduce((s, d) => s + (d.evLossBb ?? 0), 0) / allClassified.length : null;
+  const avg = withEv.length > 0 ? withEv.reduce((s, d) => s + (d.evLossBb ?? 0), 0) / withEv.length : null;
 
   return {
     tournamentId,
@@ -955,8 +960,8 @@ export async function enrichAndSaveReview(handId: string, heroUserId: string): P
     }
   }
 
-  // ソルバーが埋めた分類にも戦略判定を効かせてから集計・保存する。
-  applyStrategyOverrides(analyzed.decisions);
+  // ソルバーが埋めた分類にも Notion の評価を効かせてから集計・保存する。
+  applyNotionGrades(analyzed.decisions);
   const summary = summarize(analyzed.decisions);
   const result: ReviewResult = { handId, heroUserId, decisions: analyzed.decisions, ...summary };
   await saveReview(result);

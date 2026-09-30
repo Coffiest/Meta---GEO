@@ -35,7 +35,7 @@ const strat = (over: Partial<NonNullable<ReviewedDecision["strategy"]>>): NonNul
   role: "otherBet",
   tag: null,
   reason: null,
-  override: null,
+  grade: null,
   boardChange: null,
   ...over,
 });
@@ -163,11 +163,29 @@ describe("戦略判定・役割の解説", () => {
     marginalSizeTooBig: true,
     marginalFlushBoard: true,
     flushDrawMiss: true,
+    riverBlockStrong: true,
     donkFlushCompleted: true,
     donkTurnRepeat: true,
     donkStraightMove: true,
     donkLowBoard: true,
     donkNoReason: true,
+    overpairJamLowSpr: true,
+    cb3bet: true,
+    cbAmlMiddleHit: true,
+    cbLowFreqHand: true,
+    cbAceHighBroadway: true,
+    cbAceLowLow: true,
+    cbPairedBoard: true,
+    cbLowBoard: true,
+    cbDryHigh: true,
+    cbMonotone: true,
+    cbDrawHeavy: true,
+    delayedCbSize: true,
+    barrelPolarized: true,
+    barrelMarginal: true,
+    checkRaiseTooBig: true,
+    checkRaiseDryBroadway: true,
+    checkRaiseDraw: true,
   } satisfies Record<StrategyReason, true>;
 
   const ALL_ROLES = {
@@ -187,6 +205,12 @@ describe("戦略判定・役割の解説", () => {
     flushDrawMissBluff: true,
     goodDonk: true,
     badDonk: true,
+    overpairJam: true,
+    cbet: true,
+    delayedCbet: true,
+    barrel: true,
+    checkRaise: true,
+    riverBlock: true,
   } satisfies Record<StrategyTag, true>;
 
   const river = ctx(["As", "7h", "2d", "Kc", "3s"], ["2h", "9c"], SRP);
@@ -210,14 +234,27 @@ describe("戦略判定・役割の解説", () => {
   });
 
   it("タグの一覧が型と一致している(増えたときの取りこぼし防止)", () => {
-    expect(Object.keys(ALL_TAGS).sort()).toEqual(
-      ["badDonk", "flushDrawMissBluff", "goodDonk", "marginalBet", "thinValue"].sort()
-    );
+    // 型に足したら satisfies が型エラーで知らせる。ここは数の固定。
+    expect(Object.keys(ALL_TAGS)).toHaveLength(11);
+  });
+
+  it("理由ごとの解説は、評価(最善/ずれ)で言い分けたものが正しく引ける", () => {
+    const board = ctx(["As", "Qh", "5d", "2c", "4s"], ["Kh", "Kd"], SRP);
+    const at = (classification: ReviewedDecision["classification"]) =>
+      idsFor(d({ classification, strategy: strat({ role: "cbet", tag: "cbet", reason: "cbAceHighBroadway", grade: classification }) }), board, 50)[0];
+    expect(at("best")).toBe("verdict-cb-ahx-ok");
+    expect(at("inaccuracy")).toBe("verdict-cb-ahx-off");
+  });
+
+  it("短文はバリィの口調(です・ます調を使わない)", () => {
+    for (const e of REVIEW_KNOWLEDGE) {
+      expect(/です|ます|ください/.test(e.summary), `${e.id}: ${e.summary}`).toBe(false);
+    }
   });
 
   it("マージナルベット(大悪手)には、ボード条件の一般論より先に、その理由が出る", () => {
     const decision = riverDecision(
-      strat({ role: "otherBet", tag: "marginalBet", reason: "marginalWeakHand", override: "blunder" })
+      strat({ role: "otherBet", tag: "marginalBet", reason: "marginalWeakHand", grade: "blunder" })
     );
     const ids = idsFor(decision, river, 50);
     expect(ids[0]).toBe("verdict-marginal-weak");
@@ -225,14 +262,14 @@ describe("戦略判定・役割の解説", () => {
 
   it("リバーのフラドロミス・ブラフには、ブロッカー理論の解説が出る", () => {
     const decision = riverDecision(
-      strat({ role: "otherBet", tag: "flushDrawMissBluff", reason: "flushDrawMiss", override: "mistake" })
+      strat({ role: "otherBet", tag: "flushDrawMissBluff", reason: "flushDrawMiss", grade: "mistake" })
     );
     expect(idsFor(decision, river, 50)[0]).toBe("verdict-flush-draw-miss");
   });
 
   it("シンバリューには、絶妙手の理由(バリューターゲット)が出る", () => {
     const decision = riverDecision(
-      strat({ role: "otherBet", tag: "thinValue", reason: "thinValueTarget", override: "artistic" })
+      strat({ role: "otherBet", tag: "thinValue", reason: "thinValueTarget", grade: "artistic" })
     );
     expect(idsFor(decision, river, 50)[0]).toBe("verdict-thin-value");
   });
