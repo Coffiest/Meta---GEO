@@ -55,10 +55,18 @@ describe("知識全体の当たり方", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("本文が空の知識は無い", () => {
+  it("見出し・短文・本文がどれも空でない", () => {
     for (const e of REVIEW_KNOWLEDGE) {
       expect(e.title.length, e.id).toBeGreaterThan(0);
+      expect(e.summary.length, e.id).toBeGreaterThan(0);
       expect(e.body.length, e.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("短文はカードに常時出るので、長すぎないこと", () => {
+    // 2文まで・120字程度を目安にする。これを超えると一覧性が落ちる。
+    for (const e of REVIEW_KNOWLEDGE) {
+      expect(e.summary.length, `${e.id} の短文が長すぎる`).toBeLessThanOrEqual(120);
     }
   });
 
@@ -107,11 +115,11 @@ describe("知識全体の当たり方", () => {
     for (const id of ids) expect(boardBound).not.toContain(id);
   });
 
-  it("1つの決定に出るのは既定で2件まで", () => {
+  it("1つの決定に出るのは1件だけ", () => {
     const context = ctx(["As", "5h", "3d"], ["Kh", "Qc"], SRP);
     const all = idsFor(d({}), context, 50);
-    expect(all.length).toBeGreaterThan(2); // 上限が効いていることを確かめる前提
+    expect(all.length).toBeGreaterThan(1); // 上限が効いていることを確かめる前提
     const capped = matchKnowledge(d({}), REVIEW_KNOWLEDGE, factsForDecision("flop", context));
-    expect(capped).toHaveLength(2);
+    expect(capped).toHaveLength(1);
   });
 });

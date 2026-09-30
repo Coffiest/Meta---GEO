@@ -30,6 +30,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "donk-when",
     title: "ドンクが成立するスポットか",
+    summary:
+      "OOP側にナッツ級が移ったスポットでしかドンクは成立しません。チェックバックされる場面かどうかが分かれ目です。",
     body:
       "ドンクの目的は、チェックバックされてバリューを取り逃すのを避けること。\n" +
       "つまりドンクが存在するのは、オリジナルがチェックバックしたいスポット = OOP側にナッツ級が移ったスポット。\n\n" +
@@ -44,6 +46,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "donk-wrong",
     title: "これは誤ったドンクになっていないか",
+    summary:
+      "ドンクが許されない場面での純粋なブロックベットと、リピートボード以外でのドローベットは、ただのリークになります。",
     body:
       "誤ったドンクの典型は次の2つ。\n\n" +
       "・ドンクが許されないシチュエーションでの、純粋なリバーブロックベット\n" +
@@ -57,6 +61,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "donk-vs-beginner",
     title: "初心者のドンクは咎める",
+    summary:
+      "ラグでのドンクは血迷った謎ドンク。強い手を代表できていないので、素直に降りる必要はありません。",
     body: "ラグでのドンクベットは、血迷った謎ドンク。強い手を代表できていないので、素直に降りる必要はない。",
     when: { street: ["flop", "turn", "river"], actionBucket: ["fold"], boardDraws: ["dry"] },
   },
@@ -65,6 +71,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "block-bet-srp",
     title: "ブロックベット(SRP)は1/3で3種を混ぜる",
+    summary:
+      "セミナッツだけを安く打つと、レイズされたくない手ばかり並んで読まれます。ガチナッツと良ブロッカーのブラフを1:1:1で混ぜてください。",
     body:
       "OOPかつセミナッツ(そこそこ強いがレイズされたくない手。ミドルペア、フラッシュボードの2Pなど)を、\n" +
       "ガチナッツ(Aハイフラッシュ、クワッズなど強すぎてバリュー対象がいない手)と、良ブロッカーのブラフと\n" +
@@ -80,6 +88,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "block-bet-condition",
     title: "そのブロックベットはドンク条件を満たしているか",
+    summary:
+      "チェックアラウンド回避の安いバリューも、デカベット回避のブロックも、原則ドンク条件を満たす必要があります。",
     body:
       "チェックアラウンドを回避するための安いバリュードンクは、ドンク条件を満たすこと。\n" +
       "デカベットを回避するためのブロックベットも、原則ドンク条件を満たすこと。\n\n" +
@@ -92,6 +102,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-size-basic",
     title: "CBのサイズはドローの量で決める",
+    summary:
+      "ドローが多くてまだ完成していないボードは75%、完成しうるボードは安く。CBのサイズはこれで決まります。",
     body:
       "フラッシュやストレートがまだ完成していないがドローが多いボードでは、75%くらいのベット。\n" +
       "フラッシュやストレートが完成しうるボードでは、安くベット。",
@@ -100,6 +112,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-a-l-l",
     title: "A-L-Lボードはチェック多め",
+    summary:
+      "Aハイでほかの2枚がローの並びは、BB側にストレートが多いのでチェック多め。打つなら33%です。",
     body:
       "Aハイでほかの2枚がローのボードは、チェック多め。打つなら33%。\n" +
       "A53のような並びはBB側にストレートが多いのが理由。\n" +
@@ -109,6 +123,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-a-m-l",
     title: "A-M-Lボードはミドルヒットを広く33%",
+    summary:
+      "Aハイ・ミドル・ローでミドルにヒットした手は、プロテクションの価値が跳ね上がります。広く(頻度6割)33%。",
     body:
       "Aハイ・ミドル・ローの並びでは、ミドルにヒットした手を広く(頻度6割)33%でCB。\n" +
       "ミドルヒットを広くプロテクションする価値が跳ね上がるボード。",
@@ -117,6 +133,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-a-h-x",
     title: "A-H-xはポラーに125%かチェック",
+    summary:
+      "Aハイでもう1枚もブロードウェイ。ここは125%のオーバーベットかチェックの二極です。",
     body:
       "Aハイでもう1枚もブロードウェイのボードは、125%のオーバーベットかチェックの二極。\n" +
       "ドローが多いほどサイズが上がり、ドライなほど安くなる傾向。",
@@ -125,6 +143,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-hmnsd",
     title: "ドライなA〜Jハイボードは広く33%",
+    summary:
+      "ドライなハイカードボードは広く33%。ただしハイと2番目のランク差が小さいほどサイズを上げます。",
     body:
       "Q75rのような、ハイとミドルがあってストレートドローの無いドライなボード。\n" +
       "基本は広く33%の安ベット。ただしハイと2番目のランク差が小さくなるほど、サイズはだんだん大きくする。\n\n" +
@@ -135,6 +155,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-paired-board",
     title: "ペアボードはペアのランクで頻度が変わる",
+    summary:
+      "ペアボードはペアのランクが低いほどチェックが増えます。OOPからはほぼチェックです。",
     body:
       "ペアになっている数字がロー(6以下)なら、チェック頻度が増える(A66など)。\n" +
       "OOPからはほぼチェックになり、ベットサイズは1/3か150%を使う。",
@@ -143,6 +165,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-middle-paired",
     title: "ミドルペアボードはたまにチェック(IP)",
+    summary:
+      "ミドル(5〜9)がペアのボードは、トリップス以上だけ33%で、それ以外はレンジの3割をチェックに回します。",
     body:
       "ロー(2〜4)かハイ(T〜A)がペアのボードは、レンジで33%。\n" +
       "ミドル(5〜9)がペアのボードは、トリップス以上で33%、それ以外はレンジの7割を33%・3割チェック。\n" +
@@ -152,6 +176,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-dry-jt",
     title: "ドライなJTハイボードはチェックか350%",
+    summary:
+      "ドライなブロードウェイボードは、チェックか350%の二極。セットとフラッシュドローはチェックレイズに回します。",
     body:
       "チェックか、350%のバカデカALLINの二極。\n\n" +
       "バリュー: TPTK、オーバーペア、2P。セットはチェックレイズに回す。\n" +
@@ -161,6 +187,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-low-board",
     title: "5ハイ以下ボードはALLIN・75%・チェックの3択",
+    summary:
+      "5ハイ以下のボードは、ALLIN・75%・チェックの3択。どれを選ぶかは手の種類で決まります。",
     body:
       "ALLIN: バリューは99〜JJのミドルオーバーペア。ブラフはナッツフラッシュドローとAK。\n" +
       "75%CB: バリューはAA〜QQと88〜66。ブラフは2オーバーのフラッシュドロー、バックドアフラッシュドロー。",
@@ -169,6 +197,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-akq",
     title: "AKQrは3サイズの混合",
+    summary:
+      "AKハイでコネクトもしているので、125%・75%・33%の混合になります。",
     body:
       "125%・75%・33%の混合。AKハイボードなので125%か33%、コネクトボードなので75%。\n\n" +
       "フロップからポラーレンジを使うときのブラフの優先順位は、\n" +
@@ -178,6 +208,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "cb-size-mix",
     title: "4サイズ混合でのハンドの振り分け",
+    summary:
+      "セット・オーバーペア・TPGK・ストレートドローは超高頻度で打ち、TPLKやミドルヒットはほとんど打ちません。",
     body:
       "ベット頻度が超高い: セット、オーバーペア、TPGK、ストレートドロー。\n" +
       "ベット頻度が超低い: トップハイ、ポケット、TPLK、ミドルヒット。\n" +
@@ -189,6 +221,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "delayed-cb-ip",
     title: "IPからのディレイドCBはCBより少し大きく",
+    summary:
+      "2回チェックした相手には強い部分が残っていません。CBより少し大きめのサイズで、TPLKも打ちます。",
     body:
       "CBよりちょっと大きいくらいのサイズを使う。TPLKも打つ。\n" +
       "強い手を持っているときにプロテクションしすぎる人が多く、2回チェックしていると強い部分が残っていないため。",
@@ -199,6 +233,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "double-barrel-overcard",
     title: "オーバーカードが落ちたターンはポラライズ",
+    summary:
+      "オーバーカードが落ちたターンは、頻度50%で75%のポラライズです。",
     body: "頻度50%で、75%サイズのベット。ポラライズ戦略。",
     when: { street: ["turn"], actionBucket: ["bet75", "bet", "allIn"] },
   },
@@ -207,6 +243,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "3bet-ip",
     title: "3betPotのIPは高頻度CB・サイズは安く",
+    summary:
+      "3betPotのIPはローコネクト以外で高頻度CB。ただしサイズは安くして、オーバーベットは使いません。",
     body:
       "ローコネクトボード(345など)以外では高頻度でCB。Aハイでもブラフする。\n" +
       "ベットサイズは安くして、オーバーベットは使わない(33%→20%、75%→50%など)。\n\n" +
@@ -216,6 +254,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "3bet-oop-low",
     title: "3betPotのOOPローボードはバックドア次第",
+    summary:
+      "3betPotのOOPローボードは、バックドアフラドロの有無で決まります。無ければ2オーバーでもチェックフォールドです。",
     body:
       "バックドアフラッシュドローあり → 7割をブラフベット。残りをチェックコールとチェックレイズで半々に分ける。\n" +
       "バックドアフラッシュドローなし → 2オーバーでもチェックフォールド。",
@@ -224,6 +264,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "3bet-notes",
     title: "3betPotで気をつけること",
+    summary:
+      "3betPotのローボードはレンジチェック。ブラフに使うのはAハイのローキッカーです。",
     body: "Aハイのローキッカー(A4s、A5s)をブラフに使う。ローボードではレンジチェックしておく。",
     when: { street: ["flop"], potType: ["threeBet"], boardHighBand: ["L"] },
   },
@@ -232,6 +274,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "thin-value",
     title: "シンバリューベットを打っていい場面か",
+    summary:
+      "ドローすべりが多くて相手にブラフが多いときだけ。フラッシュやストレートの目があるボードではやりません。",
     body:
       "ドローすべりが多いときにやる(相手にブラフが多く、こちらがたくさんキャッチしないといけないため)。\n" +
       "フラッシュやストレートの目があるボードではやらない。\n\n" +
@@ -243,6 +287,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "protection-condition",
     title: "プロテクションが成り立つ3条件",
+    summary:
+      "プロテクションは3条件が同時に成り立つときだけ。後のストリートでブラフキャッチャーになる手は打ちません。",
     body:
       "同一のサイズで、次の3つが同時に成り立つときだけプロテクションになる。\n\n" +
       "① 自分が勝っているところにある程度コールされる\n" +
@@ -256,6 +302,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "protection-when",
     title: "プロテクションベットを打つべき場面",
+    summary:
+      "SPR2以下でフロップのオーバーペアは、いきなりジャムでいい場面です。",
     body:
       "・フロップIPのAハイ → 安ベットを打ってターンで諦めるか、ミドルペアをターゲットにブラフ\n" +
       "・OOP、SPR2以下、フロップのオーバーペアはジャム → 9ハイボードのTT、JJをいきなりALLIN",
@@ -266,12 +314,16 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bmcb-exploit",
     title: "BMCB(スタブ)のエクスプロイト",
+    summary:
+      "Jハイ以下でレンジチェックができていない相手は、チェックレイズが弱い。レンジでBMCBが刺さります。",
     body: "Jハイ以下のボードでレンジチェックができていないプレイヤーは、チェックレイズが弱い。それを読んでレンジでBMCBを打つ。",
     when: { street: ["flop"], actionBucket: ["bet33", "bet50", "bet75", "bet"], boardHighBand: ["M", "L"] },
   },
   {
     id: "bmcb-bvb",
     title: "BvBのBMCB戦略",
+    summary:
+      "モノトーンはランクとサイズが比例。ブロードウェイ2枚ならレンジチェックバックでもEVロスはほぼありません。",
     body:
       "モノトーンボードはランクとサイズが比例する。Aハイなら50〜75%。\n" +
       "モノトーンボードでブロードウェイが2枚のときは、レンジチェックバックでもEVロスはほぼ無い。",
@@ -280,6 +332,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bmcb-bb",
     title: "BBのBMCBはボードのランクでサイズを変える",
+    summary:
+      "Tハイ以下では安く広く(33〜75%)、Aハイでは狭く大きく(オーバーかチェック)。ランクでサイズが決まります。",
     body:
       "Tハイ以下のボードでは33〜75%。Jハイ以上ではサイズとランクが比例し、特にAハイボードではオーバーベットかチェック。\n\n" +
       "モノトーンボードは8割チェックで、打つなら安く。ただしAハイならオーバーベットかチェック。\n" +
@@ -293,6 +347,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bvb-sb-cb",
     title: "BvBのSBのCBは全レンジ混合",
+    summary:
+      "SBのCBは全レンジ混合。エクスプロイトのしどころで、SBはトラッシュ過多になりがちです。",
     body:
       "SBのCBは全レンジ混合なので、エクスプロイトしまくれる場所。\n\n" +
       "・SBはトラッシュ過多。これを全部ブラフに回すとブラフ過多になる\n" +
@@ -303,6 +359,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bvb-limp-sb",
     title: "BvBリンプポット: SBのリンプ頻度",
+    summary:
+      "ALLINに近づくほどSBのリンプ頻度は上がります。150BB以上と7BB以下では使いません。",
     body:
       "ALLINに近づくほどSBのリンプ頻度は上がる。\n" +
       "150BB以上と7BB以下ではリンプを使わない。\n" +
@@ -312,6 +370,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bvb-limp-cb",
     title: "リンプ→コールのSBのCB戦略",
+    summary:
+      "リンプ→コールのCBは基本33%。ボードのランクが上がるほど頻度も上がります。",
     body:
       "原則はハイカードになるにつれてサイズアップ。それ以外は基本33%。\n\n" +
       "ペアボード: 33%。ボード全体のランクが上がるほど頻度が上がる。AAxなら9割、KKx〜JJxなら7割。\n" +
@@ -325,6 +385,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bvb-raise-cb",
     title: "SBレイズ→BBコールのCB戦略",
+    summary:
+      "SBレイズ→BBコールは20%か33%が基本。ウェットになるほどサイズを上げて頻度を下げます。",
     body:
       "20%か33%を基本に、ウェットになるほどサイズを上げて頻度を下げる。\n\n" +
       "モノトーン: レンジチェック。\n" +
@@ -335,6 +397,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bvb-bb-check",
     title: "BvBのBBは2/3の頻度でチェックバック",
+    summary:
+      "BBは2/3の頻度でチェックバック。レンジでBMCBを打てるボードは存在しません。",
     body:
       "BBは2/3くらいの頻度でチェックバックする。レンジでBMCBを打てるボードは存在しない。\n" +
       "ボードのハイカードのランクとベットサイズが比例する。",
@@ -345,6 +409,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "squeeze",
     title: "スクイーズの基準",
+    summary:
+      "スクイーズはオープンレンジの半分の強さで。A5sはいつでも可、ショート時は広くなります。",
     body:
       "・オープンレンジの半分の強さでスクイーズする\n" +
       "・A5sはどんなときでもスクイーズ可\n" +
@@ -356,6 +422,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "check-raise",
     title: "チェックレイズのサイズと頻度",
+    summary:
+      "チェックレイズのサイズは50%。相手のCBサイズが上がるほど頻度は下げます。",
     body:
       "・相手のCBサイズが上がるほど、チェックレイズ頻度は下がる\n" +
       "・チェックレイズサイズは50%\n" +
@@ -365,6 +433,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "check-raise-draw",
     title: "ドローでチェックレイズを恐れない(コール側)",
+    summary:
+      "ドローでのチェックレイズを恐れないこと。バックドア付きのローポケットやロースーコネがブラフの主役です。",
     body:
       "バリューは、スケアカードが多いハイポケット(A・K・Q・Jが落ちてほしくないTTなど)。\n" +
       "ブラフは、プリフロップでコールしたバックドア付きのローポケットやロースーテッドコネクター。\n\n" +
@@ -376,6 +446,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bluff-alpha",
     title: "そのブラフは通る必要がどれだけあるか",
+    summary:
+      "そのブラフが通る必要がある割合は α = ベット ÷ (ポット + ベット)。これを下回るなら打つべきではありません。",
     body:
       "α = ベット ÷ (ポット + ベットサイズ)。これだけ降ろせれば得になる、という下限。\n\n" +
       "例: 5BBで8BBを取りにいくなら 5/13 = 39%くらい降ろせるならやるべき。",
@@ -384,6 +456,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "overfold-check",
     title: "降りすぎていないかの自己点検",
+    summary:
+      "ドライボードのリバーでTPGKを打てないなら、降りる基準が2P以上になっている可能性があります。",
     body:
       "・ドライボードのリバーで、TPGKでドリバレるか?(できないなら、降りる基準は2P以上になっているはず)\n" +
       "・フルハウスがあるボードでフラッシュを打つか?(打たないなら、そのぶん降りすぎている)",
@@ -394,6 +468,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bluffcatch-fd",
     title: "フラッシュ完成カードが落ちたときのブラフキャッチ",
+    summary:
+      "FDボードで色持ちの2オーバーは、フラッシュ完成カードが落ちたら鉄キャッチ。ほかにキャッチ候補がいません。",
     body:
       "FDボードで色持ちの2オーバーは、リバーまでコールして、フラッシュ完成カードが落ちたら鉄キャッチ。\n" +
       "ほかにキャッチ候補がいないため。",
@@ -402,6 +478,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "bluffcatch-straight",
     title: "1枚ストレートボードでのブラフキャッチ",
+    summary:
+      "1枚ストレートボードではKハイでコールしてはいけません。Kハイは相手のブラフをブロックしています。",
     body:
       "1枚ストレートボードでは、Kハイでブラフ、ヒット系は強い順にキャッチ、ナッツブロッカーでブラフレイズ。\n" +
       "KハイはブラフをブロックしているのでKハイでコールしてはいけない。",
@@ -410,6 +488,8 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   {
     id: "blocker-bet-size",
     title: "ブロッカーベットのサイズ理論",
+    summary:
+      "トラッシュブロッカーほど大きく打ちます。FD滑りボードで色を持っているなら大ベットです。",
     body:
       "トラッシュブロッカーほど大きいベットを好む。\n" +
       "FD滑りボードのリバーで色を持っている手は、相手のトラッシュ(FD滑り)をブロックしているので大ベットを好む。",

@@ -129,17 +129,30 @@ export function factsForDecision(street: string, ctx: KnowledgeContext): Knowled
 export interface KnowledgeEntry {
   /** 一意な識別子。Notion のページに対応させる。 */
   id: string;
-  /** 見出し。画面にそのまま出る。 */
+  /** 見出し。畳んだ詳細の見出しになる。 */
   title: string;
-  /** 本文。オーナーの文章を加工せずに入れる。 */
+  /**
+   * カードに**常時出る**1〜2文。
+   *
+   * ここが解説の主役。局後検討を1ハンドぶん流し読みするとき、読まれるのはこの行だけ。
+   * 一般論(「A-L-Lボードはチェック多め」)ではなく、**その手について**の言い方にする
+   * (「Aハイ・ロー・ローなので、ここはチェック多め」)。長くて2文。
+   */
+  summary: string;
+  /** 詳しい本文。タップで開く。Notion の内容をここに置く。 */
   body: string;
   /** 出典(Notion のページURL)。あれば画面に小さく導線を出す。 */
   sourceUrl?: string;
   when: KnowledgeWhen;
 }
 
-/** 1つの決定に添える知識の上限。これ以上出すと画面が文章で埋まって読まれなくなる。 */
-export const MAX_NOTES_PER_DECISION = 2;
+/**
+ * 1つの決定に添える知識の上限。
+ *
+ * 常時表示にした以上、2件並べると決定ごとに文章の塊が2つ積まれて一覧性が壊れる。
+ * 最も具体的に当たった1件だけを出す。
+ */
+export const MAX_NOTES_PER_DECISION = 1;
 
 function inRange(value: number | null | undefined, cond: RangeCond | undefined): boolean {
   if (!cond) return true;

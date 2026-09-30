@@ -23,7 +23,7 @@ import {
   type Classification,
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
-import { KnowledgeNotes } from "@/components/review/KnowledgeNotes";
+import { DecisionHeadline } from "@/components/review/DecisionHeadline";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -220,15 +220,7 @@ function DecisionPanel({ d, subject, context }: { d: ReviewedDecision; subject: 
   }
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <ClassificationBadge classification={d.classification} showLabel size={24} />
-        <span className="text-[14px] font-bold text-fg">{subject}: {d.actionName}</span>
-        {d.evLossBb !== null && d.evLossBb > 0.02 && (
-          <span className="rounded-full bg-crimson-500/10 px-2 py-0.5 text-[11px] font-bold text-crimson-300 tabular-nums">
-            EV −{d.evLossBb.toFixed(2)}bb
-          </span>
-        )}
-      </div>
+      <DecisionHeadline decision={d} subject={subject} context={context} />
       {d.gtoActions && d.gtoActions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {d.gtoActions
@@ -246,7 +238,6 @@ function DecisionPanel({ d, subject, context }: { d: ReviewedDecision; subject: 
         </div>
       )}
       <GeoSolution d={d} />
-      <KnowledgeNotes decision={d} context={context} />
     </div>
   );
 }

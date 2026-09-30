@@ -47,7 +47,7 @@ function decision(over: Partial<ReviewedDecision> = {}): ReviewedDecision {
 }
 
 function entry(id: string, when: KnowledgeEntry["when"]): KnowledgeEntry {
-  return { id, title: id, body: `${id} の本文`, when };
+  return { id, title: id, summary: `${id} の短文`, body: `${id} の本文`, when };
 }
 
 describe("gtoTopBucket", () => {
@@ -144,8 +144,9 @@ describe("matchKnowledge", () => {
     expect(matchKnowledge(decision(), [b, a], EMPTY_FACTS, 10).map((e) => e.id)).toEqual(["b", "a"]);
   });
 
-  it("既定では1決定あたりの件数が上限で切られる", () => {
+  it("既定では1決定あたりの件数が上限で切られる(常時表示なので1件)", () => {
     const many = ["a", "b", "c", "d"].map((id) => entry(id, {}));
+    expect(MAX_NOTES_PER_DECISION).toBe(1);
     expect(matchKnowledge(decision(), many)).toHaveLength(MAX_NOTES_PER_DECISION);
   });
 
