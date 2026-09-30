@@ -49,7 +49,8 @@ export type StrategyTag =
   | "delayedCbet"
   | "barrel"
   | "checkRaise"
-  | "riverBlock";
+  | "riverBlock"
+  | "probe";
 
 /** 評価の理由。解説の引き当てキー。 */
 export type StrategyReason =
@@ -87,7 +88,15 @@ export type StrategyReason =
   // チェックレイズ
   | "checkRaiseTooBig"
   | "checkRaiseDryBroadway"
-  | "checkRaiseDraw";
+  | "checkRaiseDraw"
+  // プローブ(ターンに落ちたカードの種類ごと。Notion【プローブベット】)
+  | "probeStraight"
+  | "probeRag"
+  | "probeOvercard"
+  | "probeAce"
+  | "probeFlush"
+  | "probeRepeat"
+  | "probeCheckHand";
 
 /** 直前のストリートから、盤面のどこが変わったか。ドンクの理由の主役。 */
 export type BoardChange = "flushCompleted" | "paired" | "straightMove" | "overcard" | "blank";
@@ -173,6 +182,10 @@ function gradeBySizeGap(actual: BetSizeClass, recommended: readonly BetSizeClass
 /** 評価に使う材料をまとめたもの。 */
 interface Ctx {
   info: BetRoleInfo;
+  /** 最終ボード(ストリートで切って使う)。 */
+  board: readonly string[];
+  /** 手札にAがあるか(プローブの「Aハイ」の判定)。 */
+  holeHasAce: boolean;
   hand: HandStrength | null;
   /** ターン時点の手(フラドロが外れたかの判定用)。 */
   turnHand: HandStrength | null;
@@ -348,8 +361,126 @@ const barrel: Rule = (c) => {
   return { tag: "barrel", reason: "barrelPolarized", grade: gradeBySizeGap(c.size, ["medium", "large", "overbet"]) };
 };
 
+/** ボードでストレートが完成しうるか(3枚が5つの連続した枠に収まる)。エースは 14 と 1 の両方。 */
+function straightPossible(board: readonly string[]): boolean {
+  const tex = readBoardTexture(board);
+  if (!tex) return false;
+  const ranks = new Set(tex.ranks);
+  if (ranks.has(14)) ranks.add(1);
+  for (let low = 1; low <= 10; low++) {
+    let n = 0;
+    for (let k = 0; k < 5; k++) if (ranks.has(low + k)) n++;
+    if (n >= 3) return true;
+  }
+  return false;
+}
+
+/**
+ * 2e(2ストリートのジオメトリックサイズ)のポット比。ターンとリバーの2回、同じ比率で打つと
+ * ちょうどオールインになるサイズ。SPR を s として (1+2f)^2 = 1+2s → f = (√(1+2s) − 1) / 2。
+ */
+export function geometricFraction(spr: number, streets: number): number {
+  return (Math.pow(1 + 2 * spr, 1 / streets) - 1) / 2;
+}
+
+/** ターンに落ちたカードの種類(Notion【プローブベット】の見出し)。上から優先。 */
+export type ProbeTurn = "repeat" | "flush" | "straight" | "ace" | "overcard" | "rag";
+
+export function readProbeTurn(board: readonly string[]): ProbeTurn | null {
+  const flop = readBoardTexture(board.slice(0, 3));
+  const turn = readBoardTexture(board.slice(0, 4));
+  if (!flop || !turn || board.length < 4) return null;
+  if (turn.isPaired && !flop.isPaired) return "repeat";
+  if (turn.maxSuitCount >= 3 && flop.maxSuitCount < 3) return "flush";
+  if (straightPossible(board.slice(0, 4)) && !straightPossible(board.slice(0, 3))) return "straight";
+  const card = readBoardTexture([board[3]!]);
+  const rank = card?.highRank ?? 0;
+  if (rank > flop.highRank) return rank === 14 ? "ace" : "overcard";
+  return "rag";
+}
+
+/**
+ * フロップがプローブする側(OOPのコーラー)に有利だったか。
+ * ノートは「有利ボード / 不利ボード」で頻度を分けているが、定義は書かれていない。
+ * コーラー(BBなど)のレンジが強くなりやすい、9ハイ以下かコネクトしたフロップを有利とみなす。
+ */
+export function probeFlopFavorable(board: readonly string[]): boolean {
+  const flop = readBoardTexture(board.slice(0, 3));
+  if (!flop) return false;
+  return flop.bands[0] !== "H" || flop.draws === "drawHeavy";
+}
+
+type ProbeSize = "33" | "50" | "2e";
+
+/** 実際のサイズが、ノートのサイズ(33% / 50% / 2e)に当たるか。 */
+function sizeMatches(c: Ctx, target: ProbeSize): boolean {
+  if (c.f === null) return false;
+  if (target === "33") return c.size === "block";
+  if (target === "50") return c.size === "small";
+  if (c.spr === null || c.isAllIn) return false;
+  const g = geometricFraction(c.spr, 2);
+  return c.f >= g * 0.75 && c.f <= g * 1.35;
+}
+
+/**
+ * プローブ(ターン)。ノートの「今日から使える簡易戦略」をそのまま表にした。
+ *
+ *  - ターンリピート: レンジでチェック → 打ったら悪手
+ *  - 手がリストに載っていてサイズも合う → 最善 / 手は載っているがサイズ違い → 好手〜緩手
+ *  - リストに載っていない手(チェックする手)で打った → 緩手
+ *
+ * 頻度(有利ボード 50% / 不利ボード 20% など)は1ハンドでは判定できないので、解説で伝える。
+ */
+const probe: Rule = (c) => {
+  if (c.info.role !== "probe" || c.info.street !== "turn" || !c.hand) return null;
+  const turn = readProbeTurn(c.board);
+  if (!turn) return null;
+  const favorable = probeFlopFavorable(c.board);
+  const h = c.hand;
+  const d = h.draws;
+  const twoPairPlus = STRONG_MADE.includes(h.made);
+  const tpNotTk = h.made === "topPair" && h.kicker !== "top";
+  const secondToBottom = h.made === "middlePair" || h.made === "bottomPair";
+  const set = h.made === "trips";
+  const oesd = d.openEnded;
+  const gut = d.gutshot;
+
+  if (turn === "repeat") return { tag: "probe", reason: "probeRepeat", grade: "mistake" };
+
+  // 手の組 → そのサイズ。1つの手が複数の組に入ることもある(例: セットは「2P+」にも「set」にも入る)。
+  const groups: { hands: boolean; size: ProbeSize }[] = [];
+  let reason: StrategyReason;
+  if (turn === "flush") {
+    reason = "probeFlush";
+    // ショーダウンバリューのある手(Aハイ・ミドルペア系)と完全なエアー以外の全てで33%。TPも含む。
+    const sdb = secondToBottom || h.made === "pocketPairBelow" || (h.made === "highCard" && !h.hasAnyDraw && c.holeHasAce);
+    const air = h.made === "highCard" && !h.hasAnyDraw;
+    groups.push({ hands: !sdb && !air, size: "33" });
+  } else if (turn === "straight" || turn === "rag") {
+    reason = turn === "straight" ? "probeStraight" : "probeRag";
+    groups.push({ hands: tpNotTk || h.made === "twoPair" || gut, size: turn === "straight" ? "50" : "2e" });
+    groups.push({ hands: secondToBottom || h.made === "pocketPairBelow" || set || oesd, size: "33" });
+  } else if (turn === "ace") {
+    reason = "probeAce";
+    groups.push({ hands: twoPairPlus || oesd || gut || h.made === "bottomPair", size: "2e" });
+  } else {
+    // A以外のオーバーカード。ノートは有利ボードにしか書かれていない。
+    if (!favorable) return null;
+    reason = "probeOvercard";
+    groups.push({ hands: twoPairPlus || gut || h.made === "bottomPair", size: "2e" });
+    groups.push({ hands: secondToBottom || h.made === "pocketPairBelow" || set || oesd, size: "33" });
+  }
+
+  const mine = groups.filter((g) => g.hands);
+  if (mine.length === 0) return { tag: "probe", reason: "probeCheckHand", grade: "inaccuracy" };
+  if (mine.some((g) => sizeMatches(c, g.size))) return { tag: "probe", reason, grade: "best" };
+  // 手は合っているがサイズが違う: カテゴリ内の別のサイズなら好手、どれとも違えば緩手。
+  const other = groups.some((g) => !g.hands && sizeMatches(c, g.size));
+  return { tag: "probe", reason, grade: other ? "good" : "inaccuracy" };
+};
+
 /** 上から順に見て、最初に当たったものを採る。 */
-const RULES: readonly Rule[] = [flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, cbet, delayedCbet, barrel];
+const RULES: readonly Rule[] = [flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, barrel];
 
 /**
  * 1つのベット/レイズを評価する。
@@ -370,6 +501,8 @@ export function judgeBet(
   const size: BetSizeClass | null = isAllIn ? "overbet" : info.sizeClass;
   const ctx: Ctx = {
     info,
+    board,
+    holeHasAce: hole.some((h) => typeof h === "string" && h.startsWith("A")),
     hand: readHandStrength(hole, boardAt(street, board)),
     turnHand: street === "river" ? readHandStrength(hole, boardAt("turn", board)) : null,
     tex: readBoardTexture(boardAt(street, board)),

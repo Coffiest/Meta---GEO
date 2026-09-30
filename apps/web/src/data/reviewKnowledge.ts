@@ -31,6 +31,24 @@ import { ANY_BET, BET_BUCKETS, BIG_BET, HUGE_BET } from "@/lib/reviewKnowledge";
  * 戦略判定に当たるもの > 条件の数が多いもの(`priority` で微調整)。同点はこの配列の順。
  * 1つの決定に出るのは1件(`MAX_NOTES_PER_DECISION`)。
  */
+/**
+ * Notion【プローブベット】の「今日から使える簡易戦略」。プローブの解説の詳細で共通して出す。
+ * 2e = ターンとリバーの2回、同じ比率で打つとちょうどオールインになるサイズ(ジオメトリック)。
+ */
+const PROBE_BODY =
+  "プローブベット = フロップでオリジナルのIPがチェックバックしたあと、ターンでOOPから打つベット。\n" +
+  "2e = ターンとリバーの2回で、ちょうどオールインになるサイズ(ジオメトリックサイズ)。\n\n" +
+  "【有利ボード】\n" +
+  "・ストレート完成(頻度50%): TPTK以外のTP、2P、ガットショットで50%。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
+  "・ラグ(頻度50%): TPTK以外のTP、2P、ガットショットで2e。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
+  "・A以外のオーバーカード(頻度30%): 2P以上、ガットショット、ボトムヒットで2e。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
+  "・Aが落ちた時(頻度10%): 2P以上、OESD、ガットショット、ボトムヒットで2e\n" +
+  "・フラッシュ完成カード(頻度50%): ショーダウンバリューのある手(Aハイ、ミドルペア系)と完全なエアー以外の全てで33%。乱数で2回に1回。TPもベットに含む\n" +
+  "・ターンリピート: レンジでチェック\n\n" +
+  "【不利ボード】\n" +
+  "・ストレート完成・ラグ・Aが落ちた時・フラッシュ完成カード: 打つ手とサイズは同じで、頻度は20%\n" +
+  "・ターンリピート: レンジでチェック";
+
 export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   // ═════════════════════════ 戦略判定(バッジを上書きした手の理由) ═════════════════════════
   {
@@ -433,6 +451,92 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     when: { strategyReason: ["checkRaiseTooBig"] },
   },
 
+  // ───────── プローブベット(Notion【プローブベット】今日から使える簡易戦略) ─────────
+  {
+    id: "verdict-probe-repeat",
+    title: "ターンリピートはレンジでチェック",
+    summary: "ターンでボードがペアになったら、プローブはせずにレンジでチェックしようね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeRepeat"] },
+  },
+  {
+    id: "verdict-probe-check-hand",
+    title: "プローブせずにチェックする手",
+    summary: "この手はプローブせずにチェックする手なんだ。打つ手と打たない手を分けると、レンジが読まれにくくなるよ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeCheckHand"] },
+  },
+  {
+    id: "verdict-probe-straight-ok",
+    title: "ストレート完成カードのプローブ",
+    summary: "ストレートが完成しうるターンで、ぴったりのサイズのプローブだね！有利なボードなら半分くらい、不利なら2割くらい打つよ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeStraight"], classification: ["best"] },
+  },
+  {
+    id: "verdict-probe-straight-off",
+    title: "ストレート完成カードのプローブのサイズ",
+    summary: "ストレートが完成しうるターンは、TPTK以外のトップペア・ツーペア・ガットショットは50%、ミドル〜ボトムペアやセット、OESDは33%で打とうね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeStraight"] },
+  },
+  {
+    id: "verdict-probe-rag-ok",
+    title: "ラグのターンのプローブ",
+    summary: "ラグのターンで、ぴったりのサイズのプローブだね！有利なボードなら半分くらい、不利なら2割くらい打つよ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeRag"], classification: ["best"] },
+  },
+  {
+    id: "verdict-probe-rag-off",
+    title: "ラグのターンのプローブのサイズ",
+    summary: "ラグのターンは、TPTK以外のトップペア・ツーペア・ガットショットは2e、ミドル〜ボトムペアやセット、OESDは33%で打とうね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeRag"] },
+  },
+  {
+    id: "verdict-probe-overcard-ok",
+    title: "A以外のオーバーカードのプローブ",
+    summary: "A以外のオーバーカードが落ちたターンで、ぴったりのサイズのプローブだね！ここは3割くらいの頻度で打つよ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeOvercard"], classification: ["best"] },
+  },
+  {
+    id: "verdict-probe-overcard-off",
+    title: "A以外のオーバーカードのプローブのサイズ",
+    summary: "A以外のオーバーカードが落ちたら、ツーペア以上・ガットショット・ボトムペアは2e、ミドル〜ボトムペアやセット、OESDは33%で打とうね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeOvercard"] },
+  },
+  {
+    id: "verdict-probe-ace-ok",
+    title: "Aが落ちたターンのプローブ",
+    summary: "Aが落ちたターンで2eのプローブ、いいね！ここは打つ頻度が低い(1〜2割)から、強い手とドローに絞って打つんだ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeAce"], classification: ["best"] },
+  },
+  {
+    id: "verdict-probe-ace-off",
+    title: "Aが落ちたターンのプローブのサイズ",
+    summary: "Aが落ちたターンは、ツーペア以上・OESD・ガットショット・ボトムペアで、2eの大きめのサイズを使おうね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeAce"] },
+  },
+  {
+    id: "verdict-probe-flush-ok",
+    title: "フラッシュ完成カードのプローブ",
+    summary: "フラッシュが完成しうるターンで33%のプローブ、ばっちりだね！トップペアも打つ手に入れるのがポイントだよ。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeFlush"], classification: ["best"] },
+  },
+  {
+    id: "verdict-probe-flush-off",
+    title: "フラッシュ完成カードのプローブのサイズ",
+    summary: "フラッシュが完成しうるターンのプローブは、33%の小さめで打とうね。",
+    body: PROBE_BODY,
+    when: { strategyReason: ["probeFlush"] },
+  },
+
   // ═════════════════════════ ベットの役割(定義そのものを説明する) ═════════════════════════
   {
     id: "role-cbet",
@@ -486,8 +590,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     title: "プローブベットとは",
     summary:
       "プローブベットだね。フロップで相手がチェックバックしたあと、ターンできみから先に打つベットだよ。",
-    body:
-      "プローブベット = フロップで、オリジナルのIPがチェックバックしたときに、ターンでOOPからベットすること。",
+    body: PROBE_BODY,
     priority: 0.5,
     when: { role: ["probe"] },
   },
