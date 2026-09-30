@@ -36,7 +36,7 @@ export const CLASSIFICATION_ORDER: Record<Classification, number> = {
 
 /** 日本語表示ラベル。 */
 export const CLASSIFICATION_LABEL: Record<Classification, string> = {
-  artistic: "芸術的",
+  artistic: "絶妙手",
   best: "最善",
   great: "Great",
   excellent: "良手",

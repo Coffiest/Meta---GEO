@@ -14,7 +14,7 @@ import { stackBucketOf, bucketPreflopRaiseBb, bucketPostflopPct } from "./geoTre
  *     analyzable=false, outOfScopeReason="multiway"(「多人数のため対象外」)。
  */
 
-const SEAT_COUNT = 6;
+export const SEAT_COUNT = 6;
 const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
 const STREET_ORDER = ["preflop", "flop", "turn", "river"] as const;
 

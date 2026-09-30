@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHandStrength } from "../src/lib/handStrength";
+import { readHandStrength } from "../src/review/handStrength";
 
 /**
  * 自分の手がボードにどう当たっているかの判定。
