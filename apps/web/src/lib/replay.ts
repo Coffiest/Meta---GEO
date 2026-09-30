@@ -21,7 +21,7 @@ export type ReplayStep =
       bigBlind: number;
       ante: number;
       heroCards: string[];
-      /** ブラインド/アンテだけ投入された開始時点の盤面。 */
+      /** ブラインド/アンティだけ投入された開始時点の盤面。 */
       snapshot: PublicHandState;
     }
   | {
@@ -65,10 +65,9 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
   const t = hand.timeline;
   const heroSeatEntry = t.seats.find((s) => s.userId === heroUserId);
   const heroSeat = heroSeatEntry?.seatIndex ?? -1;
-  // hero + 全プレイヤー(villain)の決定を1つのマップに統合(再生の各アクションに評価バッジを付ける)。
+  // 評価が付くのは自分の決定だけ(相手の手札は分からない前提なので、相手のアクションは評価しない)。
   const decisionBySeq = new Map<number, ReviewedDecision>();
   for (const d of hand.decisions) decisionBySeq.set(d.sequenceNumber, d);
-  for (const d of hand.villainDecisions) decisionBySeq.set(d.sequenceNumber, d);
 
   // 席ごとの畳み込み状態。
   const stack = new Map<number, number>();
@@ -149,7 +148,7 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
       continue;
     }
     if (a.kind === "postAnte") {
-      // アンテはストリート拠出ではなくハンド拠出として直接ポットへ。
+      // アンティはストリート拠出ではなくハンド拠出として直接ポットへ。
       const amt = a.toAmount ?? 0;
       handContribution.set(a.seatIndex, (handContribution.get(a.seatIndex) ?? 0) + amt);
       stack.set(a.seatIndex, Math.max(0, (stack.get(a.seatIndex) ?? 0) - amt));
@@ -157,7 +156,7 @@ function buildHandSteps(hand: TournamentReviewHand, heroUserId: string): ReplayS
       continue;
     }
 
-    // ブラインド/アンテ投入が終わった最初の実アクションの直前に、区切りカード(開始盤面)を挟む。
+    // ブラインド/アンティ投入が終わった最初の実アクションの直前に、区切りカード(開始盤面)を挟む。
     if (steps.length === 0) {
       steps.push({
         type: "handStart",

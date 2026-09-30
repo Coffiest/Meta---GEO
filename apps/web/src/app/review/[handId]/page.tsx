@@ -5,57 +5,42 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/useAuth";
 import { fetchHandReview, type HandReviewResponse, type ReviewedDecision } from "@/lib/reviewApi";
-import { CLASSIFICATION_META, outOfScopeLabel } from "@/lib/classification";
-import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionHeadline } from "@/components/review/DecisionHeadline";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
+import { actionLabel, decisionInfo } from "@/lib/actionNotation";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
 import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { Footer } from "@/components/Footer";
 
-const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
 
 function bucketLabel(street: string, bucket: string): string {
   const table = street === "preflop" ? PREFLOP_BUCKET_LABELS : POSTFLOP_BUCKET_LABELS;
   return (table as Record<string, string>)[bucket] ?? bucket;
 }
 
-function DecisionCard({ d, context }: { d: ReviewedDecision; context: KnowledgeContext | undefined }) {
-  const meta = d.classification ? CLASSIFICATION_META[d.classification] : null;
+function DecisionCard({
+  d,
+  context,
+  notation,
+}: {
+  d: ReviewedDecision;
+  context: KnowledgeContext | undefined;
+  notation: string;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl glass-panel p-3.5"
     >
-      {/* 1行目は場所と数字だけ。格付けと手の名前は下の見出しへ寄せて、
-          「バッジ・手・格付け・EV損・解説」を1つのまとまりとして読ませる。 */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-fg-2">
-          {STREET_LABEL[d.street] ?? d.street} · {d.heroPos}
-        </span>
-        <span className="text-[10px] text-fg-3 tabular-nums">
-          {d.effStackBb.toFixed(0)}bb · pot {d.potBb.toFixed(1)}bb
-        </span>
-      </div>
-
-      {d.classification ? (
-        <DecisionHeadline decision={d} context={context} />
-      ) : d.outOfScopeReason === "solving" ? (
-        <span className="flex items-center gap-1.5 text-[13px] font-bold text-fg-2">
-          <Loader size="sm" />
-          ソルバー解析中…
-        </span>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[14px] font-black text-fg">あなた: {d.actionName}</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-n-2 px-1.5 py-0.5 text-[10px] font-bold text-n-9">
-            <Icon name="info" className="h-3 w-3 shrink-0" />
-            解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
-          </span>
-        </div>
-      )}
+      {/* chess.com と同じ並び: 上にバリィの台詞、下に評価と「UTG bet 33%」の表記、その下に情報。 */}
+      <DecisionHeadline
+        decision={d}
+        notation={notation}
+        info={decisionInfo(d.street, d.effStackBb, d.potBb)}
+        context={context}
+      />
 
       {d.gtoActions && d.gtoActions.length > 0 && (
         <div className="mt-2.5">
@@ -85,7 +70,6 @@ function DecisionCard({ d, context }: { d: ReviewedDecision; context: KnowledgeC
 }
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
-import { Icon } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 
 export default function ReviewHandPage() {
@@ -218,7 +202,15 @@ export default function ReviewHandPage() {
             {/* 意思決定リスト */}
             <div className="space-y-2.5">
               {review.decisions.map((d) => (
-                <DecisionCard key={d.sequenceNumber} d={d} context={knowledgeContext} />
+                <DecisionCard
+                  key={d.sequenceNumber}
+                  d={d}
+                  context={knowledgeContext}
+                  notation={actionLabel(timeline.actions, d.sequenceNumber, {
+                    buttonFixedPos: timeline.buttonFixedPos,
+                    bigBlind: timeline.levelBigBlind,
+                  })}
+                />
               ))}
               {review.decisions.length === 0 && (
                 <p className="text-sm text-fg-3 text-center py-8">このハンドにあなたの意思決定はありません。</p>

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
 import { extractHeroDecisions, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
 import { handClassLabel } from "./preflopBaseline.js";
-import { openGtoActions, defenseGtoActions, vsJamGtoActions, allInCallGtoActions } from "./reviewGto.js";
+import { openGtoActions, defenseGtoActions, vsJamGtoActions } from "./reviewGto.js";
 import {
   prepareGtoPostflopSpot,
   deserializeGtoPostflopSpot,
@@ -126,7 +126,7 @@ export function detectHandSrp(hand: ExtractHand): { openerPos: string; defenderP
 }
 
 /** ポストフロップHUで、相手が既にオールインしているか(=hero はコール/フォールドのみ)。 */
-function villainAllInBefore(hand: ExtractHand, heroSeat: number, decisionSeq: number, street: string): number | null {
+function facingAllInBefore(hand: ExtractHand, heroSeat: number, decisionSeq: number, street: string): number | null {
   let allInSeat: number | null = null;
   for (const a of hand.actions) {
     if (a.sequenceNumber >= decisionSeq) break;
@@ -260,21 +260,12 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
           outOfScopeReason = spot.reason;
         }
       } else if (d.liveCount === 2) {
-        // HUポストフロップ: 相手が既にオールイン → 実ハンド同士の厳密equityでコール/フォールドを分類。
-        const allInSeat = villainAllInBefore(hand, heroSeat, d.sequenceNumber, d.street);
+        // HUポストフロップ: 相手が既にオールイン。以前は相手の実際の手札との厳密equityで
+        // 格付けしていたが、棋譜解析では相手の手札は分からない前提(オーナー確定)なので、
+        // 相手の手札を使う格付けはしない。相手の範囲を置く確かなモデルも無いため対象外にする。
+        const allInSeat = facingAllInBefore(hand, heroSeat, d.sequenceNumber, d.street);
         if (allInSeat !== null && d.facingSizeBb > 0) {
-          const villain = hand.seats.find((s) => s.seatIndex === allInSeat);
-          if (villain && villain.holeCards.length === 2) {
-            const callBb = Math.min(Math.max(0.01, d.facingSizeBb), Math.max(0.01, d.effStackBb));
-            gtoActions = allInCallGtoActions({
-              heroCards: d.holeCards,
-              villainCards: villain.holeCards,
-              boardSoFar: d.boardSoFar,
-              potBb: d.potBb,
-              callBb,
-            });
-            if (gtoActions && d.actionTaken.kind !== "fold") difficultKind = "heroCall";
-          }
+          outOfScopeReason = "vs-allin";
         } else {
           // 通常のHUノード: プリフロップがSRP(1レイズ+1コール)でバンドデータがあれば
           // CFRソルバーの非同期解析対象("solving"マーカー → enrichAndSaveReview が埋める)。
@@ -519,10 +510,11 @@ export interface ReviewHandTimeline {
 
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
-  /** 通し再生用のタイムライン。 */
+  /**
+   * 通し再生用のタイムライン。**本人以外の手札は空**(棋譜解析で見られるのは自分の手札だけ。
+   * ショウダウンで公開された手も含めて伏せる。オーナー確定)。
+   */
   timeline: ReviewHandTimeline;
-  /** hero以外の全プレイヤー(BOT含む)の分類済み決定。再生バッジ専用。要約件数には含めない(自分の分だけ)。 */
-  villainDecisions: ReviewedDecision[];
 }
 
 export interface TournamentReview {
@@ -658,17 +650,13 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
     // GEO母集団解(n≥5000)を引いて decision.geo に格納し、エクスプロイト成立なら「芸術的」に上書き(heroのみ)。
     // summarize より前に行い、要約件数・GTO精度に芸術的の上書きを反映する。
     await enrichHeroDecisionsWithGeo(h.id, extractHand.seats.length, analyzed.decisions);
-    // 全プレイヤー評価: hero以外の着席者(BOT含む)の分類済み決定を集める(再生バッジ専用。要約には含めない)。
-    const otherUserIds = [...new Set(h.seats.map((s) => s.userId))].filter((uid) => uid !== heroUserId);
-    const villainDecisions = otherUserIds.flatMap(
-      (uid) => analyzeExtractedHand(extractHand, uid)?.decisions.filter((d) => d.classification !== null) ?? [],
-    );
+    // 解析するのは自分の決定だけ。相手の手札は分からない前提なので、相手のアクションには
+    // 評価を付けない(オーナー確定)。これで1トーナメントの解析量も相手の人数分だけ減る。
     const summary = summarize(analyzed.decisions);
     reviewed.push({
       handId: h.id,
       heroUserId,
       decisions: analyzed.decisions,
-      villainDecisions,
       ...summary,
       handNumber: h.handNumber,
       timeline: {
@@ -682,7 +670,8 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
           seatIndex: s.seatIndex,
           userId: s.userId,
           startingStack: s.startingStack,
-          holeCards: s.holeCards,
+          // 本人以外の手札は返さない(ショウダウンで公開された手も含む)。
+          holeCards: s.userId === heroUserId ? s.holeCards : [],
           displayName: s.user.displayName,
           avatarKey: s.user.avatarKey,
         })),

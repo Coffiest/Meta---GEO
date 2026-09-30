@@ -12,7 +12,6 @@ import {
   checkAndConsumeReviewQuota,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
-import { revealedSeatsFromRecord } from "./showdown.js";
 import { readJsonBodyLimited } from "./httpBody.js";
 
 /** 進行中のソルバー解析(hand|user または tournament|user)。多重起動を防ぐ。 */
@@ -61,6 +60,14 @@ function isRequestFromIOSApp(req: IncomingMessage): boolean {
   const ua = req.headers["user-agent"];
   const value = Array.isArray(ua) ? ua[0] : ua;
   return Boolean(value?.includes("PokerARTApp"));
+}
+
+/**
+ * 本人以外の手札を伏せたタイムライン。棋譜解析・ハンド履歴の応答は必ずこれを通す。
+ * 席の構成・アクション・増減は卓上で見えていた情報なのでそのまま返す。
+ */
+function heroOnlyTimeline<T extends { seats: { userId: string; holeCards: string[] }[] }>(timeline: T, userId: string): T {
+  return { ...timeline, seats: timeline.seats.map((s) => (s.userId === userId ? s : { ...s, holeCards: [] })) };
 }
 
 export async function handleReviewApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -195,16 +202,10 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         sendJson(res, 403, { error: "forbidden" });
         return true;
       }
-      // これは「プレイ中のハンド履歴」が使う経路。進行中のトーナメントで相手の非公開ハンドが
-      // 読めてしまうと不正になるため、ショウダウンで公開された席と本人以外の手札は伏せて返す。
-      // クライアント側で隠すだけでは応答にカードが載ったままになり、通信を覗けば読めてしまう。
-      const revealed = revealedSeatsFromRecord(timeline);
-      const maskedTimeline = {
-        ...timeline,
-        seats: timeline.seats.map((s) =>
-          s.userId === user.id || revealed.has(s.seatIndex) ? s : { ...s, holeCards: [] },
-        ),
-      };
+      // 棋譜解析・ハンド履歴で見られるのは自分の手札だけ(オーナー確定)。ショウダウンで
+      // 公開された手も含めて、本人以外の手札は必ず伏せて返す。クライアント側で隠すだけでは
+      // 応答にカードが載ったままになり、通信を覗けば読めてしまう。
+      const maskedTimeline = heroOnlyTimeline(timeline, user.id);
       sendJson(res, 200, { timeline: maskedTimeline });
       return true;
     }
@@ -249,7 +250,7 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         // ソルバー不要のハンドは同期保存(従来どおり)。
         await createOrRefreshReview(handId, user.id).catch(() => {});
       }
-      sendJson(res, 200, { review, timeline, solving });
+      sendJson(res, 200, { review, timeline: heroOnlyTimeline(timeline, user.id), solving });
       return true;
     }
 

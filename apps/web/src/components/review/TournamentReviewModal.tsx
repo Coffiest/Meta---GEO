@@ -7,6 +7,7 @@ import {
   fetchTournamentReview,
   fetchTournamentReviewSummary,
   type ReviewedDecision,
+  type ReviewHandTimeline,
   type ReviewQuotaInfo,
   type TournamentReview,
   type TournamentReviewHand,
@@ -19,11 +20,11 @@ import {
   CLASSIFICATION_META,
   DISPLAY_CLASSIFICATION_ORDER,
   displayCount,
-  outOfScopeLabel,
   type Classification,
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionHeadline } from "@/components/review/DecisionHeadline";
+import { actionLabel, decisionInfo, STREET_EN } from "@/lib/actionNotation";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -43,7 +44,7 @@ import { AdSlot } from "@/components/AdSlot";
  * 画面遷移ではなくモーダルで開く(確定仕様)。呼び出し側で AnimatePresence によりマウント制御。
  */
 
-const STREET_LABEL: Record<string, string> = { preflop: "プリフロップ", flop: "フロップ", turn: "ターン", river: "リバー" };
+const STREET_LABEL = STREET_EN;
 
 /**
  * mergeOpenRaiseOptions(geoApi.ts)は件数(count)を持つ本来のActionOption向けで、
@@ -69,15 +70,6 @@ function bucketLabel(street: string, bucket: string): string {
   return (table as Record<string, string>)[bucket] ?? bucket;
 }
 
-const ACTION_KIND_LABEL: Record<string, string> = {
-  fold: "フォールド",
-  check: "チェック",
-  call: "コール",
-  bet: "ベット",
-  raise: "レイズ",
-  allIn: "オールイン",
-};
-
 /** iOSのグループリスト背景(systemGroupedBackground)。 */
 const SHEET_BG = "#232326";
 /** iOSのヘアライン分割線。 */
@@ -93,16 +85,6 @@ const riseIn = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0, transition: { type: "spring" as const, damping: 26, stiffness: 340 } },
 };
-
-/** 相手のアクション表示(薄いテキスト)。 */
-function villainActionText(step: Extract<ReplayStep, { type: "action" }>, name: string): string {
-  const label = ACTION_KIND_LABEL[step.actionKind] ?? step.actionKind;
-  const amount =
-    step.actionKind === "bet" || step.actionKind === "raise" || step.actionKind === "call" || step.actionKind === "allIn"
-      ? ` ${step.seatAction.toAmount.toLocaleString()}`
-      : "";
-  return `${name}: ${label}${amount}`;
-}
 
 /** GTOスコアのリングゲージ(カウントアップ+ゴールドのアーク)。 */
 function ScoreRing({ score }: { score: number | null }) {
@@ -197,30 +179,32 @@ function GeoSolution({ d }: { d: ReviewedDecision }) {
   );
 }
 
-/** 意思決定パネル(バッジ + アクション名 + EV損 + GTO推奨チップ + GEO母集団解)。主語はhero=あなた/相手=名前。 */
-function DecisionPanel({ d, subject, context }: { d: ReviewedDecision; subject: string; context?: KnowledgeContext }) {
-  if (d.classification === null) {
-    if (d.outOfScopeReason === "solving") {
-      return (
-        <div className="flex items-center gap-2 text-[13px] font-semibold text-fg-2">
-          <Loader size="sm" />
-          ソルバー解析中… 自動で反映されます
-        </div>
-      );
-    }
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold text-n-9">{subject}: {d.actionName}</span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] font-semibold text-fg-2">
-          <Icon name="info" className="h-3 w-3 shrink-0" />
-          解析対象外 · {outOfScopeLabel(d.outOfScopeReason, d.analyzable)}
-        </span>
-      </div>
-    );
-  }
+/** 再生の1手を「UTG bet 33%」の形で書く。 */
+function stepNotation(step: Extract<ReplayStep, { type: "action" }>, timeline: ReviewHandTimeline): string {
+  return actionLabel(timeline.actions, step.sequenceNumber, {
+    buttonFixedPos: timeline.buttonFixedPos,
+    bigBlind: timeline.levelBigBlind,
+  });
+}
+
+/**
+ * 意思決定パネル。chess.com と同じ並び: 上にバリィの台詞、下に評価と「UTG bet 33%」の表記、
+ * その下に GTO推奨の頻度と GEO母集団解。評価が付くのは自分の決定だけ。
+ */
+function DecisionPanel({
+  d,
+  notation,
+  info,
+  context,
+}: {
+  d: ReviewedDecision;
+  notation: string;
+  info: string;
+  context?: KnowledgeContext;
+}) {
   return (
     <div>
-      <DecisionHeadline decision={d} subject={subject} context={context} />
+      <DecisionHeadline decision={d} notation={notation} info={info} context={context} />
       {d.gtoActions && d.gtoActions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {d.gtoActions
@@ -265,10 +249,13 @@ export function TournamentReviewModal({
   tournamentId,
   accessToken,
   onClose,
+  initialHandId,
 }: {
   tournamentId: string;
   accessToken: string | undefined;
   onClose: () => void;
+  /** ヒストリーのハンド行から開いたとき、そのハンドの頭から再生を始める。 */
+  initialHandId?: string | null;
 }) {
   // 無料の要約(広告つき画面)。分類件数のみで課金ゲート無し。開いた瞬間に取得する。
   const [freeData, setFreeData] = useState<TournamentReviewSummary | null>(null);
@@ -550,7 +537,7 @@ export function TournamentReviewModal({
                   <p className="text-[15px] font-bold tracking-tight text-fg">Hand #{step.handNumber}</p>
                   <p className="text-[11px] font-medium text-fg-2 tabular-nums">
                     ブラインド {step.smallBlind.toLocaleString()}/{step.bigBlind.toLocaleString()}
-                    {step.ante > 0 ? ` (アンテ ${step.ante.toLocaleString()})` : ""}
+                    {step.ante > 0 ? ` (アンティ ${step.ante.toLocaleString()})` : ""}
                   </p>
                 </div>
                 {step.heroCards.length === 2 && (
@@ -563,25 +550,18 @@ export function TournamentReviewModal({
                   </div>
                 )}
               </div>
-            ) : step.decision ? (
+            ) : step.decision && step.actorIsHero ? (
               <DecisionPanel
                 d={step.decision}
-                subject={
-                  step.actorIsHero
-                    ? "あなた"
-                    : playersFromTimeline(currentHand.timeline)[step.actorSeat]?.displayName ?? `Seat ${step.actorSeat + 1}`
-                }
-                // 知識は自分のプレイについて書かれたものなので、相手の決定には添えない。
-                context={step.actorIsHero ? knowledgeContext ?? undefined : undefined}
+                notation={stepNotation(step, currentHand.timeline)}
+                info={decisionInfo(step.decision.street, step.decision.effStackBb, step.decision.potBb)}
+                context={knowledgeContext ?? undefined}
               />
-            ) : step.actorIsHero ? (
-              <p className="text-[13px] font-semibold text-fg-2">
-                あなた: {ACTION_KIND_LABEL[step.actionKind] ?? step.actionKind}
-                {step.seatAction.toAmount > 0 ? ` ${step.seatAction.toAmount.toLocaleString()}` : ""}
-              </p>
             ) : (
-              <p className="text-[13px] font-medium text-fg-3">
-                {villainActionText(step, playersFromTimeline(currentHand.timeline)[step.actorSeat]?.displayName ?? `Seat ${step.actorSeat + 1}`)}
+              // 評価の付かない手(相手の手・自分の定型の手)は表記だけ。相手の手札は分からない
+              // 前提なので、相手のアクションには評価を付けない(オーナー確定)。
+              <p className={`text-[14px] font-black tracking-[-0.01em] ${step.actorIsHero ? "text-fg" : "text-fg-3"}`}>
+                {stepNotation(step, currentHand.timeline)}
               </p>
             )}
           </motion.div>
@@ -977,7 +957,9 @@ export function TournamentReviewModal({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
-                  setStepIndex(0);
+                  // ヒストリーのハンド行から開いたなら、そのハンドの頭から(解析対象外で無ければ)。
+                  const start = initialHandId ? replay?.handStartIndices[initialHandId] : undefined;
+                  setStepIndex(start ?? 0);
                   setView("replay");
                 }}
                 disabled={steps.length === 0}

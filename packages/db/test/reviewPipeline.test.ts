@@ -107,7 +107,7 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     expect(d.evLossBb!).toBeLessThan(0.8);
   });
 
-  it("HUポストフロップ: トップセットで相手のフロップ・オールインをコール → 正着", () => {
+  it("HUポストフロップ: 相手のオールインへのコールは、相手の手札を使わず対象外になる", () => {
     seq = 0;
     const hand: ExtractHand = {
       buttonFixedPos: 0,
@@ -129,12 +129,44 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     };
     const r = analyzeExtractedHand(hand, "u2")!;
     const flopCall = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "call")!;
-    expect(flopCall.gtoActions).toBeTruthy();
-    expect(flopCall.evLossBb).toBe(0);
-    expect(["best", "great", "artistic"]).toContain(flopCall.classification);
+    // 棋譜解析では相手の手札は分からない前提(オーナー確定)。相手の実際の手札で格付けしない。
+    expect(flopCall.gtoActions).toBeNull();
+    expect(flopCall.classification).toBeNull();
+    expect(flopCall.outOfScopeReason).toBe("vs-allin");
+    // 相手の手札を差し替えても、結果は1文字も変わらない(相手の手札を読んでいない証拠)。
+    const swapped = analyzeExtractedHand({ ...hand, seats: seats(20, 2, ["As", "Ah"], 0, ["2s", "2h"]) }, "u2")!;
+    expect(swapped.decisions).toEqual(r.decisions);
     // チェック(通常ノード)はソルバー未接続なので分類なし(解析待ち)。
     const flopCheck = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "check")!;
     expect(flopCheck.classification).toBeNull();
+  });
+
+  it("ポストフロップ: GTOのソルバー解析を待つ間も、Notionの評価(バッジ)は最初から付いている", () => {
+    seq = 0;
+    const hand: ExtractHand = {
+      buttonFixedPos: 0,
+      levelBigBlind: BB,
+      board: ["Ks", "7h", "2d", "9c", "3s"],
+      seats: seats(40, 0, ["Ah", "Kd"]),
+      actions: [
+        ...blindsAndAnte(),
+        act(3, "preflop", "fold", null, 250),
+        act(4, "preflop", "fold", null, 250),
+        act(5, "preflop", "fold", null, 250),
+        act(0, "preflop", "raise", 250, 250), // hero(BTN) 2.5bbオープン
+        act(1, "preflop", "fold", null, 500),
+        act(2, "preflop", "call", 250, 500), // BB コール → HUフロップへ
+        act(2, "flop", "check", null, 650),
+        act(0, "flop", "bet", 215, 650), // hero CB 33%(ドライなKハイ)
+      ],
+    };
+    const r = analyzeExtractedHand(hand, "u0")!;
+    const cb = r.decisions.find((x) => x.street === "flop")!;
+    expect(cb.strategy?.reason).toBe("cbDryHigh");
+    expect(cb.classification).toBe("best");
+    // GTOのEV損はソルバー待ち。バッジは先に出せる(クライアントはEV損だけ後から埋まる)。
+    expect(cb.outOfScopeReason).toBe("solving");
+    expect(cb.evLossBb).toBeNull();
   });
 
   it("3betライン(2レイズ以上)は対象外理由つきで分類なし", () => {

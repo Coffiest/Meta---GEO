@@ -15,6 +15,7 @@ import {
 } from "@/lib/reviewApi";
 import { Icon } from "./Icon";
 import { Loader } from "./ui/Loader";
+import { STREET_EN } from "@/lib/actionNotation";
 
 /** Xのロゴ(絵文字は使わずSVGで描画する)。 */
 function XLogo({ className }: { className?: string }) {
@@ -50,12 +51,8 @@ const ACTION_KIND_LABEL: Record<string, string> = {
   postAnte: "アンティ",
 };
 
-const STREET_LABEL: Record<string, string> = {
-  preflop: "プリフロップ",
-  flop: "フロップ",
-  turn: "ターン",
-  river: "リバー",
-};
+// ストリート名は棋譜解析と同じ英語表記(オーナー確定)。
+const STREET_LABEL = STREET_EN;
 
 /** ストリート→そのストリートで見えているボード枚数。 */
 const STREET_BOARD_COUNT: Record<string, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };

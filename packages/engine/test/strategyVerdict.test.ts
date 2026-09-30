@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { sizeClassOf, type BetRoleInfo } from "../src/review/betRole.js";
-import { judgeBet, readBoardChange } from "../src/review/strategyVerdict.js";
+import {
+  geometricFraction,
+  judgeBet,
+  probeFlopFavorable,
+  readBoardChange,
+  readProbeTurn,
+} from "../src/review/strategyVerdict.js";
 
 /**
  * 戦略判定のテスト。「付くべき所に付く」と同じくらい「付いてはいけない所に付かない」を固める
@@ -296,14 +302,86 @@ describe("チェックレイズ", () => {
 });
 
 describe("評価しない手", () => {
-  it("プローブは Notion に中身が無いので評価しない", () => {
-    const v = judgeBet(info({ street: "turn", role: "probe", potFraction: 0.5, sizeClass: "small" }), ["Ah", "Qd"], ["Ks", "7h", "2d", "5c", "3s"]);
-    expect(v.grade).toBeNull();
-  });
 
   it("リバーのナッツ級を OOP から安く打つのは好手(ブロックにナッツを混ぜる)", () => {
     const v = judgeBet(info({ potFraction: 0.3, position: "OOP" }), ["Ah", "Kd"], DRY);
     expect(v.reason).toBe("riverBlockStrong");
     expect(v.grade).toBe("good");
+  });
+});
+
+describe("プローブ(Notion【プローブベット】の簡易戦略)", () => {
+  const pr = (f: number) =>
+    info({ street: "turn", role: "probe", position: "OOP", potFraction: f, sizeClass: sizeClassOf(f) });
+  // SPR 4 の 2e(ターン+リバーで同じ比率) = (√9 − 1) / 2 = 1.0(ポットサイズ)。
+  const SPR = { spr: 4 };
+
+  it("2e はターンとリバーの2回でちょうどオールインになる比率", () => {
+    expect(geometricFraction(4, 2)).toBeCloseTo(1, 5);
+    expect(geometricFraction(0, 2)).toBe(0);
+  });
+
+  it("ターンのカードの種類を読む", () => {
+    expect(readProbeTurn(["Ks", "8d", "3c", "8h"])).toBe("repeat");
+    expect(readProbeTurn(["Ks", "8s", "3c", "2s"])).toBe("flush");
+    expect(readProbeTurn(["Kc", "9d", "5h", "7s"])).toBe("straight");
+    expect(readProbeTurn(["Ks", "8d", "3c", "Ah"])).toBe("ace");
+    expect(readProbeTurn(["9c", "5d", "2h", "Qs"])).toBe("overcard");
+    expect(readProbeTurn(["Ks", "8d", "3c", "2h"])).toBe("rag");
+  });
+
+  it("9ハイ以下かコネクトしたフロップを有利ボードとみなす", () => {
+    expect(probeFlopFavorable(["9c", "5d", "2h"])).toBe(true);
+    expect(probeFlopFavorable(["Ks", "8d", "3c"])).toBe(false);
+  });
+
+  it("ターンリピートはレンジでチェック。打ったら悪手", () => {
+    const v = judgeBet(pr(0.33), ["Kh", "Qd"], ["Ks", "8d", "3c", "8h", "2s"], SPR);
+    expect(v.reason).toBe("probeRepeat");
+    expect(v.grade).toBe("mistake");
+  });
+
+  it("ラグ: TPTK以外のTPは 2e が最善、33%は好手(別の組のサイズ)、50%は緩手", () => {
+    const board = ["Ks", "8d", "3c", "2h", "5s"];
+    expect(judgeBet(pr(1.0), ["Kh", "Qd"], board, SPR)).toMatchObject({ reason: "probeRag", grade: "best" });
+    expect(judgeBet(pr(0.33), ["Kh", "Qd"], board, SPR).grade).toBe("good");
+    expect(judgeBet(pr(0.5), ["Kh", "Qd"], board, SPR).grade).toBe("inaccuracy");
+  });
+
+  it("ラグ: ミドルヒットは 33% が最善", () => {
+    const v = judgeBet(pr(0.33), ["8h", "7d"], ["Ks", "8d", "3c", "2h", "5s"], SPR);
+    expect(v).toMatchObject({ reason: "probeRag", grade: "best" });
+  });
+
+  it("TPTK はリストに無い(チェックする手)ので、打つと緩手", () => {
+    const v = judgeBet(pr(1.0), ["Ah", "Kd"], ["Ks", "8d", "3c", "2h", "5s"], SPR);
+    expect(v).toMatchObject({ reason: "probeCheckHand", grade: "inaccuracy" });
+  });
+
+  it("ストレート完成: TPTK以外のTPは 50% が最善", () => {
+    const v = judgeBet(pr(0.5), ["Kh", "Qd"], ["Kc", "9d", "5h", "7s", "2c"], SPR);
+    expect(v).toMatchObject({ reason: "probeStraight", grade: "best" });
+  });
+
+  it("Aが落ちた: 2P+ は 2e が最善", () => {
+    const v = judgeBet(pr(1.0), ["Ad", "3h"], ["Ks", "8d", "3c", "Ah", "5s"], SPR);
+    expect(v).toMatchObject({ reason: "probeAce", grade: "best" });
+  });
+
+  it("A以外のオーバーカード(有利ボード): セットは 33% が最善", () => {
+    const v = judgeBet(pr(0.33), ["9h", "9s"], ["9c", "5d", "2h", "Qs", "3c"], SPR);
+    expect(v).toMatchObject({ reason: "probeOvercard", grade: "best" });
+  });
+
+  it("A以外のオーバーカードは不利ボードには書かれていないので評価しない", () => {
+    const v = judgeBet(pr(0.33), ["Jh", "Jd"], ["Qs", "7d", "2c", "Kh", "3s"], SPR);
+    expect(v.grade).toBeNull();
+  });
+
+  it("フラッシュ完成: TPを含め 33% が最善。Aハイ(SDB)と完全なエアーはチェックする手", () => {
+    const board = ["Ks", "8s", "3c", "2s", "5h"];
+    expect(judgeBet(pr(0.33), ["Kh", "Qd"], board, SPR)).toMatchObject({ reason: "probeFlush", grade: "best" });
+    expect(judgeBet(pr(0.33), ["Ad", "Jh"], board, SPR).reason).toBe("probeCheckHand");
+    expect(judgeBet(pr(0.33), ["7d", "6h"], board, SPR).reason).toBe("probeCheckHand");
   });
 });
