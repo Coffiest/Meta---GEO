@@ -64,7 +64,7 @@ export default function PricingPage() {
     byCoupon && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
           <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>
@@ -88,7 +88,7 @@ export default function PricingPage() {
         <GlareHover
           borderRadius="16px"
           borderColor="rgb(38 194 163)"
-          background="rgb(44 44 46)"
+          background="rgb(24 24 26)"
           className="mt-5 !border-2 shadow-glow"
         >
           <div className="w-full p-5">
@@ -101,10 +101,10 @@ export default function PricingPage() {
               fontWeight={900}
               textColor="rgb(245 245 247)"
               places={[100, 10, 1]}
-              // このカードの地は surface(#2C2C2E)で、DigitRollの既定フェード色は canvas(#1C1C1E)
+              // このカードの地は surface(#18181A)で、DigitRollの既定フェード色は canvas(#0A0A0B)
               // なので、この場所だけ地の色に合わせて上書きする(合わせないと継ぎ目が見える)。
-              gradientFrom="#2c2c2e"
-              gradientTo="rgba(44, 44, 46, 0)"
+              gradientFrom="#18181A"
+              gradientTo="rgba(24, 24, 26, 0)"
             />
             <span className="text-[13px] font-bold text-fg-2">/ 月(税込)</span>
           </div>

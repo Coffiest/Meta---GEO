@@ -19,14 +19,14 @@ export default function ReviewTournamentPage() {
   // Supabaseのセッション復元中は判定を保留(復元前に「ログインが必要」を誤表示しないため)。
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <Loader size="sm" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       <AnimatePresence>
         <TournamentReviewModal
           tournamentId={tournamentId}

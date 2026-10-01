@@ -40,7 +40,7 @@ const ACCENT = "#26c2a3";
 const ACCENT_HI = "#5fe0c6";
 const FG = "#f5f5f7";
 const FG_MUTED = "#8e8e93";
-const BG = "#1c1c1e";
+const BG = "#0A0A0B";
 
 /** 月桂樹風の勲章マーク(絵文字は使わずSVGで描く)。 */
 function MedalMark({ size }: { size: number }) {

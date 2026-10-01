@@ -59,7 +59,7 @@ function ScoreRing({ score }: { score: number | null }) {
   return (
     <div className="relative h-[132px] w-[132px] shrink-0">
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" stroke="#3A3A3C" strokeWidth="9" />
+        <circle cx="60" cy="60" r={R} fill="none" stroke="#242426" strokeWidth="9" />
         {score !== null && (
           <motion.circle
             cx="60"

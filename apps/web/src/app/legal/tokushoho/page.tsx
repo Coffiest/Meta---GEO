@@ -24,7 +24,7 @@ const ROWS: { label: string; value: string }[] = [
 
 export default function TokushohoPage() {
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
           <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>

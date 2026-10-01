@@ -29,7 +29,7 @@ import { Icon } from "@/components/Icon";
  */
 
 /** iOSのグループリスト背景(systemGroupedBackground)。 */
-export const SHEET_BG = "#232326";
+export const SHEET_BG = "#101012";
 /** iOSのヘアライン分割線。 */
 export const HAIRLINE = "rgba(255,255,255,0.10)";
 

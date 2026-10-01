@@ -374,7 +374,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       {/* PC(lg)では幅を広げ、プレイヤーカードを2カラムに並べる(モバイルは従来の1カラム)。 */}
       <div className="mx-auto max-w-md px-4 pb-24 lg:max-w-5xl lg:px-8">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">

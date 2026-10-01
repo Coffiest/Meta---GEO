@@ -25,7 +25,7 @@ const FOOTER_LINKS = [
 
 export default function ContentLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-surface text-fg">
+    <div className="flex min-h-screen flex-col bg-canvas text-fg">
       <header className="glass-header sticky top-0 z-30">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-5 py-3">
           <Link href="/" className="text-[12px] font-black uppercase tracking-[0.22em] text-accent">

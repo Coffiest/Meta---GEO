@@ -116,7 +116,7 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   // ブラウザのUI(Androidのアドレスバー等)をアプリの背景色に一致させ、画面の境目を消す。
-  themeColor: "#1C1C1E",
+  themeColor: "#0A0A0B",
 };
 
 // 検索エンジンにブランド(Poker ART=ポーカーアート=POKERART)を「同一の実体」として

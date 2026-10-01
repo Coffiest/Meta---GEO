@@ -33,7 +33,7 @@ function orderedBucketEntries(cell: HandClassCell): [string, number][] {
 }
 
 function cellGradient(cell: DisplayCell): string {
-  if (cell.count === 0) return "#232326";
+  if (cell.count === 0) return "#101012";
   const stops: string[] = [];
   let cursor = 0;
   for (const [bucket, count] of orderedBucketEntries(cell)) {
@@ -42,7 +42,7 @@ function cellGradient(cell: DisplayCell): string {
     stops.push(`${colorForBucket(cell, bucket)} ${cursor}% ${cursor + pct}%`);
     cursor += pct;
   }
-  if (stops.length === 0) return "#232326";
+  if (stops.length === 0) return "#101012";
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
