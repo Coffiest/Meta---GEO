@@ -10,6 +10,26 @@ import { prisma } from "./client.js";
 const FREE_REVIEW_LIMIT = 1;
 const ROLLING_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
+/**
+ * Stripe 由来の契約を、記録上の期限(currentPeriodEnd)を過ぎてもこの時間だけは有効と見なす。
+ * 更新(引き落とし)の直後は Webhook や照合ジョブで新しい期限が届くまで少し遅れるため、その間に
+ * 払っている人の利用を止めないための猶予。これを過ぎたら、Stripe 側の状態に関わらず無効にする
+ * (Webhook の取りこぼしで、期限切れの契約が永久に有効のまま残る不具合の対策)。
+ */
+export const STRIPE_RENEWAL_GRACE_MS = 60 * 60 * 1000;
+/** 解約済み・確定した状態。照合ジョブの対象から外す。 */
+const TERMINAL_STATUSES = ["canceled", "incomplete_expired", "comp", "referral"];
+
+/** Stripe 由来の契約がいま有効か(状態が有効で、かつ期限+猶予を過ぎていない)。 */
+export function isStripeSubscriptionActive(
+  sub: { status: string; currentPeriodEnd: Date | null },
+  now: Date = new Date(),
+): boolean {
+  if (!ACTIVE_STATUSES.has(sub.status)) return false;
+  // 期限が未同期(null)の行は、照合ジョブが Stripe から期限を取り直すまで有効のまま扱う。
+  if (sub.currentPeriodEnd == null) return true;
+  return sub.currentPeriodEnd.getTime() + STRIPE_RENEWAL_GRACE_MS > now.getTime();
+}
 /** 招待特典のクーポンだけで有効になっている状態を表す擬似ステータス。 */
 const REFERRAL_STATUS = "referral";
 
@@ -21,7 +41,7 @@ export interface SubscriptionStatus {
 
 /** ユーザーのサブスク状態を返す。未加入(レコード無し)ならactive=falseを返す。
  * 有効と見なすのは次の3つのOR:
- *  - Stripe由来のstatus(active/trialing)。Webhookが失効を同期するため期限判定しない
+ *  - Stripe由来のstatus(active/trialing)。期限(+猶予)を過ぎたら、Webhookが届いていなくても無効
  *  - status="comp"(管理者による無料付与)。currentPeriodEndまでの期限付き
  *  - 招待特典のクーポン(PremiumCoupon)。招待1件につき1ヶ月ぶん積み上がる期限付き
  * 期限は「より遅い方」を返す(契約と特典が併存しうるため)。 */
@@ -40,7 +60,7 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
   }
 
   const compActive = sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > now;
-  const subActive = ACTIVE_STATUSES.has(sub.status) || compActive;
+  const subActive = isStripeSubscriptionActive(sub, now) || compActive;
   const ends: Date[] = [];
   if (subActive && sub.currentPeriodEnd) ends.push(sub.currentPeriodEnd);
   if (couponActive) ends.push(coupon!.expiresAt);
@@ -127,6 +147,43 @@ export async function upsertSubscriptionFromStripeEvent(params: {
       currentPeriodEnd: params.currentPeriodEnd,
     },
   });
+}
+
+/**
+ * Stripe と照合が必要な契約(照合ジョブ用)。
+ * - 期限(+猶予なし)を過ぎた、または期限が未同期の、終わっていない契約: 更新されたか・引き落としに失敗したかを確かめる
+ * - 支払い遅延(past_due / unpaid): 引き落としに失敗している。自動解約の対象
+ */
+export async function listSubscriptionsToReconcile(now: Date = new Date(), limit = 100): Promise<
+  { userId: string; stripeCustomerId: string; stripeSubscriptionId: string; status: string; currentPeriodEnd: Date | null }[]
+> {
+  const rows = await prisma.subscription.findMany({
+    where: {
+      stripeSubscriptionId: { not: null },
+      status: { notIn: TERMINAL_STATUSES },
+      OR: [
+        { currentPeriodEnd: null },
+        { currentPeriodEnd: { lte: now } },
+        { status: { in: ["past_due", "unpaid"] } },
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: limit,
+    select: { userId: true, stripeCustomerId: true, stripeSubscriptionId: true, status: true, currentPeriodEnd: true },
+  });
+  return rows.map((r) => ({ ...r, stripeSubscriptionId: r.stripeSubscriptionId! }));
+}
+
+/** 1ユーザーの契約が照合を要するか(状態APIで、その場で照合するかの判定)。 */
+export async function subscriptionNeedsReconcile(userId: string, now: Date = new Date()): Promise<string | null> {
+  const sub = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { stripeSubscriptionId: true, status: true, currentPeriodEnd: true },
+  });
+  if (!sub?.stripeSubscriptionId || TERMINAL_STATUSES.includes(sub.status)) return null;
+  const due =
+    sub.currentPeriodEnd == null || sub.currentPeriodEnd <= now || sub.status === "past_due" || sub.status === "unpaid";
+  return due ? sub.stripeSubscriptionId : null;
 }
 
 export interface ReviewQuotaCheck {
@@ -272,7 +329,7 @@ export async function searchUsersForAdmin(query: string): Promise<AdminUserSearc
       ? {
           ...u.subscription,
           active:
-            ACTIVE_STATUSES.has(u.subscription.status) ||
+            isStripeSubscriptionActive(u.subscription, now) ||
             (u.subscription.status === "comp" &&
               u.subscription.currentPeriodEnd != null &&
               u.subscription.currentPeriodEnd > now),

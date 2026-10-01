@@ -6,15 +6,16 @@ import {
   getReviewQuotaRemaining,
   getStripeCustomerId,
   getSubscriptionStatusForUser,
-  upsertSubscriptionFromStripeEvent,
+  subscriptionNeedsReconcile,
 } from "@meta-geo/db";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { readJsonBodyLimited, readRawBody as readRawBodyLimited } from "./httpBody.js";
+import { cancelForPaymentFailure, reconcileSubscription, syncSubscription } from "./subscriptionReconciler.js";
 
 let stripeClient: Stripe | null | undefined;
 
 /** STRIPE_SECRET_KEYが未設定の環境(キー未設定/ローカル開発等)ではnullを返し、決済機能を無効化する。 */
-function getStripeClient(): Stripe | null {
+export function getStripeClient(): Stripe | null {
   if (stripeClient !== undefined) return stripeClient;
   const secretKey = process.env["STRIPE_SECRET_KEY"];
   stripeClient = secretKey ? new Stripe(secretKey) : null;
@@ -98,6 +99,18 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         return true;
       }
       const user = await resolveDbUser(verified);
+      // 期限を過ぎた(または支払いが滞っている)契約は、その場で Stripe に照会してから答える。
+      // 更新済みなら新しい期限で有効のまま、引き落としに失敗していれば自動解約される。
+      const stripeForReconcile = getStripeClient();
+      const dueSubscriptionId = stripeForReconcile ? await subscriptionNeedsReconcile(user.id) : null;
+      if (stripeForReconcile && dueSubscriptionId) {
+        const customerId = await getStripeCustomerId(user.id);
+        if (customerId) {
+          await reconcileSubscription(stripeForReconcile, customerId, dueSubscriptionId).catch((err) =>
+            console.error("[subscriptionApi] inline reconcile failed:", err),
+          );
+        }
+      }
       const [subscription, quota] = await Promise.all([
         getSubscriptionStatusForUser(user.id),
         getReviewQuotaRemaining(user.id),
@@ -190,7 +203,21 @@ const RELEVANT_EVENT_TYPES = new Set([
   "checkout.session.completed",
   "customer.subscription.updated",
   "customer.subscription.deleted",
+  // 更新の引き落とし成功(新しい期限を取り込む)/ 失敗(自動解約)。
+  "invoice.paid",
+  "invoice.payment_failed",
 ]);
+
+/** 請求が属するサブスクの ID(API のバージョンで場所が違うので両方を見る)。 */
+function subscriptionIdOfInvoice(invoice: Stripe.Invoice): string | null {
+  const direct = (invoice as unknown as { subscription?: string | { id: string } | null }).subscription;
+  if (typeof direct === "string") return direct;
+  if (direct && typeof direct === "object") return direct.id;
+  const parent = (invoice as unknown as { parent?: { subscription_details?: { subscription?: string | { id: string } } } })
+    .parent?.subscription_details?.subscription;
+  if (typeof parent === "string") return parent;
+  return parent && typeof parent === "object" ? parent.id : null;
+}
 
 async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const stripe = getStripeClient();
@@ -231,6 +258,17 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
         const subscription = await stripe.subscriptions.retrieve(session.subscription);
         await syncSubscription(session.customer, subscription);
       }
+    } else if (event.type === "invoice.payment_failed") {
+      // 引き落としができなかった → 再試行を待たずに自動解約(オーナー確定仕様)。
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = subscriptionIdOfInvoice(invoice);
+      if (subscriptionId) await cancelForPaymentFailure(stripe, subscriptionId, invoice.id ?? null);
+    } else if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = subscriptionIdOfInvoice(invoice);
+      if (subscriptionId && typeof invoice.customer === "string") {
+        await reconcileSubscription(stripe, invoice.customer, subscriptionId);
+      }
     } else {
       const subscription = event.data.object as Stripe.Subscription;
       if (typeof subscription.customer === "string") {
@@ -242,14 +280,4 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
     console.error("[subscriptionApi] webhook handling failed:", err);
     sendJson(res, 500, { error: "internal error" });
   }
-}
-
-async function syncSubscription(stripeCustomerId: string, subscription: Stripe.Subscription): Promise<void> {
-  const periodEndSec = (subscription as unknown as { current_period_end?: number }).current_period_end;
-  await upsertSubscriptionFromStripeEvent({
-    stripeCustomerId,
-    stripeSubscriptionId: subscription.id,
-    status: subscription.status,
-    currentPeriodEnd: typeof periodEndSec === "number" ? new Date(periodEndSec * 1000) : null,
-  });
 }

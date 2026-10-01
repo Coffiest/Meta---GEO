@@ -4,7 +4,8 @@ import { Lobby } from "./lobby.js";
 import { handleGeoTreeApiRequest } from "./geoTreeApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
-import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
+import { getStripeClient, handleSubscriptionApiRequest } from "./subscriptionApi.js";
+import { startSubscriptionReconciler } from "./subscriptionReconciler.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
@@ -146,6 +147,9 @@ io.on("connection", (socket) => {
 
 // プライムタイム(毎晩21:00 JST)開始10分前のプッシュ通知。VAPID鍵が未設定なら送信は黙ってスキップされる。
 startPrimeTimeNotifier();
+
+// 棋譜解析プランの期限・更新・引き落とし失敗による自動解約を、Stripe の実状態と定期的に照合する。
+startSubscriptionReconciler(getStripeClient);
 
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);
