@@ -16,6 +16,7 @@
  *  - ターンバレル = フロップでベット/レイズした人が、ターンでもベット。
  *  - リバーバレル = ターンでベット/レイズした人が、リバーでもベット(3連続=トリプルバレル)。
  *  - プローブ    = フロップでオリジナルのIPがチェックバック → ターンでOOPが最初にベット。
+ *                  リバーも同じ(ターンでオリジナルがチェックバック → リバーでOOPが最初にベット)。
  *  - チェックレイズ = 同じストリートで自分がチェックした後にレイズ。
  */
 
@@ -213,8 +214,10 @@ export function readBetRoles(actions: readonly RoleAction[], table: BetRoleTable
         !flop.aggressionSeen && street !== "flop" && original !== null && flop.checked.has(original);
       const originalActsAfter = original !== null && originalLive && actOrder(original, table) > myOrder;
 
-      if (street === "turn" && flopCheckedThrough && !isOriginal && originalActsAfter) {
-        // フロップでオリジナルがIPからチェックバック → ターンでOOPが最初に打つ。
+      // 前のストリートがチェックで流れ、オリジナルがチェックバックしていた(リバーも同じ考え方)。
+      const prevCheckedThrough = prev !== null && !prev.aggressionSeen && original !== null && prev.checked.has(original);
+      if (street !== "flop" && prevCheckedThrough && !isOriginal && originalActsAfter) {
+        // フロップ(リバーならターン)でオリジナルがIPからチェックバック → OOPが最初に打つ。
         role = "probe";
       } else if (!isOriginal && original !== null && originalActsAfter) {
         role = "donk";
@@ -278,6 +281,91 @@ export function readBarrelCheckSpots(actions: readonly RoleAction[]): BarrelChec
       lastAggressor["turn"] === a.seatIndex
     ) {
       out.push({ sequenceNumber: a.sequenceNumber, seatIndex: a.seatIndex, street: "river" });
+    }
+  }
+  return out;
+}
+
+/**
+ * ベット以外も含めた、Notion の表で評価する「場面」。決定(チェック/コール/フォールドを含む)ごとに1つ。
+ *
+ *  - probe: 前のストリートでオリジナル(IP)がチェックバック → 今のストリートで自分(OOP・オリジナルでない)が先に打てる
+ *  - donk: 自分(オリジナルでない)が、オリジナルより先に打てる(プローブの場面を除く)。フロップ・ターン・リバー
+ *  - checkRaise: 同じストリートで自分がチェックしたあと、相手のベットに直面している(レイズ/コール/フォールド)
+ *  - afterCheckRaise: フロップでチェックレイズしてコールされ、ターンで自分が先に打てる
+ *
+ * ダブル/トリプルバレルの場面は `readBarrelCheckSpots`(チェック)と `readBetRoles`(ベット)が受け持つ。
+ */
+export type DecisionSpotKind = "probe" | "donk" | "checkRaise" | "afterCheckRaise";
+
+export interface DecisionSpot {
+  sequenceNumber: number;
+  seatIndex: number;
+  street: BetStreet;
+  kind: DecisionSpotKind;
+}
+
+export function readDecisionSpots(actions: readonly RoleAction[], table: BetRoleTable): DecisionSpot[] {
+  let original: number | null = null;
+  for (const a of actions) {
+    if (a.street === "preflop" && !isForcedPost(a.kind) && isAggression(a.kind)) original = a.seatIndex;
+  }
+  const folded = new Set<number>();
+  for (const a of actions) if (a.street === "preflop" && a.kind === "fold") folded.add(a.seatIndex);
+
+  const streets: Record<string, StreetState> = { flop: freshStreet(), turn: freshStreet(), river: freshStreet() };
+  /** フロップでチェックレイズした席。 */
+  const flopCheckRaisers = new Set<number>();
+  /** ストリートごとに、すでにベット/レイズした席(リレイズに直面した2回目はチェックレイズの場面にしない)。 */
+  const aggressors: Record<string, Set<number>> = { flop: new Set(), turn: new Set(), river: new Set() };
+  /** ストリートの最後のベット/レイズがオールインだったか(オールインに直面したらレイズできないので場面にしない)。 */
+  const lastWasAllIn: Record<string, boolean> = { flop: false, turn: false, river: false };
+  const out: DecisionSpot[] = [];
+
+  for (const a of actions) {
+    if (!POSTFLOP.includes(a.street)) continue;
+    const street = a.street as BetStreet;
+    const st = streets[street]!;
+    const prev = street === "turn" ? streets["flop"]! : street === "river" ? streets["turn"]! : null;
+    const aggressive = isAggression(a.kind);
+    const isOriginal = original !== null && a.seatIndex === original;
+    const originalActsAfter =
+      original !== null &&
+      !isOriginal &&
+      !folded.has(original) &&
+      actOrder(original, table) > actOrder(a.seatIndex, table);
+
+    let kind: DecisionSpotKind | null = null;
+    if (!st.aggressionSeen && (a.kind === "check" || aggressive)) {
+      if (street === "turn" && flopCheckRaisers.has(a.seatIndex) && streets["flop"]!.lastAggressor === a.seatIndex) {
+        kind = "afterCheckRaise";
+      } else if (!isOriginal && originalActsAfter) {
+        const prevCheckedThrough =
+          prev !== null && !prev.aggressionSeen && original !== null && prev.checked.has(original);
+        kind = street !== "flop" && prevCheckedThrough ? "probe" : "donk";
+      }
+    } else if (
+      st.aggressionSeen &&
+      st.checked.has(a.seatIndex) &&
+      st.lastAggressor !== a.seatIndex &&
+      !aggressors[street]!.has(a.seatIndex) &&
+      !lastWasAllIn[street] &&
+      (a.kind === "call" || a.kind === "fold" || aggressive)
+    ) {
+      kind = "checkRaise";
+      if (street === "flop" && aggressive) flopCheckRaisers.add(a.seatIndex);
+    }
+    if (kind) out.push({ sequenceNumber: a.sequenceNumber, seatIndex: a.seatIndex, street, kind });
+
+    // 状態の更新(readBetRoles と同じ規則)。
+    if (a.kind === "fold") folded.add(a.seatIndex);
+    else if (a.kind === "check") st.checked.add(a.seatIndex);
+    else if (a.kind === "call") st.called.add(a.seatIndex);
+    else if (aggressive) {
+      st.aggressionSeen = true;
+      st.lastAggressor = a.seatIndex;
+      aggressors[street]!.add(a.seatIndex);
+      lastWasAllIn[street] = a.kind === "allIn";
     }
   }
   return out;

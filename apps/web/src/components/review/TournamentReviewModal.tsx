@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, PresenceContext, useIsPresent, useReducedMotion } from "framer-motion";
 import { SPRING_SHEET } from "@/lib/motion";
 import {
   fetchTournamentReview,
@@ -123,6 +123,11 @@ export function TournamentReviewModal({
   /** ヒストリーのハンド行から開いたとき、そのハンドの頭から再生を始める。 */
   initialHandId?: string | null;
 }) {
+  // 閉じ始めたら(退場アニメーション中)、全画面の膜にタップを通す。退場が何かの理由で終わらなくても、
+  // 透明な膜が下の画面の操作を塞がないようにする。
+  const present = useIsPresent();
+  const backdropStyle = present ? undefined : { pointerEvents: "none" as const };
+
   // 無料の要約(広告つき画面)。分類件数のみで課金ゲート無し。開いた瞬間に取得する。
   const [freeData, setFreeData] = useState<TournamentReviewSummary | null>(null);
   const [freeLoading, setFreeLoading] = useState(true);
@@ -318,15 +323,21 @@ export function TournamentReviewModal({
 
   // ================= 再生ビュー(全画面。chess.com と同じ配置: 解説が上・手の一覧が下) =================
   if (view === "replay" && data && replay && steps[stepIndex]) {
+    // 再生画面は、モーダルの AnimatePresence の退場待ちから切り離す。卓(PokerTable)のディーラーボタンの
+    // layout アニメーションなどが退場待ちに登録されたまま残り、総括へ戻ってモーダルを閉じても退場が終わらず、
+    // 透明な全画面の膜が残ってヒストリー画面をフリーズさせていた。この画面はモーダルの中で総括と
+    // 入れ替わるだけで、モーダルと一緒に退場アニメーションする必要は無い。
     return (
-      <ReviewReplayView
-        hands={data.hands}
-        replay={replay}
-        heroUserId={heroUserId}
-        stepIndex={stepIndex}
-        goTo={goTo}
-        onBack={() => setView("detail")}
-      />
+      <PresenceContext.Provider value={null}>
+        <ReviewReplayView
+          hands={data.hands}
+          replay={replay}
+          heroUserId={heroUserId}
+          stepIndex={stepIndex}
+          goTo={goTo}
+          onBack={() => setView("detail")}
+        />
+      </PresenceContext.Provider>
     );
   }
 
@@ -343,6 +354,7 @@ export function TournamentReviewModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
+        style={backdropStyle}
         className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
       >
         <motion.div
@@ -465,6 +477,7 @@ export function TournamentReviewModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
+      style={backdropStyle}
       className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
     >
       <motion.div

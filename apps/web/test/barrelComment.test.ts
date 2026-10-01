@@ -54,6 +54,29 @@ function allVerdicts(): { v: BarrelVerdict; board: string[] }[] {
 
 describe("ダブル/トリプルバレルのバリィの台詞", () => {
   const all = allVerdicts();
+  it("ストレートの目ができるカードを含め、どのターン/リバーでも必ず評価と台詞が付く", () => {
+    const boards = [
+      ["7d", "3c", "Kc", "4d", "2s"], // K73 → 4(オーナーの局面)
+      ["Th", "8d", "7c", "Js", "2c"], // T87 → J
+      ["Ks", "9h", "5d", "7c", "2c"], // K95 → 7
+      ["Kh", "8d", "3h", "6s", "5c"], // リバーでストレートの目
+      ["Qs", "Jd", "4c", "Th", "9s"], // ターンもリバーもつながる
+    ];
+    for (const board of boards) {
+      for (const street of ["turn", "river"] as const) {
+        for (const hole of HOLES) {
+          if (hole.some((c) => board.includes(c))) continue;
+          for (const action of [{ kind: "check" as const }, ...SIZES.map((size) => ({ kind: "bet" as const, size }))]) {
+            const v = judgeBarrel(street, hole, board, action);
+            const where = `${board.join("")} ${street} ${hole.join("")} ${action.kind}`;
+            expect(v, where).not.toBeNull();
+            expect(barrelComment(v!, board).summary.length, where).toBeGreaterThan(20);
+          }
+        }
+      }
+    }
+  });
+
 
   it("テストの局面は、全ての場合分けとカードの種類を通っている", () => {
     const situations = new Set(all.map(({ v }) => v.situation));

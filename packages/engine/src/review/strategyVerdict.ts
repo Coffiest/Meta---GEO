@@ -18,7 +18,29 @@
  */
 
 import { judgeBarrel, type BarrelCard, type BarrelVerdict } from "./barrelPlan.js";
-import { BET_SIZE_BANDS, type BarrelCheckSpot, type BetRoleInfo, type BetSizeClass, type BetStreet } from "./betRole.js";
+import {
+  BET_SIZE_BANDS,
+  type BarrelCheckSpot,
+  type BetRoleInfo,
+  type BetSizeClass,
+  type BetStreet,
+  type DecisionSpot,
+} from "./betRole.js";
+import {
+  judgeAfterCheckRaise,
+  judgeCheckRaise,
+  judgeDonk,
+  judgeProbe,
+  type AfterCheckRaiseVerdict,
+  type CheckRaiseBoard,
+  type CheckRaiseVerdict,
+  type DonkReason,
+  type DonkVerdict,
+  type ProbeCard,
+  type ProbeVerdict,
+} from "./spotPlans.js";
+
+export { geometricFraction, probeFlopFavorable, readProbeTurn, type ProbeTurn } from "./spotPlans.js";
 import { parseBoardCard, readBoardTexture, type BoardTexture } from "./boardTexture.js";
 import { readHandStrength, type HandStrength, type MadeCategory } from "./handStrength.js";
 import type { PotType } from "./potShape.js";
@@ -53,7 +75,9 @@ export type StrategyTag =
   | "riverBlock"
   | "probe"
   | "doubleBarrel"
-  | "tripleBarrel";
+  | "tripleBarrel"
+  /** ドンクを打てた場面でチェックした。 */
+  | "donkCheck";
 
 /** 評価の理由。解説の引き当てキー。 */
 export type StrategyReason =
@@ -69,6 +93,8 @@ export type StrategyReason =
   | "donkTurnRepeat"
   | "donkStraightMove"
   | "donkLowBoard"
+  | "donkNutChange"
+  | "donkThreeBetStraight"
   | "donkNoReason"
   // フロップのジャム
   | "overpairJamLowSpr"
@@ -88,10 +114,15 @@ export type StrategyReason =
   // バレル
   | "barrelPolarized"
   | "barrelMarginal"
-  // チェックレイズ
-  | "checkRaiseTooBig"
-  | "checkRaiseDryBroadway"
-  | "checkRaiseDraw"
+  // チェックレイズ(ボードの見出しごと。Notion【チェックレイズ(call側)】【チェックレイズサイズ･頻度】)
+  | "crPaired"
+  | "crStraightBoard"
+  | "crDryKQ"
+  | "crDryJT"
+  | "crMonotone"
+  | "crGeneral"
+  // チェックレイズしてコールされたあとのターン(Notion【チェックレイズ後のターン戦略(call側)】)
+  | "crAfterTurn"
   // プローブ(ターンに落ちたカードの種類ごと。Notion【プローブベット】)
   | "probeStraight"
   | "probeRag"
@@ -123,7 +154,16 @@ export interface StrategyVerdict {
   boardChange: BoardChange | null;
   /** ダブル/トリプルバレルの表で評価したときの場合分け(解説の材料)。それ以外は null。 */
   barrel: BarrelVerdict | null;
+  /** プローブ・ドンク・チェックレイズの表で評価したときの場合分け(解説の材料)。それ以外は null。 */
+  spot: SpotVerdict | null;
+  /**
+   * ノートに「その行動の良し悪し」の記載が無く、解説だけを付ける評価。GTOの格付けがあればそちらを残す
+   * (無ければ grade を出す)。
+   */
+  keepGto: boolean;
 }
+
+export type SpotVerdict = ProbeVerdict | DonkVerdict | CheckRaiseVerdict | AfterCheckRaiseVerdict;
 
 /** 決定そのものの外から渡す文脈。 */
 export interface VerdictExtra {
@@ -133,6 +173,8 @@ export interface VerdictExtra {
   spr?: number | null;
   /** オールインだったか(額からは分からないことがあるので、呼び出し側のバケットで渡す)。 */
   isAllIn?: boolean;
+  /** フロップでチェックレイズしてコールされたあとのターンか(`readDecisionSpots` の afterCheckRaise)。 */
+  afterCheckRaise?: boolean;
 }
 
 /** 判定のしきい値。ポット比。 */
@@ -217,6 +259,7 @@ interface Ctx {
   potType: PotType | undefined;
   spr: number | null;
   isAllIn: boolean;
+  afterCheckRaise: boolean;
 }
 
 interface Hit {
@@ -224,6 +267,8 @@ interface Hit {
   reason: StrategyReason;
   grade: NotionGrade;
   barrel?: BarrelVerdict;
+  spot?: SpotVerdict;
+  keepGto?: boolean;
 }
 
 type Rule = (c: Ctx) => Hit | null;
@@ -238,22 +283,27 @@ const flushDrawMissBluff: Rule = (c) => {
   return { tag: "flushDrawMissBluff", reason: "flushDrawMiss", grade: "mistake" };
 };
 
-/** ドンク。成立する理由があれば良手、無ければ悪手。 */
+const DONK_REASON: Record<DonkReason, StrategyReason> = {
+  flushCompleted: "donkFlushCompleted",
+  straightCompleted: "donkStraightMove",
+  turnRepeat: "donkTurnRepeat",
+  nutChange: "donkNutChange",
+  threeBetStraight: "donkThreeBetStraight",
+  lowBoard: "donkLowBoard",
+  connectBoard: "donkLowBoard",
+};
+
+function donkHit(v: DonkVerdict): Hit {
+  const reason = v.reason ? DONK_REASON[v.reason] : "donkNoReason";
+  const tag: StrategyTag = v.action === "check" ? "donkCheck" : v.reason ? "goodDonk" : "badDonk";
+  return { tag, reason, grade: v.grade, spot: v };
+}
+
+/** ドンク(Notion【ドンクベット】)。成立する理由と、その理由で打つ手かで評価する(`spotPlans.ts`)。 */
 const donk: Rule = (c) => {
   if (c.info.role !== "donk") return null;
-  const good = (reason: StrategyReason): Hit => ({ tag: "goodDonk", reason, grade: "excellent" });
-  if (c.change === "flushCompleted") return good("donkFlushCompleted");
-  if (c.change === "paired" && c.info.street === "turn") return good("donkTurnRepeat");
-  if (c.change === "straightMove") return good("donkStraightMove");
-  const t = c.tex;
-  if (
-    c.info.street === "flop" &&
-    t &&
-    (t.highRank <= VERDICT_LIMITS.donkLowBoardMaxRank || (t.hmGap !== null && t.hmGap <= 1))
-  ) {
-    return good("donkLowBoard");
-  }
-  return { tag: "badDonk", reason: "donkNoReason", grade: "mistake" };
+  const v = judgeDonk(c.info.street, c.holeRaw, c.board, c.potType, { size: c.size });
+  return v ? donkHit(v) : null;
 };
 
 /** リバーのバリュー: マージナルは大悪手、シンバリューは絶妙手、強い手のOOPブロックは好手。 */
@@ -298,27 +348,31 @@ const overpairJam: Rule = (c) => {
   return { tag: "overpairJam", reason: "overpairJamLowSpr", grade: "great" };
 };
 
-/** チェックレイズ。 */
+const CR_REASON: Record<CheckRaiseBoard, StrategyReason> = {
+  paired: "crPaired",
+  straightBoard: "crStraightBoard",
+  dryKQ: "crDryKQ",
+  dryJT: "crDryJT",
+  monotone: "crMonotone",
+  general: "crGeneral",
+};
+
+function checkRaiseHit(v: CheckRaiseVerdict): Hit {
+  return { tag: "checkRaise", reason: CR_REASON[v.board], grade: v.grade, spot: v, keepGto: v.keepGto };
+}
+
+/** チェックレイズ(どのストリートも)。ボードの見出しごとの表で評価する(`spotPlans.ts`)。 */
 const checkRaise: Rule = (c) => {
-  if (c.info.role !== "checkRaise" || c.info.street !== "flop") return null;
-  const t = c.tex;
-  const dryKQ = !!t && t.draws === "dry" && (t.highRank === 13 || t.highRank === 12);
-  if (c.size === "overbet" && !c.isAllIn && !dryKQ) {
-    return { tag: "checkRaise", reason: "checkRaiseTooBig", grade: "inaccuracy" };
-  }
-  if (!c.hand) return null;
-  const d = c.hand.draws;
-  const hasFlushDraw = d.flushDraw || d.nutFlushDraw;
-  // ドライなJTハイ: 「セットはチェックレイズに回す」「フラッシュドローは全てチェックレイズ」。
-  const dryBroadway = !!t && t.draws === "dry" && t.bands[0] === "H" && t.broadwayCount >= 2;
-  if (dryBroadway && (c.hand.made === "trips" || hasFlushDraw)) {
-    return { tag: "checkRaise", reason: "checkRaiseDryBroadway", grade: "excellent" };
-  }
-  // 「チェックレイズは最低でも15%」= ドローを混ぜてエクイティを放棄しない。
-  if (hasFlushDraw || d.openEnded || d.gutshot || d.backdoorFlushDraw) {
-    return { tag: "checkRaise", reason: "checkRaiseDraw", grade: "excellent" };
-  }
-  return null;
+  if (c.info.role !== "checkRaise") return null;
+  const v = judgeCheckRaise(c.info.street, c.holeRaw, c.board, { kind: "raise", size: c.size, isAllIn: c.isAllIn }, c.spr);
+  return v ? checkRaiseHit(v) : null;
+};
+
+/** フロップでチェックレイズしてコールされたあとの、ターンのベット。 */
+const afterCheckRaise: Rule = (c) => {
+  if (!c.afterCheckRaise || c.info.street !== "turn" || c.info.firstOnStreet === false) return null;
+  const v = judgeAfterCheckRaise(c.holeRaw, c.board, { size: c.size });
+  return v ? { tag: "checkRaise", reason: "crAfterTurn", grade: v.grade, spot: v } : null;
 };
 
 /** CB。3betPot → ボード別の推奨サイズ。手の選び方の誤りはサイズより先に見る。 */
@@ -384,8 +438,8 @@ function barrelHit(v: BarrelVerdict): Hit {
 /**
  * ダブルバレル(フロップで打ち、ターンでも自分から打つ)と、トリプルバレル(フロップ・ターンに続けて
  * リバーでも打つ)。Notion【ダブルバレル】の表で評価する(中身は `barrelPlan.ts`)。
- * トリプルバレルもダブルバレルと同じ表(オーナー確定)。ストレート完成カードは表に無いので、
- * 下の一般的なバレルの判定に回す。相手のベットへのレイズは対象外。
+ * トリプルバレルもダブルバレルと同じ表(オーナー確定)。落ちたカードは必ず表の見出しのどれかに入る
+ * (ストレートの目ができるカードもランクでオーバーカードかラグ)。相手のベットへのレイズは対象外。
  */
 const tableBarrel: Rule = (c) => {
   if (c.info.firstOnStreet === false || !c.size) return null;
@@ -411,128 +465,47 @@ const barrel: Rule = (c) => {
   return { tag: "barrel", reason: "barrelPolarized", grade: gradeBySizeGap(c.size, ["medium", "large", "overbet"]) };
 };
 
-/** ボードでストレートが完成しうるか(3枚が5つの連続した枠に収まる)。エースは 14 と 1 の両方。 */
-function straightPossible(board: readonly string[]): boolean {
-  const tex = readBoardTexture(board);
-  if (!tex) return false;
-  const ranks = new Set(tex.ranks);
-  if (ranks.has(14)) ranks.add(1);
-  for (let low = 1; low <= 10; low++) {
-    let n = 0;
-    for (let k = 0; k < 5; k++) if (ranks.has(low + k)) n++;
-    if (n >= 3) return true;
-  }
-  return false;
+const PROBE_REASON: Record<ProbeCard, StrategyReason> = {
+  repeat: "probeRepeat",
+  flush: "probeFlush",
+  straight: "probeStraight",
+  ace: "probeAce",
+  overcard: "probeOvercard",
+  rag: "probeRag",
+};
+
+function probeHit(v: ProbeVerdict): Hit {
+  const notListed = v.situation === "betNotListed";
+  return { tag: "probe", reason: notListed ? "probeCheckHand" : PROBE_REASON[v.card], grade: v.grade, spot: v };
 }
 
 /**
- * 2e(2ストリートのジオメトリックサイズ)のポット比。ターンとリバーの2回、同じ比率で打つと
- * ちょうどオールインになるサイズ。SPR を s として (1+2f)^2 = 1+2s → f = (√(1+2s) − 1) / 2。
- */
-export function geometricFraction(spr: number, streets: number): number {
-  return (Math.pow(1 + 2 * spr, 1 / streets) - 1) / 2;
-}
-
-/** ターンに落ちたカードの種類(Notion【プローブベット】の見出し)。上から優先。 */
-export type ProbeTurn = "repeat" | "flush" | "straight" | "ace" | "overcard" | "rag";
-
-export function readProbeTurn(board: readonly string[]): ProbeTurn | null {
-  const flop = readBoardTexture(board.slice(0, 3));
-  const turn = readBoardTexture(board.slice(0, 4));
-  if (!flop || !turn || board.length < 4) return null;
-  if (turn.isPaired && !flop.isPaired) return "repeat";
-  if (turn.maxSuitCount >= 3 && flop.maxSuitCount < 3) return "flush";
-  if (straightPossible(board.slice(0, 4)) && !straightPossible(board.slice(0, 3))) return "straight";
-  const card = readBoardTexture([board[3]!]);
-  const rank = card?.highRank ?? 0;
-  if (rank > flop.highRank) return rank === 14 ? "ace" : "overcard";
-  return "rag";
-}
-
-/**
- * フロップがプローブする側(OOPのコーラー)に有利だったか。
- * ノートは「有利ボード / 不利ボード」で頻度を分けているが、定義は書かれていない。
- * コーラー(BBなど)のレンジが強くなりやすい、9ハイ以下かコネクトしたフロップを有利とみなす。
- */
-export function probeFlopFavorable(board: readonly string[]): boolean {
-  const flop = readBoardTexture(board.slice(0, 3));
-  if (!flop) return false;
-  return flop.bands[0] !== "H" || flop.draws === "drawHeavy";
-}
-
-type ProbeSize = "33" | "50" | "2e";
-
-/** 実際のサイズが、ノートのサイズ(33% / 50% / 2e)に当たるか。 */
-function sizeMatches(c: Ctx, target: ProbeSize): boolean {
-  if (c.f === null) return false;
-  if (target === "33") return c.size === "block";
-  if (target === "50") return c.size === "small";
-  if (c.spr === null || c.isAllIn) return false;
-  const g = geometricFraction(c.spr, 2);
-  return c.f >= g * 0.75 && c.f <= g * 1.35;
-}
-
-/**
- * プローブ(ターン)。ノートの「今日から使える簡易戦略」をそのまま表にした。
- *
- *  - ターンリピート: レンジでチェック → 打ったら悪手
- *  - 手がリストに載っていてサイズも合う → 最善 / 手は載っているがサイズ違い → 好手〜緩手
- *  - リストに載っていない手(チェックする手)で打った → 緩手
- *
- * 頻度(有利ボード 50% / 不利ボード 20% など)は1ハンドでは判定できないので、解説で伝える。
+ * プローブ(ターン・リバー)。Notion【プローブベット】の「今日から使える簡易戦略」の表で評価する(`spotPlans.ts`)。
+ * リバーはターンと同じ表(ターンでオリジナルがチェックバック → リバーでOOPが先に打つ)。
  */
 const probe: Rule = (c) => {
-  if (c.info.role !== "probe" || c.info.street !== "turn" || !c.hand) return null;
-  const turn = readProbeTurn(c.board);
-  if (!turn) return null;
-  const favorable = probeFlopFavorable(c.board);
-  const h = c.hand;
-  const d = h.draws;
-  const twoPairPlus = STRONG_MADE.includes(h.made);
-  const tpNotTk = h.made === "topPair" && h.kicker !== "top";
-  const secondToBottom = h.made === "middlePair" || h.made === "bottomPair";
-  const set = h.made === "trips";
-  const oesd = d.openEnded;
-  const gut = d.gutshot;
-
-  if (turn === "repeat") return { tag: "probe", reason: "probeRepeat", grade: "mistake" };
-
-  // 手の組 → そのサイズ。1つの手が複数の組に入ることもある(例: セットは「2P+」にも「set」にも入る)。
-  const groups: { hands: boolean; size: ProbeSize }[] = [];
-  let reason: StrategyReason;
-  if (turn === "flush") {
-    reason = "probeFlush";
-    // ショーダウンバリューのある手(Aハイ・ミドルペア系)と完全なエアー以外の全てで33%。TPも含む。
-    const sdb = secondToBottom || h.made === "pocketPairBelow" || (h.made === "highCard" && !h.hasAnyDraw && c.holeHasAce);
-    const air = h.made === "highCard" && !h.hasAnyDraw;
-    groups.push({ hands: !sdb && !air, size: "33" });
-  } else if (turn === "straight" || turn === "rag") {
-    reason = turn === "straight" ? "probeStraight" : "probeRag";
-    groups.push({ hands: tpNotTk || h.made === "twoPair" || gut, size: turn === "straight" ? "50" : "2e" });
-    groups.push({ hands: secondToBottom || h.made === "pocketPairBelow" || set || oesd, size: "33" });
-  } else if (turn === "ace") {
-    reason = "probeAce";
-    groups.push({ hands: twoPairPlus || oesd || gut || h.made === "bottomPair", size: "2e" });
-  } else {
-    // A以外のオーバーカード。ノートは有利ボードにしか書かれていない。
-    if (!favorable) return null;
-    reason = "probeOvercard";
-    groups.push({ hands: twoPairPlus || gut || h.made === "bottomPair", size: "2e" });
-    groups.push({ hands: secondToBottom || h.made === "pocketPairBelow" || set || oesd, size: "33" });
-  }
-
-  const mine = groups.filter((g) => g.hands);
-  if (mine.length === 0) return { tag: "probe", reason: "probeCheckHand", grade: "inaccuracy" };
-  if (mine.some((g) => sizeMatches(c, g.size))) return { tag: "probe", reason, grade: "best" };
-  // 手は合っているがサイズが違う: カテゴリ内の別のサイズなら好手、どれとも違えば緩手。
-  const other = groups.some((g) => !g.hands && sizeMatches(c, g.size));
-  return { tag: "probe", reason, grade: other ? "good" : "inaccuracy" };
+  if (c.info.role !== "probe" || c.info.street === "flop") return null;
+  const v = judgeProbe(c.info.street, c.holeRaw, c.board, { size: c.size, f: c.f, spr: c.spr, isAllIn: c.isAllIn });
+  return v ? probeHit(v) : null;
 };
 
 /** 上から順に見て、最初に当たったものを採る。 */
 // ダブル/トリプルバレルの表は、リバーの一般則(フラドロミス・シンバリュー …)より先に見る。
 // トリプルバレルはダブルバレルと同じ表で評価する、というオーナーの指示のため。外れたフラドロの扱いは表の側でも同じ(悪手)。
-const RULES: readonly Rule[] = [tableBarrel, flushDrawMissBluff, donk, riverValue, overpairJam, checkRaise, probe, cbet, delayedCbet, barrel];
+// プローブ・ドンク・チェックレイズの場面は、リバーの一般則(シンバリュー/マージナル)より先に、その場面の表で見る。
+const RULES: readonly Rule[] = [
+  afterCheckRaise,
+  tableBarrel,
+  flushDrawMissBluff,
+  donk,
+  probe,
+  overpairJam,
+  checkRaise,
+  riverValue,
+  cbet,
+  delayedCbet,
+  barrel,
+];
 
 /**
  * 1つのベット/レイズを評価する。
@@ -568,15 +541,16 @@ export function judgeBet(
     potType: extra.potType,
     spr: extra.spr ?? null,
     isAllIn,
+    afterCheckRaise: extra.afterCheckRaise ?? false,
   };
   for (const rule of RULES) {
     const hit = rule(ctx);
     if (hit) {
-      const { barrel = null, ...rest } = hit;
-      return { ...rest, barrel, boardChange: ctx.change };
+      const { barrel = null, spot = null, keepGto = false, ...rest } = hit;
+      return { ...rest, barrel, spot, keepGto, boardChange: ctx.change };
     }
   }
-  return { tag: null, reason: null, grade: null, boardChange: ctx.change, barrel: null };
+  return { tag: null, reason: null, grade: null, boardChange: ctx.change, barrel: null, spot: null, keepGto: false };
 }
 
 /**
@@ -592,5 +566,57 @@ export function judgeBarrelCheck(
   const v = judgeBarrel(spot.street, hole, board, { kind: "check" });
   if (!v) return null;
   const hit = barrelHit(v);
-  return { tag: hit.tag, reason: hit.reason, grade: hit.grade, barrel: v, boardChange: readBoardChange(spot.street, board) };
+  return {
+    tag: hit.tag,
+    reason: hit.reason,
+    grade: hit.grade,
+    barrel: v,
+    spot: null,
+    keepGto: false,
+    boardChange: readBoardChange(spot.street, board),
+  };
+}
+
+/**
+ * プローブ・ドンク・チェックレイズの場面での、**ベット以外**の決定(チェック/コール/フォールド)を評価する。
+ * ベット/レイズは `judgeBet`(役割から同じ表に回る)。
+ *
+ * @param action その決定の種類
+ * @param extra ポットの形・SPR
+ */
+export function judgeSpotDecision(
+  spot: DecisionSpot,
+  action: "check" | "call" | "fold",
+  hole: readonly (string | null)[],
+  board: readonly string[],
+  extra: VerdictExtra = {}
+): StrategyVerdict | null {
+  const boardChange = readBoardChange(spot.street, board);
+  const wrap = (hit: Hit | null): StrategyVerdict | null => {
+    if (!hit) return null;
+    const { barrel = null, spot: sv = null, keepGto = false, ...rest } = hit;
+    return { ...rest, barrel, spot: sv, keepGto, boardChange };
+  };
+  switch (spot.kind) {
+    case "probe": {
+      if (action !== "check" || spot.street === "flop") return null;
+      const v = judgeProbe(spot.street, hole, board, null);
+      return wrap(v ? probeHit(v) : null);
+    }
+    case "donk": {
+      if (action !== "check") return null;
+      const v = judgeDonk(spot.street, hole, board, extra.potType, null);
+      return wrap(v ? donkHit(v) : null);
+    }
+    case "checkRaise": {
+      if (action === "check") return null;
+      const v = judgeCheckRaise(spot.street, hole, board, { kind: action }, extra.spr ?? null);
+      return wrap(v ? checkRaiseHit(v) : null);
+    }
+    case "afterCheckRaise": {
+      if (action !== "check" || spot.street !== "turn") return null;
+      const v = judgeAfterCheckRaise(hole, board, null);
+      return wrap(v ? { tag: "checkRaise", reason: "crAfterTurn", grade: v.grade, spot: v } : null);
+    }
+  }
 }

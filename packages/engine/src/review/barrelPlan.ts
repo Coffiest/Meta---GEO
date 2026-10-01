@@ -24,7 +24,8 @@
  *    ブラフ=全てのストドロ・ペアなしのフラドロ・キッカーが弱いA/Q/Jハイ
  *
  * 表に書かれていないところの扱い(ここで決めたもの):
- *  - ストレート完成カードは表に無いので、この評価はしない(ベットは一般的なバレルの判定に回る)。
+ *  - ストレートの目ができるカードは表に見出しが無いので、ランクで「オーバーカード」(前のボードの最高ランクより上)か
+ *    「ラグ」(それ以外)に入れる。**ダブル/トリプルバレルの場面では、必ずどれかの見出しで評価する**(オーナー確定)。
  *  - 表のバリューより強い役(ストレート・フラッシュ・フルハウス …)はバリューに入れる。
  *    ただしフラッシュ完成カードでは「強いフラッシュはチェック」に合わせて、フルハウス以上もチェックの手とする。
  *  - オーバーペアは「キッカーの強いトップペア」より強いのでバリューに入れる。
@@ -154,25 +155,11 @@ const WEAK_ACE_KICKER_MAX = 9;
 /** 「強いフラッシュ」の、手札のそのスートの最高ランクの下限(Q)。 */
 const STRONG_FLUSH_MIN_RANK = 12;
 
-/** ストレートが完成しうるか(3枚が5つの連続した枠に収まる)。エースは 14 と 1 の両方。 */
-function straightPossible(board: readonly string[]): boolean {
-  const tex = readBoardTexture(board);
-  if (!tex) return false;
-  const ranks = new Set(tex.ranks);
-  if (ranks.has(14)) ranks.add(1);
-  for (let low = 1; low <= 10; low++) {
-    let n = 0;
-    for (let k = 0; k < 5; k++) if (ranks.has(low + k)) n++;
-    if (n >= 3) return true;
-  }
-  return false;
-}
-
 /**
- * そのストリートに落ちたカードが、表のどの見出しに当たるか。
- * ストレート完成カードは "straight"(表に無い)。読めなければ null。
+ * そのストリートに落ちたカードが、表のどの見出しに当たるか。上から優先。
+ * ストレートの目ができるカードもランクでオーバーカードかラグに入れる(表に見出しが無いため)。読めなければ null。
  */
-export function readBarrelCard(street: BarrelStreet, board: readonly string[]): BarrelCard | "straight" | null {
+export function readBarrelCard(street: BarrelStreet, board: readonly string[]): BarrelCard | null {
   const n = street === "turn" ? 4 : 5;
   if (board.length < n) return null;
   const prevBoard = board.slice(0, n - 1);
@@ -184,7 +171,6 @@ export function readBarrelCard(street: BarrelStreet, board: readonly string[]): 
   if (prev.ranks.includes(card.rank)) return "paired";
   const sameSuit = curBoard.filter((b) => parseBoardCard(b)?.suit === card.suit).length;
   if (sameSuit >= 3) return "flush";
-  if (straightPossible(curBoard) && !straightPossible(prevBoard)) return "straight";
   if (card.rank > prev.highRank) return "overcard";
   return "rag";
 }
@@ -394,7 +380,7 @@ export function judgeBarrel(
   action: { kind: "bet"; size: BetSizeClass } | { kind: "check" }
 ): BarrelVerdict | null {
   const card = readBarrelCard(street, board);
-  if (!card || card === "straight") return null;
+  if (!card) return null;
   const cls = classifyBarrelHand(street, card, hole, board);
   if (!cls) return null;
   const recommended = BARREL_SIZE[card];

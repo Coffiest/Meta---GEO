@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBarrelCheckSpots, readBetRoles, sizeClassOf, type RoleAction } from "../src/review/betRole.js";
+import { readBarrelCheckSpots, readBetRoles, readDecisionSpots, sizeClassOf, type RoleAction } from "../src/review/betRole.js";
 
 /**
  * ベットの役割判定のテスト。
@@ -289,5 +289,56 @@ describe("ダブル/トリプルバレルを打てた場面のチェック", () 
     expect(readBarrelCheckSpots(a)).toEqual([]);
     const raise = readBetRoles(a, TABLE).find((r) => r.seatIndex === BTN && r.street === "turn");
     expect(raise?.firstOnStreet).toBe(false);
+  });
+});
+
+describe("プローブ・ドンク・チェックレイズの場面", () => {
+  const kindOf = (a: RoleAction[], seat: number, street: string) =>
+    readDecisionSpots(a, TABLE).filter((x) => x.seatIndex === seat && x.street === street).map((x) => x.kind);
+
+  it("フロップで BB(オリジナルでない・先に打てる)がチェック → ドンクの場面", () => {
+    const a = [...srpBtnOpens(), act(BB, "flop", "check"), act(BTN, "flop", "bet", 33, 100)];
+    expect(kindOf(a, BB, "flop")).toEqual(["donk"]);
+    // オリジナル(BTN)の決定はドンクの場面ではない。
+    expect(kindOf(a, BTN, "flop")).toEqual([]);
+  });
+
+  it("フロップがチェックで流れたターンの BB → プローブの場面。ターンもチェックで流れたリバーもプローブ", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "check"),
+      act(BB, "turn", "check"),
+      act(BTN, "turn", "check"),
+      act(BB, "river", "bet", 50, 100),
+    ];
+    expect(kindOf(a, BB, "turn")).toEqual(["probe"]);
+    expect(kindOf(a, BB, "river")).toEqual(["probe"]);
+    expect(roleOf(readBetRoles(a, TABLE), BB, "river")).toBe("probe");
+  });
+
+  it("チェックしてベットに直面 → チェックレイズの場面。レイズしてコールされたターンはチェックレイズ後の場面", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "raise", 120, 133),
+      act(BTN, "flop", "call", 120),
+      act(BB, "turn", "check"),
+    ];
+    expect(kindOf(a, BB, "flop")).toEqual(["donk", "checkRaise"]);
+    expect(kindOf(a, BB, "turn")).toEqual(["afterCheckRaise"]);
+  });
+
+  it("コール/フォールドもチェックレイズの場面。リレイズに直面した2回目は場面にしない", () => {
+    const a = [
+      ...srpBtnOpens(),
+      act(BB, "flop", "check"),
+      act(BTN, "flop", "bet", 33, 100),
+      act(BB, "flop", "raise", 120, 133),
+      act(BTN, "flop", "raise", 400, 253),
+      act(BB, "flop", "fold"),
+    ];
+    expect(kindOf(a, BB, "flop")).toEqual(["donk", "checkRaise"]);
   });
 });

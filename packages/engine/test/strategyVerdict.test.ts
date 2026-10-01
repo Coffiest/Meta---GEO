@@ -4,6 +4,7 @@ import {
   geometricFraction,
   judgeBarrelCheck,
   judgeBet,
+  judgeSpotDecision,
   probeFlopFavorable,
   readBoardChange,
   readProbeTurn,
@@ -144,11 +145,15 @@ describe("リバーのフラドロミス・ブラフ → 悪手", () => {
 });
 
 describe("ドンクの良し悪し(成立=良手 / 不成立=悪手)", () => {
-  it("ターンのリピート(ペアが乗る)は良いドンク", () => {
-    const v = judgeBet(info({ role: "donk", street: "turn" }), ["Ah", "Qd"], ["Ks", "8h", "2d", "8c", "3s"]);
-    expect(v.tag).toBe("goodDonk");
-    expect(v.reason).toBe("donkTurnRepeat");
-    expect(v.grade).toBe("excellent");
+  it("ターンのリピート(ペアが乗る)でドローを安く打つのは良いドンク、ドローでない手は好手", () => {
+    const board = ["Ks", "8h", "7d", "8c", "3s"];
+    const v = judgeBet(info({ role: "donk", street: "turn", potFraction: 0.33, sizeClass: "block" }), ["Ts", "9s"], board);
+    expect(v).toMatchObject({ tag: "goodDonk", reason: "donkTurnRepeat", grade: "excellent", spot: { kind: "donk", fit: "draw" } });
+    expect(judgeBet(info({ role: "donk", street: "turn" }), ["Ah", "Qd"], board)).toMatchObject({
+      reason: "donkTurnRepeat",
+      grade: "good",
+      spot: { situation: "betNoFit" },
+    });
   });
 
   it("リバーでフラッシュが完成した局面のドンクは良い(レンジがOOPに移った)", () => {
@@ -157,8 +162,9 @@ describe("ドンクの良し悪し(成立=良手 / 不成立=悪手)", () => {
     expect(v.reason).toBe("donkFlushCompleted");
   });
 
-  it("何も変わっていないリバーの純粋なドンクは悪い", () => {
-    const v = judgeBet(info({ role: "donk", street: "river" }), ["Ah", "Qd"], DRY);
+  it("何も変わっていないリバーの純粋なドンク(ブロック)は悪い", () => {
+    const v = judgeBet(info({ role: "donk", street: "river" }), ["Ah", "Qd"], ["As", "7h", "2d", "Kc", "9s"]);
+    expect(v.spot).toMatchObject({ situation: "betNoReasonRiverBlock" });
     expect(v.tag).toBe("badDonk");
     expect(v.reason).toBe("donkNoReason");
     expect(v.grade).toBe("mistake");
@@ -269,9 +275,10 @@ describe("ディレイCB・バレル", () => {
     expect(judgeBet(d(0.3), ["Ah", "Kd"], board).grade).toBe("inaccuracy");
   });
 
-  it("ノートに無いターン(ストレート完成)のバレルは、一般のポラライズで判定する", () => {
-    const board = ["Ks", "9h", "5d", "7c", "3s"]; // 5-7-9 でストレートが完成しうる
-    const b = (f: number) => info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2 });
+  it("表の対象外のバレル(相手のドンクへのレイズ)は、一般のポラライズで判定する", () => {
+    const board = ["Ks", "9h", "5d", "7c", "3s"];
+    const b = (f: number) =>
+      info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2, firstOnStreet: false });
     expect(judgeBet(b(0.75), ["Kh", "9d"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // 2P
     expect(judgeBet(b(0.75), ["Qh", "Jd"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // エア
     const mid = judgeBet(b(0.75), ["9c", "6d"], board); // ミドルペア
@@ -283,22 +290,78 @@ describe("ディレイCB・バレル", () => {
 describe("チェックレイズ", () => {
   const cr = (f: number) => info({ street: "flop", role: "checkRaise", position: "OOP", potFraction: f, sizeClass: sizeClassOf(f) });
 
-  it("ドライなJTハイのセットは良手", () => {
-    const v = judgeBet(cr(0.8), ["3h", "3d"], ["Js", "Th", "3c", "2d", "5s"]);
-    expect(v.reason).toBe("checkRaiseDryBroadway");
-    expect(v.grade).toBe("excellent");
+  it("ドライなJTハイのセットは50%でレイズして最善", () => {
+    const v = judgeBet(cr(0.5), ["3h", "3d"], ["Js", "Th", "3c", "2d", "5s"]);
+    expect(v).toMatchObject({ reason: "crDryJT", grade: "best", spot: { hand: "value", situation: "raiseOk" } });
   });
 
-  it("ドローを混ぜたチェックレイズは良手", () => {
-    const v = judgeBet(cr(0.8), ["Js", "Ts"], ["9s", "8s", "2d", "Kc", "3h"]);
-    expect(v.reason).toBe("checkRaiseDraw");
-    expect(v.grade).toBe("excellent");
+  it("コンボドローを混ぜたチェックレイズは最善、大きすぎると緩手", () => {
+    const board = ["9s", "8s", "2d", "Kc", "3h"];
+    expect(judgeBet(cr(0.5), ["Js", "Ts"], board)).toMatchObject({ reason: "crGeneral", grade: "best", spot: { hand: "bluff" } });
+    expect(judgeBet(cr(1.5), ["Js", "Ts"], board)).toMatchObject({ grade: "inaccuracy", spot: { situation: "raiseSizeOff" } });
   });
 
-  it("ドライなK/Qハイ以外で大きすぎるレイズは緩手", () => {
-    const v = judgeBet(cr(1.5), ["Js", "Ts"], ["9s", "8s", "2d", "Kc", "3h"]);
-    expect(v.reason).toBe("checkRaiseTooBig");
-    expect(v.grade).toBe("inaccuracy");
+  it("ドライなK/Qハイはセット・ツーペアでポットレイズ", () => {
+    const board = ["Kd", "7c", "2h", "5s", "9d"];
+    expect(judgeBet(cr(1.0), ["7d", "7s"], board)).toMatchObject({ reason: "crDryKQ", grade: "best" });
+    expect(judgeBet(cr(0.75), ["7d", "7s"], board).grade).toBe("good");
+  });
+
+  it("ペアボード: キッカーの強いトリップスはレイズ、弱いトリップスはコールに回す", () => {
+    const board = ["9d", "9c", "4h", "Ks", "2d"];
+    expect(judgeBet(cr(0.5), ["9s", "Ah"], board)).toMatchObject({ reason: "crPaired", grade: "best" });
+    expect(judgeBet(cr(0.5), ["9s", "5h"], board)).toMatchObject({ grade: "good", spot: { situation: "raiseValueCall" } });
+  });
+
+  it("モノトーンボードはパッシブに(レイズは緩手)", () => {
+    expect(judgeBet(cr(0.5), ["Ah", "5c"], ["Kh", "8h", "3h", "2d", "5s"])).toMatchObject({ reason: "crMonotone", grade: "inaccuracy" });
+  });
+
+  it("チェックしてベットに直面: レイズ候補のコールは好手、バリューのフォールドは悪手、表に無い手はGTOを残す", () => {
+    const spot = { sequenceNumber: 1, seatIndex: 2, street: "flop" as const, kind: "checkRaise" as const };
+    const board = ["Kd", "7c", "2h", "5s", "9d"];
+    expect(judgeSpotDecision(spot, "call", ["7d", "7s"], board)).toMatchObject({ grade: "good", spot: { situation: "callRaiseHand" } });
+    expect(judgeSpotDecision(spot, "fold", ["7d", "7s"], board)).toMatchObject({ grade: "mistake", spot: { situation: "foldValue" } });
+    expect(judgeSpotDecision(spot, "call", ["Ah", "Kc"], board)).toMatchObject({ keepGto: true, spot: { situation: "callNotListed" } });
+  });
+
+  it("浅いスタック(SPR3以下)ではワンペアもチェックレイズの候補", () => {
+    const spot = { sequenceNumber: 1, seatIndex: 2, street: "flop" as const, kind: "checkRaise" as const };
+    const board = ["Kd", "7c", "2h", "5s", "9d"];
+    expect(judgeSpotDecision(spot, "call", ["Ah", "Kc"], board, { spr: 2 })).toMatchObject({ spot: { hand: "value", shortStack: true } });
+  });
+
+  it("チェックレイズ後のターン: オーバーカード・ペアはレンジでチェック、フラッシュ完成は全ハンドで安く、ラグはバリューでポット", () => {
+    const after = { sequenceNumber: 1, seatIndex: 2, street: "turn" as const, kind: "afterCheckRaise" as const };
+    expect(judgeSpotDecision(after, "check", ["7d", "7s"], ["Kd", "7c", "2h", "As", "9d"])).toMatchObject({ grade: "best", spot: { situation: "checkRangeOk" } });
+    expect(judgeSpotDecision(after, "check", ["7d", "7s"], ["Kh", "7h", "2c", "5h", "9d"])).toMatchObject({ grade: "inaccuracy", spot: { situation: "checkFlush" } });
+    const turnBet = info({ street: "turn", role: "turnBarrel", potFraction: 1.0, sizeClass: "large", streak: 2 });
+    expect(judgeBet(turnBet, ["7d", "7s"], ["Kd", "7c", "2h", "5s", "9d"], { afterCheckRaise: true })).toMatchObject({
+      reason: "crAfterTurn",
+      grade: "best",
+    });
+  });
+});
+
+describe("ドンク・プローブの場面でのチェック", () => {
+  it("ドンクが成立して打つ手ならチェックは緩手、そうでなければ最善", () => {
+    const donk = { sequenceNumber: 1, seatIndex: 2, street: "flop" as const, kind: "donk" as const };
+    const low = ["6s", "5h", "2d", "Kc", "9s"];
+    expect(judgeSpotDecision(donk, "check", ["8h", "7h"], low)).toMatchObject({ tag: "donkCheck", grade: "inaccuracy", spot: { situation: "checkShouldDonk" } });
+    expect(judgeSpotDecision(donk, "check", ["Ah", "Kd"], low)).toMatchObject({ grade: "best", spot: { situation: "checkOkNoFit" } });
+    expect(judgeSpotDecision(donk, "check", ["Ah", "Kd"], ["Ks", "9h", "2d", "Kc", "9s"])).toMatchObject({ grade: "best", spot: { situation: "checkOkNoReason" } });
+  });
+
+  it("プローブ: リピートはチェックで最善、打つ手は頻度50%のカードならチェックが好手", () => {
+    const probe = { sequenceNumber: 1, seatIndex: 2, street: "turn" as const, kind: "probe" as const };
+    expect(judgeSpotDecision(probe, "check", ["Ah", "Kd"], ["Ks", "8d", "3c", "8h", "2s"])).toMatchObject({ grade: "best", spot: { situation: "checkRepeatOk" } });
+    // 有利ボード(9ハイ)のラグ: ミドルペアは33%で打つ手。
+    expect(judgeSpotDecision(probe, "check", ["8h", "7c"], ["9c", "8d", "2h", "3s", "Kd"])).toMatchObject({ grade: "good", spot: { situation: "checkListedMissed" } });
+  });
+
+  it("リバーのプローブも同じ表で評価する", () => {
+    const probe = { sequenceNumber: 1, seatIndex: 2, street: "river" as const, kind: "probe" as const };
+    expect(judgeSpotDecision(probe, "check", ["Ah", "Kd"], ["Ks", "8d", "3c", "2h", "8s"])).toMatchObject({ spot: { kind: "probe", street: "river", card: "repeat" } });
   });
 });
 
@@ -374,9 +437,9 @@ describe("プローブ(Notion【プローブベット】の簡易戦略)", () =>
     expect(v).toMatchObject({ reason: "probeOvercard", grade: "best" });
   });
 
-  it("A以外のオーバーカードは不利ボードには書かれていないので評価しない", () => {
+  it("A以外のオーバーカードは不利ボードに記載が無いので、有利ボードと同じ手で評価する(頻度は記載なし)", () => {
     const v = judgeBet(pr(0.33), ["Jh", "Jd"], ["Qs", "7d", "2c", "Kh", "3s"], SPR);
-    expect(v.grade).toBeNull();
+    expect(v).toMatchObject({ reason: "probeOvercard", grade: "best", spot: { favorable: false, frequency: null } });
   });
 
   it("フラッシュ完成: TPを含め 33% が最善。Aハイ(SDB)と完全なエアーはチェックする手", () => {
@@ -495,10 +558,23 @@ describe("ダブルバレル(Notion【ダブルバレル】)", () => {
     });
   });
 
-  it("ストレート完成カードは表に無いので、一般的なバレルの判定に回る", () => {
+  it("ストレートの目ができるカードも、ランクで表の見出しに入る(必ず評価が付く)", () => {
+    // K95 → 7: 5-7-9 でストレートの目ができるが、Kより下なのでラグ。
     const board = ["Ks", "9h", "5d", "7c", "2c"];
-    expect(judgeBet(b(0.75), ["Kd", "Qc"], board).barrel).toBeNull();
-    expect(chk(["Kd", "Qc"], board)).toBeNull();
+    expect(judgeBet(b(1.8), ["Kd", "Qc"], board)).toMatchObject({ reason: "dbRag", grade: "best" });
+    expect(chk(["Kd", "Qc"], board)).toMatchObject({ reason: "dbRag", barrel: { situation: "checkValue" } });
+    // T87 → J: ストレートの目ができ、Tより上なのでオーバーカード。
+    expect(chk(["Ad", "Ac"], ["Th", "8d", "7c", "Js", "2c"])?.barrel?.card).toBe("overcard");
+  });
+
+  it("オーナーの局面: K73 → 4♦ で Q♠9♣ のチェックは、ラグのブラフの打ち逃し(緩手)", () => {
+    const v = chk(["Qs", "9c"], ["7d", "3c", "Kc", "4d", "2s"]);
+    expect(v).toMatchObject({
+      tag: "doubleBarrel",
+      reason: "dbRag",
+      grade: "inaccuracy",
+      barrel: { card: "rag", hand: "bluff", handKey: "queenHigh", situation: "checkBluff" },
+    });
   });
 });
 

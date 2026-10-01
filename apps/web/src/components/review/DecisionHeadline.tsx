@@ -7,6 +7,7 @@ import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
 import { barrelComment } from "@/lib/barrelComment";
+import { spotComment } from "@/lib/spotComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { Loader } from "@/components/ui/Loader";
 import { CLASSIFICATION_META, outOfScopeLabel, type Classification } from "@/lib/classification";
@@ -76,14 +77,18 @@ export function DecisionHeadline({
     [decision.street, context]
   );
   const c = decision.classification;
-  // ダブル/トリプルバレルの表で評価した手(チェックを含む)は、場合分けから台詞を組み立てる。
+  // ダブル/トリプルバレル・プローブ・ドンク・チェックレイズの表で評価した手(チェック/コール/フォールドを含む)は、
+  // 場合分けから台詞を組み立てる。
   const barrel = decision.strategy?.barrel;
+  const spot = decision.strategy?.spot;
   const note = c
     ? barrel
       ? barrelComment(barrel, context?.board)
-      : context
-        ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0]
-        : undefined
+      : spot
+        ? spotComment(spot, context?.board)
+        : context
+          ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0]
+          : undefined
     : undefined;
   const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;

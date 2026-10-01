@@ -1,4 +1,5 @@
 import type { BarrelVerdict } from "@meta-geo/engine/src/review/barrelPlan.js";
+import type { SpotVerdict } from "@meta-geo/engine/src/review/strategyVerdict.js";
 import type { BetRole } from "@meta-geo/engine/src/review/betRole.js";
 import type {
   BoardChange,
@@ -39,6 +40,10 @@ export interface DecisionStrategy {
   boardChange: BoardChange | null;
   /** ダブル/トリプルバレルの表で評価したときの場合分け。バリィの台詞はこれから組み立てる。 */
   barrel?: BarrelVerdict | null;
+  /** プローブ・ドンク・チェックレイズの表で評価したときの場合分け。バリィの台詞はこれから組み立てる。 */
+  spot?: SpotVerdict | null;
+  /** ノートに良し悪しの記載が無く、解説だけを付けた評価(GTOの格付けを残す)。 */
+  keepGto?: boolean;
 }
 
 export interface ReviewedDecision {
