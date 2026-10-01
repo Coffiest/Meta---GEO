@@ -498,6 +498,7 @@ export class TableSession implements GameSession {
         status: "running",
         gameType: this.gameType,
         buyIn: this.buyIn,
+        payouts: SNG_PAYOUTS.map((p) => p.amount),
       },
     });
     this.dbTournamentId = dbTournament.id;
@@ -1110,8 +1111,7 @@ export class TableSession implements GameSession {
           startedAt: clock?.startedAt,
           endedAt: new Date(),
           playersRemaining: aliveAtStart.length,
-          entryCount: tournament.getSeats().length,
-          payouts: SNG_PAYOUTS.map((p) => p.amount),
+          // 総エントリー数と賞金はトーナメント単位で1回だけ持つ(Tournament.seatCount / payouts)。ハンドごとに繰り返さない。
           fieldStacks: aliveAtStart.map((s) => s.stack),
           timings: clock?.timings,
         },

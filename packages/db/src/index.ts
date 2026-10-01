@@ -2,6 +2,7 @@ export * from "./client.js";
 export * from "./recordHand.js";
 export * from "./decisionFacts.js";
 export * from "./researchQuery.js";
+export * from "./storage.js";
 export * from "./bankroll.js";
 export * from "./geoTree.js";
 export * from "./rrRating.js";

@@ -57,6 +57,21 @@ interface ResearchBackfillStatus {
   error: string | null;
 }
 
+/** DB容量(サーバーの /api/admin/storage の応答)。 */
+interface StorageReport {
+  databaseBytes: number;
+  tables: { table: string; bytes: number; rows: number }[];
+  bytesPerHand: number | null;
+  hands: number;
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`;
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${n} B`;
+}
+
 /**
  * ポジション別の集まり具合(サーバーの /api/admin/geo-position-stats の応答)。
  *
@@ -118,6 +133,7 @@ export default function AdminPage() {
   const [geoBackfillBusy, setGeoBackfillBusy] = useState(false);
   // 研究用テーブル(DecisionFact)の作り直し。データベースタブの「データ研究」の過去分を埋める。
   const [researchBackfill, setResearchBackfill] = useState<ResearchBackfillStatus | null>(null);
+  const [storage, setStorage] = useState<StorageReport | null>(null);
   // ポジション別の集まり具合。重い集計ではないが、開いたときだけ取りに行く。
   const [posStats, setPosStats] = useState<GeoPositionStats | null>(null);
   const [posStatsOpen, setPosStatsOpen] = useState(false);
@@ -300,6 +316,19 @@ export default function AdminPage() {
     }
   }
 
+  /** DB容量を取得する。 */
+  async function loadStorage() {
+    if (!passcode) return;
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/storage`, { headers: { "x-admin-passcode": passcode } });
+      if (!res.ok) throw new Error(String(res.status));
+      setStorage((await res.json()) as StorageReport);
+    } catch {
+      setError("DB容量を取得できませんでした。");
+    }
+  }
+
   async function geoDelete(userId: string, from?: string, to?: string) {
     if (!passcode) return;
     const rangeText = from || to ? `期間 ${from || "最初"} 〜 ${to || "現在"} の` : "全期間の";
@@ -467,6 +496,45 @@ export default function AdminPage() {
                     状況を更新
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* DB容量。どのテーブルがどれだけ増えているかを見て、容量プランの上限に近づく前に手を打つ。 */}
+            <div className="mb-4 rounded-xl border border-line p-3.5">
+              <div className="flex items-start gap-2.5">
+                <Icon name="layers" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black text-fg">DB容量</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
+                    テーブルごとの大きさ(索引込み)と推定行数。1ハンドあたりは、ハンドを記録するたびに増えるテーブルの合計 ÷ ハンド数です。
+                  </p>
+                  {storage && (
+                    <div className="mt-2">
+                      <p className="text-[12px] font-black tabular-nums text-fg">
+                        合計 {formatBytes(storage.databaseBytes)} ・ {storage.hands.toLocaleString()} ハンド
+                        {storage.bytesPerHand !== null && ` ・ 1ハンドあたり ${formatBytes(storage.bytesPerHand)}`}
+                      </p>
+                      <table className="mt-1.5 w-full text-[11px] tabular-nums">
+                        <tbody>
+                          {storage.tables.slice(0, 12).map((t) => (
+                            <tr key={t.table} className="border-t border-line">
+                              <td className="py-1 font-bold text-n-10">{t.table}</td>
+                              <td className="py-1 text-right text-fg">{formatBytes(t.bytes)}</td>
+                              <td className="py-1 text-right text-n-9">{t.rows >= 0 ? `${t.rows.toLocaleString()} 行` : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadStorage()}
+                  className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable"
+                >
+                  {storage ? "更新" : "表示"}
+                </button>
               </div>
             </div>
 

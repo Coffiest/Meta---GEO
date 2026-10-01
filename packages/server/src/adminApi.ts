@@ -20,6 +20,7 @@ import {
   listErrorReports,
   summarizeErrorReports,
   setErrorReportResolved,
+  getStorageReport,
   type CompDurationUnit,
   type DecisionFactBackfillProgress,
   type GeoBackfillProgress,
@@ -267,6 +268,12 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       const alreadyRunning = researchBackfillState.running;
       startResearchBackfill();
       sendJson(res, alreadyRunning ? 409 : 202, { ok: !alreadyRunning, alreadyRunning, ...researchBackfillState });
+      return true;
+    }
+
+    // DB容量(テーブルごとの大きさと推定行数、1ハンドあたりの平均)。
+    if (url.pathname === "/api/admin/storage" && req.method === "GET") {
+      sendJson(res, 200, await getStorageReport());
       return true;
     }
 

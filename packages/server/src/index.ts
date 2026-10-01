@@ -11,6 +11,7 @@ import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
 import { checkAdminAuth, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
+import { pruneResolvedErrorReports } from "@meta-geo/db";
 import {
   getDiagnostics,
   recordError,
@@ -150,6 +151,16 @@ startPrimeTimeNotifier();
 
 // 棋譜解析プランの期限・更新・引き落とし失敗による自動解約を、Stripe の実状態と定期的に照合する。
 startSubscriptionReconciler(getStripeClient);
+
+// DB の掃除(1日1回): 対応済みのエラー報告を一定期間で消す。未対応の報告は残す。
+{
+  const prune = () =>
+    pruneResolvedErrorReports()
+      .then((n) => n > 0 && console.log(`[storage] pruned ${n} resolved error report(s)`))
+      .catch((err) => console.error("[storage] prune failed:", err));
+  setTimeout(prune, 60_000).unref();
+  setInterval(prune, 24 * 60 * 60 * 1000).unref();
+}
 
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);

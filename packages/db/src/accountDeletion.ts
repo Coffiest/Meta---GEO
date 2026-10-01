@@ -19,7 +19,7 @@ import { prisma } from "./client.js";
  *
  * ■ 消すもの / 残すもの
  * 消す : PushSubscription / PlayerNote(本人が書いたもの・本人について書かれたもの) /
- *        GeoViewUsage / ReviewUsage / HandReview + ReviewDecision / Subscription /
+ *        ReviewUsage / HandReview + ReviewDecision / Subscription /
  *        PremiumCoupon / Referral(本人が関わる行)。ErrorReport は報告内容を残しつつ紐付けのみ解除。
  * 残す : Hand / HandSeat / HandAction / HandPot(= GEO DATABASE 本体) /
  *        Tournament / TournamentEntry / BankrollTransaction(対戦記録の整合性)。
@@ -64,8 +64,7 @@ export async function deleteAccount(userId: string): Promise<DeleteAccountResult
     await tx.pushSubscription.deleteMany({ where: { userId } });
     // プレイヤーメモ: 本人が書いたものと、本人について書かれたものの両方。
     await tx.playerNote.deleteMany({ where: { OR: [{ authorUserId: userId }, { targetUserId: userId }] } });
-    // 閲覧・解析の無料枠カウンタ。
-    await tx.geoViewUsage.deleteMany({ where: { userId } });
+    // 解析の無料枠カウンタ。
     await tx.reviewUsage.deleteMany({ where: { userId } });
     // 棋譜解析の結果(本人の意思決定の分析=個人データ)。子から先に消す。
     const reviews = await tx.handReview.findMany({ where: { heroUserId: userId }, select: { id: true } });

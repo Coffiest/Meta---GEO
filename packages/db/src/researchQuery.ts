@@ -6,7 +6,7 @@ import { prisma } from "./client.js";
  *
  * - 軸(x)と指標(y)は**許可リスト**からだけ選べる。SQL の列名・式はここで固定し、
  *   値(ユーザーID・期間など)だけをパラメータで渡す(SQL インジェクションの余地を作らない)
- * - **常に人間の行だけを集計する**(`isBot = false`)。応答にも画面にも、種別を示す情報は一切出さない
+ * - 集計の対象は人間の決定だけ(DecisionFact には人間の行しか作らない)。応答にも画面にも、種別を示す情報は一切出さない
  * - 件数が少ない帯は値を伏せ、件数だけ返す(個人の推測や、ばらつきの大きい値の誤読を防ぐ)
  */
 
@@ -121,7 +121,7 @@ export function isResearchMetric(x: unknown): x is ResearchMetric {
 
 /** WHERE 句(値はすべてパラメータ)。 */
 export function researchWhereSql(p: ResearchCrosstabParams): Prisma.Sql {
-  const parts: Prisma.Sql[] = [Prisma.sql`"isBot" = false`];
+  const parts: Prisma.Sql[] = [Prisma.sql`true`];
   if (RESEARCH_METRICS[p.metric].handLevel) parts.push(Prisma.sql`"firstInHand" = true`);
   if (p.metric === "avgThinkSec" || p.metric === "medianThinkSec") parts.push(Prisma.sql`"thinkMs" IS NOT NULL`);
   if (p.scope === "me") parts.push(Prisma.sql`"userId" = ${p.userId}`);
@@ -187,7 +187,7 @@ export async function researchCrosstab(p: ResearchCrosstabParams): Promise<Resea
 
 /** 研究データの件数(画面の見出しに出す)。人間の行のみ。 */
 export async function researchSampleCount(scope: ResearchScope, userId: string): Promise<{ decisions: number; hands: number }> {
-  const where = scope === "me" ? { isBot: false, userId } : { isBot: false };
+  const where = scope === "me" ? { userId } : {};
   const [decisions, hands] = await Promise.all([
     prisma.decisionFact.count({ where }),
     prisma.decisionFact.count({ where: { ...where, firstInHand: true } }),

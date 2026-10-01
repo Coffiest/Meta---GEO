@@ -4,11 +4,11 @@ import type { ActionTiming } from "@meta-geo/db";
 /**
  * 1ハンドの間の、各アクションの時刻を記録する(研究用。データベースタブの「データ研究」)。
  *
- * 手番が回ってきた時刻・行動した時刻・時間切れの自動処理か・タイムバンクを使ったかを、
+ * 行動した時刻・思考時間・時間切れの自動処理か・タイムバンクを使ったかを、
  * HandAction の sequenceNumber ごとに残す。ハンド終了時に `recordHand` へ渡す。
  *
- * 自動で卓を埋めるプレイヤーの行は思考時間を null にする(作り物の遅延なので研究に使わない)。
- * この区別は DB の中だけに留まり、画面や通信には一切出ない。
+ * 記録するのは人間の手番だけ(自動で卓を埋めるプレイヤーの遅延は作り物で研究に使わないうえ、
+ * 書かなければ列は NULL のままでほぼ容量を食わない)。この区別は DB の中だけに留まり、画面や通信には一切出ない。
  */
 export class HandActionClock {
   readonly startedAt = new Date();
@@ -46,11 +46,10 @@ export class HandActionClock {
       }
     }
     const startedAt = this.turn?.seatIndex === seatIndex ? this.turn.startedAt : now;
-    if (seq !== null) {
+    if (seq !== null && isHuman) {
       this.timings.set(seq, {
-        turnStartedAt: new Date(startedAt),
         actedAt: new Date(now),
-        thinkMs: isHuman ? Math.max(0, now - startedAt) : null,
+        thinkMs: Math.max(0, now - startedAt),
         timedOut: this.autoNext,
         timeBankUsed: this.turn?.seatIndex === seatIndex ? this.turn.timeBank : false,
       });
