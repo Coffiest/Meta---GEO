@@ -279,10 +279,12 @@ export function ReviewReplayView({
   const seatCount = Math.max(6, currentHand.timeline.seats.length);
 
   return (
+    // exit は付けない。この画面はモーダル(AnimatePresence の子)の中で総括と入れ替わるだけで、
+    // exit を付けると AnimatePresence に退場待ちとして登録されたまま残り、モーダルを閉じても
+    // 透明な全画面の膜が消えずにヒストリー画面のタップを全部塞いでいた(フリーズに見えた)。
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       className="fixed inset-0 z-[70] flex flex-col overflow-hidden"
       style={{ background: SHEET_BG }}
     >
