@@ -193,6 +193,65 @@ describe("ダブルバレルを打たなかったチェック", () => {
   });
 });
 
+/** BTN がレイズ、BB コール。フロップ BB チェック → BTN ベット → BB が coll/fold。 */
+function flopCheckThenFacing(bbHole: string[], bbAction: "call" | "fold", board: string[]): { hand: ExtractHand; checkSeq: number; facingSeq: number } {
+  seq = 0;
+  const actions = [
+    act(1, "preflop", "postBlind", 50, 0),
+    act(2, "preflop", "postBlind", 100, 50),
+    act(3, "preflop", "fold"),
+    act(4, "preflop", "fold"),
+    act(5, "preflop", "fold"),
+    act(0, "preflop", "raise", 250),
+    act(1, "preflop", "fold"),
+    act(2, "preflop", "call", 250),
+  ];
+  const check = act(2, "flop", "check", null, 550);
+  actions.push(check, act(0, "flop", "bet", 180, 550));
+  const facing = act(2, "flop", bbAction, bbAction === "call" ? 180 : null, 730);
+  actions.push(facing);
+  const hand: ExtractHand = {
+    buttonFixedPos: 0,
+    levelBigBlind: 100,
+    board,
+    seats: [
+      { seatIndex: 0, userId: "u-btn", startingStack: 5000, holeCards: ["Qd", "Jd"] },
+      { seatIndex: 2, userId: "u-bb", startingStack: 5000, holeCards: bbHole },
+    ],
+    actions,
+  };
+  return { hand, checkSeq: check.sequenceNumber, facingSeq: facing.sequenceNumber };
+}
+
+describe("プローブ・ドンク・チェックレイズの場面", () => {
+  const flopDecision = (sequenceNumber: number, kind: string, over: Partial<ReviewedDecision> = {}) =>
+    decision({ sequenceNumber, street: "flop", seatIndex: 2, actionTaken: { kind, bucket: "checkOrCall", toAmount: null }, ...over });
+
+  it("ドンクを打てた場面のチェックと、チェックレイズの場面のコールに、評価と場合分けが載る", () => {
+    const { hand, checkSeq, facingSeq } = flopCheckThenFacing(["7d", "7s"], "call", ["Kd", "7c", "2h", "5s", "9d"]);
+    const check = flopDecision(checkSeq, "check");
+    const call = flopDecision(facingSeq, "call");
+    attachStrategies(hand, [check, call]);
+    applyNotionGrades([check, call]);
+    expect(check.strategy?.spot).toMatchObject({ kind: "donk", situation: "checkOkNoReason" });
+    expect(check.classification).toBe("best");
+    expect(call.strategy?.spot).toMatchObject({ kind: "checkRaise", board: "dryKQ", situation: "callRaiseHand" });
+    expect(call.classification).toBe("good");
+  });
+
+  it("表に無い手のコールは、GTOの格付けがあれば残し、無ければ常識的な手にする", () => {
+    const { hand, facingSeq } = flopCheckThenFacing(["Ah", "Qc"], "call", ["Kd", "7c", "2h", "5s", "9d"]);
+    const withGto = flopDecision(facingSeq, "call", { classification: "inaccuracy" });
+    const noGto = flopDecision(facingSeq, "call", { classification: null, evLossBb: null });
+    attachStrategies(hand, [withGto]);
+    attachStrategies(hand, [noGto]);
+    applyNotionGrades([withGto, noGto]);
+    expect(withGto.strategy?.keepGto).toBe(true);
+    expect(withGto.classification).toBe("inaccuracy");
+    expect(noGto.classification).toBe("book");
+  });
+});
+
 describe("applyNotionGrades", () => {
   it("分類が付いている決定は、格付けだけ上書きされ、EV損は残る", () => {
     const { hand, betSeq } = riverBetHand(["2h", "9c"], ["Qh", "Jd"]);

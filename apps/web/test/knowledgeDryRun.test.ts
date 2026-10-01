@@ -168,6 +168,8 @@ describe("戦略判定・役割の解説", () => {
     donkTurnRepeat: true,
     donkStraightMove: true,
     donkLowBoard: true,
+    donkNutChange: true,
+    donkThreeBetStraight: true,
     donkNoReason: true,
     overpairJamLowSpr: true,
     cb3bet: true,
@@ -183,9 +185,13 @@ describe("戦略判定・役割の解説", () => {
     delayedCbSize: true,
     barrelPolarized: true,
     barrelMarginal: true,
-    checkRaiseTooBig: true,
-    checkRaiseDryBroadway: true,
-    checkRaiseDraw: true,
+    crPaired: true,
+    crStraightBoard: true,
+    crDryKQ: true,
+    crDryJT: true,
+    crMonotone: true,
+    crGeneral: true,
+    crAfterTurn: true,
     probeStraight: true,
     probeRag: true,
     probeOvercard: true,
@@ -229,6 +235,7 @@ describe("戦略判定・役割の解説", () => {
     probe: true,
     doubleBarrel: true,
     tripleBarrel: true,
+    donkCheck: true,
   } satisfies Record<StrategyTag, true>;
 
   const river = ctx(["As", "7h", "2d", "Kc", "3s"], ["2h", "9c"], SRP);
@@ -253,7 +260,7 @@ describe("戦略判定・役割の解説", () => {
 
   it("タグの一覧が型と一致している(増えたときの取りこぼし防止)", () => {
     // 型に足したら satisfies が型エラーで知らせる。ここは数の固定。
-    expect(Object.keys(ALL_TAGS)).toHaveLength(14);
+    expect(Object.keys(ALL_TAGS)).toHaveLength(15);
   });
 
   it("理由ごとの解説は、評価(最善/ずれ)で言い分けたものが正しく引ける", () => {

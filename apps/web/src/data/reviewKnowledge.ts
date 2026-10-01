@@ -1,6 +1,7 @@
 import type { KnowledgeEntry } from "@/lib/reviewKnowledge";
 import { ANY_BET, BET_BUCKETS, BIG_BET, HUGE_BET } from "@/lib/reviewKnowledge";
 import { DOUBLE_BARREL_BODY } from "./barrelTable";
+import { AFTER_CHECK_RAISE_BODY, CHECK_RAISE_BODY, DONK_BODY, PROBE_BODY } from "./spotTables";
 
 /**
  * 棋譜解析に添える、ポーカー知識の解説。
@@ -32,24 +33,6 @@ import { DOUBLE_BARREL_BODY } from "./barrelTable";
  * 戦略判定に当たるもの > 条件の数が多いもの(`priority` で微調整)。同点はこの配列の順。
  * 1つの決定に出るのは1件(`MAX_NOTES_PER_DECISION`)。
  */
-/**
- * Notion【プローブベット】の「今日から使える簡易戦略」。プローブの解説の詳細で共通して出す。
- * 2e = ターンとリバーの2回、同じ比率で打つとちょうどオールインになるサイズ(ジオメトリック)。
- */
-const PROBE_BODY =
-  "プローブベット = フロップでオリジナルのIPがチェックバックしたあと、ターンでOOPから打つベット。\n" +
-  "2e = ターンとリバーの2回で、ちょうどオールインになるサイズ(ジオメトリックサイズ)。\n\n" +
-  "【有利ボード】\n" +
-  "・ストレート完成(頻度50%): TPTK以外のTP、2P、ガットショットで50%。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
-  "・ラグ(頻度50%): TPTK以外のTP、2P、ガットショットで2e。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
-  "・A以外のオーバーカード(頻度30%): 2P以上、ガットショット、ボトムヒットで2e。ミドル〜ボトムヒット、アンダーペア、セット、OESDで33%\n" +
-  "・Aが落ちた時(頻度10%): 2P以上、OESD、ガットショット、ボトムヒットで2e\n" +
-  "・フラッシュ完成カード(頻度50%): ショーダウンバリューのある手(Aハイ、ミドルペア系)と完全なエアー以外の全てで33%。乱数で2回に1回。TPもベットに含む\n" +
-  "・ターンリピート: レンジでチェック\n\n" +
-  "【不利ボード】\n" +
-  "・ストレート完成・ラグ・Aが落ちた時・フラッシュ完成カード: 打つ手とサイズは同じで、頻度は20%\n" +
-  "・ターンリピート: レンジでチェック";
-
 export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   // ═════════════════════════ 戦略判定(バッジを上書きした手の理由) ═════════════════════════
   {
@@ -423,33 +406,69 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   },
 
   // ───────── チェックレイズ ─────────
+  // 実際の台詞は、評価の場合分け(`strategy.spot`)から `lib/spotComment.ts` が組み立てる。ここは予備。
   {
-    id: "verdict-cr-dry-broadway",
-    title: "ドライなJTハイのセット/フラッシュドローはチェックレイズ",
-    summary: "ドライなブロードウェイボードで、セットやフラッシュドローをチェックレイズ。ノートどおりの良いプレイだね！",
-    body:
-      "ドライなJTハイボードは、チェックか350%のオールインの二極。\n" +
-      "セットはチェックレイズに回す。フラッシュドローは全てチェックレイズ。",
-    when: { strategyReason: ["checkRaiseDryBroadway"] },
+    id: "verdict-crPaired",
+    title: "ペアボードのチェックレイズ",
+    summary: "ペアボードのチェックレイズは頻度10%で小さく。キッカーの強いトリップスを半分レイズに回して、ダブルバックドアとスケアカードの多いポケットペアをブラフにするよ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crPaired"] },
   },
   {
-    id: "verdict-cr-draw",
-    title: "ドローを混ぜたチェックレイズ",
-    summary: "ドローでチェックレイズ、いいね！チェックレイズは15%以上混ぜたいから、ドローはぴったりの材料なんだ。",
-    body:
-      "チェックレイズは最低でも頻度15%必要。エクイティの放棄を避けるため。\n" +
-      "ブラフは、プリフロップでコールしたバックドア付きのローポケットやロースーテッドコネクター。",
-    when: { strategyReason: ["checkRaiseDraw"] },
+    id: "verdict-crStraightBoard",
+    title: "ストレート完成ボードのチェックレイズ",
+    summary: "ストレート完成ボードのチェックレイズは頻度10%で小さく。上のストレートでレイズ、下のストレートはコール。コンボドローとナッツフラッシュドローがブラフだよ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crStraightBoard"] },
   },
   {
-    id: "verdict-cr-too-big",
-    title: "チェックレイズのサイズは50%",
-    summary: "チェックレイズがちょっと大きすぎるかも。基本は50%くらいで、100%はドライなK・Qハイだけにしようね。",
-    body:
-      "・相手のCBサイズが上がるほど、チェックレイズ頻度は下がる\n" +
-      "・チェックレイズサイズは50%\n" +
-      "・ドライなKハイ、Qハイのみ100%レイズ",
-    when: { strategyReason: ["checkRaiseTooBig"] },
+    id: "verdict-crDryKQ",
+    title: "ドライなK・Qハイのチェックレイズ",
+    summary: "ドライなKハイ・Qハイは頻度10%でポットレイズ。セットとツーペアがバリュー、ナッツのストドロやオープンエンドがブラフだよ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crDryKQ"] },
+  },
+  {
+    id: "verdict-crDryJT",
+    title: "ドライなJTハイのチェックレイズ",
+    summary: "ドライなJTハイでは、セットとフラッシュドローは全てチェックレイズに回すんだ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crDryJT"] },
+  },
+  {
+    id: "verdict-crMonotone",
+    title: "モノトーンボードのチェックレイズ",
+    summary: "モノトーンボードはパッシブにプレイしようね。チェックレイズは頻度5%で小さくだよ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crMonotone"] },
+  },
+  {
+    id: "verdict-crGeneral",
+    title: "チェックレイズのサイズと頻度",
+    summary: "チェックレイズは50%くらいのサイズで、最低でも頻度15%は混ぜたいんだ。ブラフはボトムヒット、ストドロ、弱いポケット、フラドロの順だよ。",
+    body: CHECK_RAISE_BODY,
+    when: { strategyReason: ["crGeneral"] },
+  },
+  {
+    id: "verdict-crAfterTurn",
+    title: "チェックレイズ後のターン",
+    summary: "チェックレイズしてコールされたあとのターンは、オーバーカードとペアカードならレンジでチェック、フラッシュ完成なら全部安く、ラグならバリューでポットベットだよ。",
+    body: AFTER_CHECK_RAISE_BODY,
+    when: { strategyReason: ["crAfterTurn"] },
+  },
+  {
+    id: "verdict-donk-nut-change",
+    title: "ドンクが成立する: ナッツが変化",
+    summary: "ボードがペアになってナッツが変わり、きみの側にナッツ級ができうるね。フルハウス以上ならドンクでバリューを取りにいけるよ。",
+    body: DONK_BODY,
+    when: { strategyReason: ["donkNutChange"] },
+  },
+  {
+    id: "verdict-donk-3bet-straight",
+    title: "ドンクが成立する: 3betPotのロー1枚ストレートボード",
+    summary: "3betPotのリバーでロー1枚のストレートボードになったら、ドンクのブロックベットが成立するよ。",
+    body: DONK_BODY,
+    when: { strategyReason: ["donkThreeBetStraight"] },
   },
 
   // ───────── プローブベット(Notion【プローブベット】今日から使える簡易戦略) ─────────

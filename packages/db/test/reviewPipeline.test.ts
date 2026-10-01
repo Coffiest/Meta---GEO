@@ -136,9 +136,11 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     // 相手の手札を差し替えても、結果は1文字も変わらない(相手の手札を読んでいない証拠)。
     const swapped = analyzeExtractedHand({ ...hand, seats: seats(20, 2, ["As", "Ah"], 0, ["2s", "2h"]) }, "u2")!;
     expect(swapped.decisions).toEqual(r.decisions);
-    // チェック(通常ノード)はソルバー未接続なので分類なし(解析待ち)。
+    // チェックはドンクを打てた場面(BB はオリジナルより先)なので、Notion の評価が付く。
+    // A-K のコネクトボードでもセットはドンクで打つ手(ドロー)ではないので、チェックで正解。
     const flopCheck = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "check")!;
-    expect(flopCheck.classification).toBeNull();
+    expect(flopCheck.strategy?.spot).toMatchObject({ kind: "donk", situation: "checkOkNoFit" });
+    expect(flopCheck.classification).toBe("best");
   });
 
   it("ポストフロップ: GTOのソルバー解析を待つ間も、Notionの評価(バッジ)は最初から付いている", () => {
