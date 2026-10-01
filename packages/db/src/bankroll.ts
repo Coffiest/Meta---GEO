@@ -1,4 +1,4 @@
-import { type Card, computeAllInEquity, parseCard } from "@meta-geo/engine";
+import { type Card, computeAllInEquity, parseCard, sngPayouts } from "@meta-geo/engine";
 import { prisma } from "./client.js";
 import { RR_RATING_SHRINKAGE_K, computeRRRatingPopulationStats, ratingFromAdjustedRoi } from "./rrRating.js";
 
@@ -618,13 +618,11 @@ export interface PayoutPlace {
 }
 
 /**
- * SNGの固定プライズ: 常に上位2名インマネ、1位$4,000 / 2位$2,000
- * (6人 × バイイン$1,000 = プール$6,000、還元率100%)。
+ * SNG(参加費1,000)の固定プライズ: 常に上位2名インマネ、1位4,000 / 2位2,000
+ * (6人 × 参加費1,000 = プール6,000、還元率100%)。High Roller / Super High Roller も同じ比率で、
+ * 参加費に応じた額は engine の `sngPayouts(buyIn)` で求める。
  */
-export const SNG_PAYOUTS: PayoutPlace[] = [
-  { place: 1, amount: 4000 },
-  { place: 2, amount: 2000 },
-];
+export const SNG_PAYOUTS: PayoutPlace[] = sngPayouts(1000);
 
 export interface MttPrizeStructure {
   fieldSize: number;

@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import { HandEngine, MultiTableTournament, STARTING_STACK, cardToString, type Card, type PlayerAction } from "@meta-geo/engine";
+import {
+  HandEngine,
+  MultiTableTournament,
+  STARTING_STACK,
+  cardToString,
+  type Card,
+  type EliteFrame,
+  type PlayerAction,
+} from "@meta-geo/engine";
 import {
   prisma,
   recordHand,
@@ -9,6 +17,7 @@ import {
   refundBuyIn,
   computeMttPrizeStructure,
   invalidateRankedEntries,
+  getEliteFrames,
   type PayoutPlace,
 } from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
@@ -54,6 +63,12 @@ const TOURNAMENT_INFO_MIN_INTERVAL_MS = 2_000;
 export const MTT_MIN_PLAYERS_TO_START = 4;
 export const MTT_TABLE_SEAT_COUNT = 6;
 export const MTT_BUY_IN = 2000;
+/**
+ * チャットとタイムバンクは High Roller / Super High Roller の SNG だけ(オーナー確定仕様)。MTT には無い。
+ * タイムバンクを止めるときは、自動プレイヤーの「延長して考える」演出も一緒に止める(人間と違いが出ないように)。
+ */
+const MTT_CHAT = false;
+const MTT_TIME_BANK = false;
 /** 最初の登録から、ボット補充して4人で開始するまでのマッチング時間(15秒)。 */
 export const MTT_MATCH_WINDOW_MS = 15_000;
 /** フィールド上限(ボット補充・リエントリはこの生存人数を超えない)。初期10〜15人+レイトレジ用に余裕を持たせる。 */
@@ -146,6 +161,8 @@ export class MttSession implements GameSession {
   /** 卓ごとの同卓チャットログ(直近50件)。 */
   private readonly chatLogByTable = new Map<number, ChatMessage[]>();
   private readonly humans = new Map<string, HumanEntry>();
+  /** アイコンの銀枠・金枠(資格者のみ)。自動で卓を埋めるプレイヤーは集計の対象外なので常に無し。 */
+  private readonly frames = new Map<string, EliteFrame | null>();
   private pendingRegistrants: HumanPlayer[] = [];
   private started = false;
   private registrationClosed = false;
@@ -255,7 +272,7 @@ export class MttSession implements GameSession {
       displayName: player.displayName,
       avatarKey: player.avatarKey,
       socket,
-      timeBankCards: MTT_TIME_BANK_CARDS,
+      timeBankCards: MTT_TIME_BANK ? MTT_TIME_BANK_CARDS : 0,
       timeBankArmed: false,
       away: false,
       left: false,
@@ -265,6 +282,14 @@ export class MttSession implements GameSession {
     });
     this.playersById.set(player.userId, { ...player, isBot: false });
     this.wireHumanSocket(socket, player.userId);
+    // アイコンの銀枠・金枠(資格者のみ)。取れたら同じ卓の全員へ配り直す。
+    void getEliteFrames([player.userId])
+      .then((frames) => {
+        this.frames.set(player.userId, frames.get(player.userId) ?? null);
+        const tableId = this.humans.get(player.userId)?.currentTableId;
+        if (tableId !== null && tableId !== undefined) this.emitPlayersForTable(tableId);
+      })
+      .catch((err) => console.error("[mtt] failed to load avatar frame:", err));
 
     if (!this.started) {
       this.pendingRegistrants.push(player);
@@ -466,9 +491,9 @@ export class MttSession implements GameSession {
     this.broadcastTournamentInfo();
     if (human.currentTableId !== null) {
       const log = this.chatLogByTable.get(human.currentTableId);
-      if (log && log.length > 0) socket.emit("chatLog", { messages: log });
+      if (MTT_CHAT && log && log.length > 0) socket.emit("chatLog", { messages: log });
     }
-    socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
+    if (MTT_TIME_BANK) socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     const rt = human.currentTableId !== null ? this.runtimes.get(human.currentTableId) : undefined;
     if (rt?.hand && !rt.hand.isHandComplete()) {
       socket.emit("state", rt.hand.getPublicState());
@@ -527,7 +552,7 @@ export class MttSession implements GameSession {
     });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
       const human = this.humans.get(userId);
-      if (human) human.timeBankArmed = Boolean(payload?.armed);
+      if (human && MTT_TIME_BANK) human.timeBankArmed = Boolean(payload?.armed);
     });
     socket.on("reEntry", () => this.handleReEntry(userId).catch((err) => console.error("[mtt] reEntry failed:", err)));
     socket.on("sitOut", (payload: { away?: boolean }) => {
@@ -537,6 +562,7 @@ export class MttSession implements GameSession {
       if (human.currentTableId !== null) this.emitPlayersForTable(human.currentTableId);
     });
     socket.on("chat", (payload: { text?: string }) => {
+      if (!MTT_CHAT) return;
       const human = this.humans.get(userId);
       const text = sanitizeChatText(payload?.text);
       if (!human || human.currentTableId === null || !text) return;
@@ -1003,7 +1029,7 @@ export class MttSession implements GameSession {
       return;
     }
     const street = rt.hand?.getPublicState().street ?? "preflop";
-    const decision = botDecisionMs(street, botAction);
+    const decision = botDecisionMs(street, botAction, Math.random, MTT_TIME_BANK);
     this.emitTurnTimer(rt, actingSeat, Date.now() + ACTION_CLOCK_MS, ACTION_CLOCK_MS);
     if (decision <= ACTION_CLOCK_MS) {
       rt.turnTimer = setTimeout(act, decision);
@@ -1567,6 +1593,7 @@ export class MttSession implements GameSession {
         displayName: info?.displayName ?? o.playerId,
         avatarKey: info?.avatarKey ?? null,
         away: this.humans.get(o.playerId)?.away ?? false,
+        frame: this.frames.get(o.playerId) ?? null,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });
@@ -1652,6 +1679,7 @@ export class MttSession implements GameSession {
       isFinalTable,
       standings,
       tournamentId: this.dbTournamentId ?? null,
+      chat: MTT_CHAT,
     });
 
     // 観戦ページ(/watch)用の公開スナップショット。ホールカードやBOTの内訳は含めない。

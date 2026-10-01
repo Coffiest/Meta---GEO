@@ -25,7 +25,10 @@ import {
   getBlockedUserIds,
   setPlayerBlocked,
   reportPlayer,
+  getEliteFrames,
+  getEliteStats,
 } from "@meta-geo/db";
+import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
@@ -49,6 +52,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
     "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
   });
   res.end(payload);
+}
+
+/** ランキングの応答に含まれる userId を全部拾う(形に依存せず、userId を持つ行を探す)。 */
+function collectUserIds(node: unknown, out: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectUserIds(item, out);
+  } else if (node && typeof node === "object") {
+    const rec = node as Record<string, unknown>;
+    if (typeof rec["userId"] === "string") out.add(rec["userId"]);
+    for (const v of Object.values(rec)) if (v && typeof v === "object") collectUserIds(v, out);
+  }
 }
 
 function extractBearerToken(req: IncomingMessage): string | undefined {
@@ -212,8 +226,33 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
     }
 
     // リーダーボード: 収支/ROI/偏差値/インマネ率 × Weekly/All Time/直近10トナメ(最低10トナメ)。
+    // 載っている人のアイコンの銀枠・金枠は frames(userId → 枠)でまとめて返す。
     if (url.pathname === "/api/lobby/leaderboards") {
-      sendJson(res, 200, await getLeaderboards());
+      const boards = await getLeaderboards();
+      const ids = new Set<string>();
+      collectUserIds(boards, ids);
+      const frames = await getEliteFrames([...ids]);
+      sendJson(res, 200, { ...boards, frames: Object.fromEntries([...frames].filter(([, f]) => f !== null)) });
+      return true;
+    }
+
+    // High Roller / Super High Roller の参加資格と、自分のアイコンの枠(ロビーの卓選びに使う)。
+    if (url.pathname === "/api/lobby/elite") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true } });
+      const stats = user ? await getEliteStats(user.id) : { profit: 0, rating: null, roiPct: null };
+      sendJson(res, 200, {
+        stats,
+        frame: eliteFrameOf(stats),
+        eligible: {
+          highRoller: qualifiesForTier("highRoller", stats),
+          superHighRoller: qualifiesForTier("superHighRoller", stats),
+        },
+      });
       return true;
     }
 
@@ -343,11 +382,16 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 200, synthetic);
         return true;
       }
-      const [stats, rr] = await Promise.all([getPlayerStats(target.id), getRRRating(target.id)]);
+      const [stats, rr, frames] = await Promise.all([
+        getPlayerStats(target.id),
+        getRRRating(target.id),
+        getEliteFrames([target.id]),
+      ]);
       sendJson(res, 200, {
         id: target.id,
         displayName: target.displayName,
         avatarKey: target.avatarKey,
+        frame: frames.get(target.id) ?? null,
         stats,
         rrRating: rr,
       });
