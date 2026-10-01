@@ -30,3 +30,4 @@ export * from "./review/betRole.js";
 export * from "./review/strategyVerdict.js";
 export * from "./review/barrelPlan.js";
 export * from "./review/spotPlans.js";
+export * from "./review/icm.js";

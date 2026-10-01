@@ -4,6 +4,7 @@ import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, typ
 import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, SNG_PAYOUTS, invalidateRankedEntries } from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { HandActionClock } from "./actionClock.js";
 import { activeGames } from "./activeGames.js";
 import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
 
@@ -373,6 +374,8 @@ export interface GameSession {
 export class TableSession implements GameSession {
   private tournament: Tournament | null = null;
   private hand: HandEngine | null = null;
+  /** 研究用: 今のハンドの各アクションの時刻(思考時間・時間切れ・タイムバンク)。 */
+  private clock: HandActionClock | null = null;
   private dbTournamentId: string | null = null;
   private players = new Map<number, SeatPlayer>();
   private humansBySeat = new Map<number, HumanSeat>();
@@ -625,6 +628,7 @@ export class TableSession implements GameSession {
     // (トーナメント全体の終了を待たない=サーバー再起動でも取りこぼさない)。
     void this.recordHumanFinish(seatIndex, human);
     if (this.hand && !this.hand.isHandComplete() && this.hand.getActingSeatIndex() === seatIndex) {
+      this.clock?.markAuto();
       this.handlePlayerAction(seatIndex, { kind: "fold" });
     }
   }
@@ -701,6 +705,7 @@ export class TableSession implements GameSession {
     }
     try {
       this.hand = this.tournament.startNextHand();
+      this.clock = new HandActionClock();
     } catch (err) {
       console.error(`[sng] beginNextHand failed (attempt ${attempt}):`, err);
       this.phase("nextHandFailed", {
@@ -788,6 +793,7 @@ export class TableSession implements GameSession {
         return "REJECTED";
       }
     }
+    this.clock?.recorded(hand, seatIndex, Boolean(human));
     // ストリートを閉じるアクション(コール/チェック等)もアイコンに一瞬表示されるよう、状態更新とは
     // 別に seatAction イベントを発火する。状態のstreet変化でアクションが即消える問題を解消する。
     if (!this.isAccelerated()) {
@@ -832,6 +838,7 @@ export class TableSession implements GameSession {
     if (!hand || hand.isHandComplete()) return;
     const actingSeat = hand.getActingSeatIndex();
     if (actingSeat === null) return;
+    this.clock?.turnStarted(actingSeat);
     const human = this.humansBySeat.get(actingSeat);
 
     if (!human) {
@@ -844,6 +851,7 @@ export class TableSession implements GameSession {
     if (human.left) {
       this.turnTimer = setTimeout(() => {
         if (!this.hand || this.hand.isHandComplete() || this.hand.getActingSeatIndex() !== actingSeat) return;
+        this.clock?.markAuto();
         this.handlePlayerAction(actingSeat, { kind: "fold" });
       }, FAST_BOT_DELAY_MS);
       return;
@@ -897,6 +905,7 @@ export class TableSession implements GameSession {
 
   private armHumanClock(actingSeat: number, human: HumanSeat, durationMs: number, timeBank = false): void {
     const endsAt = Date.now() + durationMs;
+    if (timeBank) this.clock?.timeBankUsed(actingSeat);
     this.emitTurnTimer(actingSeat, endsAt, durationMs, timeBank);
     this.turnTimer = setTimeout(() => {
       const current = this.hand;
@@ -919,6 +928,7 @@ export class TableSession implements GameSession {
 
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
+      this.clock?.markAuto();
       this.handlePlayerAction(actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
     }, durationMs);
   }
@@ -1074,6 +1084,9 @@ export class TableSession implements GameSession {
     if (started && handHadHuman) {
       const startingStacks = new Map<number, number>();
       for (const seat of tournament.getSeats()) startingStacks.set(seat.seatIndex, seat.stack);
+      // 研究用: ハンド開始時点の生存者のスタック(精算前の値)と賞金構造。
+      const aliveAtStart = tournament.getSeats().filter((s) => s.bustedAtHand === null);
+      const clock = this.clock;
 
       this.enqueueRecordHand({
         tournamentId: dbTournamentId,
@@ -1093,6 +1106,15 @@ export class TableSession implements GameSession {
             wasAway: this.humansBySeat.get(p.seatIndex)?.away ?? false,
           })),
         hand,
+        research: {
+          startedAt: clock?.startedAt,
+          endedAt: new Date(),
+          playersRemaining: aliveAtStart.length,
+          entryCount: tournament.getSeats().length,
+          payouts: SNG_PAYOUTS.map((p) => p.amount),
+          fieldStacks: aliveAtStart.map((s) => s.stack),
+          timings: clock?.timings,
+        },
       });
       this.phase("recordHandQueued", { handNumber: started.handNumber });
     } else {
@@ -1157,7 +1179,7 @@ export class TableSession implements GameSession {
     try {
       await prisma.tournamentEntry.updateMany({
         where: { tournamentId: this.dbTournamentId, seatIndex },
-        data: { finishPosition: place, payout },
+        data: { finishPosition: place, payout, bustedAtHandNumber: seat.bustedAtHand },
       });
       if (payout > 0) {
         await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
@@ -1210,7 +1232,11 @@ export class TableSession implements GameSession {
         const place = index + 1;
         await prisma.tournamentEntry.updateMany({
           where: { tournamentId: this.dbTournamentId!, seatIndex: seat.seatIndex },
-          data: { finishPosition: place, payout: SNG_PAYOUTS.find((p) => p.place === place)?.amount ?? 0 },
+          data: {
+            finishPosition: place,
+            payout: SNG_PAYOUTS.find((p) => p.place === place)?.amount ?? 0,
+            bustedAtHandNumber: seat.bustedAtHand,
+          },
         });
       }),
     );

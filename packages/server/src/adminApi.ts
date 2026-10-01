@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  backfillDecisionFacts,
   backfillGeoDecisions,
   excludeGeoData,
   getGeoBackfillStatus,
@@ -20,6 +21,7 @@ import {
   summarizeErrorReports,
   setErrorReportResolved,
   type CompDurationUnit,
+  type DecisionFactBackfillProgress,
   type GeoBackfillProgress,
 } from "@meta-geo/db";
 import { hasXCredentials, draftReply } from "@meta-geo/marketing";
@@ -59,6 +61,35 @@ function startGeoBackfill(onlyMissing: boolean): void {
       const message = err instanceof Error ? err.message : String(err);
       geoBackfillState = { running: false, progress: geoBackfillState.progress, error: message };
       console.error("[admin] geo backfill failed:", err);
+    });
+}
+
+/**
+ * 研究用テーブル(DecisionFact)のバックフィル進捗。GEO と同じく、プロセス内に1つだけ持ち多重起動を防ぐ。
+ * 過去のハンドは思考時間・トーナメントの状況(ICM)が記録されていないため、その列は null になる。
+ */
+let researchBackfillState: { running: boolean; progress: DecisionFactBackfillProgress | null; error: string | null } = {
+  running: false,
+  progress: null,
+  error: null,
+};
+
+function startResearchBackfill(): void {
+  if (researchBackfillState.running) return;
+  researchBackfillState = { running: true, progress: null, error: null };
+  void backfillDecisionFacts({
+    onProgress: (progress) => {
+      researchBackfillState.progress = progress;
+    },
+  })
+    .then((progress) => {
+      researchBackfillState = { running: false, progress, error: null };
+      console.log(`[admin] research backfill done: hands=${progress.processed}/${progress.total} rows=${progress.rows}`);
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      researchBackfillState = { running: false, progress: researchBackfillState.progress, error: message };
+      console.error("[admin] research backfill failed:", err);
     });
 }
 
@@ -224,6 +255,18 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         alreadyRunning,
         ...geoBackfillState,
       });
+      return true;
+    }
+
+    // 研究用テーブル(データベースタブの「データ研究」)の作り直し。進捗は GET で見る。
+    if (url.pathname === "/api/admin/research-backfill" && req.method === "GET") {
+      sendJson(res, 200, researchBackfillState);
+      return true;
+    }
+    if (url.pathname === "/api/admin/research-backfill" && req.method === "POST") {
+      const alreadyRunning = researchBackfillState.running;
+      startResearchBackfill();
+      sendJson(res, alreadyRunning ? 409 : 202, { ok: !alreadyRunning, alreadyRunning, ...researchBackfillState });
       return true;
     }
 

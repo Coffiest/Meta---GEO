@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -742,6 +743,28 @@ function GeoDatabase() {
           ) : null}
         </div>
         </div>
+
+        {/* その他: データベースの本体(レンジ)とは別の、プレイデータの研究への入口。 */}
+        <section className="mt-10" aria-labelledby="geo-other-heading">
+          <h2 id="geo-other-heading" className="mb-2 px-1 text-[12px] font-black tracking-[0.08em] text-fg-3">
+            その他
+          </h2>
+          <Link
+            href="/geo/research"
+            className="pressable flex items-center gap-3 rounded-2xl bg-surface px-4 py-3.5 shadow-e1"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+              <Icon name="graph-up" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-black text-fg">データ研究</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-fg-2">
+                思考時間・優勝率・インマネ率・大きいポットの後など、プレイの傾向と相関を調べる
+              </span>
+            </span>
+            <Icon name="chevron-right" className="h-4 w-4 shrink-0 text-fg-3" />
+          </Link>
+        </section>
 
         {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等)。
             ホーム画面フッターと同じターミナルプロンプト風の表記に揃えている。 */}

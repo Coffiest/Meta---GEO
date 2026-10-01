@@ -7,6 +7,7 @@ import { handleReviewApiRequest } from "./reviewApi.js";
 import { handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
+import { handleResearchApiRequest } from "./researchApi.js";
 import { checkAdminAuth, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
 import {
@@ -106,8 +107,11 @@ const httpServer = createServer((req, res) => {
               if (handled5) return;
               return handleErrorReportApiRequest(req, res).then((handled6) => {
                 if (handled6) return;
-                res.writeHead(404);
-                res.end();
+                return handleResearchApiRequest(req, res).then((handled7) => {
+                  if (handled7) return;
+                  res.writeHead(404);
+                  res.end();
+                });
               });
             });
           });

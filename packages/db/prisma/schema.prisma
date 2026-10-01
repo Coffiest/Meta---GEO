@@ -292,12 +292,27 @@ model Hand {
   potTotal        Int
   wonByFold       Boolean
   createdAt       DateTime @default(now())
+  /// ── 研究用(データベースタブの「データ研究」)。古いハンドは null ──
+  /// ハンドを配った時刻と、決着した時刻(サーバー時計)。
+  startedAt        DateTime?
+  endedAt          DateTime?
+  /// ハンド開始時点のトーナメント全体の生存人数(MTT は全卓)。
+  playersRemaining Int?
+  /// トーナメントの総エントリー数。
+  entryCount       Int?
+  /// 入賞人数(賞金のある順位の数)。
+  itmPlaces        Int?
+  /// 1位から順の賞金(ICM の期待賞金の計算用)。
+  payouts          Int[]
+  /// ハンド開始時点の全生存者のスタック(MTT は全卓。ICM の計算用)。並びに意味は無い。
+  fieldStacks      Int[]
 
   seats     HandSeat[]
   actions   HandAction[]
   pots      HandPot[]
   reviews   HandReview[]
   decisions GeoDecision[]
+  facts     DecisionFact[]
 
   @@unique([tournamentId, handNumber])
   /// GEO集計は常に createdAt 昇順で走査するため、全件ソートを避けるインデックス。
@@ -346,9 +361,112 @@ model HandAction {
   kind           String // "fold" | "check" | "call" | "bet" | "raise" | "allIn" | "postBlind" | "postAnte"
   toAmount       Int?
   potBefore      Int
+  /// ── 研究用。古いハンドは null ──
+  /// 手番が回ってきた時刻と、行動した時刻(サーバー時計)。
+  turnStartedAt  DateTime?
+  actedAt        DateTime?
+  /// 思考時間(ms)。自動で卓を埋めるプレイヤーの行と、ブラインド/アンティの支払いは null。
+  thinkMs        Int?
+  /// 時間切れによる自動のチェック/フォールドか。
+  timedOut       Boolean @default(false)
+  /// タイムバンクを使って考えたか。
+  timeBankUsed   Boolean @default(false)
 
   @@index([handId, sequenceNumber])
   @@index([street, kind])
+}
+
+/// 研究用に事前展開した「1アクション = 1行」のテーブル(データベースタブの「データ研究」)。
+///
+/// 思考時間・状況・その時点の優勝率/インマネ率・直前に大きいポットを取った/落とした、などの
+/// 相関を GROUP BY 1本で集計できるよう、帯(バケット)まで焼き込んでおく。Hand / HandAction /
+/// HandSeat から何度でも作り直せる派生データ(`packages/db/src/decisionFacts.ts`)。
+///
+/// 自動で卓を埋めるプレイヤーの行も書く(isBot)が、集計 API は常に人間だけを対象にし、
+/// isBot を画面や応答に出すことは無い。
+model DecisionFact {
+  id             String   @id @default(uuid())
+  handId         String
+  hand           Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  tournamentId   String
+  userId         String
+  /// 内部の集計除外にだけ使う。応答に出さない。
+  isBot          Boolean
+  gameType       String
+  handNumber     Int
+  sequenceNumber Int
+  street         String
+  kind           String
+  /// "fold" | "passive"(チェック/コール) | "aggressive"(ベット/レイズ/オールイン)
+  actionClass    String
+  /// そのプレイヤーのそのハンドの最初の行(ハンド単位の指標を数えるときの目印)。
+  firstInHand    Boolean
+  /// そのハンドで自発的にポットに入れたか(VPIP)/プリフロップでレイズしたか(PFR)。
+  handVpip       Boolean
+  handPfr        Boolean
+
+  // 時間
+  thinkMs        Int?
+  thinkBucket    String
+  timedOut       Boolean
+  timeBankUsed   Boolean
+
+  // 状況
+  position       String
+  playersInHand  Int
+  playersActive  Int
+  bigBlind       Int
+  potBb          Float
+  facingBb       Float?
+  /// ベット/レイズの額 ÷ ポット(アグレッシブな行のみ)。
+  betSizePot     Float?
+  betSizeBucket  String
+  stackBb        Float
+  effStackBb     Float
+  stackBucket    String
+  spr            Float?
+  handClass      String?
+  madeHand       String?
+  hasDraw        Boolean
+  boardTexture   String?
+  /// Notion の場面(cbet / barrel / probe / donk / checkRaise …)。当たらなければ "other"。
+  spot           String
+
+  // トーナメント
+  playersRemaining Int?
+  itmPlaces        Int?
+  bubbleDistance   Int?
+  bubbleStage      String
+  stackRank        Int?
+  chipShare        Float?
+  winProb          Float?
+  itmProb          Float?
+  icmEquity        Float?
+  winProbBucket    String
+  itmProbBucket    String
+
+  // 直前の流れ
+  prevHandDeltaBb  Float?
+  /// 直前のハンドで大きいポットを取ったか/落としたか("bigWin" | "bigLoss" | "none" | "first")。
+  prevBigPot       String
+  /// 直近の大きいポットから何ハンド目か(無ければ null)と、その種類("win" | "loss" | "none")。
+  handsSinceBigPot Int?
+  lastBigPotKind   String
+  lossStreak       Int
+  handIndexInTournament Int
+  minutesIntoTournament Float?
+  stackVsStart     Float?
+
+  // 結果
+  handResultBb     Float
+  wentToShowdown   Boolean
+  wonHand          Boolean
+
+  createdAt        DateTime @default(now())
+
+  @@unique([handId, sequenceNumber])
+  @@index([isBot, userId])
+  @@index([tournamentId, userId, handNumber])
 }
 
 /// GEO戦略DBの集計用に事前展開した「1意思決定 = 1行」のテーブル。
