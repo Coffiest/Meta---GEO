@@ -69,3 +69,35 @@ export const SIDE_NAV_ITEMS: SideNavItem[] = [
   { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
   { key: "database", label: "Database", icon: "db", href: "/geo" },
 ];
+
+/**
+ * PC(lg以上)のヘッダー中央に置く横並びナビ(GTO Wizard の Play / Study / Practice と同じ位置・形)。
+ * 現在地は面の明度差とアクセントの文字で示す(中のアクセント。強いアクセントは画面に1つまで)。
+ */
+export function TopNav({ items, activeKey }: { items: SideNavItem[]; activeKey: string | null }) {
+  return (
+    <nav className="flex items-center gap-1" aria-label="メインメニュー">
+      {items.map((item) => {
+        const active = activeKey === item.key;
+        const cls = `pressable flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-bold transition-colors ${
+          active ? "bg-surface-2 text-accent" : "text-fg-2 hover:bg-white/[0.06] hover:text-fg"
+        }`;
+        const inner = (
+          <>
+            <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+            <span>{item.label}</span>
+          </>
+        );
+        return item.href ? (
+          <Link key={item.key} href={item.href} className={cls} aria-current={active ? "page" : undefined}>
+            {inner}
+          </Link>
+        ) : (
+          <button key={item.key} type="button" onClick={item.onClick} className={cls}>
+            {inner}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

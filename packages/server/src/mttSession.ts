@@ -29,6 +29,7 @@ import {
   type ActionResultCode,
 } from "./gameServer.js";
 import { computeRevealedSeats } from "./showdown.js";
+import { HandActionClock } from "./actionClock.js";
 import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
@@ -86,6 +87,8 @@ interface TableRuntime {
   pumpScheduled: boolean;
   /** 直近に配信した手番クロック。再接続(attachHuman)時にまだ有効なら再送し、復帰後の時計を正しく動かす。 */
   lastTurn: { seatIndex: number; endsAt: number; durationMs: number; timeBank: boolean } | null;
+  /** 研究用: この卓の今のハンドの各アクションの時刻(思考時間・時間切れ・タイムバンク)。 */
+  clock: HandActionClock | null;
   /**
    * ハンド終了後、精算(settleFinishedHandOnTable)が完了するまで true。
    * finishHand は rt.hand を先に null にするため、このフラグが無いと精算待ちの卓が busy 扱いから
@@ -165,6 +168,8 @@ export class MttSession implements GameSession {
   private forfeitedChips = 0;
   private prizeStructure: PayoutPlace[] = [];
   private bustedOrder: string[] = [];
+  /** バストしたハンドの番号(TournamentEntry.bustedAtHandNumber に書く)。 */
+  private bustHandByUser = new Map<string, number>();
   /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
   private readonly pendingForcedEliminations = new Set<string>();
   /** リエントリ処理中のユーザー。連打による二重課金・二重着席・entryCount多重加算を防ぐ(H4)。 */
@@ -421,7 +426,7 @@ export class MttSession implements GameSession {
   private runtime(tableId: number): TableRuntime {
     let rt = this.runtimes.get(tableId);
     if (!rt) {
-      rt = { tableId, hand: null, turnTimer: null, pumpScheduled: false, lastTurn: null, settling: false };
+      rt = { tableId, hand: null, turnTimer: null, pumpScheduled: false, lastTurn: null, clock: null, settling: false };
       this.runtimes.set(tableId, rt);
     }
     return rt;
@@ -573,6 +578,7 @@ export class MttSession implements GameSession {
     if (midHandOnTheirTable && rt) {
       const seatIndex = this.seatIndexOf(userId);
       if (seatIndex !== null && rt.hand!.getActingSeatIndex() === seatIndex) {
+        rt.clock?.markAuto();
         this.handleAction(rt, seatIndex, { kind: "fold" });
       }
       this.pendingForcedEliminations.add(userId);
@@ -772,6 +778,7 @@ export class MttSession implements GameSession {
     // 万一startNextHandOnTableが失敗しても、その卓だけを再試行(最大5回・2秒間隔)する。
     try {
       rt.hand = mtt.startNextHandOnTable(tableId);
+      rt.clock = new HandActionClock();
     } catch (err) {
       console.error(`[mtt] pumpTable failed on table ${tableId} (attempt ${attempt}):`, err);
       this.phase(tableId, "nextHandFailed", {
@@ -899,6 +906,7 @@ export class MttSession implements GameSession {
         return "REJECTED";
       }
     }
+    rt.clock?.recorded(hand, seatIndex, Boolean(human));
     const tableHasHuman = this.tableHasHuman(tableId);
     // ストリートを閉じるアクションもアイコンに一瞬表示されるよう、状態更新と別に seatAction を発火する。
     if (tableHasHuman) {
@@ -938,6 +946,7 @@ export class MttSession implements GameSession {
     if (!hand || hand.isHandComplete()) return;
     const actingSeat = hand.getActingSeatIndex();
     if (actingSeat === null) return;
+    rt.clock?.turnStarted(actingSeat);
     const playerId = hand.getPublicState().seats.find((s) => s.seatIndex === actingSeat)?.playerId;
     const human = playerId ? this.humans.get(playerId) : undefined;
 
@@ -951,6 +960,7 @@ export class MttSession implements GameSession {
     if (human.left) {
       rt.turnTimer = setTimeout(() => {
         if (!rt.hand || rt.hand.isHandComplete() || rt.hand.getActingSeatIndex() !== actingSeat) return;
+        rt.clock?.markAuto();
         this.handleAction(rt, actingSeat, { kind: "fold" });
       }, FAST_DELAY_MS);
       return;
@@ -1015,6 +1025,7 @@ export class MttSession implements GameSession {
     timeBank = false,
   ): void {
     const endsAt = Date.now() + durationMs;
+    if (timeBank) rt.clock?.timeBankUsed(actingSeat);
     this.emitTurnTimer(rt, actingSeat, endsAt, durationMs, timeBank);
     rt.turnTimer = setTimeout(() => {
       const current = rt.hand;
@@ -1036,6 +1047,7 @@ export class MttSession implements GameSession {
 
       const seat = current.getPublicState().seats.find((s) => s.seatIndex === actingSeat);
       const toCall = seat ? Math.max(0, current.getPublicState().currentBetToMatch - seat.streetContribution) : 0;
+      rt.clock?.markAuto();
       this.handleAction(rt, actingSeat, toCall <= 0 ? { kind: "check" } : { kind: "fold" });
     }, durationMs);
   }
@@ -1076,6 +1088,8 @@ export class MttSession implements GameSession {
     const mtt = this.mtt;
     const hand = rt.hand;
     const tableId = rt.tableId;
+    // 研究用の時刻の記録は、このハンドのものをここで掴んでおく(次のハンドで差し替わるため)。
+    const clock = rt.clock;
     // ここで黙って return すると次ハンドが永久に予約されず、その卓がそのまま固まる。
     // とくに dbTournamentId が null(=DB書き込み失敗)のケースは、ハンドが終わるたびに必ず
     // この経路へ落ちるため「毎ハンド固まる」挙動になっていた。記録を残したうえで、
@@ -1133,7 +1147,7 @@ export class MttSession implements GameSession {
     // このメソッドの途中で何が失敗しても、末尾の「次ハンドの再スケジュール」には必ず到達させる
     // (ここが飛ぶと、ショウダウン直後にその卓が永久に固まる)。
     try {
-      await this.finishHandInner(mtt, hand, tableId, tableHadHuman);
+      await this.finishHandInner(mtt, hand, tableId, tableHadHuman, clock);
       this.phase(tableId, "finishHandInnerDone");
     } catch (err) {
       this.phase(tableId, "finishHandInnerDone", {
@@ -1262,6 +1276,7 @@ export class MttSession implements GameSession {
     hand: HandEngine,
     tableId: number,
     tableHadHuman: boolean,
+    clock: HandActionClock | null,
   ): Promise<void> {
     const dbTournamentId = this.dbTournamentId;
     if (!dbTournamentId) return;
@@ -1275,6 +1290,11 @@ export class MttSession implements GameSession {
 
     if (started && started.type === "handStarted" && handHadHuman) {
       const occupancy = mtt.getTableOccupancy(tableId);
+      // 研究用: ハンド開始時点の全卓の生存者のスタック(他卓は精算前の値)と、その時点の賞金構造。
+      const fieldStacks = mtt.getTableIds().flatMap((tid) => mtt.getTableOccupancy(tid).map((o) => o.stack));
+      const payouts = (this.registrationClosed ? this.prizeStructure : computeMttPrizeStructure(this.entryCount, this.buyIn).places).map(
+        (p) => p.amount,
+      );
       this.enqueueRecordHand({
         tournamentId: dbTournamentId,
         handNumber: started.handNumber,
@@ -1291,6 +1311,15 @@ export class MttSession implements GameSession {
           wasAway: this.humans.get(s.playerId)?.away ?? false,
         })),
         hand,
+        research: {
+          startedAt: clock?.startedAt,
+          endedAt: new Date(),
+          playersRemaining: mtt.totalRemainingPlayers(),
+          entryCount: this.entryCount,
+          payouts,
+          fieldStacks,
+          timings: clock?.timings,
+        },
       });
       this.phase(tableId, "recordHandQueued", { handNumber: started.handNumber });
     } else {
@@ -1317,6 +1346,9 @@ export class MttSession implements GameSession {
       const settled = [...mtt.getEvents()].reverse().find((e) => e.type === "handFinished" && e.tableId === tableId);
       const bustedPlayerIds = settled && settled.type === "handFinished" ? [...settled.bustedPlayerIds] : [];
       this.bustedOrder.push(...bustedPlayerIds);
+      if (started && started.type === "handStarted") {
+        for (const id of bustedPlayerIds) this.bustHandByUser.set(id, started.handNumber);
+      }
 
       // このハンド中に離脱した人間を、通常のバスト判定を待たずここで確実に敗退確定する。
       const forced: string[] = [];
@@ -1413,7 +1445,7 @@ export class MttSession implements GameSession {
     try {
       await prisma.tournamentEntry.updateMany({
         where: { tournamentId: this.dbTournamentId, userId: human.userId },
-        data: { finishPosition: place, payout },
+        data: { finishPosition: place, payout, bustedAtHandNumber: this.bustHandByUser.get(human.userId) ?? null },
       });
       if (payout > 0) {
         await recordPayout({ userId: human.userId, tournamentId: this.dbTournamentId, amount: payout });
@@ -1489,7 +1521,11 @@ export class MttSession implements GameSession {
           const place = this.placeOf(p.userId);
           await prisma.tournamentEntry.updateMany({
             where: { tournamentId: this.dbTournamentId!, userId: p.userId },
-            data: { finishPosition: place, payout: payoutByPlace.get(place) ?? 0 },
+            data: {
+              finishPosition: place,
+              payout: payoutByPlace.get(place) ?? 0,
+              bustedAtHandNumber: this.bustHandByUser.get(p.userId) ?? null,
+            },
           });
         }),
     );

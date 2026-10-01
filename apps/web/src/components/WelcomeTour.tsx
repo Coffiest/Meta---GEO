@@ -170,7 +170,7 @@ export function WelcomeTour({ onDone }: { onDone: () => void }) {
                 width="64px"
                 height="64px"
                 borderRadius="16px"
-                borderColor="rgb(72 72 74)"
+                borderColor="rgb(50 50 53)"
                 className="mx-auto !border-2 text-fg"
                 autoPlay
                 playOnce

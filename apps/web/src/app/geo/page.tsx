@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -13,8 +14,10 @@ import {
   GTO_STACK_TO_BAND,
   GTO_STACK_TO_BUCKET,
   BUBBLE_STAGE_LABELS,
+  type ActionOption,
   type BubbleStage,
   type GtoStack,
+  type HandClassCell,
   type HandClassMatrixResult,
   type LineStep,
   type StackBucket,
@@ -23,13 +26,15 @@ import {
 import { GeoSettingsModal, RATING_MIN, RATING_MAX } from "@/components/geo/GeoSettingsModal";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { PositionPillBar, type PillBarItem, type Street, type PostflopStreet } from "@/components/geo/PositionPillBar";
+import { DesktopSpotBar, type DesktopSpotItemExtra } from "@/components/geo/DesktopSpotBar";
+import { DesktopStudyPanel } from "@/components/geo/DesktopStudyPanel";
 import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { SideNav, SIDE_NAV_ITEMS } from "@/components/SideNav";
+import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
@@ -75,7 +80,7 @@ export default function GeoPage() {
     // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
     // アニメーションのみ(文字での「読み込み中」表記は出さない。ユーザー指示)。
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
         <Loader size="lg" />
       </div>
     );
@@ -130,7 +135,8 @@ const GEO_POSTFLOP_ORDER: Record<number, string[]> = {
   6: FULL_POSTFLOP_ORDER,
 };
 
-type LineStepWithMeta = LineStep & { geometricRatio?: number };
+/** ラインの1手。PC版のナビゲーション帯で「その時に選べた他のアクション」も出すため、選択肢を一緒に持つ。 */
+type LineStepWithMeta = LineStep & { geometricRatio?: number; options?: ActionOption[] };
 
 function nextStreetOf(street: Street): PostflopStreet | null {
   if (street === "preflop") return "flop";
@@ -188,6 +194,8 @@ function GeoDatabase() {
 
   const [node, setNode] = useState<TreeNode | null>(null);
   const [matrix, setMatrix] = useState<HandClassMatrixResult | null>(null);
+  /** PC版: レンジ表でカーソルを合わせている手札(右ペインの手札パネルに内訳を出す)。 */
+  const [hoveredCell, setHoveredCell] = useState<HandClassCell | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   /** ボード選択直後、その板面に一致する実測データが1件もないかどうか。真の間は次のストリートへ
@@ -435,7 +443,12 @@ function GeoDatabase() {
     // アクションが積まれてラインが重複・破損する(致命バグの再発防止)。
     if (loading || !node?.position) return;
     const opt = node.options.find((o) => o.bucket === bucket);
-    const step: LineStepWithMeta = { position: node.position, bucket, geometricRatio: opt?.geometricRatio ?? 0 };
+    const step: LineStepWithMeta = {
+      position: node.position,
+      bucket,
+      geometricRatio: opt?.geometricRatio ?? 0,
+      options: node.options,
+    };
     setDismissedStreet(null);
     setJustPickedBoard(false);
     if (street === "preflop") {
@@ -466,6 +479,48 @@ function GeoDatabase() {
     }
   }
 
+  /**
+   * 決めた手番を別のアクションに付け替える(PC版のナビゲーション帯で、過去のカードの別の行を押したとき)。
+   * その手番より先は捨て、付け替えた手番の次から続ける。
+   */
+  function branchAt(streetKey: Street, lineIndex: number, bucket: string, options: ActionOption[]) {
+    if (loading) return;
+    const line = streetKey === "preflop" ? preflopLine : streetLines[streetKey];
+    const prev = line[lineIndex];
+    if (!prev) return;
+    const opt = options.find((o) => o.bucket === bucket);
+    const step: LineStepWithMeta = { position: prev.position, bucket, geometricRatio: opt?.geometricRatio ?? 0, options };
+    handleTruncate(streetKey, lineIndex);
+    setJustPickedBoard(false);
+    if (streetKey === "preflop") setPreflopLine((p) => [...p.slice(0, lineIndex), step]);
+    else setStreetLines((p) => ({ ...p, [streetKey]: [...p[streetKey].slice(0, lineIndex), step] }));
+  }
+
+  /** PC版: Backspace / ← で1手戻る(同じストリートに手が無ければ前のストリートの最後の手へ)。 */
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Backspace" && e.key !== "ArrowLeft") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (settingsOpen || pendingStreet || adminGateOpen || loading) return;
+      const cur = street === "preflop" ? preflopLine : streetLines[street];
+      if (cur.length > 0) {
+        e.preventDefault();
+        handleTruncate(street, cur.length - 1);
+        return;
+      }
+      const prevStreet: Street | null = street === "river" ? "turn" : street === "turn" ? "flop" : street === "flop" ? "preflop" : null;
+      if (!prevStreet) return;
+      const prevLine = prevStreet === "preflop" ? preflopLine : streetLines[prevStreet];
+      if (prevLine.length === 0) return;
+      e.preventDefault();
+      handleTruncate(prevStreet, prevLine.length - 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [street, preflopLine, streetLines, settingsOpen, pendingStreet, adminGateOpen, loading]);
+
   function confirmBoard(newCards: string[]) {
     setBoard((prev) => [...prev, ...newCards]);
     if (pendingStreet) setStreet(pendingStreet);
@@ -489,7 +544,12 @@ function GeoDatabase() {
     setPendingStreet(null);
   }
 
-  function buildPositionPills(streetKey: Street, order: string[], line: LineStepWithMeta[], isCurrentStreet: boolean): PillBarItem[] {
+  function buildPositionPills(
+    streetKey: Street,
+    order: string[],
+    line: LineStepWithMeta[],
+    isCurrentStreet: boolean,
+  ): (PillBarItem & DesktopSpotItemExtra)[] {
     return order.map((position) => {
       const idx = line.findIndex((s) => s.position === position);
       if (idx !== -1) {
@@ -503,6 +563,7 @@ function GeoDatabase() {
           bucket: step.bucket,
           geometricRatio: step.geometricRatio,
           lineIndex: idx,
+          ...(step.options ? { options: step.options } : {}),
         };
       }
       if (isCurrentStreet && node?.position === position) {
@@ -512,7 +573,7 @@ function GeoDatabase() {
     });
   }
 
-  const items: PillBarItem[] = [...buildPositionPills("preflop", preflopOrder(), preflopLine, street === "preflop")];
+  const items: (PillBarItem & DesktopSpotItemExtra)[] = [...buildPositionPills("preflop", preflopOrder(), preflopLine, street === "preflop")];
   // 2巡目(オープナーがスクイーズ/3betに応答)対応。1周モデルの buildPositionPills は各ポジションを
   // 1回しか描かないため、2回目以降のアクション(オープナーのvs3bet応答=fold/call/4bet)を明示的に足す。
   // 標準ラインでは preflopLine に重複ポジションが無く、この追加は空になるので既存挙動は不変(GEO側も安全)。
@@ -533,6 +594,7 @@ function GeoDatabase() {
         bucket: s.bucket,
         geometricRatio: s.geometricRatio,
         lineIndex: i,
+        ...(s.options ? { options: s.options } : {}),
       });
     });
     // アクティブな2巡目(オープナーが3betに応答する番)。node.position が既出=2巡目。
@@ -568,10 +630,11 @@ function GeoDatabase() {
   // 透け感が全く読めないので、地に環境光のにじみを焼き込む(globals.cssの.geo-backdrop)。
   return (
     <div className="geo-backdrop min-h-screen">
-      <div className="max-w-3xl lg:max-w-6xl mx-auto">
+      <div className="max-w-3xl lg:max-w-none mx-auto">
         <Header
-          widthClass="max-w-3xl lg:max-w-6xl"
+          widthClass="max-w-3xl lg:max-w-none"
           left={<HeaderLogo />}
+          center={<TopNav items={SIDE_NAV_ITEMS} activeKey="database" />}
           right={
             <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
               <HamburgerIcon />
@@ -580,16 +643,32 @@ function GeoDatabase() {
         />
       </div>
 
-      {/* lg以上は「左ナビレール + 本文」の2カラム。モバイルは従来の1カラム + 下部フッターナビ。 */}
-      <div className="mx-auto flex w-full max-w-3xl lg:max-w-6xl lg:gap-6 lg:px-6">
-        <SideNav activeKey="database" items={SIDE_NAV_ITEMS} className="lg:pt-4" />
-
+      {/* PC(lg以上)は GTO Wizard の Study 画面と同じ構成: ヘッダー中央に横並びナビ、
+          画面幅いっぱいのナビゲーション帯、その下に「左: レンジ表 / 右: アクションと手札の内訳」。
+          モバイルは従来の1カラム + 下部フッターナビ。切り替えはCSSのブレークポイントだけで行う。 */}
+      <div className="mx-auto flex w-full max-w-3xl lg:max-w-none lg:px-4">
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
         {/* GEO専用のツールバー(見出し+データ源トグル+設定+ポジションピル)。共通ヘッダーの
             `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
             欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
             この一式は他画面のTabHeaderと同じくスクロールする本文側へ移した。 */}
-        <div className="pt-4">
+        <div className="hidden pt-3 lg:block">
+          <DesktopSpotBar
+            items={items}
+            settingsSummary={`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+            onOpenSettings={() => setSettingsOpen(true)}
+            activeOptions={node?.position ? node.options : undefined}
+            activeSampleSize={node?.position ? node.sampleSize : undefined}
+            labelFor={(st, bucket) =>
+              (st === "preflop" ? PREFLOP_DISPLAY_BUCKET_LABELS : (POSTFLOP_BUCKET_LABELS as Record<string, string>))[bucket] ?? bucket
+            }
+            onSelect={selectBucket}
+            onTruncate={handleTruncate}
+            onBranch={branchAt}
+          />
+        </div>
+
+        <div className="pt-4 lg:hidden">
           {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
               ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
               演出をこのページにも適用)。 */}
@@ -638,7 +717,7 @@ function GeoDatabase() {
         </div>
 
         {error && (
-          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4">
+          <div className="rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/30 px-4 py-3 mb-4 lg:mt-3">
             <p className="text-sm text-crimson-300">{error}</p>
             {/* 原因の技術詳細(種別・エンドポイント・HTTPステータス・所要ms)。そのまま共有できる。 */}
             {failure && <p className="mt-1 font-mono text-[10px] leading-snug text-crimson-300/70 break-all">{failure.detail}</p>}
@@ -670,15 +749,31 @@ function GeoDatabase() {
           </div>
         )}
 
-        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5" />}
+        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5 lg:hidden" />}
 
-        {/* PC(lg)ではレンジ表とアクション選択を左右に並べ、スクロールせずに両方を見渡せるようにする。 */}
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
-        <div className="mt-1">
-          {matrix && <HandClassMatrix matrix={matrix} bucketLabels={bucketLabels} mergeOpenRaise={street === "preflop"} />}
+        {/* PC(lg)は GTO Wizard と同じく 左(約63%): レンジ表 / 右(約35%): アクション表と手札の内訳。
+            レンジ表は画面の高さに収まる大きさにして、スクロールせずに全体を見渡せるようにする。 */}
+        <div className="lg:mt-3 lg:grid lg:grid-cols-[minmax(0,1.8fr)_minmax(360px,1fr)] lg:items-start lg:gap-4">
+        <div className="mt-1 lg:mt-0 lg:rounded-lg lg:bg-surface lg:p-3 lg:shadow-e1">
+          <div className="mb-2 hidden items-center gap-1 lg:flex">
+            <span className="rounded-md bg-surface-2 px-3 py-1.5 text-[12px] font-black text-fg">戦略</span>
+            <span className="ml-auto text-[11px] font-semibold text-fg-3">
+              {node?.position ? `${node.position} · ${street === "preflop" ? "プリフロップ" : street === "flop" ? "フロップ" : street === "turn" ? "ターン" : "リバー"}` : ""}
+            </span>
+          </div>
+          <div className="lg:mx-auto lg:max-w-[calc(100dvh-300px)]">
+            {matrix && (
+              <HandClassMatrix
+                matrix={matrix}
+                bucketLabels={bucketLabels}
+                mergeOpenRaise={street === "preflop"}
+                onHoverCell={setHoveredCell}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 lg:mt-1">
+        <div className="mt-3 lg:mt-0">
           {loading || solving ? (
             <div className="glass-panel rounded-2xl p-8 text-center text-sm text-fg-2">
               <div className="flex flex-col items-center justify-center gap-2">
@@ -738,10 +833,45 @@ function GeoDatabase() {
               </motion.button>
             </motion.div>
           ) : node ? (
-            <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
+            <>
+              <div className="lg:hidden">
+                <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
+              </div>
+              <div className="hidden lg:block">
+                <DesktopStudyPanel
+                  node={node}
+                  mergeOpenRaise={street === "preflop"}
+                  bucketLabels={bucketLabels}
+                  hoveredCell={hoveredCell}
+                  onSelect={selectBucket}
+                />
+              </div>
+            </>
           ) : null}
         </div>
         </div>
+
+        {/* その他: データベースの本体(レンジ)とは別の、プレイデータの研究への入口。 */}
+        <section className="mt-10" aria-labelledby="geo-other-heading">
+          <h2 id="geo-other-heading" className="mb-2 px-1 text-[12px] font-black tracking-[0.08em] text-fg-3">
+            その他
+          </h2>
+          <Link
+            href="/geo/research"
+            className="pressable flex items-center gap-3 rounded-2xl bg-surface px-4 py-3.5 shadow-e1"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+              <Icon name="graph-up" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-black text-fg">データ研究</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-fg-2">
+                思考時間・優勝率・インマネ率・大きいポットの後など、プレイの傾向と相関を調べる
+              </span>
+            </span>
+            <Icon name="chevron-right" className="h-4 w-4 shrink-0 text-fg-3" />
+          </Link>
+        </section>
 
         {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等)。
             ホーム画面フッターと同じターミナルプロンプト風の表記に揃えている。 */}
@@ -808,7 +938,7 @@ function GeoDatabase() {
         )}
       </AnimatePresence>
 
-      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上はヘッダー中央の TopNav が担う。 */}
       <div className="lg:hidden">
         <Footer
           activeKey={null}

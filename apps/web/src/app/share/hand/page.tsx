@@ -75,7 +75,7 @@ export default function ShareHandPage({ searchParams }: { searchParams: SP }) {
         justifyContent: "center",
         gap: "28px",
         padding: "40px 20px",
-        background: "#1c1c1e",
+        background: "#0A0A0B",
         color: "#f5f5f7",
       }}
     >

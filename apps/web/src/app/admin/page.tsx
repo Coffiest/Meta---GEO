@@ -50,6 +50,13 @@ interface GeoBackfillStatus {
   error: string | null;
 }
 
+/** 研究用テーブルの作り直しの状況(サーバーの /api/admin/research-backfill の応答)。 */
+interface ResearchBackfillStatus {
+  running: boolean;
+  progress: { total: number; processed: number; rows: number } | null;
+  error: string | null;
+}
+
 /**
  * ポジション別の集まり具合(サーバーの /api/admin/geo-position-stats の応答)。
  *
@@ -109,6 +116,8 @@ export default function AdminPage() {
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
   const [geoBackfill, setGeoBackfill] = useState<GeoBackfillStatus | null>(null);
   const [geoBackfillBusy, setGeoBackfillBusy] = useState(false);
+  // 研究用テーブル(DecisionFact)の作り直し。データベースタブの「データ研究」の過去分を埋める。
+  const [researchBackfill, setResearchBackfill] = useState<ResearchBackfillStatus | null>(null);
   // ポジション別の集まり具合。重い集計ではないが、開いたときだけ取りに行く。
   const [posStats, setPosStats] = useState<GeoPositionStats | null>(null);
   const [posStatsOpen, setPosStatsOpen] = useState(false);
@@ -272,6 +281,25 @@ export default function AdminPage() {
     }
   }
 
+  /** 研究用テーブルの作り直しを開始する(POST)/ 状況を取り直す(GET)。 */
+  async function researchBackfillRequest(method: "GET" | "POST") {
+    if (!passcode) return;
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/research-backfill`, {
+        method,
+        headers: { "x-admin-passcode": passcode },
+      });
+      const data = (await res.json()) as ResearchBackfillStatus & { alreadyRunning?: boolean };
+      setResearchBackfill(data);
+      if (method === "POST") {
+        setNotice(data.alreadyRunning ? "作り直しは既に実行中です。" : "研究用データの作り直しを開始しました。");
+      }
+    } catch {
+      setError("研究用データの作り直しの状況を取得できませんでした。");
+    }
+  }
+
   async function geoDelete(userId: string, from?: string, to?: string) {
     if (!passcode) return;
     const rangeText = from || to ? `期間 ${from || "最初"} 〜 ${to || "現在"} の` : "全期間の";
@@ -346,7 +374,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       {/* PC(lg)では幅を広げ、プレイヤーカードを2カラムに並べる(モバイルは従来の1カラム)。 */}
       <div className="mx-auto max-w-md px-4 pb-24 lg:max-w-5xl lg:px-8">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
@@ -398,6 +426,47 @@ export default function AdminPage() {
                 >
                   {geoBackfill?.running ? "実行中…" : "再構築"}
                 </button>
+              </div>
+            </div>
+
+            {/* 研究用テーブル(DecisionFact)の作り直し。過去のハンドは思考時間・ICMが無いので、その列は空になる。 */}
+            <div className="mb-4 rounded-xl border border-line p-3.5">
+              <div className="flex items-start gap-2.5">
+                <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black text-fg">研究用データの作り直し</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
+                    過去のハンドを、データベースタブの「データ研究」用に1アクション1行へ展開します。過去分は思考時間と
+                    優勝率・インマネ率が記録されていないため、その項目は「不明」になります。
+                  </p>
+                  {researchBackfill?.progress && (
+                    <p className="mt-1.5 text-[11px] font-bold tabular-nums text-n-10">
+                      {researchBackfill.running ? "実行中 " : "完了 "}
+                      {researchBackfill.progress.processed.toLocaleString()}/{researchBackfill.progress.total.toLocaleString()} ハンド ・{" "}
+                      {researchBackfill.progress.rows.toLocaleString()} 行
+                    </p>
+                  )}
+                  {researchBackfill?.error && (
+                    <p className="mt-1 text-[11px] font-bold text-crimson-300">前回の実行が失敗しました: {researchBackfill.error}</p>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void researchBackfillRequest("POST")}
+                    disabled={researchBackfill?.running}
+                    className="rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable disabled:opacity-40"
+                  >
+                    {researchBackfill?.running ? "実行中…" : "作り直す"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void researchBackfillRequest("GET")}
+                    className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-n-9 pressable"
+                  >
+                    状況を更新
+                  </button>
+                </div>
               </div>
             </div>
 

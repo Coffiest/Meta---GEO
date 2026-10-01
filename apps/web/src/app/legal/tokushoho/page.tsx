@@ -18,13 +18,13 @@ const ROWS: { label: string; value: string }[] = [
   { label: "お支払い方法", value: "クレジットカード決済(Stripe)" },
   { label: "お支払い時期", value: "初回登録時、以降は毎月同日に自動課金" },
   { label: "サービス提供時期", value: "決済完了後、即時利用可能" },
-  { label: "解約について", value: "いつでも解約可能。解約後は当該課金期間の終了をもってサービス終了。日割り返金は行いません。" },
+  { label: "解約について", value: "いつでも解約可能。解約後は当該課金期間の終了をもってサービス終了。日割り返金は行いません。期限日の自動課金ができなかった場合は、その時点で自動的に解約となります(未払いの請求は取り消されます)。" },
   { label: "動作環境", value: "最新版のモダンブラウザ(Chrome / Safari 等)" },
 ];
 
 export default function TokushohoPage() {
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-canvas">
       <div className="max-w-md mx-auto px-4 pb-16">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
           <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>

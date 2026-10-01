@@ -42,12 +42,12 @@ const ACCENT_HI = "#5fe0c6";
 const FG = "#f5f5f7";
 const FG_MUTED = "#8e8e93";
 const CRIMSON = "#f0595e";
-const BG = "#1c1c1e";
+const BG = "#0A0A0B";
 
 /** 4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)。アプリ内のカード配色に合わせる。 */
 /** カードは暗い地の上でも白いままにする(アプリのカード画像と同じ意匠)。
     そのためカード上のインクだけは前景色ではなく、白地に載る黒として持つ。 */
-const CARD_INK = "#0e0e10";
+const CARD_INK = "#040405";
 const SUIT_COLOR: Record<string, string> = { s: CARD_INK, h: "#dd4438", d: "#3a7fc4", c: "#1fae70" };
 
 /** スートのSVGパス(viewBox 0 0 24 24)。装飾に絵文字は使わない。 */
@@ -88,7 +88,7 @@ function Card({ code, w }: { code: string; w: number }) {
         padding: `${Math.round(w * 0.09)}px`,
         borderRadius: `${Math.round(w * 0.1)}px`,
         background: "#ffffff",
-        border: "2px solid #0e0e10",
+        border: "2px solid #040405",
         boxShadow: "0 14px 30px -14px rgba(0,0,0,0.75)",
       }}
     >

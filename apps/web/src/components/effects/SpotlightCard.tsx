@@ -7,7 +7,7 @@
  *
  * Poker ART向けの変更点:
  * - 既定のダークテーマ(bg-neutral-900 border-neutral-800)を、アプリのダークテーマ配色
- *   (surface/#2C2C2E, line/#3A3A3C)に合わせて変更。className側からの上書きに頼らず、
+ *   (surface/#18181A, line/#242426)に合わせて変更。className側からの上書きに頼らず、
  *   この移植元でデフォルト自体を直す(Tailwindはユーティリティクラスの勝敗を並び順ではなく
  *   生成CSS順で決めるため、後から className で色を上書きできる保証が無い。詳細は
  *   components/ui/Button.tsx 参照)。

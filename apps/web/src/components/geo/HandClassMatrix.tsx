@@ -33,7 +33,7 @@ function orderedBucketEntries(cell: HandClassCell): [string, number][] {
 }
 
 function cellGradient(cell: DisplayCell): string {
-  if (cell.count === 0) return "#232326";
+  if (cell.count === 0) return "#101012";
   const stops: string[] = [];
   let cursor = 0;
   for (const [bucket, count] of orderedBucketEntries(cell)) {
@@ -42,7 +42,7 @@ function cellGradient(cell: DisplayCell): string {
     stops.push(`${colorForBucket(cell, bucket)} ${cursor}% ${cursor + pct}%`);
     cursor += pct;
   }
-  if (stops.length === 0) return "#232326";
+  if (stops.length === 0) return "#101012";
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
@@ -143,7 +143,7 @@ export function HandClassMatrix({
                 onClick={(e) => (isHovered ? hideCell() : showCell(displayCell, cell, e.currentTarget))}
                 onMouseLeave={hideCell}
                 onBlur={hideCell}
-                className={`pressable aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] lg:text-[11px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white ${
+                className={`pressable aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] lg:text-[11px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white lg:hover:scale-100 lg:hover:ring-2 ${
                   isHovered ? "z-10 scale-110 ring-1 ring-white" : ""
                 }`}
                 title={`${cell.label}: ${cell.count} サンプル`}
@@ -175,7 +175,8 @@ export function HandClassMatrix({
                 ? (typeof window !== "undefined" ? window.innerHeight : 800) - hover.anchorTop + 8
                 : hover.anchorBottom + 8,
             }}
-            className="z-50 pointer-events-none w-64 rounded-2xl glass-panel shadow-e2 p-3.5"
+            // PC(lg以上)は右ペインの手札パネルに内訳を出すので、浮かぶツールチップは出さない。
+            className="z-50 pointer-events-none w-64 rounded-2xl glass-panel shadow-e2 p-3.5 lg:hidden"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-lg font-black text-fg">{hover.cell.label}</span>
@@ -209,7 +210,7 @@ export function HandClassMatrix({
         )}
       </AnimatePresence>
 
-      <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center font-mono">
+      <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center font-mono lg:hidden">
         {!hover && <span className="text-fg-3">{"// "}セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
         {hover && hover.cell.count === 0 && <span className="text-fg-3">{"// "}{hover.cell.label} — サンプルなし</span>}
       </div>

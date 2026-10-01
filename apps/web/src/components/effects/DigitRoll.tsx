@@ -8,7 +8,7 @@
  *
  * Poker ART向けの変更点:
  * - `motion/react` から `framer-motion` へ差し替え(BlurText.tsxと同じ理由)。
- * - 上下のグラデーションフェード既定色を黒からアプリのcanvas色(#1c1c1e)へ変更。
+ * - 上下のグラデーションフェード既定色を黒からアプリのcanvas色(#0A0A0B)へ変更。
  *   元の黒(#000)はcanvasより僅かに暗く、フェードの継ぎ目が薄い帯として見えてしまうため。
  * - `from` を追加した。元実装は `useSpring(valueRoundedToPlace)` で初期値を「目標値」に
  *   設定しており、マウント直後のuseEffectが同じ値を`.set()`するだけなので実際には
@@ -146,8 +146,8 @@ export function DigitRoll({
   counterStyle,
   digitStyle,
   gradientHeight = 10,
-  gradientFrom = "#1c1c1e",
-  gradientTo = "rgba(28, 28, 30, 0)",
+  gradientFrom = "#0A0A0B",
+  gradientTo = "rgba(10, 10, 11, 0)",
 }: DigitRollProps) {
   const height = fontSize + padding;
 
