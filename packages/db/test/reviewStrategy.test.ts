@@ -117,7 +117,10 @@ describe("attachStrategies", () => {
  * BTN が CB → BB コール → ターンは BB チェック・BTN チェックバック(ダブルバレルを打たなかった)。
  * ボードは K♥8♦3♥ → 6♠(ラグ)。
  */
-function turnCheckBackHand(btnHole: string[]): { hand: ExtractHand; checkSeq: number } {
+function turnCheckBackHand(
+  btnHole: string[],
+  board: string[] = ["Kh", "8d", "3h", "6s", "2c"]
+): { hand: ExtractHand; checkSeq: number } {
   seq = 0;
   const actions = [
     act(1, "preflop", "postBlind", 50, 0),
@@ -138,7 +141,7 @@ function turnCheckBackHand(btnHole: string[]): { hand: ExtractHand; checkSeq: nu
   const hand: ExtractHand = {
     buttonFixedPos: 0,
     levelBigBlind: 100,
-    board: ["Kh", "8d", "3h", "6s", "2c"],
+    board,
     seats: [
       { seatIndex: 0, userId: "u-btn", startingStack: 5000, holeCards: btnHole },
       { seatIndex: 2, userId: "u-bb", startingStack: 5000, holeCards: ["Qd", "Jd"] },
@@ -160,6 +163,24 @@ describe("ダブルバレルを打たなかったチェック", () => {
     expect(d.strategy).toMatchObject({ role: null, tag: "doubleBarrel", reason: "dbRag" });
     expect(d.strategy?.barrel).toMatchObject({ action: "check", situation: "checkValue", handKey: "set" });
     expect(d.classification).toBe("mistake");
+  });
+
+  it("ストレートの目ができるターン(K73→4)でも判定が付き、GTOがレンジ外(分類なし)でも格付けが入る", () => {
+    const { hand, checkSeq } = turnCheckBackHand(["Qs", "9c"], ["7d", "3c", "Kc", "4d", "2s"]);
+    const d = decision({
+      sequenceNumber: checkSeq,
+      street: "turn",
+      seatIndex: 0,
+      actionTaken: { kind: "check", bucket: "checkOrCall", toAmount: null },
+      classification: null,
+      evLossBb: null,
+      analyzable: false,
+      outOfScopeReason: "out-of-range",
+    });
+    attachStrategies(hand, [d]);
+    applyNotionGrades([d]);
+    expect(d.strategy?.barrel).toMatchObject({ card: "rag", situation: "checkBluff", handKey: "queenHigh" });
+    expect(d.classification).toBe("inaccuracy");
   });
 
   it("打たない手(ショーダウンバリュー)をチェックすれば最善", () => {

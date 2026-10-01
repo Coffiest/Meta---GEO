@@ -269,9 +269,10 @@ describe("ディレイCB・バレル", () => {
     expect(judgeBet(d(0.3), ["Ah", "Kd"], board).grade).toBe("inaccuracy");
   });
 
-  it("ノートに無いターン(ストレート完成)のバレルは、一般のポラライズで判定する", () => {
-    const board = ["Ks", "9h", "5d", "7c", "3s"]; // 5-7-9 でストレートが完成しうる
-    const b = (f: number) => info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2 });
+  it("表の対象外のバレル(相手のドンクへのレイズ)は、一般のポラライズで判定する", () => {
+    const board = ["Ks", "9h", "5d", "7c", "3s"];
+    const b = (f: number) =>
+      info({ street: "turn", role: "turnBarrel", position: "IP", potFraction: f, sizeClass: sizeClassOf(f), streak: 2, firstOnStreet: false });
     expect(judgeBet(b(0.75), ["Kh", "9d"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // 2P
     expect(judgeBet(b(0.75), ["Qh", "Jd"], board)).toMatchObject({ reason: "barrelPolarized", grade: "best" }); // エア
     const mid = judgeBet(b(0.75), ["9c", "6d"], board); // ミドルペア
@@ -495,10 +496,23 @@ describe("ダブルバレル(Notion【ダブルバレル】)", () => {
     });
   });
 
-  it("ストレート完成カードは表に無いので、一般的なバレルの判定に回る", () => {
+  it("ストレートの目ができるカードも、ランクで表の見出しに入る(必ず評価が付く)", () => {
+    // K95 → 7: 5-7-9 でストレートの目ができるが、Kより下なのでラグ。
     const board = ["Ks", "9h", "5d", "7c", "2c"];
-    expect(judgeBet(b(0.75), ["Kd", "Qc"], board).barrel).toBeNull();
-    expect(chk(["Kd", "Qc"], board)).toBeNull();
+    expect(judgeBet(b(1.8), ["Kd", "Qc"], board)).toMatchObject({ reason: "dbRag", grade: "best" });
+    expect(chk(["Kd", "Qc"], board)).toMatchObject({ reason: "dbRag", barrel: { situation: "checkValue" } });
+    // T87 → J: ストレートの目ができ、Tより上なのでオーバーカード。
+    expect(chk(["Ad", "Ac"], ["Th", "8d", "7c", "Js", "2c"])?.barrel?.card).toBe("overcard");
+  });
+
+  it("オーナーの局面: K73 → 4♦ で Q♠9♣ のチェックは、ラグのブラフの打ち逃し(緩手)", () => {
+    const v = chk(["Qs", "9c"], ["7d", "3c", "Kc", "4d", "2s"]);
+    expect(v).toMatchObject({
+      tag: "doubleBarrel",
+      reason: "dbRag",
+      grade: "inaccuracy",
+      barrel: { card: "rag", hand: "bluff", handKey: "queenHigh", situation: "checkBluff" },
+    });
   });
 });
 
