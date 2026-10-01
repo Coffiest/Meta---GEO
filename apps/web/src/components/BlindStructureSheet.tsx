@@ -30,6 +30,13 @@ function useClock(endsAt: number | null): string {
  * プライズ(ペイアウト)とブラインド表はタップで開閉する。RRPokerのクロック画面を参考にした
  * ダークテーマのカード意匠。
  */
+function formatLevelDuration(ms: number): string {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return sec > 0 ? `${m}分${sec}秒` : `${m}分`;
+}
+
 export function BlindStructureSheet({
   currentLevel,
   level,
@@ -253,6 +260,12 @@ export function BlindStructureSheet({
               className="overflow-hidden"
             >
               <div className="mt-4">
+                {/* 初期スタックとレベル時間は卓の種類ごとに違う(サーバーが卓ごとに送る値)。 */}
+                {tournamentInfo?.startingStack && tournamentInfo.levelDurationMs && (
+                  <p className="mb-2 text-[11px] font-bold tabular-nums text-fg-2">
+                    初期スタック {tournamentInfo.startingStack.toLocaleString()}点 ・ 各レベル {formatLevelDuration(tournamentInfo.levelDurationMs)}
+                  </p>
+                )}
                 <table className="w-full text-xs tabular-nums">
                   <thead>
                     <tr className="text-fg-3 text-[10px]">

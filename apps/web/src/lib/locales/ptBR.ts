@@ -1,5 +1,13 @@
 /** pt-BR(ブラジル・ポルトガル語)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const ptBR: Record<string, string> = {
+  "tier.meta": "{bb}BB · níveis de {min} min",
+  "tier.locked": "Requisitos",
+  "tier.req.profit": "Lucro total",
+  "tier.req.rating": "Rating",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "Começa quando 6 jogadores entrarem",
+  "tier.cancelWaiting": "Cancelar",
+  "tier.lockedError": "Você ainda não cumpre os requisitos desta mesa",
   "locale.suggest": "Ver em {lang}?",
   "locale.switch": "Mudar",
   "locale.dismiss": "Fechar",

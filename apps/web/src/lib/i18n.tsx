@@ -53,6 +53,14 @@ function writeStorage(key: string, value: string): void {
 type Dict = Record<string, string>;
 
 const ja: Dict = {
+  "tier.meta": "{bb}BB・{min}分レベル",
+  "tier.locked": "参加条件",
+  "tier.req.profit": "生涯収支",
+  "tier.req.rating": "偏差値",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "6人そろうと開始します",
+  "tier.cancelWaiting": "やめる",
+  "tier.lockedError": "この卓の参加条件を満たしていません",
   "locale.suggest": "{lang}で表示しますか?",
   "locale.switch": "切り替える",
   "locale.dismiss": "閉じる",
@@ -414,6 +422,14 @@ const ja: Dict = {
 };
 
 const en: Dict = {
+  "tier.meta": "{bb}BB · {min}-min levels",
+  "tier.locked": "Requirements",
+  "tier.req.profit": "Lifetime profit",
+  "tier.req.rating": "Rating",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "Starts when 6 players join",
+  "tier.cancelWaiting": "Cancel",
+  "tier.lockedError": "You don't meet the requirements for this table yet",
   "locale.suggest": "View in {lang}?",
   "locale.switch": "Switch",
   "locale.dismiss": "Dismiss",
@@ -775,6 +791,14 @@ const en: Dict = {
 };
 
 const ko: Dict = {
+  "tier.meta": "{bb}BB · {min}분 레벨",
+  "tier.locked": "참가 조건",
+  "tier.req.profit": "누적 수지",
+  "tier.req.rating": "편차치",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "6명이 모이면 시작합니다",
+  "tier.cancelWaiting": "취소",
+  "tier.lockedError": "이 테이블의 참가 조건을 충족하지 않습니다",
   "locale.suggest": "{lang}(으)로 표시할까요?",
   "locale.switch": "전환",
   "locale.dismiss": "닫기",
@@ -1136,6 +1160,14 @@ const ko: Dict = {
 };
 
 const zh: Dict = {
+  "tier.meta": "{bb}BB・每级{min}分钟",
+  "tier.locked": "参加条件",
+  "tier.req.profit": "累计收支",
+  "tier.req.rating": "偏差值",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "凑齐6人后开始",
+  "tier.cancelWaiting": "取消",
+  "tier.lockedError": "尚未满足此牌桌的参加条件",
   "locale.suggest": "要以{lang}显示吗?",
   "locale.switch": "切换",
   "locale.dismiss": "关闭",

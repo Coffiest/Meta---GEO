@@ -149,7 +149,7 @@ export function PlayerDetailModal({
       >
         {/* ヘッダー: アバター+名前+偏差値 */}
         <div className="mb-4 flex items-center gap-3">
-          <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={48} />
+          <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={48} frame={profile?.frame ?? null} />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Player</p>
             <h2 className="truncate text-lg font-extrabold tracking-tight text-fg">{target.displayName}</h2>

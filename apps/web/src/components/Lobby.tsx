@@ -22,6 +22,7 @@ import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
+import { EliteTierCards, type EliteInfo } from "./EliteTierCards";
 import { InstallAppCard } from "./InstallAppCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { SegmentedTabs } from "./ui/SegmentedTabs";
@@ -75,6 +76,8 @@ interface Leaderboards {
   allTime: LeaderboardUser[];
   last10: LeaderboardUser[];
   minTournaments: number;
+  /** 載っている人のうち、High Roller / Super High Roller の資格者のアイコン枠(userId → 枠)。 */
+  frames?: Record<string, "silver" | "gold">;
 }
 
 type LbPeriod = "weekly" | "allTime" | "last10";
@@ -179,7 +182,9 @@ function GameStartButton({
         >
           <span className="min-w-0 flex-1">
             <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">Play</span>
-            <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">Sit &amp; Go (6-Max)</span>
+            <span className="mt-1.5 block text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">
+              Sit &amp; Go (6-Max) · {t("play.buyIn")} 1,000
+            </span>
           </span>
           <EnterArrow className="line-fill-arrow h-5 w-5 shrink-0" />
         </button>
@@ -922,6 +927,7 @@ function providerLabel(provider: string, t: TFn): string {
 function HamburgerMenu({
   displayName,
   avatarKey,
+  frame,
   email,
   providers,
   isGuest,
@@ -933,6 +939,7 @@ function HamburgerMenu({
 }: {
   displayName: string;
   avatarKey: string | null;
+  frame?: "silver" | "gold" | null;
   email?: string | null;
   providers?: string[];
   isGuest: boolean;
@@ -995,7 +1002,7 @@ function HamburgerMenu({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 flex items-center gap-3 mb-2">
-          <Avatar avatarKey={avatarKey} displayName={displayName} size={48} />
+          <Avatar avatarKey={avatarKey} displayName={displayName} size={48} frame={frame ?? null} />
           <div className="min-w-0">
             <div className="text-base font-semibold text-fg truncate">{displayName}</div>
             {email ? (
@@ -1121,6 +1128,7 @@ export function Lobby({
   // リーダーボードでタップされたプレイヤー(スタッツ詳細モーダルを開く対象)。
   const [lbTapped, setLbTapped] = useState<{ userId: string; displayName: string; avatarKey: string | null } | null>(null);
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [elite, setElite] = useState<EliteInfo | null>(null);
   const [rrRating, setRRRating] = useState<RRRatingData | null>(null);
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistoryPoint[] | null>(null);
   const [reviewTournamentId, setReviewTournamentId] = useState<string | null>(null);
@@ -1204,6 +1212,15 @@ export function Lobby({
     fetch(`${SERVER_URL}/api/lobby/stats`, { headers: { authorization: `Bearer ${accessToken}` } })
       .then((res) => (res.ok ? (res.json() as Promise<PlayerStats>) : null))
       .then((json) => json && setStats(json))
+      .catch(() => {});
+  }, [accessToken]);
+
+  // High Roller / Super High Roller の参加資格と、自分のアイコンの枠。
+  useEffect(() => {
+    if (!accessToken) return;
+    fetch(`${SERVER_URL}/api/lobby/elite`, { headers: { authorization: `Bearer ${accessToken}` } })
+      .then((res) => (res.ok ? (res.json() as Promise<EliteInfo>) : null))
+      .then((json) => json && setElite(json))
       .catch(() => {});
   }, [accessToken]);
 
@@ -1317,6 +1334,7 @@ export function Lobby({
             <TabHeader command="./poker-art --boot" eyebrow="System online" title="Home" />
 
             <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
+            <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
 
             {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
                 (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
@@ -1327,6 +1345,7 @@ export function Lobby({
             <RRRatingCard
               displayName={displayName}
               avatarKey={avatarKey}
+              frame={elite?.frame ?? null}
               data={rrRating}
               itmRate={stats?.itmRate ?? 0}
               totalBuyIns={stats?.totalBuyIns ?? 0}
@@ -1600,7 +1619,7 @@ export function Lobby({
                           }`}
                         >
                           <div className="w-6 text-center text-sm font-bold tabular-nums text-n-10">{i + 1}</div>
-                          <Avatar avatarKey={row.avatarKey} size={30} />
+                          <Avatar avatarKey={row.avatarKey} size={30} frame={leaderboards.frames?.[row.userId] ?? null} />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm text-fg truncate">
                               {row.displayName}
@@ -1826,6 +1845,7 @@ export function Lobby({
           <HamburgerMenu
             displayName={displayName}
             avatarKey={avatarKey}
+            frame={elite?.frame ?? null}
             email={email}
             providers={providers}
             isGuest={!accessToken}

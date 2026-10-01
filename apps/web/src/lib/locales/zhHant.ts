@@ -1,5 +1,13 @@
 /** zh-Hant(繁體中文・台湾)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const zhHant: Record<string, string> = {
+  "tier.meta": "{bb}BB・每級{min}分鐘",
+  "tier.locked": "參加條件",
+  "tier.req.profit": "累計收支",
+  "tier.req.rating": "偏差值",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "湊齊6人後開始",
+  "tier.cancelWaiting": "取消",
+  "tier.lockedError": "尚未符合此牌桌的參加條件",
   "locale.suggest": "要以{lang}顯示嗎？",
   "locale.switch": "切換",
   "locale.dismiss": "關閉",

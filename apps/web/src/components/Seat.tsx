@@ -91,6 +91,8 @@ const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
 export interface SeatViewProps {
   name: string;
   avatarKey: string | null;
+  /** High Roller / Super High Roller の資格者のアイコン枠。 */
+  frame?: "silver" | "gold" | null;
   position: string;
   stack: number;
   streetContribution: number;
@@ -131,6 +133,7 @@ export interface SeatViewProps {
 export function Seat({
   name,
   avatarKey,
+  frame,
   position,
   stack,
   streetContribution,
@@ -334,7 +337,13 @@ export function Seat({
           <>
             <div className="relative">
               <div className="relative z-10">
-                <Avatar avatarKey={avatarKey} displayName={name} size={size === "lg" ? 44 : 30} timer={isActingSeat ? timer : null} />
+                <Avatar
+                  avatarKey={avatarKey}
+                  displayName={name}
+                  size={size === "lg" ? 44 : 30}
+                  timer={isActingSeat ? timer : null}
+                  frame={frame ?? null}
+                />
               </div>
               {markingColor && (
                 <span

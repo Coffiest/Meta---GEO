@@ -1,5 +1,13 @@
 /** es(スペイン語・中南米向けの中立表現)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const es: Record<string, string> = {
+  "tier.meta": "{bb}BB · niveles de {min} min",
+  "tier.locked": "Requisitos",
+  "tier.req.profit": "Ganancia total",
+  "tier.req.rating": "Rating",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "Empieza cuando se unan 6 jugadores",
+  "tier.cancelWaiting": "Cancelar",
+  "tier.lockedError": "Aún no cumples los requisitos de esta mesa",
   "locale.suggest": "¿Ver en {lang}?",
   "locale.switch": "Cambiar",
   "locale.dismiss": "Cerrar",

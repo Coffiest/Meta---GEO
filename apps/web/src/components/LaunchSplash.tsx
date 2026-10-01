@@ -64,6 +64,9 @@ export function LaunchSplash() {
         ref={ref}
         id="launch-splash"
         className={`launch-splash ${skipping ? "launch-splash-skip" : ""}`}
+        // 埋め込み表示では直後の script が描画前に style="display:none" を付ける。サーバーの HTML と属性が
+        // 食い違うのは意図どおりなので、ハイドレーションの不一致として扱わない(扱うと画面全体が作り直される)。
+        suppressHydrationWarning
         aria-hidden="true"
         // 触れた瞬間に早送りする(離すのを待たない)。
         onPointerDown={() => setSkipping(true)}

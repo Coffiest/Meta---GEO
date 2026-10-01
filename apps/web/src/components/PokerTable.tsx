@@ -456,6 +456,7 @@ export function PokerTable({
             onCardTap={canToggleShow ? onToggleHeroShow : undefined}
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
+            frame={player?.frame ?? null}
             markingColor={markingColor}
             chatBubble={seatBubbles?.[seatIndex]?.text ?? null}
             onChatClick={isHero ? onHeroChatClick : undefined}

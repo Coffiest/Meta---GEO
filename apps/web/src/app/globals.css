@@ -30,6 +30,13 @@
   --accent-lo: 30 168 140; /* #1EA88C */
   --on-accent: 4 33 27; /* #04211B アクセント面に乗せる文字。白(2.25:1)は使えない */
 
+  /* アイコンの資格者枠(High Roller = 銀 / Super High Roller = 金)。オーナー指定の装飾で、UIのアクセントではない
+     (ゴールドをアクセントに使わない、のきまりの対象外)。ここ以外で使わない。 */
+  --frame-silver-hi: 245 245 247;
+  --frame-silver-lo: 124 124 130;
+  --frame-gold-hi: 255 236 170;
+  --frame-gold-lo: 168 122 31;
+
   /* ガラス(半透明素材)の調整値。prefers-reduced-transparency でここを差し替えるだけで
      全てのガラス面が一斉に不透明化するよう、値を1箇所に集約している。 */
   --glass-blur: 24px;
@@ -1134,4 +1141,29 @@ textarea:focus-visible,
     opacity: 0.6;
     animation: none !important;
   }
+}
+
+/* ============================================================================
+   アイコンの資格者枠(Avatar の frame)。金属の照り返しに見えるよう、明暗を円周方向に回す。
+   ============================================================================ */
+.avatar-frame-silver {
+  background: conic-gradient(
+    from 210deg,
+    rgb(var(--frame-silver-hi)),
+    rgb(var(--frame-silver-lo)),
+    rgb(var(--frame-silver-hi)),
+    rgb(var(--frame-silver-lo)),
+    rgb(var(--frame-silver-hi))
+  );
+}
+.avatar-frame-gold {
+  background: conic-gradient(
+    from 210deg,
+    rgb(var(--frame-gold-hi)),
+    rgb(var(--frame-gold-lo)),
+    rgb(var(--frame-gold-hi)),
+    rgb(var(--frame-gold-lo)),
+    rgb(var(--frame-gold-hi))
+  );
+  box-shadow: 0 0 8px rgb(var(--frame-gold-hi) / 0.35);
 }

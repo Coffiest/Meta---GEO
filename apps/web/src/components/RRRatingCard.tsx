@@ -237,6 +237,7 @@ export function RuleLabel({ children }: { children: React.ReactNode }) {
 export function RRRatingCard({
   displayName,
   avatarKey,
+  frame,
   data,
   itmRate,
   totalBuyIns,
@@ -247,6 +248,8 @@ export function RRRatingCard({
 }: {
   displayName: string;
   avatarKey: string | null;
+  /** High Roller / Super High Roller の資格者のアイコン枠。 */
+  frame?: "silver" | "gold" | null;
   data: RRRatingData | null;
   itmRate: number;
   totalBuyIns: number;
@@ -268,7 +271,7 @@ export function RRRatingCard({
       <div className="relative px-5 pt-4 pb-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar avatarKey={avatarKey} displayName={displayName} size={34} />
+            <Avatar avatarKey={avatarKey} displayName={displayName} size={34} frame={frame ?? null} />
             <p className="text-sm font-bold text-fg truncate min-w-0">{displayName}</p>
           </div>
           <motion.button
