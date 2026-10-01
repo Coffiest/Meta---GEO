@@ -12,7 +12,7 @@ import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
-import { SideNav } from "./SideNav";
+import { TopNav, type SideNavItem } from "./SideNav";
 import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
@@ -1249,10 +1249,20 @@ export function Lobby({
       .catch(() => {});
   }, [tab, history, accessToken]);
 
+  const navItems: SideNavItem[] = [
+    { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
+    { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
+    { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
+    { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+    { key: "database", label: "Database", icon: "db", href: "/geo" },
+  ];
+
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
       <Header
         left={<HeaderLogo />}
+        widthClass="max-w-3xl lg:max-w-none"
+        center={<TopNav activeKey={tab === "tournaments" ? "history" : tab} items={navItems} />}
         right={
           <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel={t("lobby.menuOpen")}>
             <HamburgerIcon open={menuOpen} />
@@ -1260,18 +1270,9 @@ export function Lobby({
         }
       />
 
-      {/* lg以上は「左ナビレール + コンテンツ」の2カラム、モバイルは従来の1カラム+下部ナビ。 */}
-      <div className="mx-auto flex w-full max-w-4xl min-h-0 flex-1 flex-col lg:flex-row lg:gap-6 lg:px-6">
-        <SideNav
-          activeKey={tab === "tournaments" ? "history" : tab}
-          items={[
-            { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
-            { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
-            { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
-            { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
-            { key: "database", label: "Database", icon: "db", href: "/geo" },
-          ]}
-        />
+      {/* PC(lg以上)はヘッダー中央の横並びナビ(GTO Wizard と同じ位置)で移動し、本文は広めの1カラム。
+          モバイルは従来の1カラム+下部ナビ。切り替えはCSSのブレークポイントだけで行う。 */}
+      <div className="mx-auto flex w-full max-w-4xl min-h-0 flex-1 flex-col lg:max-w-5xl lg:px-6">
 
         <main className="min-h-0 min-w-0 flex-1 w-full overflow-y-auto px-4 pt-4 pb-28 space-y-5 lg:pb-10">
         {/* 参加中ゲームがあれば、どのタブでも最上段に常設して「必ず戻れる」導線にする。 */}
@@ -1805,7 +1806,7 @@ export function Lobby({
         </main>
       </div>
 
-      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上は左のSideNavが担う。 */}
+      {/* 下部フッターナビはモバイル/タブレットのみ。lg以上はヘッダー中央の TopNav が担う。 */}
       <div className="lg:hidden">
         <Footer
           activeKey={tab}

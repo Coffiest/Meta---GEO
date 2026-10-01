@@ -10,10 +10,13 @@ import { Icon } from "./Icon";
  */
 export function Header({
   left,
+  center,
   right,
   widthClass = "max-w-3xl",
 }: {
   left: React.ReactNode;
+  /** PC(lg以上)だけで出す中央の要素(GTO Wizard 型の横並びナビ)。モバイルでは描画しない。 */
+  center?: React.ReactNode;
   right?: React.ReactNode;
   /** バー内側の最大幅。PC(lg)で本文を広く使う画面(GEO DATABASE)はここを広げて本文と幅を揃える。 */
   widthClass?: string;
@@ -22,6 +25,8 @@ export function Header({
     <header className="glass-header sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className={`mx-auto flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 ${widthClass}`}>
         <div className="flex items-center min-w-0 flex-1">{left}</div>
+        {center && <div className="hidden lg:flex items-center justify-center">{center}</div>}
+        {center && <div className="hidden lg:block flex-1" aria-hidden />}
         {right && <div className="flex items-center gap-2 shrink-0">{right}</div>}
       </div>
     </header>
