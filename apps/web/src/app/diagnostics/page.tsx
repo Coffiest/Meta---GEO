@@ -1,0 +1,371 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { APP_VERSION } from "@/lib/version";
+
+/**
+ * 動作が重い・固まるときに「どこが原因か」をその場で数値で見るための診断ページ。
+ *
+ * 見るべき順番:
+ *  1. イベントループ遅延(loop) — ここが数百ms以上なら、その瞬間サーバーは固まっている。
+ *     原因はCPU飽和(VMが小さい)か、同期処理でループを塞いでいるか。
+ *  2. メモリ(rss) — VM上限(512MB)に近いならGCで固まる。増強が必要。
+ *  3. DB応答(db) — ここだけ遅いならDB側の詰まり。
+ *  4. 遅いリクエスト一覧 — 特定のAPIだけ遅いなら、そのAPIの処理が原因。
+ *  5. この端末からの実測レイテンシ — サーバーは速いのにここが遅いなら経路/端末側。
+ */
+
+const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
+
+interface Snapshot {
+  uptimeSec: number;
+  memory: { rssMb: number; heapUsedMb: number; heapTotalMb: number };
+  eventLoop: { meanMs: number; maxMs: number; p99Ms: number; peakSinceLogMs: number; nowMs: number };
+  db: { pingMs: number | null; loopDelayDuringPingMs: number; estimatedDbMs: number | null };
+  auth: { calls: number; cacheHits: number; remoteCalls: number; avgRemoteMs: number | null; maxRemoteMs: number };
+  cpu: { percent: number; load1: number };
+  counters: { requests: number; slowRequests: number; errors: number };
+  slowRequests: { path: string; method: string; status: number; durationMs: number; at: string }[];
+  errors: { scope: string; message: string; at: string }[];
+  runtime: { node: string; cpus: number; region: string | null };
+  /** どの認証基盤が使える状態か(秘密情報は含まず、設定の有無だけ)。 */
+  authProviders?: { supabase: boolean; rrPoker: boolean };
+  sockets: number;
+}
+
+interface Probe {
+  label: string;
+  path: string;
+  ms: number | null;
+  status: number | string;
+}
+
+/** 実測するエンドポイント。認証不要のものだけを並べ、素の応答速度を測る。 */
+const PROBES: { label: string; path: string }[] = [
+  { label: "ヘルスチェック", path: "/health" },
+  { label: "ライブ状況", path: "/api/lobby/live" },
+  { label: "リーダーボード", path: "/api/lobby/leaderboards" },
+];
+
+function Row({ label, value, warn = false, hint }: { label: string; value: string; warn?: boolean; hint?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-line py-2 last:border-b-0">
+      <div className="min-w-0">
+        <p className="text-[12px] font-bold text-n-9">{label}</p>
+        {hint && <p className="mt-0.5 text-[11px] leading-snug text-fg-2">{hint}</p>}
+      </div>
+      <p className={`shrink-0 text-[15px] font-black tabular-nums ${warn ? "text-crimson-300" : "text-fg"}`}>{value}</p>
+    </div>
+  );
+}
+
+export default function DiagnosticsPage() {
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchMs, setFetchMs] = useState<number | null>(null);
+  const [probes, setProbes] = useState<Probe[]>([]);
+  const [loading, setLoading] = useState(false);
+  // 実行中の測定を識別する。測定中に「再測定」を押された場合、古い測定の結果を
+  // 混ぜて二重に並べないための番号。
+  const runId = useRef(0);
+
+  const load = useCallback(async () => {
+    const myRun = ++runId.current;
+    setLoading(true);
+    setFetchError(null);
+    const started = performance.now();
+    try {
+      // 診断は内部情報を含むため管理者パスコードで保護されている。管理画面で保存済みの
+      // パスコード(sessionStorage)を送る。無ければ入力を促す。
+      const passcode = typeof window !== "undefined" ? sessionStorage.getItem("adminPasscode") : null;
+      const res = await fetch(`${SERVER_URL}/api/diagnostics`, {
+        cache: "no-store",
+        headers: passcode ? { "x-admin-passcode": passcode } : {},
+      });
+      if (runId.current !== myRun) return;
+      setFetchMs(Math.round(performance.now() - started));
+      if (res.status === 401) {
+        setFetchError("この画面は管理者専用です。ホーム画面フッターのバージョン表記からパスコードで管理画面を開いてください。");
+        setSnapshot(null);
+      } else if (!res.ok) {
+        setFetchError(`サーバーが ${res.status} ${res.statusText} を返しました`);
+        setSnapshot(null);
+      } else {
+        setSnapshot((await res.json()) as Snapshot);
+      }
+    } catch (err) {
+      if (runId.current !== myRun) return;
+      setFetchMs(Math.round(performance.now() - started));
+      setFetchError(
+        `サーバーに接続できません: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}（接続先 ${SERVER_URL}）`,
+      );
+      setSnapshot(null);
+    } finally {
+      if (runId.current === myRun) setLoading(false);
+    }
+
+    // この端末からの実測レイテンシ。サーバー内部の数値と突き合わせて経路の遅さを切り分ける。
+    // 1本ずつ順に測り、測れたものからすぐ表示する(全部終わるまで何も出ないと、
+    // 遅いときに画面が空のまま固まって見える)。
+    setProbes([]);
+    for (const probe of PROBES) {
+      const t0 = performance.now();
+      let result: Probe;
+      try {
+        const res = await fetch(`${SERVER_URL}${probe.path}`, { cache: "no-store" });
+        result = { ...probe, ms: Math.round(performance.now() - t0), status: res.status };
+      } catch (err) {
+        result = {
+          ...probe,
+          ms: Math.round(performance.now() - t0),
+          status: err instanceof Error ? err.name : "失敗",
+        };
+      }
+      // 途中で再測定が始まっていたら、古い測定の結果は捨てる(行が二重に並ぶのを防ぐ)。
+      if (runId.current !== myRun) return;
+      setProbes((prev) => [...prev, result]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // 判定は行ごとに独立させる。以前は「ピークが高いならp99も赤」にしていたため、
+  // 健全な 0ms が赤く表示されて原因を取り違えやすかった。
+  const memWarn = (snapshot?.memory.rssMb ?? 0) > 400;
+  const dbFailed = snapshot != null && snapshot.db.pingMs === null;
+  // DBの遅さは「実時間」ではなく、ループ遅延を差し引いた推定値で判定する
+  // (CPUが詰まっているとDBまで遅いように見えるため)。
+  const dbWarn = dbFailed || (snapshot?.db.estimatedDbMs ?? 0) > 300;
+  const cpuWarn = (snapshot?.cpu.percent ?? 0) > 80;
+  const authWarn = (snapshot?.auth.avgRemoteMs ?? 0) > 300;
+
+  /** 「原因はここ」を1行で言い切るための総合判定。 */
+  function verdict(s: Snapshot): { text: string; tone: "ok" | "warn" } {
+    if (s.db.pingMs === null) return { text: "DBに接続できていません。まずDB(Supabase)の状態を確認してください。", tone: "warn" };
+    if (s.eventLoop.nowMs > 300 || s.cpu.percent > 80)
+      return { text: "CPUが詰まっています(イベントループ遅延)。VMの増強が最も効きます。", tone: "warn" };
+    if ((s.db.estimatedDbMs ?? 0) > 300)
+      return { text: "DB自体の応答が遅いです。DBのリージョン/接続方式(pooler)を確認してください。", tone: "warn" };
+    if ((s.auth.avgRemoteMs ?? 0) > 300)
+      return { text: "認証トークンの検証(Supabase Authへの往復)が遅いです。", tone: "warn" };
+    if (s.memory.rssMb > 400) return { text: "メモリがVM上限に近づいています。増強が必要です。", tone: "warn" };
+    return { text: "サーバー内部の数値は正常範囲です。遅い場合は経路(回線)か端末側が原因です。", tone: "ok" };
+  }
+
+  return (
+    <div className="min-h-screen bg-canvas text-fg">
+      <div className="mx-auto w-full max-w-2xl px-5 pb-16 pt-[calc(env(safe-area-inset-top)+24px)]">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+          <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">Poker ART</span>
+        </div>
+        <h1 className="mt-5 text-[30px] font-black leading-tight tracking-tight">
+          動作診断<span className="text-accent">.</span>
+        </h1>
+        <p className="mt-2 text-[13px] leading-relaxed text-n-9">
+          「重い・固まる」の原因を切り分けるための実測値です。上から順に見て、赤い数値がある箇所が原因です。
+        </p>
+
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            onClick={() => void load()}
+            disabled={loading}
+            className="pressable rounded-xl bg-n-4 px-4 py-2.5 text-[13px] font-black text-white disabled:opacity-50"
+          >
+            {loading ? "測定中…" : "再測定"}
+          </button>
+          <Link href="/" className="rounded-xl glass-panel px-4 py-2.5 text-[13px] font-black">
+            アプリへ戻る
+          </Link>
+        </div>
+
+        {fetchError && (
+          <div className="mt-4 rounded-2xl border border-crimson-500 bg-crimson-500/10 p-4">
+            <p className="text-[13px] font-black text-crimson-300">サーバーの診断値が取得できません</p>
+            <p className="mt-1 break-words text-[12px] leading-relaxed text-n-9">{fetchError}</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-fg-2">
+              これ自体が原因の可能性があります（サーバーが落ちている / 起動中 / ネットワーク遮断）。
+              下の「この端末からの実測」も合わせて確認してください。
+            </p>
+          </div>
+        )}
+
+        {snapshot && (
+          <>
+            {(() => {
+              const v = verdict(snapshot);
+              return (
+                <div
+                  className={`mt-5 rounded-2xl border p-4 ${
+                    v.tone === "warn" ? "border-crimson-500 bg-crimson-500/10" : "border-line bg-surface"
+                  }`}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">判定</p>
+                  <p
+                    className={`mt-1 text-[13.5px] font-bold leading-relaxed ${
+                      v.tone === "warn" ? "text-crimson-300" : "text-n-10"
+                    }`}
+                  >
+                    {v.text}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <section className="mt-4 rounded-2xl glass-panel p-4">
+              <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">サーバーの状態</h2>
+              <div className="mt-2">
+                <Row
+                  label="イベントループ遅延 (いま)"
+                  value={`${snapshot.eventLoop.nowMs} ms`}
+                  warn={snapshot.eventLoop.nowMs > 300}
+                  hint="測定した瞬間の詰まり。数百msを超えていればその瞬間サーバーは固まっています。"
+                />
+                <Row
+                  label="イベントループ遅延 (p99)"
+                  value={`${snapshot.eventLoop.p99Ms} ms`}
+                  warn={snapshot.eventLoop.p99Ms > 200}
+                  hint="起動からの分布。ここが大きいなら「たまに固まる」ではなく常時詰まっています。"
+                />
+                <Row
+                  label="イベントループ遅延 (直近1分の最大)"
+                  value={`${snapshot.eventLoop.peakSinceLogMs} ms`}
+                  warn={snapshot.eventLoop.peakSinceLogMs > 500}
+                />
+                <Row
+                  label="イベントループ遅延 (起動以来の最大)"
+                  value={`${snapshot.eventLoop.maxMs} ms`}
+                  warn={snapshot.eventLoop.maxMs > 2000}
+                />
+                <Row
+                  label="CPU使用率"
+                  value={`${snapshot.cpu.percent} %`}
+                  warn={cpuWarn}
+                  hint="共有CPUのVMでは100%付近に張り付くとスロットリングで固まります。"
+                />
+                <Row label="ロードアベレージ (1分)" value={`${snapshot.cpu.load1}`} warn={snapshot.cpu.load1 > snapshot.runtime.cpus} />
+                <Row
+                  label="メモリ (RSS)"
+                  value={`${snapshot.memory.rssMb} MB`}
+                  warn={memWarn}
+                  hint="VMの上限に近いとGCで固まります。上限512MBなら400MB超で危険域。"
+                />
+                <Row label="ヒープ使用" value={`${snapshot.memory.heapUsedMb} / ${snapshot.memory.heapTotalMb} MB`} />
+                <Row
+                  label="DB応答 (実時間)"
+                  value={snapshot.db.pingMs === null ? "失敗" : `${snapshot.db.pingMs} ms`}
+                  warn={dbFailed}
+                  hint="CPUが詰まっているとDBも遅く見えます。下の「DB自体」で切り分けてください。"
+                />
+                <Row
+                  label="DB応答 (DB自体)"
+                  value={snapshot.db.estimatedDbMs === null ? "失敗" : `${snapshot.db.estimatedDbMs} ms`}
+                  warn={dbWarn}
+                  hint="実時間からループ遅延を差し引いた値。ここだけ遅いならDB側(リージョン/接続方式)が原因。"
+                />
+                <Row
+                  label="認証検証 (Supabaseへの往復)"
+                  value={snapshot.auth.avgRemoteMs === null ? "往復なし" : `平均 ${snapshot.auth.avgRemoteMs} ms`}
+                  warn={authWarn}
+                  hint="APIごとに毎回往復すると重くなるため結果をキャッシュしています。"
+                />
+                <Row
+                  label="認証キャッシュ率"
+                  value={
+                    snapshot.auth.calls === 0
+                      ? "-"
+                      : `${Math.round((snapshot.auth.cacheHits / snapshot.auth.calls) * 100)} %（${snapshot.auth.cacheHits}/${snapshot.auth.calls}）`
+                  }
+                  hint="高いほど良い。低いままなら毎回Supabaseへ往復しています。"
+                />
+                <Row label="CPUコア数" value={`${snapshot.runtime.cpus}`} hint="1ならVMは最小構成。増強の余地があります。" />
+                <Row label="同時接続ソケット" value={`${snapshot.sockets}`} />
+                <Row label="稼働時間" value={`${Math.floor(snapshot.uptimeSec / 60)} 分`} hint="短いなら再起動を繰り返している可能性。" />
+                <Row
+                  label="リクエスト / 遅い / エラー"
+                  value={`${snapshot.counters.requests} / ${snapshot.counters.slowRequests} / ${snapshot.counters.errors}`}
+                  warn={snapshot.counters.errors > 0}
+                />
+                <Row label="リージョン / Node" value={`${snapshot.runtime.region ?? "-"} / ${snapshot.runtime.node}`} />
+                {/* RRPoker連携は環境変数が入って初めて動く。設定が効いたかをここで確かめられる。 */}
+                {snapshot.authProviders && (
+                  <Row
+                    label="ログイン方法"
+                    value={[
+                      snapshot.authProviders.supabase ? "Poker ART" : null,
+                      snapshot.authProviders.rrPoker ? "RRPoker" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" / ") || "なし"}
+                    warn={!snapshot.authProviders.supabase && !snapshot.authProviders.rrPoker}
+                    hint="RRPokerが出ていなければ、サーバーに FIREBASE_SERVICE_ACCOUNT が設定されていません。"
+                  />
+                )}
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-2xl glass-panel p-4">
+              <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">遅いリクエスト（1秒超）</h2>
+              {snapshot.slowRequests.length === 0 ? (
+                <p className="mt-2 text-[12px] text-fg-2">記録なし。APIの個別の重さは原因ではありません。</p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {snapshot.slowRequests.map((r, i) => (
+                    <li key={i} className="flex items-baseline justify-between gap-3 text-[12px]">
+                      <span className="min-w-0 truncate font-mono text-n-9">
+                        {r.method} {r.path} <span className="text-fg-3">({r.status})</span>
+                      </span>
+                      <span className="shrink-0 font-black tabular-nums text-crimson-300">{r.durationMs} ms</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="mt-4 rounded-2xl glass-panel p-4">
+              <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">直近のエラー</h2>
+              {snapshot.errors.length === 0 ? (
+                <p className="mt-2 text-[12px] text-fg-2">記録なし。</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {snapshot.errors.map((e, i) => (
+                    <li key={i} className="rounded-xl bg-canvas p-2.5">
+                      <p className="text-[11px] font-black text-n-9">{e.scope}</p>
+                      <p className="mt-0.5 break-words font-mono text-[11px] leading-snug text-crimson-300">{e.message}</p>
+                      <p className="mt-0.5 text-[10px] text-fg-3">{e.at}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+
+        <section className="mt-4 rounded-2xl glass-panel p-4">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.22em] text-fg-3">この端末からの実測</h2>
+          <div className="mt-2">
+            {fetchMs !== null && <Row label="診断API（往復）" value={`${fetchMs} ms`} warn={fetchMs > 1500} />}
+            {probes.map((p, i) => (
+              <Row
+                key={`${p.path}-${i}`}
+                label={`${p.label}`}
+                value={p.ms === null ? "-" : `${p.ms} ms（${p.status}）`}
+                warn={typeof p.ms === "number" && p.ms > 1500}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-fg-2">
+            サーバー内部の数値が正常なのにここが遅い場合は、経路（回線・プロキシ）か端末側が原因です。
+          </p>
+        </section>
+
+        <p className="mt-6 text-center text-[11px] tracking-wide text-fg-3">
+          Poker ART v{APP_VERSION} ・ 接続先 {SERVER_URL}
+        </p>
+      </div>
+    </div>
+  );
+}

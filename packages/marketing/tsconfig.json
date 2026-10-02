@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // RSSの取得に Node の global fetch を使う(undici の型が @types/node に入っている)。
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

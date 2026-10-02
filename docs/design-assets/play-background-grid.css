@@ -1,0 +1,24 @@
+/*
+ * 格子の背景(未適用)
+ *
+ * 出典: uiverse.io by adamgiebl
+ * 受領: 2026-09-09 / オーナーより「今すぐ適応せずにダウンロードして」
+ *
+ * プレイ画面の背景候補として受け取ったもの。現在のプレイ画面は星空
+ * (globals.css の .starfield / uiverse.io by amir_6539)を使っているため、
+ * これは適用していない。差し替えるときは page.tsx の .starfield レイヤーを
+ * このクラスに置き換える。
+ *
+ * 注意: --color と background-color は元の値のまま置いてある。適用する際は
+ * アプリの意味論トークン(canvas / n-*)へ読み替えること。
+ */
+.container {
+  width: 100%;
+  height: 100%;
+  --color: rgba(114, 114, 114, 0.3);
+  background-color: #191a1a;
+  background-image:
+    linear-gradient(0deg, transparent 24%, var(--color) 25%, var(--color) 26%, transparent 27%, transparent 74%, var(--color) 75%, var(--color) 76%, transparent 77%, transparent),
+    linear-gradient(90deg, transparent 24%, var(--color) 25%, var(--color) 26%, transparent 27%, transparent 74%, var(--color) 75%, var(--color) 76%, transparent 77%, transparent);
+  background-size: 55px 55px;
+}

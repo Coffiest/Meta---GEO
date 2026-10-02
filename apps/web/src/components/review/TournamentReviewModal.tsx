@@ -1,0 +1,691 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, PresenceContext, useIsPresent, useReducedMotion } from "framer-motion";
+import { SPRING_SHEET } from "@/lib/motion";
+import {
+  fetchTournamentReview,
+  fetchTournamentReviewSummary,
+  type ReviewedDecision,
+  type ReviewQuotaInfo,
+  type TournamentReview,
+  type TournamentReviewSummary,
+} from "@/lib/reviewApi";
+import { useSubscriptionStatus } from "@/lib/subscription";
+import { ReviewPaywall } from "@/components/review/ReviewPaywall";
+import {
+  CLASSIFICATION_META,
+  DISPLAY_CLASSIFICATION_ORDER,
+  displayCount,
+  type Classification,
+} from "@/lib/classification";
+import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { ReviewReplayView, HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
+import { STREET_EN } from "@/lib/actionNotation";
+import { buildTournamentReplay } from "@/lib/replay";
+import { useCountUp } from "@/lib/useCountUp";
+import { AdSlot } from "@/components/AdSlot";
+
+/**
+ * トーナメント棋譜解析。Appleネイティブ(iOS HIG)風のデザイン言語で構成する:
+ *  - 総括: グラバー付きのシート(systemGroupedBackground)+ラージタイトル+白のインセット
+ *    グループカード。GTOスコアはリングゲージ+カウントアップで演出。
+ *  - 再生: `ReviewReplayView`(chess.com と同じ配置: 評価カードが上、卓が中央、手の一覧が下)。
+ * アニメーションはスプリング+スタッガー(ease-out系)で統一し、reduced-motion時は簡略化する。
+ * 画面遷移ではなくモーダルで開く(確定仕様)。呼び出し側で AnimatePresence によりマウント制御。
+ */
+
+const STREET_LABEL = STREET_EN;
+
+/** 無料要約画面の広告枠スロットID。未設定の間はAdSlot自体が非表示になる。 */
+const ADSENSE_REVIEW_SLOT = process.env["NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID"];
+
+/** スタッガー入場(親)。 */
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
+/** 各セクションのライズイン。 */
+const riseIn = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, damping: 26, stiffness: 340 } },
+};
+
+/** GTOスコアのリングゲージ(カウントアップ+ゴールドのアーク)。 */
+function ScoreRing({ score }: { score: number | null }) {
+  const reduced = useReducedMotion();
+  const animated = useCountUp(0, score ?? 0, 1100, 250);
+  const shown = score === null ? null : reduced ? score : Math.round(animated);
+  const R = 54;
+  const C = 2 * Math.PI * R;
+  const frac = (score ?? 0) / 100;
+  return (
+    <div className="relative h-[132px] w-[132px] shrink-0">
+      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+        <circle cx="60" cy="60" r={R} fill="none" stroke="#242426" strokeWidth="9" />
+        {score !== null && (
+          <motion.circle
+            cx="60"
+            cy="60"
+            r={R}
+            fill="none"
+            stroke="url(#gto-ring-grad)"
+            strokeWidth="9"
+            strokeLinecap="round"
+            strokeDasharray={C}
+            initial={{ strokeDashoffset: C }}
+            animate={{ strokeDashoffset: C * (1 - frac) }}
+            transition={reduced ? { duration: 0 } : { duration: 1.1, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          />
+        )}
+        <defs>
+          <linearGradient id="gto-ring-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#5FE0C6" />
+            <stop offset="100%" stopColor="#1EA88C" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[36px] font-bold leading-none tracking-tight text-fg tabular-nums">
+          {shown === null ? "—" : shown}
+        </span>
+        <span className="mt-1 text-[11px] font-semibold text-fg-2">GTOスコア</span>
+      </div>
+    </div>
+  );
+}
+
+/** 総括のハイライト(ワースト/ベスト)1件。タップで再生の該当ステップへジャンプ。 */
+interface Highlight {
+  kind: "worst" | "best";
+  handId: string;
+  handNumber: number;
+  d: ReviewedDecision;
+}
+
+/** iOS風のチェブロン(リスト行の右端)。 */
+function Chevron() {
+  return (
+    <Icon name="chevron-right" className="ml-auto h-4 w-4 shrink-0 text-fg-3" />
+  );
+}
+
+import { ReportErrorButton } from "../ReportErrorButton";
+import { Icon } from "../Icon";
+import { Loader } from "../ui/Loader";
+
+export function TournamentReviewModal({
+  tournamentId,
+  accessToken,
+  onClose,
+  initialHandId,
+}: {
+  tournamentId: string;
+  accessToken: string | undefined;
+  onClose: () => void;
+  /** ヒストリーのハンド行から開いたとき、そのハンドの頭から再生を始める。 */
+  initialHandId?: string | null;
+}) {
+  // 閉じ始めたら(退場アニメーション中)、全画面の膜にタップを通す。退場が何かの理由で終わらなくても、
+  // 透明な膜が下の画面の操作を塞がないようにする。
+  const present = useIsPresent();
+  const backdropStyle = present ? undefined : { pointerEvents: "none" as const };
+
+  // 無料の要約(広告つき画面)。分類件数のみで課金ゲート無し。開いた瞬間に取得する。
+  const [freeData, setFreeData] = useState<TournamentReviewSummary | null>(null);
+  const [freeLoading, setFreeLoading] = useState(true);
+  const [freeError, setFreeError] = useState<string | null>(null);
+
+  // 局後検討(詳細解析)。「局後検討」ボタンを押した時だけ取得を開始する(=課金ゲートが働くのは
+  // この時点)。detailRequestedがfalseのままなら、無料の要約画面だけが表示され続ける。
+  const [detailRequested, setDetailRequested] = useState(false);
+  const [data, setData] = useState<TournamentReview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // 無料枠超過(402)時のペイウォール情報。
+  const [quota, setQuota] = useState<ReviewQuotaInfo | null>(null);
+  const [view, setView] = useState<"free" | "detail" | "replay">("free");
+  const [stepIndex, setStepIndex] = useState(0);
+  const pollTries = useRef(0);
+  const freePollTries = useRef(0);
+
+  // サブスク状態(残り無料枠・加入バッジ表示用)。
+  const { status: subStatus, reload: reloadSubStatus } = useSubscriptionStatus(accessToken);
+  // クーポン適用などで解析が開放されたときに、詳細解析の取得をやり直すためのトリガー。
+  const [retryToken, setRetryToken] = useState(0);
+  // App Store配布のiOSアプリ内かどうか。サーバー側(reviewApi.ts)もUser-Agentから同じ判定を
+  // 行い、iOSアプリではサブスク加入者でも無料枠バイパスを適用しない(Apple審査ガイドライン
+  // 3.1.1対応)。表示側もこれに合わせて「使い放題」バッジを出さないようにする(実際は
+  // 使い放題ではないのに出すと矛盾するため)。
+
+  // 無料要約の取得(常時・課金ゲート無し)。
+  useEffect(() => {
+    if (!tournamentId) return;
+    if (!accessToken) {
+      setFreeLoading(false);
+      setFreeError("ログインが必要です。");
+      return;
+    }
+    let cancelled = false;
+    setFreeLoading(true);
+    setFreeError(null);
+    fetchTournamentReviewSummary(tournamentId, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.status === "ok") setFreeData(res.data);
+        else setFreeError("このトーナメントの解析を取得できませんでした。");
+      })
+      .catch(() => {
+        // 通信失敗でも「解析中…」のまま固まらせない。原因を出して閉じられる状態にする。
+        if (!cancelled) setFreeError("通信エラーで解析を取得できませんでした。時間をおいて再度お試しください。");
+      })
+      .finally(() => !cancelled && setFreeLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId, accessToken]);
+
+  // 無料要約側もソルバー解析が未完了の間はポーリングして件数を更新する(最大5分)。
+  useEffect(() => {
+    if (!freeData?.solving || !accessToken) return;
+    const timer = setInterval(() => {
+      freePollTries.current += 1;
+      if (freePollTries.current > 60) {
+        clearInterval(timer);
+        return;
+      }
+      fetchTournamentReviewSummary(tournamentId, accessToken)
+        .then((res) => {
+          if (res.status === "ok") setFreeData(res.data);
+        })
+        .catch(() => {
+          // ポーリングの一時的な失敗は無視して次のtickで再試行する(未処理rejectを出さない)。
+        });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [freeData?.solving, accessToken, tournamentId]);
+
+  // 局後検討(詳細)の取得。「局後検討」ボタンが押された後にのみ発火する。
+  useEffect(() => {
+    if (!detailRequested || !tournamentId) return;
+    if (!accessToken) {
+      setLoading(false);
+      setError("ログインが必要です。");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setQuota(null);
+    fetchTournamentReview(tournamentId, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.status === "ok") setData(res.data);
+        else if (res.status === "quota") setQuota(res.info);
+        else setError("このトーナメントの解析を取得できませんでした。");
+      })
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [detailRequested, tournamentId, accessToken, retryToken]);
+
+  // ソルバー解析が未完了の間は約5秒間隔でポーリングし、「解析中…」をあとから埋める(最大5分)。
+  useEffect(() => {
+    if (!data?.solving || !accessToken) return;
+    const timer = setInterval(() => {
+      pollTries.current += 1;
+      if (pollTries.current > 60) {
+        clearInterval(timer);
+        return;
+      }
+      fetchTournamentReview(tournamentId, accessToken).then((res) => {
+        if (res.status === "ok") setData(res.data);
+      });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [data?.solving, accessToken, tournamentId]);
+
+  /** 「局後検討」ボタン: 初回クリックで詳細解析(課金ゲートあり)の取得を開始する。 */
+  function openReview() {
+    setDetailRequested(true);
+    setLoading(true); // フェッチ開始までの1フレームの空白を防ぐ
+    setView("detail");
+  }
+
+  const heroUserId = data?.hands[0]?.heroUserId ?? "";
+  const replay = useMemo(
+    () => (data && heroUserId ? buildTournamentReplay(data.hands, heroUserId) : null),
+    [data, heroUserId]
+  );
+
+  // 総括: 分類カウント / 総ロスEV / ワースト・ベスト。
+  const summary = useMemo(() => {
+    const counts: Record<Classification, number> = {
+      artistic: 0,
+      best: 0,
+      great: 0,
+      excellent: 0,
+      good: 0,
+      book: 0,
+      inaccuracy: 0,
+      mistake: 0,
+      blunder: 0,
+    };
+    let totalEvLoss = 0;
+    let worst: Highlight | null = null;
+    let best: Highlight | null = null;
+    const bestPriority: Record<string, number> = { artistic: 0, great: 1, best: 2 };
+    for (const h of data?.hands ?? []) {
+      for (const d of h.decisions) {
+        if (!d.classification) continue;
+        counts[d.classification] += 1;
+        if (d.evLossBb !== null) {
+          totalEvLoss += d.evLossBb;
+          if (d.evLossBb > 0.02 && (!worst || d.evLossBb > (worst.d.evLossBb ?? 0))) {
+            worst = { kind: "worst", handId: h.handId, handNumber: h.handNumber, d };
+          }
+        }
+        const p = bestPriority[d.classification];
+        if (p !== undefined) {
+          const cur = best ? bestPriority[best.d.classification ?? ""] ?? 9 : 9;
+          if (p < cur) best = { kind: "best", handId: h.handId, handNumber: h.handNumber, d };
+        }
+      }
+    }
+    return { counts, totalEvLoss, worst, best };
+  }, [data]);
+
+  const steps = replay?.steps ?? [];
+
+  const goTo = useCallback(
+    (idx: number) => setStepIndex(Math.max(0, Math.min(steps.length - 1, idx))),
+    [steps.length]
+  );
+  const jumpToDecision = useCallback(
+    (handId: string, sequenceNumber: number) => {
+      const idx = replay?.stepIndexByDecision[`${handId}:${sequenceNumber}`];
+      if (idx !== undefined) {
+        setStepIndex(idx);
+        setView("replay");
+      }
+    },
+    [replay]
+  );
+
+  // 再生中はキーボードの←→でも操作できる。
+  useEffect(() => {
+    if (view !== "replay") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") goTo(stepIndex - 1);
+      if (e.key === "ArrowRight") goTo(stepIndex + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view, stepIndex, goTo]);
+
+  // ================= 再生ビュー(全画面。chess.com と同じ配置: 解説が上・手の一覧が下) =================
+  if (view === "replay" && data && replay && steps[stepIndex]) {
+    // 再生画面は、モーダルの AnimatePresence の退場待ちから切り離す。卓(PokerTable)のディーラーボタンの
+    // layout アニメーションなどが退場待ちに登録されたまま残り、総括へ戻ってモーダルを閉じても退場が終わらず、
+    // 透明な全画面の膜が残ってヒストリー画面をフリーズさせていた。この画面はモーダルの中で総括と
+    // 入れ替わるだけで、モーダルと一緒に退場アニメーションする必要は無い。
+    return (
+      <PresenceContext.Provider value={null}>
+        <ReviewReplayView
+          hands={data.hands}
+          replay={replay}
+          heroUserId={heroUserId}
+          stepIndex={stepIndex}
+          goTo={goTo}
+          onBack={() => setView("detail")}
+        />
+      </PresenceContext.Provider>
+    );
+  }
+
+  // ================= 無料要約ビュー(広告つき・課金ゲート無し) =================
+  if (view === "free") {
+    const freeShown = freeData
+      ? DISPLAY_CLASSIFICATION_ORDER.map((c) => ({ c, n: displayCount(freeData.classificationCounts, c) })).filter((x) => x.n > 0)
+      : [];
+    const freeMax = Math.max(1, ...freeShown.map((x) => x.n));
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        style={backdropStyle}
+        className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
+      >
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={SPRING_SHEET}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
+          style={{ background: SHEET_BG }}
+        >
+          <div className="sticky top-0 z-10 -mx-4 px-4 pt-2.5 pb-1" style={{ background: SHEET_BG }}>
+            <div className="mx-auto h-[5px] w-9 rounded-full bg-black/50" />
+          </div>
+
+          <div className="mt-2 mb-4 flex items-start gap-2">
+            <div className="min-w-0">
+              <h2 className="text-[28px] font-bold leading-tight tracking-tight text-fg">棋譜解析</h2>
+              <p className="mt-1 text-[13px] font-medium text-fg-2">今回の結果</p>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose}
+              className="ml-auto mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-n-9"
+              aria-label="閉じる"
+            >
+              <Icon name="close" className="h-3.5 w-3.5" />
+            </motion.button>
+          </div>
+
+          {freeLoading ? (
+            <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
+              <Loader size="sm" />
+              集計中…
+            </div>
+          ) : freeError ? (
+            <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5 text-[14px] font-medium text-crimson-300">{freeError}</div>
+          ) : freeData ? (
+            <motion.div variants={stagger} initial="hidden" animate="show">
+              {/* 分類の件数(広告つき・誰でも無料で見られる範囲)。 */}
+              <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-e1">
+                {freeShown.length > 0 ? (
+                  freeShown.map(({ c, n }, i) => (
+                    <div
+                      key={c}
+                      className="flex items-center gap-3 px-4 py-3"
+                      style={i > 0 ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
+                    >
+                      <ClassificationBadge classification={c} size={22} />
+                      <span className="w-[74px] shrink-0 text-[13px] font-semibold" style={{ color: CLASSIFICATION_META[c].color }}>
+                        {CLASSIFICATION_META[c].label}
+                      </span>
+                      <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: CLASSIFICATION_META[c].color, originX: 0 }}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: n / freeMax }}
+                          transition={{ duration: 0.7, delay: 0.35 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                        />
+                      </div>
+                      <span className="w-7 shrink-0 text-right text-[15px] font-bold text-fg tabular-nums">{n}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-4 py-5 text-center text-[13px] font-medium text-fg-3">解析対象のスポットがありませんでした。</p>
+                )}
+              </motion.div>
+
+              {freeData.solving && (
+                <motion.p variants={riseIn} className="mb-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-2">
+                  <Loader size="sm" />
+                  ソルバー解析中… 件数は自動で更新されます
+                </motion.p>
+              )}
+
+              {/* 広告枠(AdSense未設定の間は自動的に非表示)。 */}
+              {ADSENSE_REVIEW_SLOT && (
+                <motion.div variants={riseIn} className="mb-4">
+                  <AdSlot slot={ADSENSE_REVIEW_SLOT} />
+                </motion.div>
+              )}
+
+              {/* 局後検討へ(ここから先が課金ゲート: 1日1回無料→使い放題プラン)。 */}
+              <motion.div variants={riseIn}>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={openReview}
+                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-accent text-[17px] font-semibold text-on-accent shadow-glow"
+                >
+                  <Icon name="refresh" className="h-4 w-4" />
+                  局後検討
+                  {subStatus?.active ? (
+                    <span className="ml-1 rounded-full bg-accent px-2 py-[2px] text-[10px] font-bold text-on-accent">
+                      {subStatus.status === "referral" ? "招待特典" : "使い放題"}
+                    </span>
+                  ) : subStatus ? (
+                    <span className="ml-1 rounded-full bg-surface/80 px-2 py-[2px] text-[10px] font-bold tabular-nums">
+                      残り無料{subStatus.reviewsRemaining}回
+                    </span>
+                  ) : null}
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // ================= 局後検討: 総括ビュー(iOSシート) =================
+  const shownClasses = DISPLAY_CLASSIFICATION_ORDER.map((c) => ({ c, n: displayCount(summary.counts, c) })).filter(
+    (x) => x.n > 0
+  );
+  const maxClassCount = Math.max(1, ...shownClasses.map((x) => x.n));
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={backdropStyle}
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
+    >
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={SPRING_SHEET}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
+        style={{ background: SHEET_BG }}
+      >
+        {/* グラバー */}
+        <div className="sticky top-0 z-10 -mx-4 px-4 pt-2.5 pb-1" style={{ background: SHEET_BG }}>
+          <div className="mx-auto h-[5px] w-9 rounded-full bg-black/50" />
+        </div>
+
+        {/* ラージタイトル行 */}
+        <div className="mt-2 mb-4 flex items-start gap-2">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setView("free")}
+            className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-n-9"
+            aria-label="結果画面へ戻る"
+          >
+            <Icon name="chevron-left" className="h-4 w-4" />
+          </motion.button>
+          <div className="min-w-0">
+            <h2 className="text-[28px] font-bold leading-tight tracking-tight text-fg">局後検討</h2>
+            <div className="mt-1 flex items-center gap-1.5">
+              <p className="text-[13px] font-medium text-fg-2">総括レポート</p>
+              {subStatus?.active ? (
+                <span className="rounded-full bg-accent px-2 py-[2px] text-[10px] font-bold text-on-accent">
+                  {subStatus.status === "referral" ? "招待特典で使い放題" : "使い放題"}
+                </span>
+              ) : subStatus && !quota ? (
+                <span className="rounded-full bg-white/[0.05] px-2 py-[2px] text-[10px] font-semibold text-fg-2 tabular-nums">
+                  残り無料 {subStatus.reviewsRemaining}回
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onClose}
+            className="ml-auto mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-n-9"
+            aria-label="閉じる"
+          >
+            <Icon name="close" className="h-3.5 w-3.5" />
+          </motion.button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2.5 rounded-[20px] bg-surface p-10 text-[14px] font-medium text-fg-2 shadow-e1">
+            <Loader size="sm" />
+            全ハンドを解析中…
+          </div>
+        ) : error ? (
+          <div className="rounded-[20px] bg-crimson-500/10 px-4 py-3.5">
+            <p className="text-[14px] font-medium text-crimson-300">{error}</p>
+            <ReportErrorButton scope="review:tournament" message={error} className="mt-2" />
+          </div>
+        ) : quota ? (
+          <ReviewPaywall
+            tournamentId={tournamentId}
+            accessToken={accessToken}
+            nextFreeAt={quota.nextFreeAt}
+            onUnlocked={() => {
+              setQuota(null);
+              setRetryToken((n) => n + 1);
+              void reloadSubStatus();
+            }}
+          />
+        ) : data ? (
+          <motion.div variants={stagger} initial="hidden" animate="show">
+            {/* ヒーローカード: リングゲージ + メトリクス */}
+            <motion.div
+              variants={riseIn}
+              className="mb-3 glass-panel rounded-[24px] p-5 shadow-e2"
+            >
+              <div className="flex items-center gap-5">
+                <ScoreRing score={data.gtoAccuracy} />
+                <div className="min-w-0 flex-1">
+                  <div className="pb-3" style={{ borderBottom: `0.5px solid ${HAIRLINE}` }}>
+                    <p className="text-[11px] font-semibold text-fg-2">総ロスEV</p>
+                    <p className="text-[24px] font-bold leading-tight tracking-tight text-crimson-300 tabular-nums">
+                      −{summary.totalEvLoss.toFixed(1)}
+                      <span className="ml-0.5 text-[13px] font-semibold">bb</span>
+                    </p>
+                  </div>
+                  <div className="pt-3">
+                    <p className="text-[11px] font-semibold text-fg-2">解析済み</p>
+                    <p className="text-[17px] font-bold leading-tight text-fg tabular-nums">
+                      {data.classifiedDecisions}
+                      <span className="text-fg-3">/{data.totalDecisions}</span>
+                      <span className="ml-1.5 text-[12px] font-semibold text-fg-3">全{data.hands.length}ハンド</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {data.solving && (
+                <p className="mt-3 flex items-center gap-1.5 text-[12px] font-medium text-fg-2">
+                  <Loader size="sm" />
+                  ソルバー解析中… 結果は自動で反映されます
+                </p>
+              )}
+            </motion.div>
+
+            {/* 分類リスト(iOSインセットグループ+比率バー)。発生した評価のみ表示。 */}
+            <motion.div variants={riseIn} className="mb-3 overflow-hidden rounded-[24px] bg-surface shadow-e1">
+              {shownClasses.length > 0 ? (
+                shownClasses.map(({ c, n }, i) => (
+                  <div
+                    key={c}
+                    className="flex items-center gap-3 px-4 py-3"
+                    style={i > 0 ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
+                  >
+                    <ClassificationBadge classification={c} size={22} />
+                    <span className="w-[74px] shrink-0 text-[13px] font-semibold" style={{ color: CLASSIFICATION_META[c].color }}>
+                      {CLASSIFICATION_META[c].label}
+                    </span>
+                    <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: CLASSIFICATION_META[c].color, originX: 0 }}
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: n / maxClassCount }}
+                        transition={{ duration: 0.7, delay: 0.35 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                    </div>
+                    <span className="w-7 shrink-0 text-right text-[15px] font-bold text-fg tabular-nums">{n}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="px-4 py-5 text-center text-[13px] font-medium text-fg-3">解析対象のスポットがありませんでした。</p>
+              )}
+            </motion.div>
+
+            {/* ワースト / ベスト ハイライト */}
+            {(summary.worst || summary.best) && (
+              <motion.div variants={riseIn} className="mb-4 overflow-hidden rounded-[24px] bg-surface shadow-e1">
+                {summary.worst && (
+                  <button
+                    onClick={() => jumpToDecision(summary.worst!.handId, summary.worst!.d.sequenceNumber)}
+                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
+                  >
+                    {summary.worst.d.classification && (
+                      <ClassificationBadge classification={summary.worst.d.classification} size={26} />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-crimson-300">ワースト</p>
+                      <p className="truncate text-[14px] font-semibold text-fg">
+                        Hand #{summary.worst.handNumber} · {STREET_LABEL[summary.worst.d.street] ?? summary.worst.d.street} ·{" "}
+                        {summary.worst.d.actionName}
+                        <span className="ml-1.5 text-[12px] font-bold text-crimson-300 tabular-nums">
+                          −{(summary.worst.d.evLossBb ?? 0).toFixed(2)}bb
+                        </span>
+                      </p>
+                    </div>
+                    <Chevron />
+                  </button>
+                )}
+                {summary.best && (
+                  <button
+                    onClick={() => jumpToDecision(summary.best!.handId, summary.best!.d.sequenceNumber)}
+                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
+                    style={summary.worst ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
+                  >
+                    {summary.best.d.classification && (
+                      <ClassificationBadge classification={summary.best.d.classification} size={26} />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold" style={{ color: CLASSIFICATION_META[summary.best.d.classification ?? "best"].color }}>
+                        ベスト · {CLASSIFICATION_META[summary.best.d.classification ?? "best"].label}
+                      </p>
+                      <p className="truncate text-[14px] font-semibold text-fg">
+                        Hand #{summary.best.handNumber} · {STREET_LABEL[summary.best.d.street] ?? summary.best.d.street} ·{" "}
+                        {summary.best.d.actionName}
+                      </p>
+                    </div>
+                    <Chevron />
+                  </button>
+                )}
+              </motion.div>
+            )}
+
+            {/* 棋譜解析を開始(iOS Filled Button) */}
+            <motion.div variants={riseIn}>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  // ヒストリーのハンド行から開いたなら、そのハンドの頭から(解析対象外で無ければ)。
+                  const start = initialHandId ? replay?.handStartIndices[initialHandId] : undefined;
+                  setStepIndex(start ?? 0);
+                  setView("replay");
+                }}
+                disabled={steps.length === 0}
+                className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-accent text-[17px] font-semibold text-on-accent shadow-glow disabled:opacity-40"
+              >
+                <Icon name="play" className="h-4 w-4" />
+                棋譜解析を開始
+              </motion.button>
+              {steps.length === 0 && (
+                <p className="py-5 text-center text-[13px] font-medium text-fg-3">再生できるハンドがありません。</p>
+              )}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </motion.div>
+    </motion.div>
+  );
+}

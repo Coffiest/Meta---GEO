@@ -106,6 +106,37 @@ describe("MultiTableTournament", () => {
     expect(finalOccupancy[0]!.stack).toBe(totalStartingChips);
   });
 
+  it("re-seats a late/re-entering player at their preferred seat when it is free, else falls back", () => {
+    const players = Array.from({ length: 5 }, (_, i) => ({ playerId: `p${i}`, displayName: `P${i}` }));
+    const mtt = new MultiTableTournament({ tableSeatCount: 6, players });
+    // 5人 -> 1卓(seat 0..4 occupied)。seat 5 が空いているのでそこを希望すればそこへ座れる。
+    const back = mtt.registerLatePlayer(
+      { playerId: "re", displayName: "Re" },
+      undefined,
+      { tableId: 0, seatIndex: 5 },
+    );
+    expect(back).toEqual({ tableId: 0, seatIndex: 5 });
+
+    // 希望席が埋まっている場合はフォールバック(その卓の空席 or 別卓)へ。
+    const back2 = mtt.registerLatePlayer(
+      { playerId: "re2", displayName: "Re2" },
+      undefined,
+      { tableId: 0, seatIndex: 5 }, // すでに埋まっている
+    );
+    expect(back2.seatIndex).not.toBe(5);
+
+    // 希望卓が進行中(busy)なら希望席を使わない。
+    const p2 = Array.from({ length: 4 }, (_, i) => ({ playerId: `q${i}`, displayName: `Q${i}` }));
+    const mtt2 = new MultiTableTournament({ tableSeatCount: 6, players: p2 });
+    const busy = mtt2.registerLatePlayer(
+      { playerId: "qr", displayName: "QR" },
+      new Set([0]),
+      { tableId: 0, seatIndex: 5 },
+    );
+    // busyなので卓0のseat5希望は無視され、空席へフォールバック(進行中ハンドの席は動かさない)。
+    expect(busy.seatIndex).not.toBe(5);
+  });
+
   it("consolidates to one table once few enough players remain, even if they started on different tables", () => {
     // 7人 -> 6-maxなら2卓必要(ceil(7/6)=2)。1人バストすると6人になり1卓で足りるようになるため、
     // テーブル解体が発生して最終的に1卓に集約されるはず。
