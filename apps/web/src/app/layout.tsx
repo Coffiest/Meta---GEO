@@ -4,6 +4,7 @@ import "./globals.css";
 import { LocaleProvider } from "@/lib/i18n";
 import { DiagnosticsToaster } from "@/components/DiagnosticsToaster";
 import { LaunchSplash } from "@/components/LaunchSplash";
+import { LocaleSuggestion } from "@/components/LocaleSuggestion";
 
 // Google AdSense。NEXT_PUBLIC_ADSENSE_CLIENT_ID(ca-pub-...)が未設定の間はスクリプト自体を
 // 読み込まない(審査未通過の状態で広告タグを配信しないため)。設定後は再デプロイのみで有効化される。
@@ -213,7 +214,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
         {/* 起動画面。アプリ本体(/)を開いたときだけ、最初の描画から出る。 */}
         <LaunchSplash />
-        <LocaleProvider>{children}</LocaleProvider>
+        <LocaleProvider>
+          {children}
+          {/* 端末の言語と国の言語が食い違うときだけ「◯◯語で表示しますか?」と提案する。 */}
+          <LocaleSuggestion />
+        </LocaleProvider>
         {/* JSエラー・Promise拒否・メインスレッド過負荷を、画面下部のトーストでこまめに知らせる。 */}
         <DiagnosticsToaster />
       </body>

@@ -53,6 +53,8 @@ export interface PublicPlayerProfile {
   id: string;
   displayName: string;
   avatarKey: string | null;
+  /** High Roller / Super High Roller の資格者のアイコン枠(誰に対しても同じ形で返る)。 */
+  frame?: "silver" | "gold" | null;
   stats: PlayerStatsSummary;
   rrRating: RRRatingSummary;
 }

@@ -100,12 +100,18 @@ export function Avatar({
   displayName,
   size = 36,
   timer,
+  frame,
 }: {
   avatarKey: string | null | undefined;
   /** 現状は未使用だが、呼び出し側の互換性のため受け取る(将来のツールチップ等に備える)。 */
   displayName?: string;
   size?: number;
   timer?: { endsAt: number; durationMs: number; timeBank?: boolean } | null;
+  /**
+   * High Roller / Super High Roller の資格者の枠(銀 / 金)。サーバーが全員同じ形で返す値をそのまま渡す。
+   * 枠の無い人は人間にも多数いるので、枠の有無で相手の種別は分からない。
+   */
+  frame?: "silver" | "gold" | null;
 }) {
   const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
   // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
@@ -114,8 +120,19 @@ export function Avatar({
   const pad = timer ? 6 : 3;
   const innerBoxStyle = { top: pad, left: pad, width: size - pad * 2, height: size - pad * 2 };
 
+  // 枠はアイコンの外周に金属の輪として描く(アイコン本体の下に敷いた円が、外周の分だけはみ出して見える)。
+  const frameWidth = Math.max(2, Math.round(size * 0.07));
+  const frameInset = Math.max(0, pad - frameWidth);
+
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
+      {frame && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute rounded-full ${frame === "gold" ? "avatar-frame-gold" : "avatar-frame-silver"}`}
+          style={{ inset: frameInset }}
+        />
+      )}
       {isPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img

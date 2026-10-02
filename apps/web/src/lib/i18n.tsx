@@ -1,30 +1,69 @@
 "use client";
 
 /**
- * 多言語対応(i18n)の基盤。日本語(ja)を基準に、英語(en)・韓国語(ko)・中国語(zh)へ切り替える。
- * - 言語は localStorage("locale") に保存し、いつでも切替可能(LanguageSwitcher から)。
- * - 初回は保存値 → ブラウザ言語 → ja の順で決定する。
+ * 多言語対応(i18n)の基盤。日本語(ja)を基準に、英語(en)・韓国語(ko)・中国語の簡体字(zh)/繁体字(zh-Hant)・
+ * ポルトガル語(ブラジル, pt-BR)・スペイン語(中南米向け, es)へ切り替える。
+ * - 本人が選んだ言語は localStorage("locale") に保存し、最優先にする(LanguageSwitcher から切替)。
+ * - 選んでいなければ「端末の言語 + 国」で自動判定する(src/lib/localeDetect.ts)。決まらなければ英語。
+ *   端末の言語と国の言語が食い違うときは自動で切り替えず、LocaleSuggestion で提案する。
  * - t("key") で辞書を引く。未定義キーは ja にフォールバックし、それも無ければキー文字列を返す。
  * - {name} 形式のプレースホルダは t("key", { name }) で差し込む。
  *
  * まずは共通・ログイン・オンボーディングの文言を収録。以降、画面ごとに辞書を追加していく。
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { isLocale, resolveLocale, type Locale } from "./localeDetect";
+import { es } from "./locales/es";
+import { ptBR } from "./locales/ptBR";
+import { zhHant } from "./locales/zhHant";
 
-export type Locale = "ja" | "en" | "ko" | "zh";
+export type { Locale } from "./localeDetect";
 
 export const LOCALES: { code: Locale; label: string; short: string }[] = [
   { code: "ja", label: "日本語", short: "JA" },
   { code: "en", label: "English", short: "EN" },
+  { code: "pt-BR", label: "Português", short: "PT" },
+  { code: "es", label: "Español", short: "ES" },
   { code: "ko", label: "한국어", short: "KO" },
-  { code: "zh", label: "中文", short: "ZH" },
+  { code: "zh-Hant", label: "繁體中文", short: "繁" },
+  { code: "zh", label: "简体中文", short: "简" },
 ];
 
 const STORAGE_KEY = "locale";
+/** 国の判定結果の保存先(毎回の問い合わせを避ける)。 */
+const COUNTRY_KEY = "geoCountry";
+/** 言語の提案を閉じた記録(同じ提案を繰り返さない)。 */
+const SUGGEST_DISMISSED_KEY = "localeSuggestDismissed";
+
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* localStorage 不可の環境では保存をスキップ */
+  }
+}
 
 type Dict = Record<string, string>;
 
 const ja: Dict = {
+  "tier.meta": "{bb}BB・{min}分レベル",
+  "tier.locked": "参加条件",
+  "tier.req.profit": "生涯収支",
+  "tier.req.rating": "偏差値",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "6人そろうと開始します",
+  "tier.cancelWaiting": "やめる",
+  "tier.lockedError": "この卓の参加条件を満たしていません",
+  "locale.suggest": "{lang}で表示しますか?",
+  "locale.switch": "切り替える",
+  "locale.dismiss": "閉じる",
   "common.appName": "Poker ART",
   "common.cancel": "キャンセル",
   "common.back": "戻る",
@@ -383,6 +422,17 @@ const ja: Dict = {
 };
 
 const en: Dict = {
+  "tier.meta": "{bb}BB · {min}-min levels",
+  "tier.locked": "Requirements",
+  "tier.req.profit": "Lifetime profit",
+  "tier.req.rating": "Rating",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "Starts when 6 players join",
+  "tier.cancelWaiting": "Cancel",
+  "tier.lockedError": "You don't meet the requirements for this table yet",
+  "locale.suggest": "View in {lang}?",
+  "locale.switch": "Switch",
+  "locale.dismiss": "Dismiss",
   "common.appName": "Poker ART",
   "common.cancel": "Cancel",
   "common.back": "Back",
@@ -741,6 +791,17 @@ const en: Dict = {
 };
 
 const ko: Dict = {
+  "tier.meta": "{bb}BB · {min}분 레벨",
+  "tier.locked": "참가 조건",
+  "tier.req.profit": "누적 수지",
+  "tier.req.rating": "편차치",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "6명이 모이면 시작합니다",
+  "tier.cancelWaiting": "취소",
+  "tier.lockedError": "이 테이블의 참가 조건을 충족하지 않습니다",
+  "locale.suggest": "{lang}(으)로 표시할까요?",
+  "locale.switch": "전환",
+  "locale.dismiss": "닫기",
   "common.appName": "Poker ART",
   "common.cancel": "취소",
   "common.back": "뒤로",
@@ -1099,6 +1160,17 @@ const ko: Dict = {
 };
 
 const zh: Dict = {
+  "tier.meta": "{bb}BB・每级{min}分钟",
+  "tier.locked": "参加条件",
+  "tier.req.profit": "累计收支",
+  "tier.req.rating": "偏差值",
+  "tier.req.roi": "ROI",
+  "tier.waitingFull": "凑齐6人后开始",
+  "tier.cancelWaiting": "取消",
+  "tier.lockedError": "尚未满足此牌桌的参加条件",
+  "locale.suggest": "要以{lang}显示吗?",
+  "locale.switch": "切换",
+  "locale.dismiss": "关闭",
   "common.appName": "Poker ART",
   "common.cancel": "取消",
   "common.back": "返回",
@@ -1456,33 +1528,73 @@ const zh: Dict = {
   "coupon.error.failed": "应用失败，请稍后再试。",
 };
 
-const DICTS: Record<Locale, Dict> = { ja, en, ko, zh };
+const DICTS: Record<Locale, Dict> = { ja, en, ko, zh, "zh-Hant": zhHant, "pt-BR": ptBR, es };
 
-function detectInitialLocale(): Locale {
-  if (typeof window === "undefined") return "ja";
-  const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (saved === "ja" || saved === "en" || saved === "ko" || saved === "zh") return saved;
-  const nav = (window.navigator.language || "ja").toLowerCase();
-  if (nav.startsWith("ko")) return "ko";
-  if (nav.startsWith("zh")) return "zh";
-  if (nav.startsWith("en")) return "en";
-  return "ja";
+function browserLanguages(): string[] {
+  const list = window.navigator.languages?.length ? window.navigator.languages : [window.navigator.language];
+  return list.filter((l): l is string => typeof l === "string" && l.length > 0);
+}
+
+function format(raw: string, vars?: Record<string, string | number>): string {
+  if (!vars) return raw;
+  return raw.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
+}
+
+/** 指定した言語で辞書を引く(未定義は英語 → 日本語 → キーの順で補う)。 */
+export function translate(locale: Locale, key: string, vars?: Record<string, string | number>): string {
+  const raw = DICTS[locale][key] ?? (locale === "ja" ? undefined : DICTS.en[key]) ?? DICTS.ja[key] ?? key;
+  return format(raw, vars);
 }
 
 interface I18nValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  /** 自動では切り替えず、提案だけしている言語(端末の言語と国の言語が食い違うとき)。 */
+  suggestion: Locale | null;
+  dismissSuggestion: () => void;
 }
 
 const I18nContext = createContext<I18nValue | null>(null);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  // SSRとの齟齬を避けるため初期値はjaにし、マウント後に保存値/ブラウザ言語で上書きする。
+  // SSRとの齟齬を避けるため初期値はjaにし、マウント後に保存値 / 端末の言語+国で上書きする。
   const [locale, setLocaleState] = useState<Locale>("ja");
+  const [suggestion, setSuggestion] = useState<Locale | null>(null);
 
   useEffect(() => {
-    setLocaleState(detectInitialLocale());
+    const saved = readStorage(STORAGE_KEY);
+    // 以前の "zh" は簡体字の意味で保存されていたので、そのまま簡体字として扱う。
+    if (isLocale(saved)) {
+      setLocaleState(saved);
+      return;
+    }
+    let cancelled = false;
+    const languages = browserLanguages();
+    const apply = (country: string | null) => {
+      if (cancelled) return;
+      const decision = resolveLocale({ languages, country });
+      setLocaleState(decision.locale);
+      const dismissed = readStorage(SUGGEST_DISMISSED_KEY);
+      setSuggestion(decision.suggestion && dismissed !== decision.suggestion ? decision.suggestion : null);
+    };
+    const cachedCountry = readStorage(COUNTRY_KEY);
+    apply(cachedCountry);
+    if (!cachedCountry) {
+      fetch("/api/country", { cache: "no-store" })
+        .then((r) => (r.ok ? (r.json() as Promise<{ country: string | null }>) : { country: null }))
+        .then(({ country }) => {
+          if (!country) return;
+          writeStorage(COUNTRY_KEY, country);
+          apply(country);
+        })
+        .catch(() => {
+          /* 国が分からなくても、端末の言語だけで決めた結果のまま使う */
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1491,23 +1603,23 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, l);
-    } catch {
-      /* localStorage 不可の環境では保存をスキップ */
-    }
+    setSuggestion(null);
+    writeStorage(STORAGE_KEY, l);
   }, []);
 
-  const t = useCallback(
-    (key: string, vars?: Record<string, string | number>) => {
-      const raw = DICTS[locale][key] ?? DICTS.ja[key] ?? key;
-      if (!vars) return raw;
-      return raw.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
-    },
-    [locale],
-  );
+  const dismissSuggestion = useCallback(() => {
+    setSuggestion((s) => {
+      if (s) writeStorage(SUGGEST_DISMISSED_KEY, s);
+      return null;
+    });
+  }, []);
 
-  const value = useMemo<I18nValue>(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+  const t = useCallback((key: string, vars?: Record<string, string | number>) => translate(locale, key, vars), [locale]);
+
+  const value = useMemo<I18nValue>(
+    () => ({ locale, setLocale, t, suggestion, dismissSuggestion }),
+    [locale, setLocale, t, suggestion, dismissSuggestion],
+  );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
@@ -1518,10 +1630,8 @@ export function useI18n(): I18nValue {
   return {
     locale: "ja",
     setLocale: () => {},
-    t: (key, vars) => {
-      const raw = DICTS.ja[key] ?? key;
-      if (!vars) return raw;
-      return raw.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
-    },
+    t: (key, vars) => translate("ja", key, vars),
+    suggestion: null,
+    dismissSuggestion: () => {},
   };
 }

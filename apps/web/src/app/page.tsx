@@ -23,6 +23,7 @@ import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@
 import { fetchBlockedUserIds } from "@/lib/playerModeration";
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { tierLabel } from "@/lib/sngTiers";
 import { Icon } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 import { TermPrompt } from "@/components/Header";
@@ -159,7 +160,8 @@ function SettingsPopover({
 }: {
   onShowStructure: () => void;
   onShowHistory: () => void;
-  onShowChatLog: () => void;
+  /** チャットの無い卓(参加費1,000の SNG・MTT)では渡さない。 */
+  onShowChatLog?: () => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -185,15 +187,17 @@ function SettingsPopover({
         >
           {t("settings.blindStructure")}
         </button>
-        <button
-          onClick={() => {
-            onClose();
-            onShowChatLog();
-          }}
-          className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
-        >
-          {t("settings.chatLog")}
-        </button>
+        {onShowChatLog && (
+          <button
+            onClick={() => {
+              onClose();
+              onShowChatLog();
+            }}
+            className="w-full text-left rounded-xl px-3 py-2.5 text-sm text-fg hover:bg-n-2 transition-[background-color,transform] pressable"
+          >
+            {t("settings.chatLog")}
+          </button>
+        )}
       </div>
     </>
   );
@@ -379,6 +383,10 @@ function GameScreen({
     gameHandHistory,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode });
   const { t } = useI18n();
+  /** チャットは High Roller / Super High Roller の卓だけ(サーバーが卓ごとに可否を送る)。 */
+  const chatEnabled = tournamentInfo?.chat === true;
+  /** 自動で卓を埋めない卓(6人そろったら開始)。 */
+  const isEliteGame = gameKey === "sng_hr" || gameKey === "sng_shr";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -675,7 +683,7 @@ function GameScreen({
           <SettingsPopover
             onShowStructure={() => setStructureOpen(true)}
             onShowHistory={() => setHistoryOpen(true)}
-            onShowChatLog={() => setChatLogOpen(true)}
+            onShowChatLog={chatEnabled ? () => setChatLogOpen(true) : undefined}
             onClose={() => setSettingsOpen(false)}
           />
         )}
@@ -700,8 +708,8 @@ function GameScreen({
             turnTimer={turnTimer}
             onPlayerTap={(info) => setTappedPlayer(info)}
             markingBySeat={markingBySeat}
-            seatBubbles={filteredSeatBubbles}
-            onHeroChatClick={() => setChatInputOpen(true)}
+            seatBubbles={chatEnabled ? filteredSeatBubbles : undefined}
+            onHeroChatClick={chatEnabled ? () => setChatInputOpen(true) : undefined}
             heroShowIntent={heroShowIntent}
             onToggleHeroShow={toggleHeroShow}
             displayMode={amountDisplayMode}
@@ -802,7 +810,20 @@ function GameScreen({
               {matching ? (
                 <>
                   <div className="text-[11px] text-n-9 mt-1.5">{`${matching.registered} / ${matching.needed} 人集まりました`}</div>
-                  <div className="text-[11px] text-fg-2 mt-0.5">プレイヤーが集まり次第スタートします</div>
+                  <div className="text-[11px] text-fg-2 mt-0.5">
+                    {isEliteGame ? t("tier.waitingFull") : "プレイヤーが集まり次第スタートします"}
+                  </div>
+                  {/* 集まるのを待っている間は、いつでも取り消してロビーへ戻れる(参加費はまだ払っていない)。 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      leaveGame();
+                      onExit();
+                    }}
+                    className="pressable mt-3 rounded-full bg-surface-2 px-4 py-1.5 text-[12px] font-bold text-fg"
+                  >
+                    {t("tier.cancelWaiting")}
+                  </button>
                 </>
               ) : (
                 <div className="text-[11px] text-fg-2 mt-1.5">まもなく着席します…</div>
@@ -820,7 +841,9 @@ function GameScreen({
             exit={{ opacity: 0 }}
             className="mx-auto mb-2 max-w-md rounded-2xl bg-crimson-500/10 ring-1 ring-crimson-500/40 px-4 py-2 text-center"
           >
-            <p className="text-xs text-crimson-300">{actionError ?? joinError}</p>
+            <p className="text-xs text-crimson-300">
+              {actionError ?? (joinError === "TIER_LOCKED" ? t("tier.lockedError") : joinError)}
+            </p>
             <ReportErrorButton
               scope={actionError ? "table:action" : "table:join"}
               message={actionError ?? joinError ?? ""}
@@ -962,7 +985,7 @@ function GameScreen({
             accessToken={accessToken}
             statsBefore={statsBefore}
             tournamentId={tournamentInfo?.tournamentId ?? null}
-            gameKey={gameKey}
+            gameKey={gameKey === "mtt" ? "mtt" : "sng"}
             totalEntrants={tournamentInfo?.total ?? null}
             displayName={displayName}
             onExit={onExit}
@@ -979,7 +1002,7 @@ function GameScreen({
           level={level}
           levelEndsAt={levelEndsAt}
           tournamentInfo={tournamentInfo}
-          gameLabel={gameKey === "mtt" ? "MTT トーナメント" : "Sit & Go"}
+          gameLabel={gameKey === "mtt" ? "MTT トーナメント" : tierLabel(tournamentInfo?.tier ?? (gameKey === "sng_shr" ? "superHighRoller" : gameKey === "sng_hr" ? "highRoller" : "regular"))}
           onClose={() => setStructureOpen(false)}
         />
       )}

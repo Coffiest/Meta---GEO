@@ -74,7 +74,6 @@ describe("research decision facts (integration, real Postgres)", () => {
     const timings = new Map<number, ActionTiming>();
     for (let seq = 1; seq <= 20; seq++) {
       timings.set(seq, {
-        turnStartedAt: new Date(t0.getTime() + seq * 10_000),
         actedAt: new Date(t0.getTime() + seq * 10_000 + 3_000),
         thinkMs: 3_000,
         timedOut: false,
@@ -121,7 +120,10 @@ describe("research decision facts (integration, real Postgres)", () => {
         expect(r.overall.n, `${dimension} × ${metric}`).toBeGreaterThan(0);
       }
     }
-    const humans = await prisma.decisionFact.count({ where: { handId, isBot: false } });
+    // 行は人間(席0〜3)の決定だけ。自動で卓を埋める席(4, 5)のフォールドは行にならない。
+    const factUsers = await prisma.decisionFact.findMany({ where: { handId }, select: { userId: true } });
+    expect(factUsers.every((f) => !users.slice(4).some((u) => u.id === f.userId))).toBe(true);
+    const humans = factUsers.length;
     const all = await researchCrosstab({
       dimension: "street",
       metric: "foldRate",

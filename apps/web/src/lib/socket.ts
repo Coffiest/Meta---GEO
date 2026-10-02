@@ -58,6 +58,8 @@ export interface SeatPlayerInfo {
   avatarKey: string | null;
   /** 離席中(自動チェック/フォールド)。全員の座席に「離席中」を表示するため。 */
   away: boolean;
+  /** High Roller / Super High Roller の資格者のアイコン枠。 */
+  frame: "silver" | "gold" | null;
 }
 
 export interface TurnTimerInfo {
@@ -104,6 +106,13 @@ export interface TournamentInfo {
   standings?: StandingRow[];
   /** このトーナメントのDB ID(棋譜解析への遷移に使う)。未確定時はnull。 */
   tournamentId?: string | null;
+  /** SNG の階層("regular" | "highRoller" | "superHighRoller")。 */
+  tier?: string;
+  /** 初期スタックとレベル時間(ブラインド表の表示用)。 */
+  startingStack?: number;
+  levelDurationMs?: number;
+  /** この卓でチャットが使えるか(High Roller / Super High Roller だけ)。 */
+  chat?: boolean;
 }
 
 /** 同卓チャットの1メッセージ。 */
@@ -264,7 +273,8 @@ const ACTION_ACK_MESSAGES: Record<string, string> = {
   HANDLER_ERROR: "サーバー内部エラーでアクションを処理できませんでした",
 };
 
-export type GameKey = "sng" | "mtt";
+/** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。 */
+export type GameKey = "sng" | "sng_hr" | "sng_shr" | "mtt";
 
 export interface PokerSocketParams {
   displayName: string;
@@ -536,8 +546,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       const showNow = !transient || count >= 4;
       setData((d) => ({ ...d, gameGone: showNow ? true : d.gameGone, diag: { ...dg } }));
     });
-    socket.on("joinGameError", (payload: { message: string }) =>
-      setData((d) => ({ ...d, joinError: payload.message })),
+    socket.on("joinGameError", (payload: { message: string; code?: string }) =>
+      setData((d) => ({ ...d, joinError: payload.code === "TIER_LOCKED" ? "TIER_LOCKED" : payload.message })),
     );
     socket.on("state", (state: PublicHandState) => {
       hasStartedRef.current = true;
@@ -590,7 +600,14 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     socket.on(
       "players",
       (payload: {
-        players: { seatIndex: number; userId?: string; displayName: string; avatarKey?: string | null; away?: boolean }[];
+        players: {
+          seatIndex: number;
+          userId?: string;
+          displayName: string;
+          avatarKey?: string | null;
+          away?: boolean;
+          frame?: "silver" | "gold" | null;
+        }[];
       }) =>
         setData((d) => ({
           ...d,
@@ -602,6 +619,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
                 displayName: p.displayName,
                 avatarKey: p.avatarKey ?? null,
                 away: p.away ?? false,
+                frame: p.frame ?? null,
               },
             ]),
           ),

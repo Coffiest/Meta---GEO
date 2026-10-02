@@ -1,4 +1,5 @@
 import type { Server, Socket } from "socket.io";
+import { SNG_TIERS, type SngTier } from "@meta-geo/engine";
 import { TableSession, SNG_SEAT_COUNT, type HumanPlayer, type GameSession } from "./gameServer.js";
 
 /** 人間だけで揃うのを待つ時間。これを過ぎたら空き枠へBOTを1体ずつ入れ始める。 */
@@ -19,6 +20,9 @@ interface QueuedPlayer extends HumanPlayer {
  * 空いている枠へBOTを1体ずつ(0.5〜1.5秒間隔のランダムなタイミングで)入れていき、表示上の
  * O/6もBOTで増える。BOTを含めて6/6になった瞬間にゲームを開始する。
  * SNGは途中参加・リエントリー不可(卓成立後は締切)。
+ *
+ * 階層ごとに1つずつ持つ。High Roller / Super High Roller は空き席を埋めず、6人そろった時点で始める
+ * (待っている間はいつでも取り消せる)。
  */
 export class SngMatchmaker {
   private queue: QueuedPlayer[] = [];
@@ -28,10 +32,14 @@ export class SngMatchmaker {
   private filling = false;
   private readonly io: Server;
   private readonly onSessionReady: (session: GameSession, humanUserIds: string[]) => void;
+  readonly tier: SngTier;
+  private readonly autoFill: boolean;
 
-  constructor(io: Server, onSessionReady: (session: GameSession, humanUserIds: string[]) => void) {
+  constructor(io: Server, onSessionReady: (session: GameSession, humanUserIds: string[]) => void, tier: SngTier = "regular") {
     this.io = io;
     this.onSessionReady = onSessionReady;
+    this.tier = tier;
+    this.autoFill = SNG_TIERS[tier].autoFill;
   }
 
   isQueued(userId: string): boolean {
@@ -58,8 +66,8 @@ export class SngMatchmaker {
     this.queue.push({ ...player, socket });
     socket.on("disconnect", () => this.leaveQueue(player.userId));
 
-    // 最初の1人が来たら、10秒後にBOT補填を開始するタイマーを仕込む。
-    if (this.queue.length === 1 && !this.filling) {
+    // 最初の1人が来たら、10秒後にBOT補填を開始するタイマーを仕込む(空き席を埋める階層だけ)。
+    if (this.autoFill && this.queue.length === 1 && !this.filling) {
       this.timer = setTimeout(() => this.beginBotFill(), BOT_FILL_START_MS);
     }
     this.broadcastStatus();
@@ -118,8 +126,8 @@ export class SngMatchmaker {
   }
 
   private emitStatus(socket: Socket): void {
-    // 補填フェーズ中は残り秒数(secondsLeft)は出さない(BOTで埋まっていくため)。
-    const secondsLeft = this.filling
+    // 補填フェーズ中、および空き席を埋めない階層では残り秒数(secondsLeft)は出さない。
+    const secondsLeft = this.filling || !this.autoFill
       ? null
       : Math.max(0, Math.ceil(BOT_FILL_START_MS / 1000));
     socket.emit("sngMatching", { registered: this.displayedRegistered(), needed: SNG_SEAT_COUNT, secondsLeft });
@@ -141,7 +149,7 @@ export class SngMatchmaker {
 
     // 7人以上が同時に並んでいた場合、あふれた人間は取り残さず次の卓のマッチングを即開始する。
     if (leftoverHumans) {
-      this.timer = setTimeout(() => this.beginBotFill(), BOT_FILL_START_MS);
+      if (this.autoFill) this.timer = setTimeout(() => this.beginBotFill(), BOT_FILL_START_MS);
       this.broadcastStatus();
     }
 
@@ -149,6 +157,7 @@ export class SngMatchmaker {
       io: this.io,
       seatCount: SNG_SEAT_COUNT,
       humans: humans.map((h) => ({ userId: h.userId, displayName: h.displayName, avatarKey: h.avatarKey })),
+      tier: this.tier,
     });
 
     const humanUserIds = humans.map((h) => h.userId);

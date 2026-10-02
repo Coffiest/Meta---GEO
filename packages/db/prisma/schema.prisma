@@ -12,27 +12,27 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
+  id           String    @id @default(uuid())
   /// Supabase Authのユーザーid(auth.users.id)。BOTユーザーはnull。
-  authId      String?  @unique
-  email       String?  @unique
-  displayName String
+  authId       String?   @unique
+  email        String?   @unique
+  displayName  String
   /// プリセットアバターのキー(apps/web側の定義と対応)。未選択はnull。
-  avatarKey   String?
+  avatarKey    String?
   /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
-  onboarded   Boolean  @default(false)
-  isBot       Boolean  @default(false)
+  onboarded    Boolean   @default(false)
+  isBot        Boolean   @default(false)
   /// 友達招待用のコード(例 "K7QMX2AB")。ホームの招待カードを初めて開いたときに発行する。
   /// 未発行はnull(BOTには発行しない)。
-  referralCode String? @unique
-  createdAt   DateTime @default(now())
+  referralCode String?   @unique
+  createdAt    DateTime  @default(now())
   /// アカウント削除(退会)した時刻。未削除はnull。
   ///
   /// 重要: 退会しても User 行そのものは消さない。ハンド履歴(Hand/HandSeat)=GEO DATABASE の
   /// 実データが HandSeat.userId で User を参照しており、行を消すと集計対象のハンドまで
   /// 巻き添えになるため。退会処理では認証情報と表示名を匿名化するだけにして、
   /// GEOの集計結果は退会前とまったく同じに保つ。
-  deletedAt   DateTime?
+  deletedAt    DateTime?
 
   tournamentEntries    TournamentEntry[]
   handSeats            HandSeat[]
@@ -44,7 +44,7 @@ model User {
   premiumCoupon        PremiumCoupon?
   couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
   couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
-  errorReports ErrorReport[]
+  errorReports         ErrorReport[]
 
   @@index([deletedAt])
 }
@@ -150,18 +150,6 @@ model Subscription {
   @@index([status])
 }
 
-/// 無料プランの1日あたりGEO閲覧回数トラッキング。日付が変わったら新しい行として扱う(リセット不要)。
-model GeoViewUsage {
-  id        String   @id @default(uuid())
-  userId    String
-  /// "YYYY-MM-DD"形式(UTC基準)。
-  date      String
-  count     Int      @default(0)
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, date])
-}
-
 /// 棋譜解析(トーナメント単位)の無料枠トラッキング。無料プランは24時間ローリングで1回まで。
 /// (userId, tournamentId)で一意=同一トナメの再解析は消費しない(冪等)。直近24時間の行数で判定する。
 model ReviewUsage {
@@ -233,15 +221,15 @@ model PlayerBlock {
 /// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
 /// (別に「現在残高」フィールドをキャッシュしない。導出元は常にこの台帳の1本にする)。
 model BankrollTransaction {
-  id           String   @id @default(uuid())
+  id           String      @id @default(uuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  user         User        @relation(fields: [userId], references: [id])
   /// 正=入金(サインアップボーナス・賞金)、負=出金(バイイン)
   amount       Int
   kind         String // "signupBonus" | "buyIn" | "payout" | "adjustment"
   tournamentId String?
   tournament   Tournament? @relation(fields: [tournamentId], references: [id])
-  createdAt    DateTime @default(now())
+  createdAt    DateTime    @default(now())
 
   @@index([userId, createdAt])
 }
@@ -252,6 +240,10 @@ model Tournament {
   gameType      String    @default("sng")
   /// 参加費(バンクロールから引かれる額)。トーナメント内のチップ数(startingStack)とは別概念。
   buyIn         Int       @default(0)
+  /// SNG の階層: "regular"(参加費1,000)| "highRoller" | "superHighRoller"。MTT は "regular"。
+  tier          String    @default("regular")
+  /// 1位から順の賞金。トーナメント単位で1回だけ持つ(ハンドごとに繰り返さない)。
+  payouts       Int[]
   seatCount     Int
   startingStack Int
   status        String    @default("waiting") // "waiting" | "running" | "finished"
@@ -264,34 +256,34 @@ model Tournament {
 }
 
 model TournamentEntry {
-  id                 String  @id @default(uuid())
+  id                 String     @id @default(uuid())
   tournamentId       String
   tournament         Tournament @relation(fields: [tournamentId], references: [id])
   userId             String
-  user               User    @relation(fields: [userId], references: [id])
+  user               User       @relation(fields: [userId], references: [id])
   seatIndex          Int
   finishPosition     Int?
   bustedAtHandNumber Int?
   /// 着順に応じてバンクロールへ払い出した額(0=賞金圏外)。
-  payout             Int     @default(0)
+  payout             Int        @default(0)
 
   @@unique([tournamentId, seatIndex])
   @@index([userId])
 }
 
 model Hand {
-  id              String   @id @default(uuid())
-  tournamentId    String
-  tournament      Tournament @relation(fields: [tournamentId], references: [id])
-  handNumber      Int
-  levelSmallBlind Int
-  levelBigBlind   Int
-  levelAnte       Int
-  buttonFixedPos  Int
-  board           String[] // 例: ["9s","8s","7s","6h","2d"]
-  potTotal        Int
-  wonByFold       Boolean
-  createdAt       DateTime @default(now())
+  id               String     @id @default(uuid())
+  tournamentId     String
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+  handNumber       Int
+  levelSmallBlind  Int
+  levelBigBlind    Int
+  levelAnte        Int
+  buttonFixedPos   Int
+  board            String[] // 例: ["9s","8s","7s","6h","2d"]
+  potTotal         Int
+  wonByFold        Boolean
+  createdAt        DateTime   @default(now())
   /// ── 研究用(データベースタブの「データ研究」)。古いハンドは null ──
   /// ハンドを配った時刻と、決着した時刻(サーバー時計)。
   startedAt        DateTime?
@@ -302,7 +294,8 @@ model Hand {
   entryCount       Int?
   /// 入賞人数(賞金のある順位の数)。
   itmPlaces        Int?
-  /// 1位から順の賞金(ICM の期待賞金の計算用)。
+  /// 1位から順の賞金(ICM の期待賞金の計算用)。トーナメントの賞金(Tournament.payouts)と同じなら空にする
+  /// (MTT のように途中で賞金が変わるときだけ、そのハンド時点の値を持つ)。
   payouts          Int[]
   /// ハンド開始時点の全生存者のスタック(MTT は全卓。ICM の計算用)。並びに意味は無い。
   fieldStacks      Int[]
@@ -324,25 +317,25 @@ model Hand {
 /// そのハンドにおける各プレイヤーの着席情報。GEO分析上、全ハンド終了後はホールカードを常に記録する
 /// (Ten-Four Pokerの「全履歴公開」思想を踏襲)。
 model HandSeat {
-  id               String  @id @default(uuid())
+  id               String   @id @default(uuid())
   handId           String
-  hand             Hand    @relation(fields: [handId], references: [id])
+  hand             Hand     @relation(fields: [handId], references: [id])
   userId           String
-  user             User    @relation(fields: [userId], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
   seatIndex        Int
   startingStack    Int
   holeCards        String[]
-  isSmallBlind     Boolean @default(false)
-  isBigBlind       Boolean @default(false)
+  isSmallBlind     Boolean  @default(false)
+  isBigBlind       Boolean  @default(false)
   resultStackDelta Int
   /// Historyタブでプレイヤーが「お気に入り」登録したハンドかどうか。
-  isFavorite       Boolean @default(false)
+  isFavorite       Boolean  @default(false)
   /// そのハンド中、このプレイヤーが離席状態(自動チェック/フォールド)だったか。
   /// 離席中の意思決定は本人の戦略ではないため、GEO戦略分析の集計から除外する。
-  wasAway          Boolean @default(false)
+  wasAway          Boolean  @default(false)
   /// 管理者がGEO戦略DBから除外(論理削除)したか。アクション行そのものは残す(物理削除すると
   /// 同卓他プレイヤーのライン再生が壊れるため)が、GEO集計のサンプルには一切含めない。
-  excludedFromGeo  Boolean @default(false)
+  excludedFromGeo  Boolean  @default(false)
 
   decisions GeoDecision[]
 
@@ -352,9 +345,9 @@ model HandSeat {
 
 /// GEO分析の核となる、ハンド内の全アクションの時系列ログ
 model HandAction {
-  id             String @id @default(uuid())
+  id             String    @id @default(uuid())
   handId         String
-  hand           Hand   @relation(fields: [handId], references: [id])
+  hand           Hand      @relation(fields: [handId], references: [id])
   sequenceNumber Int
   seatIndex      Int
   street         String // "preflop" | "flop" | "turn" | "river"
@@ -362,18 +355,17 @@ model HandAction {
   toAmount       Int?
   potBefore      Int
   /// ── 研究用。古いハンドは null ──
-  /// 手番が回ってきた時刻と、行動した時刻(サーバー時計)。
-  turnStartedAt  DateTime?
+  /// 行動した時刻(サーバー時計)。人間の手番だけ記録する(自動で卓を埋めるプレイヤーは null。NULL はほぼ容量を食わない)。
+  /// 手番が回ってきた時刻は actedAt − thinkMs で求まるので持たない。
   actedAt        DateTime?
   /// 思考時間(ms)。自動で卓を埋めるプレイヤーの行と、ブラインド/アンティの支払いは null。
   thinkMs        Int?
   /// 時間切れによる自動のチェック/フォールドか。
-  timedOut       Boolean @default(false)
+  timedOut       Boolean   @default(false)
   /// タイムバンクを使って考えたか。
-  timeBankUsed   Boolean @default(false)
+  timeBankUsed   Boolean   @default(false)
 
   @@index([handId, sequenceNumber])
-  @@index([street, kind])
 }
 
 /// 研究用に事前展開した「1アクション = 1行」のテーブル(データベースタブの「データ研究」)。
@@ -385,16 +377,14 @@ model HandAction {
 /// 自動で卓を埋めるプレイヤーの行も書く(isBot)が、集計 API は常に人間だけを対象にし、
 /// isBot を画面や応答に出すことは無い。
 model DecisionFact {
-  id             String   @id @default(uuid())
+  id             String  @id @default(uuid())
   handId         String
-  hand           Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  hand           Hand    @relation(fields: [handId], references: [id], onDelete: Cascade)
   tournamentId   String
   userId         String
-  /// 内部の集計除外にだけ使う。応答に出さない。
-  isBot          Boolean
   gameType       String
   handNumber     Int
-  sequenceNumber Int
+  sequenceNumber Int     @db.SmallInt
   street         String
   kind           String
   /// "fold" | "passive"(チェック/コール) | "aggressive"(ベット/レイズ/オールイン)
@@ -406,67 +396,67 @@ model DecisionFact {
   handPfr        Boolean
 
   // 時間
-  thinkMs        Int?
-  thinkBucket    String
-  timedOut       Boolean
-  timeBankUsed   Boolean
+  thinkMs      Int?
+  thinkBucket  String
+  timedOut     Boolean
+  timeBankUsed Boolean
 
   // 状況
-  position       String
-  playersInHand  Int
-  playersActive  Int
-  bigBlind       Int
-  potBb          Float
-  facingBb       Float?
+  position      String
+  playersInHand Int     @db.SmallInt
+  playersActive Int     @db.SmallInt
+  bigBlind      Int
+  potBb         Float   @db.Real
+  facingBb      Float?  @db.Real
   /// ベット/レイズの額 ÷ ポット(アグレッシブな行のみ)。
-  betSizePot     Float?
-  betSizeBucket  String
-  stackBb        Float
-  effStackBb     Float
-  stackBucket    String
-  spr            Float?
-  handClass      String?
-  madeHand       String?
-  hasDraw        Boolean
-  boardTexture   String?
+  betSizePot    Float?  @db.Real
+  betSizeBucket String
+  stackBb       Float   @db.Real
+  effStackBb    Float   @db.Real
+  stackBucket   String
+  spr           Float?  @db.Real
+  handClass     String?
+  madeHand      String?
+  hasDraw       Boolean
+  boardTexture  String?
   /// Notion の場面(cbet / barrel / probe / donk / checkRaise …)。当たらなければ "other"。
-  spot           String
+  spot          String
 
   // トーナメント
-  playersRemaining Int?
-  itmPlaces        Int?
-  bubbleDistance   Int?
+  playersRemaining Int?   @db.SmallInt
+  itmPlaces        Int?   @db.SmallInt
+  bubbleDistance   Int?   @db.SmallInt
   bubbleStage      String
-  stackRank        Int?
-  chipShare        Float?
-  winProb          Float?
-  itmProb          Float?
-  icmEquity        Float?
+  stackRank        Int?   @db.SmallInt
+  chipShare        Float? @db.Real
+  winProb          Float? @db.Real
+  itmProb          Float? @db.Real
+  icmEquity        Float? @db.Real
   winProbBucket    String
   itmProbBucket    String
 
   // 直前の流れ
-  prevHandDeltaBb  Float?
+  prevHandDeltaBb       Float? @db.Real
   /// 直前のハンドで大きいポットを取ったか/落としたか("bigWin" | "bigLoss" | "none" | "first")。
-  prevBigPot       String
+  prevBigPot            String
   /// 直近の大きいポットから何ハンド目か(無ければ null)と、その種類("win" | "loss" | "none")。
-  handsSinceBigPot Int?
-  lastBigPotKind   String
-  lossStreak       Int
-  handIndexInTournament Int
-  minutesIntoTournament Float?
-  stackVsStart     Float?
+  handsSinceBigPot      Int?   @db.SmallInt
+  lastBigPotKind        String
+  lossStreak            Int    @db.SmallInt
+  handIndexInTournament Int    @db.SmallInt
+  minutesIntoTournament Float? @db.Real
+  stackVsStart          Float? @db.Real
 
   // 結果
-  handResultBb     Float
-  wentToShowdown   Boolean
-  wonHand          Boolean
+  handResultBb   Float   @db.Real
+  wentToShowdown Boolean
+  wonHand        Boolean
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([handId, sequenceNumber])
-  @@index([isBot, userId])
-  @@index([tournamentId, userId, handNumber])
+  /// 「自分」の集計用。
+  @@index([userId])
 }
 
 /// GEO戦略DBの集計用に事前展開した「1意思決定 = 1行」のテーブル。
@@ -478,31 +468,31 @@ model DecisionFact {
 /// 行を書くのは「実プレイヤーの意思決定」だけ(自動プレイヤー・離席中の席は書かない)。
 /// 管理者が後から切り替えられる excludedFromGeo は焼き込まず、HandSeat をJOINして除外する。
 model GeoDecision {
-  id         String   @id @default(uuid())
-  handId     String
-  hand       Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  handId         String
+  hand           Hand     @relation(fields: [handId], references: [id], onDelete: Cascade)
   /// excludedFromGeo を参照するための HandSeat。
-  handSeatId String
-  handSeat   HandSeat @relation(fields: [handSeatId], references: [id], onDelete: Cascade)
+  handSeatId     String
+  handSeat       HandSeat @relation(fields: [handSeatId], references: [id], onDelete: Cascade)
   /// 偏差値レンジでの絞り込み用。
-  userId     String
-  street     String
+  userId         String
+  street         String
   /// 同一ストリート内で、この意思決定の直前までのライン系列。"UTG:fold|MP:raise2-5" 形式。
   /// 要求されたラインと完全一致で引ける(要求ライン = 対象決定の直前までの系列、という対応)。
-  lineKey    String
+  lineKey        String
   /// ポストフロップのみ。そのストリートまでの板面。"9s,8s,7s" 形式。プリフロップは空文字。
-  boardKey   String
+  boardKey       String
   /// ポストフロップのみ。そのハンドのプリフロップ全系列(要求プリフロップラインの前方一致判定用)。
-  preflopKey String
-  position   String
-  bucket     String
-  stackBucket String
-  bubbleStage String
-  playerCount Int
-  isGeometric Boolean
+  preflopKey     String
+  position       String
+  bucket         String
+  stackBucket    String
+  bubbleStage    String
+  playerCount    Int
+  isGeometric    Boolean
   /// 13x13ハンドレンジ表の座標。分類できないホールカードは null。
-  handClassRow Int?
-  handClassCol Int?
+  handClassRow   Int?
+  handClassCol   Int?
   sequenceNumber Int
 
   @@index([street, lineKey, boardKey, stackBucket, bubbleStage, playerCount])
@@ -511,9 +501,9 @@ model GeoDecision {
 }
 
 model HandPot {
-  id              String @id @default(uuid())
+  id              String   @id @default(uuid())
   handId          String
-  hand            Hand   @relation(fields: [handId], references: [id])
+  hand            Hand     @relation(fields: [handId], references: [id])
   potIndex        Int
   amount          Int
   eligibleUserIds String[]
@@ -554,38 +544,37 @@ model GtoSolution {
 
 /// 1ハンドに対する1プレイヤー(hero)ぶんのレビュージョブ+集計結果。
 model HandReview {
-  id           String   @id @default(uuid())
-  handId       String
-  hand         Hand     @relation(fields: [handId], references: [id])
+  id            String   @id @default(uuid())
+  handId        String
+  hand          Hand     @relation(fields: [handId], references: [id])
   /// レビュー対象(意思決定を分析する)プレイヤーのUser.id。
-  heroUserId   String
+  heroUserId    String
   /// "queued" | "solving" | "explaining" | "done" | "failed"
-  status       String   @default("queued")
-  error        String?
+  status        String   @default("queued")
+  error         String?
   /// トナメ/ハンド単位のGTO精度%(0-100)。チェスドットコムのAccuracy相当。
-  gtoAccuracy  Float?
+  gtoAccuracy   Float?
   totalEvLossBb Float?
   mistakeCount  Int?
   artisticCount Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   decisions ReviewDecision[]
 
   @@unique([handId, heroUserId])
-  @@index([status])
 }
 
 /// heroの1意思決定ぶんの分析結果。
 model ReviewDecision {
-  id               String  @id @default(uuid())
+  id               String     @id @default(uuid())
   reviewId         String
   review           HandReview @relation(fields: [reviewId], references: [id])
   /// 対応するHandAction.sequenceNumber。
   sequenceNumber   Int
   street           String
   /// 解析対象か。多人数ポストフロップ等はfalse。
-  analyzable       Boolean @default(true)
+  analyzable       Boolean    @default(true)
   /// 対象外の理由。"multiway" 等。
   outOfScopeReason String?
   heroPos          String
@@ -722,8 +711,8 @@ model SocialAccount {
 
   platform String
   /// @を除いたハンドル。
-  handle String
-  label  String
+  handle   String
+  label    String
 
   /// 自社アカウントか(競合と区別して推移を並べるため)。
   isOwn Boolean @default(false)

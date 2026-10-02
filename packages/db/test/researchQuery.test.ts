@@ -3,11 +3,12 @@ import { isResearchDimension, isResearchMetric, researchWhereSql } from "../src/
 
 /** データ研究の集計の安全性(DB不要)。 */
 describe("researchQuery", () => {
-  it("どの条件でも、人間の行だけを集計する(isBot = false が必ず付く)", () => {
-    for (const scope of ["all", "me"] as const) {
-      const sql = researchWhereSql({ dimension: "thinkBucket", metric: "foldRate", scope, userId: "u1" });
-      expect(sql.sql).toContain(`"isBot" = false`);
-    }
+  it("「自分」のときだけ本人の行に絞る", () => {
+    const all = researchWhereSql({ dimension: "thinkBucket", metric: "foldRate", scope: "all", userId: "u1" });
+    expect(all.sql).not.toContain(`"userId"`);
+    const me = researchWhereSql({ dimension: "thinkBucket", metric: "foldRate", scope: "me", userId: "u1" });
+    expect(me.sql).toContain(`"userId" = `);
+    expect(me.values).toContain("u1");
   });
 
   it("軸と指標は許可リストのものだけ", () => {

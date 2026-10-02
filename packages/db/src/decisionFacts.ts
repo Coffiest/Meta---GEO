@@ -19,7 +19,9 @@ import { handClassLabel } from "./preflopBaseline.js";
  * - `rebuildDecisionFactsForHand` は1ハンドぶんを削除→挿入で作り直す(何度呼んでも同じ結果)
  * - `backfillDecisionFacts` は既存の全ハンドを作り直す(管理画面から起動)
  *
- * 自動で卓を埋めるプレイヤーの行も書くが(isBot)、思考時間は null。集計 API は常に人間だけを対象にする。
+ * **人間の決定だけを行にする。** 自動で卓を埋めるプレイヤーの行はどこからも読まれない(研究の集計は人間だけが対象)
+ * ので書かない。1人卓では行数が約1/4〜1/5になり、DB で最も大きいテーブルの増え方を抑える。
+ * 自動プレイヤーも状況(残り人数・スタック・ICM)の計算には入れる。
  */
 
 /** 「大きいポット」: 獲得/損失が、そのハンド開始時のスタックのこの割合以上 */
@@ -85,7 +87,6 @@ export interface DecisionFactRow {
   handId: string;
   tournamentId: string;
   userId: string;
-  isBot: boolean;
   gameType: string;
   handNumber: number;
   sequenceNumber: number;
@@ -346,7 +347,8 @@ export function buildDecisionFacts(h: FactHandInput): DecisionFactRow[] {
       continue;
     }
 
-    if (DECISION_KINDS.has(a.kind) && seat) {
+    // 自動プレイヤーの決定はポットや直面額の追跡だけ行い、行は作らない(下で committed 等を更新する)。
+    if (DECISION_KINDS.has(a.kind) && seat && !seat.isBot) {
       const facing = Math.max(0, maxStreet - prior);
       const aggressive = AGGRESSIVE.has(a.kind);
       const allIn = a.kind === "allIn";
@@ -363,13 +365,12 @@ export function buildDecisionFacts(h: FactHandInput): DecisionFactRow[] {
       const spot = a.street === "preflop" ? "preflop" : (betRoles.get(a.sequenceNumber) ?? spots.get(a.sequenceNumber) ?? "other");
       const firstInHand = !seen.has(a.seatIndex);
       seen.add(a.seatIndex);
-      const thinkMs = seat.isBot ? null : a.thinkMs;
+      const thinkMs = a.thinkMs;
 
       rows.push({
         handId: h.id,
         tournamentId: h.tournamentId,
         userId: seat.userId,
-        isBot: seat.isBot,
         gameType: h.gameType,
         handNumber: h.handNumber,
         sequenceNumber: a.sequenceNumber,
@@ -459,7 +460,7 @@ export async function rebuildDecisionFactsForHand(handId: string): Promise<numbe
       playersRemaining: true,
       payouts: true,
       fieldStacks: true,
-      tournament: { select: { gameType: true, createdAt: true, startingStack: true } },
+      tournament: { select: { gameType: true, createdAt: true, startingStack: true, payouts: true } },
       seats: {
         select: {
           seatIndex: true,
@@ -491,7 +492,8 @@ export async function rebuildDecisionFactsForHand(handId: string): Promise<numbe
   });
   if (!hand) return 0;
 
-  const userIds = hand.seats.map((s) => s.userId);
+  // 直前の流れは人間の行にしか使わないので、人間の分だけ読む。
+  const userIds = hand.seats.filter((s) => !s.user.isBot).map((s) => s.userId);
   const historyRows = await prisma.handSeat.findMany({
     where: {
       userId: { in: userIds },
@@ -532,7 +534,8 @@ export async function rebuildDecisionFactsForHand(handId: string): Promise<numbe
     tournamentCreatedAt: hand.tournament.createdAt,
     tournamentStartingStack: hand.tournament.startingStack,
     playersRemaining: hand.playersRemaining,
-    payouts: hand.payouts,
+    // 賞金はトーナメント単位で1回だけ持つ(SNG)。MTT のように途中で変わるものだけハンドに残っている。
+    payouts: hand.payouts.length > 0 ? hand.payouts : hand.tournament.payouts,
     fieldStacks: hand.fieldStacks,
     seats: hand.seats.map((s) => ({
       seatIndex: s.seatIndex,

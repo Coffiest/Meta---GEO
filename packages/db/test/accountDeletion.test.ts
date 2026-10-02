@@ -87,7 +87,6 @@ describe("account deletion (integration, real Postgres)", () => {
     await prisma.pushSubscription.create({
       data: { userId: user.id, endpoint: `https://push.test/${suffix}`, p256dh: "p", auth: "a" },
     });
-    await prisma.geoViewUsage.create({ data: { userId: user.id, date: "2026-08-07", count: 3 } });
 
     const handSeatsBefore = await prisma.handSeat.count({ where: { userId: user.id } });
     const handsBefore = await prisma.hand.count();
@@ -120,7 +119,6 @@ describe("account deletion (integration, real Postgres)", () => {
 
     // --- 個人データ: 物理削除されていること ---
     expect(await prisma.pushSubscription.count({ where: { userId: user.id } })).toBe(0);
-    expect(await prisma.geoViewUsage.count({ where: { userId: user.id } })).toBe(0);
   });
 
   it("二重に実行しても安全(2回目は何もしない)", async () => {

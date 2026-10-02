@@ -80,7 +80,7 @@ export function ChatLogSheet({
               return (
                 <div key={i} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}>
                   <div className="shrink-0">
-                    <Avatar avatarKey={avatarKey} displayName={name} size={30} />
+                    <Avatar avatarKey={avatarKey} displayName={name} size={30} frame={players[m.seatIndex]?.frame ?? null} />
                   </div>
                   <div className={`flex min-w-0 flex-col ${mine ? "items-end" : "items-start"}`}>
                     <span className="mb-0.5 px-1 text-[10px] font-bold text-fg-3">{name}</span>

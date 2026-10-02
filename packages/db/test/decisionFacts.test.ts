@@ -72,8 +72,8 @@ describe("buildDecisionFacts", () => {
 
   it("ブラインド/アンティの支払いは行にしない。決定だけを行にする", () => {
     expect(rows.every((r) => r.kind !== "postBlind" && r.kind !== "postAnte")).toBe(true);
-    // 着席している3人(u0, u1, u2)の決定だけが行になる(席3〜5はこのハンドの座席に無い)。
-    expect(rows.map((r) => r.userId).sort()).toEqual(["u0", "u0", "u1", "u2", "u2", "u2"]);
+    // 人間(u0, u2)の決定だけが行になる。自動で卓を埋めるプレイヤー(u1)の行は作らない(どこからも読まれないため)。
+    expect(rows.map((r) => r.userId).sort()).toEqual(["u0", "u0", "u2", "u2", "u2"]);
   });
 
   it("思考時間・時間切れ・タイムバンクの帯", () => {
@@ -84,8 +84,10 @@ describe("buildDecisionFacts", () => {
     expect(bySeq.get(10)).toMatchObject({ thinkBucket: "timebank", timeBankUsed: true });
   });
 
-  it("自動で卓を埋めるプレイヤーの行は思考時間を記録しない", () => {
-    expect(bySeq.get(7)).toMatchObject({ userId: "u1", isBot: true, thinkMs: null, thinkBucket: "unknown" });
+  it("自動で卓を埋めるプレイヤーの行は作らないが、その決定はポットや直面額には反映される", () => {
+    expect(bySeq.get(7)).toBeUndefined();
+    // u1(SB)のフォールドのあと、BB(u2)のコールの直面額・ポットは正しいまま。
+    expect(bySeq.get(8)).toMatchObject({ facingBb: 1.5, potBb: 4 });
   });
 
   it("直面額・ポット・スタック・サイズを、その時点の値で読む", () => {
@@ -100,7 +102,6 @@ describe("buildDecisionFacts", () => {
     expect(bySeq.get(6)).toMatchObject({ firstInHand: true, handVpip: true, handPfr: true });
     expect(bySeq.get(10)).toMatchObject({ firstInHand: false });
     expect(bySeq.get(8)).toMatchObject({ handVpip: true, handPfr: false });
-    expect(bySeq.get(7)).toMatchObject({ handVpip: false, handPfr: false });
   });
 
   it("トーナメント: 優勝率=チップ比、インマネ率は ICM、バブル段階", () => {
@@ -112,7 +113,6 @@ describe("buildDecisionFacts", () => {
   it("直前の流れ: 大きいポットを取った/落とした・連敗・何ハンド目", () => {
     expect(bySeq.get(6)).toMatchObject({ prevBigPot: "bigWin", lastBigPotKind: "win", handsSinceBigPot: 1, handIndexInTournament: 2 });
     expect(bySeq.get(8)).toMatchObject({ prevBigPot: "bigLoss", lossStreak: 2, prevHandDeltaBb: -30 });
-    expect(bySeq.get(7)).toMatchObject({ prevBigPot: "first", handIndexInTournament: 1 });
     expect(bySeq.get(6)).toMatchObject({ minutesIntoTournament: 10, stackVsStart: 1 });
   });
 

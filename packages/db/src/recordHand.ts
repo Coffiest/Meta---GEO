@@ -16,7 +16,6 @@ export interface RecordHandSeatInput {
 
 /** 1アクションの時刻(研究用)。キーは HandAction の sequenceNumber。 */
 export interface ActionTiming {
-  readonly turnStartedAt: Date;
   readonly actedAt: Date;
   /** 思考時間(ms)。自動で卓を埋めるプレイヤーの行は null(作り物の遅延なので研究に使わない)。 */
   readonly thinkMs: number | null;
@@ -119,7 +118,6 @@ export async function recordHand(input: RecordHandInput): Promise<string> {
           kind: e["type"] as string,
           toAmount: typeof e["toAmount"] === "number" ? (e["toAmount"] as number) : (e["amount"] as number | undefined) ?? null,
           potBefore: (e["potBefore"] as number | undefined) ?? 0,
-          turnStartedAt: t?.turnStartedAt ?? null,
           actedAt: t?.actedAt ?? null,
           thinkMs: t?.thinkMs ?? null,
           timedOut: t?.timedOut ?? false,

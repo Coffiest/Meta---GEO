@@ -242,6 +242,7 @@ export function playersFromTimeline(timeline: ReviewHandTimeline): Record<number
       displayName: s.displayName,
       avatarKey: s.avatarKey,
       away: false,
+      frame: null,
     };
   }
   return out;

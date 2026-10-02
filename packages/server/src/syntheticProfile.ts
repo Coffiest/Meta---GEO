@@ -31,6 +31,8 @@ export interface SyntheticProfile {
   id: string;
   displayName: string;
   avatarKey: string | null;
+  /** アイコンの銀枠・金枠。資格(生涯収支など)は実プレイヤーの集計からしか決まらないので、ここは常に無し。 */
+  frame: null;
   stats: {
     tournamentsPlayed: number;
     itmCount: number;
@@ -93,6 +95,7 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
     id: userId,
     displayName,
     avatarKey,
+    frame: null,
     stats: {
       tournamentsPlayed,
       itmCount,

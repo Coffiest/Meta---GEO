@@ -1,7 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
-import { HandEngine, Tournament, cardToString, type Card, type PlayerAction, type PublicHandState } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, SNG_PAYOUTS, invalidateRankedEntries } from "@meta-geo/db";
+import {
+  HandEngine,
+  SNG_TIERS,
+  Tournament,
+  cardToString,
+  sngPayouts,
+  type BlindLevel,
+  type Card,
+  type EliteFrame,
+  type PlayerAction,
+  type PublicHandState,
+  type SngTier,
+  type SngTierConfig,
+} from "@meta-geo/engine";
+import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries } from "@meta-geo/db";
 import { decideBotAction, lastAggressorSeat } from "./bot.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { HandActionClock } from "./actionClock.js";
@@ -117,7 +130,13 @@ const TIME_BANK_CHANCE = 0.02;
  * - フロップ: 全アクション0〜2.5秒でランダム。
  * - ターン以降: 1〜10秒で考える。タイムバンクを使うのはごく稀(TIME_BANK_CHANCE)。
  */
-export function botDecisionMs(street: string, action: PlayerAction, rand: () => number = Math.random): number {
+export function botDecisionMs(
+  street: string,
+  action: PlayerAction,
+  rand: () => number = Math.random,
+  /** タイムバンクの無い卓では、人間と同じく持ち時間の中で必ず動く(延長の演出をしない)。 */
+  timeBank = true,
+): number {
   const isFold = action.kind === "fold";
 
   // チェックはストリートを問わず即チェック(0.15〜0.6秒)。
@@ -136,7 +155,7 @@ export function botDecisionMs(street: string, action: PlayerAction, rand: () => 
   }
 
   // ターン/リバー: 1〜10秒で考える。ごく稀にタイムバンクで延長。
-  if (rand() < TIME_BANK_CHANCE) {
+  if (timeBank && rand() < TIME_BANK_CHANCE) {
     return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
   }
   return 1000 + rand() * 9000; // 1〜10秒
@@ -355,6 +374,8 @@ export interface TableSessionConfig {
   readonly io: Server;
   readonly seatCount: number;
   readonly humans: HumanPlayer[];
+  /** SNG の階層(参加費・初期スタック・レベル時間・チャット/タイムバンクの有無)。省略時は参加費1,000の卓。 */
+  readonly tier?: SngTier;
 }
 
 /** ロビーが扱うゲームセッションの共通インターフェース(SNG/MTT)。 */
@@ -398,7 +419,13 @@ export class TableSession implements GameSession {
   private recordQueue: Promise<void> = Promise.resolve();
 
   readonly gameType = "sng";
-  readonly buyIn = SNG_BUY_IN;
+  readonly tier: SngTier;
+  private readonly tierConfig: SngTierConfig;
+  readonly buyIn: number;
+  /** 1位から順の賞金(参加費×4 / ×2)。 */
+  private readonly payouts: { place: number; amount: number }[];
+  /** アイコンの銀枠・金枠(資格者のみ)。卓の開始時に全員分を引いておき、全員同じ形で配る。 */
+  private frames = new Map<string, EliteFrame | null>();
   private readonly seatCount: number;
   private readonly configHumans: HumanPlayer[];
   /** BOTを座らせる席番号(人間の席をシャッフルで決めた残り)。start()でBOTを埋める順に使う。 */
@@ -412,6 +439,10 @@ export class TableSession implements GameSession {
     this.io = config.io;
     this.seatCount = config.seatCount;
     this.configHumans = config.humans;
+    this.tier = config.tier ?? "regular";
+    this.tierConfig = SNG_TIERS[this.tier];
+    this.buyIn = this.tierConfig.buyIn;
+    this.payouts = sngPayouts(this.buyIn);
 
     // 席割当はシャッフルする。人間を常にseat 0から詰めると、数戦見ただけで「自分の後ろは全部
     // 自動プレイヤー」と分かってしまう。全席をランダムに並べ替え、先頭から人間、残りをBOT席とする。
@@ -434,7 +465,8 @@ export class TableSession implements GameSession {
         displayName: h.displayName,
         avatarKey: h.avatarKey,
         socket: null,
-        timeBankCards: SNG_TIME_BANK_CARDS,
+        // タイムバンクは High Roller / Super High Roller の卓だけ。
+        timeBankCards: SNG_TIERS[config.tier ?? "regular"].timeBank ? SNG_TIME_BANK_CARDS : 0,
         timeBankArmed: false,
         away: false,
         left: false,
@@ -489,7 +521,13 @@ export class TableSession implements GameSession {
     this.tournament = new Tournament({
       seatCount: this.seatCount,
       players: [...this.players.values()].map((p) => ({ playerId: p.userId, displayName: p.displayName, seatIndex: p.seatIndex })),
+      startingStack: this.tierConfig.startingStack,
     });
+    try {
+      this.frames = await getEliteFrames([...this.players.values()].map((p) => p.userId));
+    } catch (err) {
+      console.error("[sng] failed to load avatar frames:", err);
+    }
 
     const dbTournament = await prisma.tournament.create({
       data: {
@@ -498,6 +536,8 @@ export class TableSession implements GameSession {
         status: "running",
         gameType: this.gameType,
         buyIn: this.buyIn,
+        tier: this.tier,
+        payouts: this.payouts.map((p) => p.amount),
       },
     });
     this.dbTournamentId = dbTournament.id;
@@ -553,6 +593,7 @@ export class TableSession implements GameSession {
       }
     });
     socket.on("timeBankArm", (payload: { armed?: boolean }) => {
+      if (!this.tierConfig.timeBank) return;
       human.timeBankArmed = Boolean(payload?.armed);
     });
     socket.on("sitOut", (payload: { away?: boolean }) => {
@@ -561,6 +602,8 @@ export class TableSession implements GameSession {
       this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
     });
     socket.on("chat", (payload: { text?: string }) => {
+      // チャットは High Roller / Super High Roller の卓だけ。
+      if (!this.tierConfig.chat) return;
       const text = sanitizeChatText(payload?.text);
       if (!text) return;
       const msg: ChatMessage = { seatIndex, userId: human.userId, displayName: human.displayName, text, ts: Date.now() };
@@ -602,10 +645,11 @@ export class TableSession implements GameSession {
     });
 
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
-    if (this.tournament) socket.emit("levelUp", { level: this.tournament.getCurrentLevel(), endsAt: this.levelEndsAt });
+    if (this.tournament) socket.emit("levelUp", { level: this.currentLevel(), endsAt: this.levelEndsAt });
     this.broadcastTournamentInfo();
-    if (this.chatLog.length > 0) socket.emit("chatLog", { messages: this.chatLog });
-    socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
+    if (this.tierConfig.chat && this.chatLog.length > 0) socket.emit("chatLog", { messages: this.chatLog });
+    // タイムバンクの無い卓には送らない(届かなければクライアントはボタンを出さない)。
+    if (this.tierConfig.timeBank) socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand) {
       socket.emit("state", this.hand.getPublicState());
       socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
@@ -638,14 +682,28 @@ export class TableSession implements GameSession {
    * (通信内容を見れば分かってしまうため)。相手の詳細はプロフィールAPIが誰に対しても
    * 同じ形で応答するので、クライアント側で種別を知る必要はない。
    */
-  private playersPayload(): { seatIndex: number; userId: string; displayName: string; avatarKey: string | null; away: boolean }[] {
+  private playersPayload(): {
+    seatIndex: number;
+    userId: string;
+    displayName: string;
+    avatarKey: string | null;
+    away: boolean;
+    frame: EliteFrame | null;
+  }[] {
     return [...this.players.values()].map((p) => ({
       seatIndex: p.seatIndex,
       userId: p.userId,
       displayName: p.displayName,
       avatarKey: p.avatarKey,
       away: this.humansBySeat.get(p.seatIndex)?.away ?? false,
+      frame: this.frames.get(p.userId) ?? null,
     }));
+  }
+
+  /** いまのレベル。レベル時間は階層ごとに違うので、表示用の durationMinutes も合わせて返す。 */
+  private currentLevel(): BlindLevel {
+    const level = this.tournament!.getCurrentLevel();
+    return { ...level, durationMinutes: this.tierConfig.levelDurationMs / 60_000 };
   }
 
   /** トーナメントクロック画面用の集計情報(残り人数/総数/アベレージスタック/プライズ)を配信する。 */
@@ -660,8 +718,12 @@ export class TableSession implements GameSession {
       remaining,
       total: seats.length,
       averageStack,
-      prizePool: SNG_PAYOUTS,
+      prizePool: this.payouts,
       tournamentId: this.dbTournamentId ?? null,
+      tier: this.tier,
+      startingStack: this.tierConfig.startingStack,
+      levelDurationMs: this.tierConfig.levelDurationMs,
+      chat: this.tierConfig.chat,
     });
   }
 
@@ -672,15 +734,16 @@ export class TableSession implements GameSession {
   private scheduleLevelAdvance(): void {
     const tournament = this.tournament;
     if (!tournament) return;
-    const level = tournament.getCurrentLevel();
-    this.levelEndsAt = Date.now() + level.durationMinutes * 60_000;
+    const level = this.currentLevel();
+    const durationMs = this.tierConfig.levelDurationMs;
+    this.levelEndsAt = Date.now() + durationMs;
     this.io.to(this.roomId).emit("levelUp", { level, endsAt: this.levelEndsAt });
     this.broadcastTournamentInfo();
     setTimeout(() => {
       if (!this.tournament || this.tournament.isTournamentOver() || this.finished) return;
       this.tournament.advanceToNextLevel();
       this.scheduleLevelAdvance();
-    }, level.durationMinutes * 60_000);
+    }, durationMs);
   }
 
   /**
@@ -888,7 +951,7 @@ export class TableSession implements GameSession {
       return;
     }
     const street = this.hand?.getPublicState().street ?? "preflop";
-    const decision = botDecisionMs(street, botAction);
+    const decision = botDecisionMs(street, botAction, Math.random, this.tierConfig.timeBank);
     // 人間と全く同じ20秒のショットクロックを表示する。
     this.emitTurnTimer(actingSeat, Date.now() + ACTION_CLOCK_MS, ACTION_CLOCK_MS);
     if (decision <= ACTION_CLOCK_MS) {
@@ -1110,8 +1173,7 @@ export class TableSession implements GameSession {
           startedAt: clock?.startedAt,
           endedAt: new Date(),
           playersRemaining: aliveAtStart.length,
-          entryCount: tournament.getSeats().length,
-          payouts: SNG_PAYOUTS.map((p) => p.amount),
+          // 総エントリー数と賞金はトーナメント単位で1回だけ持つ(Tournament.seatCount / payouts)。ハンドごとに繰り返さない。
           fieldStacks: aliveAtStart.map((s) => s.stack),
           timings: clock?.timings,
         },
@@ -1173,7 +1235,7 @@ export class TableSession implements GameSession {
     const seat = tournament.getSeats().find((s) => s.seatIndex === seatIndex)!;
     const remaining = tournament.getSeats().filter((s) => s.bustedAtHand === null).length;
     const place = seat.bustedAtHand === null ? 1 : remaining + 1;
-    const payout = SNG_PAYOUTS.find((p) => p.place === place)?.amount ?? 0;
+    const payout = this.payouts.find((p) => p.place === place)?.amount ?? 0;
 
     // DB書き込みが失敗しても、本人への結果通知とゲーム進行は止めない。
     try {
@@ -1234,7 +1296,7 @@ export class TableSession implements GameSession {
           where: { tournamentId: this.dbTournamentId!, seatIndex: seat.seatIndex },
           data: {
             finishPosition: place,
-            payout: SNG_PAYOUTS.find((p) => p.place === place)?.amount ?? 0,
+            payout: this.payouts.find((p) => p.place === place)?.amount ?? 0,
             bustedAtHandNumber: seat.bustedAtHand,
           },
         });

@@ -1,5 +1,6 @@
 import type { Server, Socket } from "socket.io";
-import { getOrCreateUserByAuthId, prisma } from "@meta-geo/db";
+import { getEliteStats, getOrCreateUserByAuthId, prisma } from "@meta-geo/db";
+import { qualifiesForTier, type SngTier } from "@meta-geo/engine";
 import { authAvailable, verifyAccessToken } from "./auth.js";
 import type { GameSession, HumanPlayer } from "./gameServer.js";
 import { SngMatchmaker } from "./sngMatchmaker.js";
@@ -7,10 +8,17 @@ import { MttScheduler } from "./mttScheduler.js";
 import { activeGames } from "./activeGames.js";
 import { isValidUnlockCode } from "./adminAuth.js";
 
-export type GameKey = "sng" | "mtt";
+/** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。 */
+export type GameKey = "sng" | "sng_hr" | "sng_shr" | "mtt";
+
+const SNG_TIER_BY_KEY: Record<Exclude<GameKey, "mtt">, SngTier> = {
+  sng: "regular",
+  sng_hr: "highRoller",
+  sng_shr: "superHighRoller",
+};
 
 function isGameKey(key: unknown): key is GameKey {
-  return key === "sng" || key === "mtt";
+  return key === "sng" || key === "sng_hr" || key === "sng_shr" || key === "mtt";
 }
 
 interface ResolvedUser {
@@ -22,7 +30,7 @@ interface ResolvedUser {
 /**
  * ソケット接続を受け取り、認証・ユーザー解決を行った上でゲームセッションへ振り分けるロビー。
  * 「プレイヤーがテーブルを立てるのではなく、システムがゲームを用意し参加する」という
- * 仕組み上、SNGはマッチング待合室(6人揃うか15秒で余り枠にBOT補充)、MTTは常時オープンな
+ * 仕組み上、SNGは階層ごとのマッチング待合室(参加費1,000は6人揃うか10秒で余り枠を補充、High Roller以上は6人揃ったら開始)、MTTは常時オープンな
  * 30分ローテーションのレジストレーション窓口(SngMatchmaker/MttScheduler)に委譲する。
  *
  * 重要: マッチング待合も進行中の卓(Socket.IOルーム)もインメモリで保持するため、サーバーは
@@ -33,17 +41,21 @@ export class Lobby {
   private readonly io: Server;
   // 再接続時に同じゲームへ戻せるよう、ユーザーIDごとに進行中のセッションを保持する
   private readonly activeSessions = new Map<string, GameSession>();
-  private readonly sngMatchmaker: SngMatchmaker;
+  /** 階層ごとのマッチング待合室。 */
+  private readonly sngMatchmakers: Map<SngTier, SngMatchmaker>;
   private readonly mttScheduler: MttScheduler;
 
   constructor(io: Server) {
     this.io = io;
-    this.sngMatchmaker = new SngMatchmaker(io, (session, humanUserIds) => {
+    const onSessionReady = (session: GameSession, humanUserIds: string[]) => {
       for (const userId of humanUserIds) {
         this.activeSessions.set(userId, session);
         activeGames.setActive(userId, "sng");
       }
-    });
+    };
+    this.sngMatchmakers = new Map(
+      (["regular", "highRoller", "superHighRoller"] as const).map((tier) => [tier, new SngMatchmaker(io, onSessionReady, tier)]),
+    );
     this.mttScheduler = new MttScheduler(io);
     // 終了済みセッションを activeSessions から掃除する(H9: 放置するとセッション実体を永久保持し、
     // 512MB VMでメモリが枯渇する)。start()失敗で finished=true になった卓もここで除去される(H5)。
@@ -81,7 +93,7 @@ export class Lobby {
     socket.on("leaveGame", () => {
       const userId = socket.data["userId"] as string | undefined;
       if (!userId) return;
-      this.sngMatchmaker.leaveQueue(userId);
+      for (const m of this.sngMatchmakers.values()) m.leaveQueue(userId);
       activeGames.clearActive(userId);
       const session = this.activeSessions.get(userId);
       if (session) {
@@ -146,8 +158,16 @@ export class Lobby {
 
     const player: HumanPlayer = { userId: resolved.userId, displayName: resolved.displayName, avatarKey: resolved.avatarKey };
 
-    if (payload.gameKey === "sng") {
-      this.sngMatchmaker.join(player, socket);
+    if (payload.gameKey !== "mtt") {
+      const tier = SNG_TIER_BY_KEY[payload.gameKey];
+      // 参加資格はサーバー側でも必ず確かめる(画面の錠だけでは joinGame の直送で突破できるため)。
+      if (tier !== "regular" && !qualifiesForTier(tier, await getEliteStats(resolved.userId))) {
+        socket.emit("joinGameError", { message: "参加条件を満たしていません", code: "TIER_LOCKED" });
+        return;
+      }
+      // 別の階層の待合室に並んでいたら抜けてから並ぶ(二重に並ばない)。
+      for (const [t, m] of this.sngMatchmakers) if (t !== tier) m.leaveQueue(resolved.userId);
+      this.sngMatchmakers.get(tier)!.join(player, socket);
       return;
     }
 
