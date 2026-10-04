@@ -1,5 +1,7 @@
 /** pt-BR(ブラジル・ポルトガル語)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const ptBR: Record<string, string> = {
+  "tier.requirements": "Requisitos",
+  "tier.requirementsHint": "Cumpra todos os requisitos para entrar nesta mesa.",
   "tier.meta": "{bb}BB · níveis de {min} min",
   "tier.locked": "Requisitos",
   "tier.req.profit": "Lucro total",

@@ -1,5 +1,7 @@
 /** zh-Hant(繁體中文・台湾)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const zhHant: Record<string, string> = {
+  "tier.requirements": "參加條件",
+  "tier.requirementsHint": "符合所有條件後即可參加。",
   "tier.meta": "{bb}BB・每級{min}分鐘",
   "tier.locked": "參加條件",
   "tier.req.profit": "累計收支",
