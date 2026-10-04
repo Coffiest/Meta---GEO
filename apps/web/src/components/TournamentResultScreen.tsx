@@ -12,6 +12,7 @@ import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
 import { TournamentReviewModal } from "@/components/review/TournamentReviewModal";
 import { Icon } from "./Icon";
 import { DigitRoll } from "./effects/DigitRoll";
+import { AdSlot } from "@/components/AdSlot";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -422,6 +423,13 @@ export function TournamentResultScreen({
             <Icon name="logo-x" className="h-[16px] w-[16px]" />
             {shared ? t("result.shareOpened") : t("result.shareX")}
           </button>
+        </div>
+
+        {/* 広告枠。ハンドが終わって次の行動(閉じる/リエントリ/棋譜解析)へ移る区切りの位置に置く。
+            ボタン群より**下**なので、どの導線も広告で押し下げたり誤タップさせたりしない。
+            広告ユニット未作成・有料プラン加入者には出ない。 */}
+        <div className="mt-6">
+          <AdSlot placement="result" />
         </div>
       </div>
 

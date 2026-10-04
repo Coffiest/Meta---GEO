@@ -6,9 +6,7 @@ import { DiagnosticsToaster } from "@/components/DiagnosticsToaster";
 import { LaunchSplash } from "@/components/LaunchSplash";
 import { LocaleSuggestion } from "@/components/LocaleSuggestion";
 
-// Google AdSense。NEXT_PUBLIC_ADSENSE_CLIENT_ID(ca-pub-...)が未設定の間はスクリプト自体を
-// 読み込まない(審査未通過の状態で広告タグを配信しないため)。設定後は再デプロイのみで有効化される。
-const ADSENSE_CLIENT_ID = process.env["NEXT_PUBLIC_ADSENSE_CLIENT_ID"];
+import { ADSENSE_CLIENT_ID } from "@/lib/adsense";
 
 /**
  * 欧文・数字のフォント。エディタ/ターミナルの見え方に寄せるため、コーディング用の
@@ -199,19 +197,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <h1 className="sr-only">Poker ART（ポーカーアート／POKERART）— 無料バーチャルチップ・ポーカートーナメント</h1>
         <p className="sr-only">{SITE_DESCRIPTION}</p>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
-        {ADSENSE_CLIENT_ID && (
-          // next/script の Script コンポーネント(strategy問わず)は、生の<script src>タグを
-          // 直接HTMLへ出力せず、<link rel="preload">+ JS実行時に組み立てる仕組みになっている。
-          // AdSenseの所有権確認クローラーはJSを実行せず、静的HTML中の文字どおりの<script src=...>
-          // タグを探すため、next/scriptでは検出されずサイト確認が失敗し続けていた。
-          // そのため、素のHTML <script> タグとして直接出力する。
-          // eslint-disable-next-line @next/next/no-sync-scripts -- AdSense所有権確認は静的HTML中の生<script>タグを要求するため、next/scriptは使えない
-          <script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
-            crossOrigin="anonymous"
-          />
-        )}
+        {/* AdSenseの広告スクリプト。所有権確認のスニペットを兼ねるので**常に**出す
+            (環境変数が未設定でも lib/adsense.ts が本番のパブリッシャーIDへフォールバックする)。
+            広告そのものは広告ユニット(スロットID)が無いと出ないので、審査前にこれを出していても
+            広告が配信されることはない。
+
+            next/script の Script コンポーネント(strategy問わず)は、生の<script src>タグを
+            直接HTMLへ出力せず、<link rel="preload">+ JS実行時に組み立てる仕組みになっている。
+            AdSenseの所有権確認クローラーはJSを実行せず、静的HTML中の文字どおりの<script src=...>
+            タグを探すため、next/scriptでは検出されずサイト確認が失敗し続けていた。
+            そのため、素のHTML <script> タグとして直接出力する。 */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- AdSense所有権確認は静的HTML中の生<script>タグを要求するため、next/scriptは使えない */}
+        <script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+          crossOrigin="anonymous"
+        />
         {/* 起動画面。アプリ本体(/)を開いたときだけ、最初の描画から出る。 */}
         <LaunchSplash />
         <LocaleProvider>

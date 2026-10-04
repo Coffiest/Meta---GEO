@@ -27,6 +27,7 @@ import { tierLabel } from "@/lib/sngTiers";
 import { Icon } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 import { TermPrompt } from "@/components/Header";
+import { AdsAllowedProvider } from "@/components/AdSlot";
 
 const SEAT_COUNT = 6;
 
@@ -1406,14 +1407,16 @@ export default function Page() {
 
   if (gameKey) {
     return (
-      <GameScreen
-        displayName={profile.displayName}
-        avatarKey={profile.avatarKey}
-        gameKey={gameKey}
-        accessToken={accessToken}
-        unlockCode={unlockCode}
-        onExit={() => setGameKey(null)}
-      />
+      <AdsAllowedProvider accessToken={accessToken}>
+        <GameScreen
+          displayName={profile.displayName}
+          avatarKey={profile.avatarKey}
+          gameKey={gameKey}
+          accessToken={accessToken}
+          unlockCode={unlockCode}
+          onExit={() => setGameKey(null)}
+        />
+      </AdsAllowedProvider>
     );
   }
 
@@ -1450,7 +1453,8 @@ export default function Page() {
     (appMetadata?.provider ? [appMetadata.provider] : []);
 
   return (
-    <>
+    // 広告は有料プラン加入者には出さない。判定はここで一度だけ行い、配下の AdSlot が参照する。
+    <AdsAllowedProvider accessToken={accessToken}>
       <Lobby
         displayName={profile.displayName}
         avatarKey={profile.avatarKey}
@@ -1485,6 +1489,6 @@ export default function Page() {
           />
         )}
       </AnimatePresence>
-    </>
+    </AdsAllowedProvider>
   );
 }

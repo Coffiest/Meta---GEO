@@ -29,6 +29,7 @@ import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
 import { TournamentReviewModal } from "./review/TournamentReviewModal";
 import { useCountUp } from "@/lib/useCountUp";
+import { AdSlot } from "@/components/AdSlot";
 
 interface PlayerStats {
   tournamentsPlayed: number;
@@ -1821,6 +1822,12 @@ export function Lobby({
           </motion.div>
         )}
         </AnimatePresence>
+
+        {/* 広告枠。どのタブでも本文の一番下、フッターナビの手前に置く。スクロールし切った
+            ところなので導線を遮らない。広告ユニット未作成・有料プラン加入者には出ない。 */}
+        <div className="mt-6">
+          <AdSlot placement="lobby" />
+        </div>
 
         </main>
       </div>
