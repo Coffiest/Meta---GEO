@@ -51,6 +51,7 @@ export const zhHant: Record<string, string> = {
   "settings.handHistory": "本場手牌紀錄",
   "settings.blindStructure": "查看盲注結構",
   "settings.chatLog": "聊天紀錄",
+  "settings.tableView": "牌桌顯示",
   "settings.leave": "放棄籌碼並離開遊戲",
   "settings.leaveConfirm": "將放棄籌碼並離開，此操作無法復原。",
   "settings.leaveDo": "離開",
