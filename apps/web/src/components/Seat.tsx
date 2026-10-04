@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { SPRING_SNAPPY } from "@/lib/motion";
+import { SPRING_SNAPPY, SPRING_THROW } from "@/lib/motion";
+
+/** オールインマーカーの画像。原画 public/table/allin_marker_source.png から scripts/table-markers.py で書き出した版。 */
+const ALLIN_MARKER_SRC = "/table/allin_marker_v1.png";
 import { PlayingCard } from "./PlayingCard";
 import { Avatar } from "./Avatar";
 import { formatAmount, formatBb, formatChips, type AmountDisplayMode } from "@/lib/format";
@@ -159,6 +162,7 @@ export function Seat({
   aside = null,
 }: SeatViewProps) {
   const { t } = useI18n();
+  const reducedMotion = useReducedMotion();
   const isEmpty = status === "empty";
   const folded = status === "folded";
   // フォールドした席は通常伏せカードごと表示しないが、ハンドショウで公開された席は表示する。
@@ -312,6 +316,25 @@ export function Seat({
           </span>
         )}
 
+        {/* オールインマーカー(オーナー支給の画像)。オールインした席のピルの左上に置き、ハンドが終わるまで残す。
+            誰の席でも同じ条件・同じ見た目。画像は scripts/table-markers.py で台紙を透過・縮小した版。 */}
+        <AnimatePresence>
+          {status === "allIn" && (
+            <motion.img
+              key="allin-marker"
+              src={ALLIN_MARKER_SRC}
+              alt="All in"
+              draggable={false}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.4, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+              transition={SPRING_THROW}
+              className="pointer-events-none absolute -left-4 -top-6 z-30 select-none drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]"
+              style={{ width: size === "lg" ? 42 : 32 }}
+            />
+          )}
+        </AnimatePresence>
+
         {/* 自分の席: 席ピルの左外に、タイムバンクと離席のトグルを縦に積む。
             以前はアクションバーに専用の行を持っていたが、その1行(36px)がそのまま卓の
             大きさを削っていた。自分だけに関わる補助操作なので、自分の席の横が本来の居場所。
@@ -379,7 +402,6 @@ export function Seat({
                   </span>
                 )}
               </div>
-              {status === "allIn" && <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fg">All in</div>}
               {away && status !== "allIn" && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-fg-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-n-5" />

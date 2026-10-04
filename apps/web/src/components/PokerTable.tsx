@@ -96,7 +96,7 @@ const DEALER_BUTTON_LAYOUT: Record<number, string> = {
 };
 
 /** ディーラーボタンの画像。オーナー支給の原画(`public/table/dealer_button_source.png`)から
- *  `scripts/dealer-button.py` で書き出した版(円の外の台紙を透過・縮小)。原画を差し替えたら再実行する。 */
+ *  `scripts/table-markers.py` で書き出した版(円の外の台紙を透過・縮小)。原画を差し替えたら再実行する。 */
 const DEALER_BUTTON_SRC = "/table/dealer_button_v1.png";
 /** 表示の直径(px)。刻印の「DEALER」が読める大きさ。 */
 const DEALER_BUTTON_SIZE = 28;
