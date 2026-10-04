@@ -256,7 +256,12 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
                   {t("settings.leaveCancel")}
                 </button>
                 <button
-                  onClick={onLeave}
+                  onClick={() => {
+                    // 先に確認モーダルを閉じる。閉じずに離脱すると、モーダル(z-50)が結果画面(z-30)の
+                    // 前に残り続け、結果画面に重なっていた(オーナー指摘)。
+                    setConfirming(false);
+                    onLeave();
+                  }}
                   className="pressable flex-1 rounded-xl bg-crimson-600 text-white text-sm font-bold py-2.5"
                 >
                   {t("settings.leaveDo")}
