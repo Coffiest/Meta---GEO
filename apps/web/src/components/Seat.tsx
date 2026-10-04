@@ -36,6 +36,34 @@ export type SeatBadgeTone = "raise" | "call" | "fold" | "win";
 export interface SeatBadge {
   text: string;
   tone: SeatBadgeTone;
+  /** チップを出すアクション(ベット/レイズ/コール/オールイン)か。出すときはチップのアイコンを添える。 */
+  chips?: boolean;
+}
+
+/** チップを出すアイコン。原画 public/table/chip_bet_source.png から scripts/table-markers.py で書き出した版。 */
+const CHIP_BET_ICON_SRC = "/table/chip_bet_v1.png";
+
+/**
+ * 金額の左に添えるチップのアイコン(装飾。読み上げは金額の文字で足りる)。
+ * アイコンはティール1色なので、緑(コール)や赤(レイズ)のバッジの上でも沈まないよう、暗い円盤に載せる。
+ */
+function ChipIcon({ size }: { size: number }) {
+  return (
+    <span
+      aria-hidden
+      className="flex shrink-0 items-center justify-center rounded-full bg-n-0/80"
+      style={{ width: size, height: size }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={CHIP_BET_ICON_SRC}
+        alt=""
+        draggable={false}
+        className="select-none"
+        style={{ width: Math.round(size * 0.74), height: Math.round(size * 0.74) }}
+      />
+    </span>
+  );
 }
 
 /**
@@ -427,9 +455,10 @@ export function Seat({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.5 }}
               transition={SPRING_SNAPPY}
-              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-bold tabular-nums ring-2 ${BADGE_TONE_CLASS[badge.tone]}`}
+              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full py-1 text-[12px] font-bold tabular-nums ring-2 ${badge.chips ? "pl-1 pr-3" : "px-3"} ${BADGE_TONE_CLASS[badge.tone]}`}
               style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
             >
+              {badge.chips && <ChipIcon size={18} />}
               {badge.text}
             </motion.div>
           ) : (
@@ -440,8 +469,9 @@ export function Seat({
                 initial={{ opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.6 }}
-                className="rounded-full glass-panel px-2.5 py-0.5 text-[10px] font-semibold text-n-10 tabular-nums"
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full glass-panel py-0.5 pl-0.5 pr-2.5 text-[10px] font-semibold text-n-10 tabular-nums"
               >
+                <ChipIcon size={15} />
                 {formatAmount(streetContribution, bigBlind, displayMode)}
               </motion.div>
             )

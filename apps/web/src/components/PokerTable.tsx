@@ -220,17 +220,17 @@ function badgeForSeat(params: {
     const bb = formatAmount(action.toAmount, bigBlind, displayMode);
     switch (action.kind) {
       case "raise":
-        return { text: `Raise ${bb}`, tone: "raise" };
+        return { text: `Raise ${bb}`, tone: "raise", chips: true };
       case "bet":
-        return { text: `Bet ${bb}`, tone: "raise" };
+        return { text: `Bet ${bb}`, tone: "raise", chips: true };
       case "call":
-        return { text: `Call ${bb}`, tone: "call" };
+        return { text: `Call ${bb}`, tone: "call", chips: true };
       case "check":
         return { text: "Check", tone: "call" };
       case "fold":
         return { text: "Fold", tone: "fold" };
       case "allIn":
-        return { text: `All In ${bb}`, tone: "raise" };
+        return { text: `All In ${bb}`, tone: "raise", chips: true };
     }
   }
 
