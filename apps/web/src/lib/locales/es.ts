@@ -1,5 +1,7 @@
 /** es(スペイン語・中南米向けの中立表現)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const es: Record<string, string> = {
+  "tier.requirements": "Requisitos",
+  "tier.requirementsHint": "Cumple todos los requisitos para entrar en esta mesa.",
   "tier.meta": "{bb}BB · niveles de {min} min",
   "tier.locked": "Requisitos",
   "tier.req.profit": "Ganancia total",

@@ -53,6 +53,8 @@ function writeStorage(key: string, value: string): void {
 type Dict = Record<string, string>;
 
 const ja: Dict = {
+  "tier.requirements": "参加条件",
+  "tier.requirementsHint": "すべての条件を満たすと参加できます。",
   "tier.meta": "{bb}BB・{min}分レベル",
   "tier.locked": "参加条件",
   "tier.req.profit": "生涯収支",
@@ -422,6 +424,8 @@ const ja: Dict = {
 };
 
 const en: Dict = {
+  "tier.requirements": "Requirements",
+  "tier.requirementsHint": "Meet every requirement to join this table.",
   "tier.meta": "{bb}BB · {min}-min levels",
   "tier.locked": "Requirements",
   "tier.req.profit": "Lifetime profit",
@@ -791,6 +795,8 @@ const en: Dict = {
 };
 
 const ko: Dict = {
+  "tier.requirements": "참가 조건",
+  "tier.requirementsHint": "모든 조건을 충족하면 참가할 수 있습니다.",
   "tier.meta": "{bb}BB · {min}분 레벨",
   "tier.locked": "참가 조건",
   "tier.req.profit": "누적 수지",
@@ -1160,6 +1166,8 @@ const ko: Dict = {
 };
 
 const zh: Dict = {
+  "tier.requirements": "参加条件",
+  "tier.requirementsHint": "满足所有条件后即可参加。",
   "tier.meta": "{bb}BB・每级{min}分钟",
   "tier.locked": "参加条件",
   "tier.req.profit": "累计收支",
