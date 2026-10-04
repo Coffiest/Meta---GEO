@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
@@ -14,6 +15,20 @@ import { Seat, type SeatBadge } from "./Seat";
 import { positionLabelsForState } from "@/lib/position";
 import { formatAmount, formatSignedAmount, type AmountDisplayMode } from "@/lib/format";
 import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
+import { tableLayout, type TableLayout } from "./table3d/geometry";
+
+// 3D の卓(three.js)は重いので、卓画面に来たときだけ読み込む。
+const TableScene3D = dynamic(() => import("./table3d/TableScene3D"), { ssr: false });
+
+/** WebGL が使えるか(使えなければ 2D の卓画像に戻す)。 */
+function supportsWebGL(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return Boolean(c.getContext("webgl2") ?? c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
 
 // felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
 // 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
@@ -283,6 +298,20 @@ function badgeForSeat(params: {
  *  - 縦中心 = 10% + 51.1% × 72%(felt高) ≒ 46.8% → カード上端 ≒ 42.5%
  */
 const BOARD_ROW_CLASS = "absolute inset-x-0 top-[40%] flex justify-center gap-[1.2%]";
+/** 3D の卓のボード。縦位置は投影で決めるので top は style で渡す。 */
+const BOARD_ROW_3D_CLASS = "absolute inset-x-0 flex justify-center gap-[1.2%] [transform-origin:50%_50%]";
+
+/** 3D の卓での相手の席。レールの上の投影点に席ブロックの中心を合わせ、奥の席ほど少し小さくする。 */
+function seatStyle3d(layout: TableLayout, slot: number): CSSProperties {
+  const p = layout.seats[slot]!;
+  // 遠近どおりに縮めると奥の席の文字が読めなくなるので、縮みは 0.86 で止める。
+  const k = Math.max(0.86, Math.min(1, p.depthScale + 0.12));
+  // 画面の端からはみ出さないよう、中心を左右の余白の内側に寄せる。
+  const x = Math.min(Math.max(p.x, SEAT_EDGE_MARGIN), DESIGN_WIDTH - SEAT_EDGE_MARGIN);
+  return { left: x, top: p.y, transform: `translate(-50%, -50%) scale(${k.toFixed(3)})` };
+}
+/** 相手の席の中心が画面の端に寄れる限界(席ブロックの半分ほどの幅)。 */
+const SEAT_EDGE_MARGIN = 46;
 const BOARD_CELL_CLASS = "w-[10.5%]";
 
 export function PokerTable({
@@ -305,6 +334,7 @@ export function PokerTable({
   displayMode = "bb",
   onToggleDisplayMode,
   heroAside,
+  view3d = true,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -334,6 +364,8 @@ export function PokerTable({
   onToggleDisplayMode?: () => void;
   /** 自席の席ピルの左外に積む補助操作(タイムバンク・離席)。 */
   heroAside?: ReactNode;
+  /** 卓を 3D で描くか(設定の「卓の表示」)。WebGL が使えない端末では 2D に戻す。 */
+  view3d?: boolean;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -356,6 +388,13 @@ export function PokerTable({
   // 卓は設計寸法のまま描き、空いている領域に収まる倍率で全体を縮小する。
   const fitRef = useRef<HTMLDivElement>(null);
   const fitScale = useFitScale(fitRef);
+
+  // 3D の卓。WebGL が使えるかはマウント後にしか分からないので、分かるまでは 3D の配置で何も描かない
+  // (2D の卓画像を一瞬出してから切り替わる、というちらつきを避ける)。
+  const [webgl, setWebgl] = useState<boolean | null>(null);
+  useEffect(() => setWebgl(supportsWebGL()), []);
+  const use3d = view3d && webgl !== false;
+  const layout3d = use3d ? tableLayout() : null;
 
   // ディーラーボタンの位置は描いたあとに実測して決める(findDealerSpot の説明を参照)。
   const designRef = useRef<HTMLDivElement>(null);
@@ -383,7 +422,7 @@ export function PokerTable({
       const spot = findDealerSpot({
         anchor: toDesign(anchorEl.getBoundingClientRect()),
         obstacles,
-        center: { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
+        center: layout3d ? { x: layout3d.center.x, y: layout3d.center.y } : { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
         radius: DEALER_BUTTON_SIZE / 2,
         bounds: { width: DESIGN_WIDTH, height: DESIGN_HEIGHT },
       });
@@ -400,6 +439,16 @@ export function PokerTable({
 
   return (
     <div ref={fitRef} className="relative flex h-full w-full items-center justify-center">
+      {/* 3D の卓は zoom の箱の外に、同じ実寸で敷く(zoom の中に置くと WebGL が測る寸法と描く寸法がずれる)。 */}
+      {use3d && webgl && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{ width: DESIGN_WIDTH * fitScale, height: DESIGN_HEIGHT * fitScale }}
+        >
+          <TableScene3D />
+        </div>
+      )}
       <div
         ref={designRef}
         className="no-image-actions relative"
@@ -415,13 +464,16 @@ export function PokerTable({
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
-      <TableFelt />
+      {!use3d && <TableFelt />}
 
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
           カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
-      <div className="absolute inset-x-0 top-[31%] flex flex-col items-center gap-1">
+      <div
+        className={`absolute inset-x-0 flex flex-col items-center gap-1 ${layout3d ? "-translate-y-1/2" : "top-[31%]"}`}
+        style={layout3d ? { top: layout3d.pot.y } : undefined}
+      >
         {/* 実測の邪魔もの判定は中身(ポット表示)の大きさで行う(行全体の幅ではなく)。 */}
         <AnimatePresence mode="popLayout">
           {state && state.collectedPot > 0 && (
@@ -479,12 +531,28 @@ export function PokerTable({
       </div>
 
       {/* コミュニティカード。空きスロットはfelt.png自体に描かれた破線枠が見えるので何も描かない */}
-      <div className={BOARD_ROW_CLASS}>
+      {/* 3D の卓では、ボードを卓面に寝かせて見せる(カメラの見下ろし角の6割。全部寝かせると数字が読みにくい)。
+          空きスロットの破線枠も同じ箱の中に描き、配られたカードと枠が必ず重なるようにする。 */}
+      <div
+        className={layout3d ? BOARD_ROW_3D_CLASS : BOARD_ROW_CLASS}
+        style={
+          layout3d
+            ? {
+                top: layout3d.board.y,
+                transform: `translateY(-50%) perspective(720px) rotateX(${(layout3d.boardTiltDeg * 0.6).toFixed(1)}deg) scale(${layout3d.board.depthScale.toFixed(3)})`,
+              }
+            : undefined
+        }
+      >
         {Array.from({ length: 5 }).map((_, i) => {
           const card = state?.board[i];
           return (
             <div key={i} className={BOARD_CELL_CLASS} data-table-obstacle={card ? true : undefined}>
-              {card && <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} />}
+              {card ? (
+                <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} />
+              ) : (
+                layout3d && <div aria-hidden className="aspect-[744/1039] w-full rounded-[6px] border border-dashed border-white/[0.16]" />
+              )}
             </div>
           );
         })}
@@ -574,7 +642,13 @@ export function PokerTable({
         );
 
         return (
-          <div key={seatIndex} data-seat-slot={slot} data-table-obstacle className={`absolute ${SEAT_LAYOUT[slot]}`}>
+          <div
+            key={seatIndex}
+            data-seat-slot={slot}
+            data-table-obstacle
+            className={`absolute ${layout3d && slot !== 0 ? "" : SEAT_LAYOUT[slot]}`}
+            style={layout3d && slot !== 0 ? seatStyle3d(layout3d, slot) : undefined}
+          >
             {tappable && player ? (
               <button
                 type="button"

@@ -51,6 +51,7 @@ export const es: Record<string, string> = {
   "settings.handHistory": "Historial de manos de esta partida",
   "settings.blindStructure": "Ver estructura de ciegas",
   "settings.chatLog": "Historial del chat",
+  "settings.tableView": "Vista de la mesa",
   "settings.leave": "Descartar fichas y abandonar la partida",
   "settings.leaveConfirm": "Descartarás tus fichas y abandonarás la partida. Esta acción no se puede deshacer.",
   "settings.leaveDo": "Abandonar",
