@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
+import { articleRuleById } from "@/lib/articleRules";
 import { barrelComment } from "@/lib/barrelComment";
 import { spotComment } from "@/lib/spotComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
@@ -77,25 +78,32 @@ export function DecisionHeadline({
     [decision.street, context]
   );
   const c = decision.classification;
+  const solving = c === null && decision.outOfScopeReason === "solving";
   // ダブル/トリプルバレル・プローブ・ドンク・チェックレイズの表で評価した手(チェック/コール/フォールドを含む)は、
   // 場合分けから台詞を組み立てる。
   const barrel = decision.strategy?.barrel;
   const spot = decision.strategy?.spot;
+  // 知識ベース(GTO Wizard の記事など)のルール。サーバーが決定に当てはめたものを id で引く。
+  // バッジの無い決定(マルチウェイ等)でも、当たっていれば解説だけは出す。
+  const article = articleRuleById(decision.article?.id);
+  const articleNote = article
+    ? { title: article.title, summary: article.summary, body: article.body, sourceUrl: article.sourceUrl ?? undefined }
+    : undefined;
   const note = c
     ? barrel
       ? barrelComment(barrel, context?.board)
       : spot
         ? spotComment(spot, context?.board)
-        : context
-          ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0]
-          : undefined
-    : undefined;
+        : (articleNote ??
+          (context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined))
+    : solving
+      ? undefined
+      : articleNote;
   const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
   // GTOのEV損は、バッジの根拠(プリフロップ=GTO / ポストフロップ=Notion)に関わらず出す。
   // 「GTO」と明記して、バッジと数字の根拠の違いが読めるようにする。
   const evLoss = c ? decision.evLossBb : null;
-  const solving = c === null && decision.outOfScopeReason === "solving";
   // Notionの評価はすぐ出るが、GTOのEV損はソルバー待ち。バッジと解説を先に出し、EV損は後から埋まる。
   const gtoPending = c !== null && decision.outOfScopeReason === "solving";
 

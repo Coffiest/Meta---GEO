@@ -6,6 +6,11 @@ import {
   readBetRoles,
   readDecisionSpots,
   readPotShape,
+  readArticleFacts,
+  readBoardChange,
+  matchArticleRule,
+  ARTICLE_RULES,
+  type ArticleRule,
   type BarrelVerdict,
   type SpotVerdict,
   type StrategyVerdict,
@@ -51,6 +56,49 @@ export interface DecisionStrategy {
   spot: SpotVerdict | null;
   /** ノートに良し悪しの記載が無く、解説だけを付ける評価。GTOの格付けがあればそちらを残す。 */
   keepGto: boolean;
+}
+
+/** 知識ベースのルールのうち、決定に当てはまった1件(文章は画面が id で引く)。 */
+export interface DecisionArticle {
+  id: string;
+  /** バッジ。null なら解説だけ。 */
+  grade: NotionGrade | null;
+  /** true なら GTO の格付けがある決定ではバッジを置き換えない。 */
+  keepGto: boolean;
+}
+
+/**
+ * 各決定に、知識ベース(`packages/engine/knowledge/*.md`)から当てはまるルールを1つ載せる。
+ * 役割(ドンク/CB 等)とボードの変化は、先に `attachStrategies` が載せたものを使う。
+ */
+export function attachArticles(hand: ExtractHand, decisions: ReviewedDecision[], rules: readonly ArticleRule[] = ARTICLE_RULES): void {
+  const input = {
+    buttonFixedPos: hand.buttonFixedPos,
+    seatCount: SEAT_COUNT,
+    board: hand.board,
+    seats: hand.seats,
+    actions: hand.actions,
+    icmStage: hand.icmStage ?? null,
+  };
+  for (const d of decisions) {
+    const street = d.street;
+    const boardChange =
+      d.strategy?.boardChange ?? (street === "turn" || street === "river" ? readBoardChange(street, hand.board) : null);
+    const facts = readArticleFacts(input, {
+      sequenceNumber: d.sequenceNumber,
+      street,
+      seatIndex: d.seatIndex,
+      heroPos: d.heroPos,
+      effStackBb: d.effStackBb,
+      potBb: d.potBb,
+      facingSizeBb: d.facingSizeBb,
+      bucket: d.actionTaken.bucket,
+      role: d.strategy?.role ?? null,
+      boardChange,
+    });
+    const rule = matchArticleRule(rules, facts);
+    d.article = rule ? { id: rule.id, grade: rule.grade, keepGto: rule.keepGto } : null;
+  }
 }
 
 /**
@@ -115,6 +163,7 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
     }
     d.strategy = v ? toStrategy(null, v) : null;
   }
+  attachArticles(hand, decisions);
 }
 
 /**
@@ -128,9 +177,23 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
 export function applyNotionGrades(decisions: ReviewedDecision[]): void {
   for (const d of decisions) {
     const g = d.strategy?.grade;
-    if (!g) continue;
+    if (!g) {
+      applyArticleGrade(d);
+      continue;
+    }
     // 解説だけの評価(ノートに良し悪しの記載が無い)は、GTOの格付けがあればそちらを残す。
     if (d.strategy?.keepGto && d.classification !== null && d.classification !== g) continue;
     d.classification = g;
   }
+}
+
+/**
+ * 知識ベースのルールのバッジ。Notion の評価が無い決定にだけ効く(Notion > 記事 > GTO)。
+ * `keepGto` のルールは、GTO の格付けがあればそちらを残す。
+ */
+function applyArticleGrade(d: ReviewedDecision): void {
+  const a = d.article;
+  if (!a?.grade) return;
+  if (a.keepGto && d.classification !== null) return;
+  d.classification = a.grade;
 }

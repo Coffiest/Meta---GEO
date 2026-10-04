@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyNotionGrades, attachStrategies } from "../src/reviewStrategy.js";
+import type { ArticleRule } from "@meta-geo/engine";
+import { applyNotionGrades, attachArticles, attachStrategies } from "../src/reviewStrategy.js";
 import { summarizeReviewedDecisions } from "../src/review.js";
 import type { ExtractHand } from "../src/reviewExtract.js";
 import type { ReviewedDecision } from "../src/review.js";
@@ -73,6 +74,7 @@ function decision(over: Partial<ReviewedDecision>): ReviewedDecision {
     actionName: "ベット",
     geo: null,
     strategy: null,
+    article: null,
     ...over,
   };
 }
@@ -304,5 +306,55 @@ describe("集計", () => {
     const s = summarizeReviewedDecisions([withEv, notionOnly]);
     expect(s.mistakeCount).toBe(1); // EV損の無い大悪手も数える
     expect(s.gtoAccuracy).toBe(100); // 平均はEV損0の1件だけ
+  });
+});
+
+describe("知識ベースのルール(attachArticles / applyNotionGrades)", () => {
+  const rule = (over: Partial<ArticleRule>): ArticleRule => ({
+    id: "r",
+    article: "a",
+    sourceUrl: "https://example.com",
+    title: "t",
+    summary: "s",
+    body: "b",
+    grade: "mistake",
+    keepGto: false,
+    priority: 0,
+    when: { street: ["river"], action: ["bet40-60"] },
+    ...over,
+  });
+
+  it("当てはまったルールの id とバッジが載り、Notion の評価が無ければバッジになる", () => {
+    const { hand, betSeq } = riverBetHand(["Qd", "Jc"], ["Qh", "Jd"]);
+    const d = decision({ sequenceNumber: betSeq, seatIndex: 0, actionTaken: { kind: "bet", bucket: "bet40-60", toAmount: 60 } });
+    attachArticles(hand, [d], [rule({})]);
+    expect(d.article).toEqual({ id: "r", grade: "mistake", keepGto: false });
+    applyNotionGrades([d]);
+    expect(d.classification).toBe("mistake");
+  });
+
+  it("Notion の評価がある決定では、記事のバッジは効かない", () => {
+    const d = decision({
+      classification: "excellent",
+      strategy: { role: "riverBarrel", tag: null, reason: null, grade: "best", boardChange: null, barrel: null, spot: null, keepGto: false },
+      article: { id: "r", grade: "blunder", keepGto: false },
+    });
+    applyNotionGrades([d]);
+    expect(d.classification).toBe("best");
+  });
+
+  it("keepGto のルールは、GTO の格付けがあれば置き換えない", () => {
+    const withGto = decision({ classification: "excellent", article: { id: "r", grade: "mistake", keepGto: true } });
+    const noGto = decision({ classification: null, evLossBb: null, article: { id: "r", grade: "mistake", keepGto: true } });
+    applyNotionGrades([withGto, noGto]);
+    expect(withGto.classification).toBe("excellent");
+    expect(noGto.classification).toBe("mistake");
+  });
+
+  it("当てはまらなければ null", () => {
+    const { hand, betSeq } = riverBetHand(["Qd", "Jc"], ["Qh", "Jd"]);
+    const d = decision({ sequenceNumber: betSeq, seatIndex: 0, actionTaken: { kind: "bet", bucket: "bet80-100", toAmount: 90 } });
+    attachArticles(hand, [d], [rule({})]);
+    expect(d.article).toBeNull();
   });
 });

@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "knowledge": "UPDATE_KNOWLEDGE=1 vitest run test/articleRules.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
