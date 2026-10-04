@@ -37,8 +37,6 @@ import { AdSlot } from "@/components/AdSlot";
 
 const STREET_LABEL = STREET_EN;
 
-/** 無料要約画面の広告枠スロットID。未設定の間はAdSlot自体が非表示になる。 */
-const ADSENSE_REVIEW_SLOT = process.env["NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID"];
 
 /** スタッガー入場(親)。 */
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
@@ -431,12 +429,10 @@ export function TournamentReviewModal({
                 </motion.p>
               )}
 
-              {/* 広告枠(AdSense未設定の間は自動的に非表示)。 */}
-              {ADSENSE_REVIEW_SLOT && (
-                <motion.div variants={riseIn} className="mb-4">
-                  <AdSlot slot={ADSENSE_REVIEW_SLOT} />
-                </motion.div>
-              )}
+              {/* 広告枠(広告ユニット未作成・有料プラン加入者には自動的に非表示)。 */}
+              <motion.div variants={riseIn} className="mb-4">
+                <AdSlot placement="reviewSummary" />
+              </motion.div>
 
               {/* 局後検討へ(ここから先が課金ゲート: 1日1回無料→使い放題プラン)。 */}
               <motion.div variants={riseIn}>
@@ -583,6 +579,12 @@ export function TournamentReviewModal({
                   ソルバー解析中… 結果は自動で反映されます
                 </p>
               )}
+            </motion.div>
+
+            {/* 広告枠。GTOスコアを見終えて下の内訳へ進む境目に置く(スコアの数字と内訳の間に挟んで
+                読み筋を断ち切らない位置)。広告ユニット未作成・有料プラン加入者には出ない。 */}
+            <motion.div variants={riseIn} className="mb-3">
+              <AdSlot placement="reviewScore" />
             </motion.div>
 
             {/* 分類リスト(iOSインセットグループ+比率バー)。発生した評価のみ表示。 */}
