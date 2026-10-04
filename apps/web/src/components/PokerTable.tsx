@@ -95,10 +95,14 @@ const DEALER_BUTTON_LAYOUT: Record<number, string> = {
   5: "top-[57%] left-[72%]",
 };
 
+/** ディーラーボタンの画像。オーナー支給の原画(`public/table/dealer_button_source.png`)から
+ *  `scripts/dealer-button.py` で書き出した版(円の外の台紙を透過・縮小)。原画を差し替えたら再実行する。 */
+const DEALER_BUTTON_SRC = "/table/dealer_button_v1.png";
+/** 表示の直径(px)。刻印の「DEALER」が読める大きさ。 */
+const DEALER_BUTTON_SIZE = 28;
+
 /**
- * フェルト上に置かれたディーラーボタン。実物のボタン(白い樹脂ディスクに"D"の刻印)に寄せつつ、
- * アクセント色の輪郭+発光で「今どこにあるか」を目で追いやすくした(卓の意匠は無彩色なので、
- * このアプリで唯一のアクセント色の物体として卓上で浮き上がる)。ボタンが移動する卓では
+ * フェルト上に置かれたディーラーボタン(オーナー支給の画像)。ボタンが移動する卓では
  * ハンドごとに位置が変わるため、layout アニメーションで席から席へ滑らせる
  * (reduced-motion 時は移動アニメーションを切る)。
  */
@@ -111,16 +115,18 @@ function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
-      className={`pointer-events-none absolute z-20 -ml-[12px] -mt-[12px] ${DEALER_BUTTON_LAYOUT[slot]}`}
+      className={`pointer-events-none absolute z-20 -ml-[14px] -mt-[14px] ${DEALER_BUTTON_LAYOUT[slot]}`}
     >
-      <span
-        className="flex h-[24px] w-[24px] items-center justify-center rounded-full border-[1.5px] border-accent bg-surface shadow-e1"
-        style={{ boxShadow: "0 0 0 3px rgba(38,194,163,0.18), 0 0 8px 1px rgba(38,194,163,0.35)" }}
-      >
-        <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full border border-accent/50 text-[9px] font-black leading-none text-accent">
-          D
-        </span>
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={DEALER_BUTTON_SRC}
+        alt=""
+        width={DEALER_BUTTON_SIZE}
+        height={DEALER_BUTTON_SIZE}
+        draggable={false}
+        className="block select-none rounded-full shadow-e1"
+        style={{ width: DEALER_BUTTON_SIZE, height: DEALER_BUTTON_SIZE }}
+      />
     </motion.div>
   );
 }
