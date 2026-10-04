@@ -82,3 +82,9 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 
 デプロイ先: Vercel(Web) + Fly.io(サーバー) + Supabase(Postgres/Auth)。
 本番URL: **https://meta-geo-poker.vercel.app**(常時固定)。
+
+## 棋譜解析の解説の知識ベース
+
+- 解説に使う知識(記事を読んで得た内容)は **`packages/engine/knowledge/*.md` に溜める**。記事ごとに「要点(漏れなく)」と「解説ルール(```json rule ブロック)」を書く。書き方はファイル冒頭にある。
+- ルールは「いつ出すか(when)/ 何を言うか(summary・body)/ バッジ(grade)」を持つ。サーバーが決定ごとに1件当てはめ(`packages/db/src/reviewStrategy.ts` の `attachArticles`)、画面は id で文章を引く。バッジの優先は **Notion > 知識ベース > GTO**。プリフロップのバッジ付きルールは `keepGto`(GTO の表がある局面では表を優先)。
+- md を書き換えたら `pnpm --filter @meta-geo/engine run knowledge` で生成物を作り直す(忘れるとテストが落ちる)。

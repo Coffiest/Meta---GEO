@@ -66,6 +66,11 @@ export interface ReviewedDecision {
   geo: GeoDecisionInfo | null;
   /** ベットの役割と戦略判定。ベット/レイズと、ダブル/トリプルバレルを打てた場面のチェック以外は null。 */
   strategy: DecisionStrategy | null;
+  /**
+   * 解説の知識ベース(GTO Wizard の記事など)から当てはまったルール。文章は `lib/articleRules.ts` が id で引く。
+   * 古い保存済みの解析には無い。
+   */
+  article?: { id: string; grade: Classification | null; keepGto: boolean } | null;
 }
 
 export interface ReviewResult {

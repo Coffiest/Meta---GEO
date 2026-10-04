@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
+import { icmStageOf, type IcmStage } from "@meta-geo/engine";
+import { SNG_PAYOUTS } from "./bankroll.js";
 import { extractHeroDecisions, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
 import { handClassLabel } from "./preflopBaseline.js";
 import { openGtoActions, defenseGtoActions, vsJamGtoActions } from "./reviewGto.js";
@@ -23,7 +25,7 @@ import {
   type GtoActionEV,
 } from "./reviewClassify.js";
 import { getGeoNodeForReviewSpot, type HandClassMatrixResult } from "./geoTree.js";
-import { applyNotionGrades, attachStrategies, type DecisionStrategy } from "./reviewStrategy.js";
+import { applyNotionGrades, attachStrategies, type DecisionArticle, type DecisionStrategy } from "./reviewStrategy.js";
 
 /**
  * 局後検討のオーケストレーション。1ハンド×1hero(自分)の意思決定を抽出→GTO基準で分類→永続化する。
@@ -44,6 +46,23 @@ const HAND_INCLUDE = {
     select: { sequenceNumber: true, seatIndex: true, street: true, kind: true, toAmount: true, potBefore: true },
   },
 };
+
+/** トーナメントの段階(解説ルールの icmStage)を出すのに要る列。 */
+const HAND_STAGE_SELECT = {
+  playersRemaining: true,
+  itmPlaces: true,
+  tournament: { select: { gameType: true } },
+} as const;
+
+/** ハンド時点のトーナメントの段階。古いハンド(研究用の列が無い)は null。SNG の入賞人数が無ければ賞金の数で補う。 */
+function stageOfHand(h: {
+  playersRemaining: number | null;
+  itmPlaces: number | null;
+  tournament: { gameType: string };
+}): IcmStage | null {
+  const itm = h.itmPlaces ?? (h.tournament.gameType === "sng" ? SNG_PAYOUTS.length : null);
+  return icmStageOf({ playersRemaining: h.playersRemaining, itmPlaces: itm, gameType: h.tournament.gameType });
+}
 
 const SEAT_COUNT = 6;
 const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
@@ -192,6 +211,11 @@ export interface ReviewedDecision {
    * 判定で上書きされた場合、`classification` にはもう反映済み(`evLossBb` はGTO由来のまま)。
    */
   strategy: DecisionStrategy | null;
+  /**
+   * 解説の知識ベース(GTO Wizard の記事など)から当てはまったルール。文章は画面が同じ生成物から id で引く。
+   * `grade` は Notion の評価が無い決定にだけバッジとして効く(`applyNotionGrades`)。
+   */
+  article: DecisionArticle | null;
 }
 
 export interface ReviewResult {
@@ -309,6 +333,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       actionName: actionNameOf(d, spot),
       geo: null,
       strategy: null,
+      article: null,
     };
   });
 }
@@ -359,7 +384,7 @@ export function analyzeExtractedHand(
 export async function analyzeHand(handId: string, heroUserId: string): Promise<ReviewResult | null> {
   const hand = await prisma.hand.findUnique({
     where: { id: handId },
-    select: { buttonFixedPos: true, levelBigBlind: true, board: true, ...HAND_INCLUDE },
+    select: { buttonFixedPos: true, levelBigBlind: true, board: true, ...HAND_STAGE_SELECT, ...HAND_INCLUDE },
   });
   if (!hand) return null;
   const heroSeatEntry = hand.seats.find((s) => s.userId === heroUserId);
@@ -369,6 +394,7 @@ export async function analyzeHand(handId: string, heroUserId: string): Promise<R
     buttonFixedPos: hand.buttonFixedPos,
     levelBigBlind: hand.levelBigBlind,
     board: hand.board,
+    icmStage: stageOfHand(hand),
     seats: hand.seats.map((s) => ({
       seatIndex: s.seatIndex,
       userId: s.userId,
@@ -607,6 +633,7 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
       levelAnte: true,
       board: true,
       potTotal: true,
+      ...HAND_STAGE_SELECT,
       seats: {
         orderBy: { seatIndex: "asc" as const },
         select: {
@@ -633,6 +660,7 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
       buttonFixedPos: h.buttonFixedPos,
       levelBigBlind: h.levelBigBlind,
       board: h.board,
+      icmStage: stageOfHand(h),
       seats: h.seats.map((s) => ({
         seatIndex: s.seatIndex,
         userId: s.userId,
@@ -861,13 +889,14 @@ function postflopDifficultKind(chosenBucket: string, facingBb: number, chosenFre
 async function loadExtractHand(handId: string): Promise<ExtractHand | null> {
   const hand = await prisma.hand.findUnique({
     where: { id: handId },
-    select: { buttonFixedPos: true, levelBigBlind: true, board: true, ...HAND_INCLUDE },
+    select: { buttonFixedPos: true, levelBigBlind: true, board: true, ...HAND_STAGE_SELECT, ...HAND_INCLUDE },
   });
   if (!hand) return null;
   return {
     buttonFixedPos: hand.buttonFixedPos,
     levelBigBlind: hand.levelBigBlind,
     board: hand.board,
+    icmStage: stageOfHand(hand),
     seats: hand.seats.map((s) => ({
       seatIndex: s.seatIndex,
       userId: s.userId,

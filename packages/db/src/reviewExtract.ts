@@ -1,3 +1,4 @@
+import type { IcmStage } from "@meta-geo/engine";
 import { stackBucketOf, bucketPreflopRaiseBb, bucketPostflopPct } from "./geoTree.js";
 
 /**
@@ -41,6 +42,8 @@ export interface ExtractHand {
   board: string[];
   seats: ExtractSeat[];
   actions: ExtractAction[];
+  /** トーナメントの段階(解説ルールの条件 icmStage)。分からなければ null / 省略。 */
+  icmStage?: IcmStage | null;
 }
 
 export interface HeroDecision {
