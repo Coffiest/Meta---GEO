@@ -368,7 +368,7 @@ export function Seat({
             大きさを削っていた。自分だけに関わる補助操作なので、自分の席の横が本来の居場所。
             右外のチャットボタンと対称の位置になる。 */}
         {aside && (
-          <div className="absolute right-full top-1/2 z-40 mr-1.5 flex -translate-y-1/2 flex-col items-end gap-1">
+          <div data-table-obstacle className="absolute right-full top-1/2 z-40 mr-1.5 flex -translate-y-1/2 flex-col items-end gap-1">
             {aside}
           </div>
         )}

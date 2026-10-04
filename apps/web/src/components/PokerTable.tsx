@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PublicHandState } from "@meta-geo/engine";
@@ -55,45 +55,81 @@ function useFitScale(ref: React.RefObject<HTMLElement>): number {
   return scale;
 }
 
-const FELT_BOX = "inset-x-[18%] top-[10%] bottom-[18%]";
+/* 卓画像の箱。以前は x 18〜82% / y 10〜82% に収めていて、スマホでは卓が画面幅の6割ほどしか使えず
+   左右が大きく余っていた(オーナー指摘)。画像は 2:3 のまま(縦横比は変えない)、設計枠いっぱいまで
+   大きくし、席の名前プレートは卓の縁(レール)の上に載せる。object-contain なので、実際の卓は
+   この箱の高さで決まり、幅 x 約7〜93% に中央寄せで描かれる。 */
+const FELT_BOX = "inset-x-[2%] top-[1.5%] bottom-[1.5%]";
 
 // 画像内のロゴ帯(上部 約5-31%)・破線カードスロット帯(約44-56%)・ワードマーク/下部ロゴ帯
 // (約59-78%)を実測し、それに合わせた「表示スロット」配置。スロット0=常に自分(画面下)。
 const SEAT_LAYOUT: Record<number, string> = {
   0: "bottom-0 left-1/2 -translate-x-1/2",
-  1: "top-[55%] left-[4%]",
-  2: "top-[17%] left-[7%]",
-  3: "top-[2%] left-1/2 -translate-x-1/2",
-  4: "top-[17%] right-[7%]",
-  5: "top-[55%] right-[4%]",
+  1: "top-[50%] left-0",
+  2: "top-[15%] left-0",
+  3: "top-0 left-1/2 -translate-x-1/2",
+  4: "top-[15%] right-0",
+  5: "top-[50%] right-0",
 };
 
 /**
- * ディーラーボタンの置き場所(表示スロットごと)。実卓と同じように、プレイヤーに貼り付けるのではなく
- * 「その席の前のフェルト上」に置く。
+ * ディーラーボタンの置き場所は、固定の座標ではなく**描いたあとに実測して決める**。
  *
- * フェルトは FELT_BOX のとおりコンテナ内 x:18〜82% / y:10〜82% の楕円(中心 50%,46% / 半径 32%,36%)。
- * 以前は「画像のロゴ帯・カードスロット帯・ワードマーク帯を避ける」ことを優先しすぎて、
- * 各席の実際の位置(SEAT_LAYOUT)からかなり離れてしまい、特に自席(スロット0)は卓中央寄りに
- * 浮いて見え「誰の前のボタンか分かりにくい」という指摘を受けた。SEAT_LAYOUTのアンカーから
- * 卓中心へごくわずかだけ寄せた座標(各席の目の前、卓の意匠帯は避けつつ最短距離)に引き直してある。
+ * 以前は表示スロットごとの固定%(設計枠で実測した値)で置いていたが、名前プレートの幅は
+ * 表示名の長さで変わり、実機では BTN の席の名前プレートや手札にボタンが重なっていた(オーナー指摘)。
+ * 固定値では「絶対に被らない」は保証できないので、次の手順で毎回求める(`findDealerSpot`)。
  *
- * ただしそれだけだと**手札に重なっていた**。設計枠(448×597)で実測したところ、スロット0は
- * 20.7×24px、スロット1・5は 7.6×24px 重なり、スロット2・4も余白10.7pxしか無かった。
- * 下の値は再実測して決めたもので、全席「カード束の外接矩形」と重ならず、最小クリアランス14.7px:
- *   slot0 15.0px / slot1 14.7px / slot2 16.6px / slot3 28.6px / slot4 16.6px / slot5 14.8px
- * カードの大きさ(Seatのsm/lg)やSEAT_LAYOUTを変えたら、ここも測り直すこと。
+ * 1. BTN の席(席ブロック=手札+名前プレート+ベット表示)の中心から、卓の中心へ向かう直線をたどる
+ * 2. ボタンの円(余白込み)が、どの席ブロック・自席の補助トグル・ポット・ボード・ベット表示とも
+ *    重ならない最初の点に置く(邪魔なものは `data-table-obstacle` を付けた要素)
+ * 3. 直線上に空きが無ければ、左右に少しずらした直線も試す
+ *
+ * 座標は設計枠(448×597)の px。卓全体は zoom で縮むので、実測値を倍率で割って設計枠に戻す。
  */
-const DEALER_BUTTON_LAYOUT: Record<number, string> = {
-  // 全席、その席のカード束の外接矩形と重ならない位置に置く(実測で決めた値。下のコメント参照)。
-  0: "top-[66%] left-[60%]",
-  1: "top-[57%] left-[28%]",
-  2: "top-[29%] left-[25%]",
-  3: "top-[16%] left-[56%]",
-  // 左右は left-% の鏡像で指定する(right-% と混在させると中心合わせのマージン分だけ左右非対称になる)。
-  4: "top-[29%] left-[75%]",
-  5: "top-[57%] left-[72%]",
-};
+const DEALER_BUTTON_GAP = 6;
+
+interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+function overlaps(a: Box, b: Box): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/** ディーラーボタンの中心(設計枠の px)。置ける場所が見つからなければ null。純関数(テスト可能)。 */
+export function findDealerSpot(params: {
+  anchor: Box;
+  obstacles: readonly Box[];
+  center: { x: number; y: number };
+  radius: number;
+  bounds: { width: number; height: number };
+}): { x: number; y: number } | null {
+  const { anchor, obstacles, center, radius, bounds } = params;
+  const start = { x: (anchor.left + anchor.right) / 2, y: (anchor.top + anchor.bottom) / 2 };
+  const dx = center.x - start.x;
+  const dy = center.y - start.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const r = radius + DEALER_BUTTON_GAP;
+  // 正面の直線を最優先にし、だめなら少しずつ横へずらした直線を試す。
+  for (const side of [0, 18, -18, 36, -36, 54, -54]) {
+    const ox = -uy * side;
+    const oy = ux * side;
+    for (let t = 0; t <= len; t += 2) {
+      const x = start.x + ux * t + ox;
+      const y = start.y + uy * t + oy;
+      const box = { left: x - r, top: y - r, right: x + r, bottom: y + r };
+      if (box.left < 0 || box.top < 0 || box.right > bounds.width || box.bottom > bounds.height) continue;
+      if (obstacles.some((o) => overlaps(box, o))) continue;
+      return { x, y };
+    }
+  }
+  return null;
+}
 
 /** ディーラーボタンの画像。オーナー支給の原画(`public/table/dealer_button_source.png`)から
  *  `scripts/table-markers.py` で書き出した版(円の外の台紙を透過・縮小)。原画を差し替えたら再実行する。 */
@@ -106,16 +142,17 @@ const DEALER_BUTTON_SIZE = 28;
  * ハンドごとに位置が変わるため、layout アニメーションで席から席へ滑らせる
  * (reduced-motion 時は移動アニメーションを切る)。
  */
-function DealerButton({ slot, reduced }: { slot: number; reduced: boolean }) {
+function DealerButton({ x, y, reduced }: { x: number; y: number; reduced: boolean }) {
   return (
     <motion.div
-      // key を固定して同一要素として扱わせることで、position の変化が layout で補間される。
+      // key を固定して同一要素として扱わせることで、位置の変化が layout で補間される(席から席へ滑る)。
       layout={!reduced}
       transition={reduced ? { duration: 0 } : SPRING_MOVE}
       aria-hidden
       // 中心合わせは負のマージンで行う(translate だと layout アニメーションが transform を
       // 上書きするため、移動中だけ半径ぶんズレてしまう)。
-      className={`pointer-events-none absolute z-20 -ml-[14px] -mt-[14px] ${DEALER_BUTTON_LAYOUT[slot]}`}
+      className="pointer-events-none absolute z-20"
+      style={{ left: x, top: y, marginLeft: -DEALER_BUTTON_SIZE / 2, marginTop: -DEALER_BUTTON_SIZE / 2 }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -245,8 +282,8 @@ function badgeForSeat(params: {
  *  - スロット間ギャップ = 1.8125% × 64% ≒ 1.16%
  *  - 縦中心 = 10% + 51.1% × 72%(felt高) ≒ 46.8% → カード上端 ≒ 42.5%
  */
-const BOARD_ROW_CLASS = "absolute inset-x-0 top-[42.5%] flex justify-center gap-[1.16%]";
-const BOARD_CELL_CLASS = "w-[8.1%]";
+const BOARD_ROW_CLASS = "absolute inset-x-0 top-[40%] flex justify-center gap-[1.2%]";
+const BOARD_CELL_CLASS = "w-[10.5%]";
 
 export function PokerTable({
   state,
@@ -320,9 +357,51 @@ export function PokerTable({
   const fitRef = useRef<HTMLDivElement>(null);
   const fitScale = useFitScale(fitRef);
 
+  // ディーラーボタンの位置は描いたあとに実測して決める(findDealerSpot の説明を参照)。
+  const designRef = useRef<HTMLDivElement>(null);
+  const [dealerSpot, setDealerSpot] = useState<{ x: number; y: number } | null>(null);
+  const buttonSlot = state ? displaySlotOf(state.buttonFixedPos) : null;
+  useLayoutEffect(() => {
+    const root = designRef.current;
+    if (!root || buttonSlot === null) return;
+    const measure = () => {
+      const rootRect = root.getBoundingClientRect();
+      if (rootRect.width <= 0) return;
+      const k = rootRect.width / DESIGN_WIDTH;
+      const toDesign = (r: DOMRect): Box => ({
+        left: (r.left - rootRect.left) / k,
+        top: (r.top - rootRect.top) / k,
+        right: (r.right - rootRect.left) / k,
+        bottom: (r.bottom - rootRect.top) / k,
+      });
+      const anchorEl = root.querySelector<HTMLElement>(`[data-seat-slot="${buttonSlot}"]`);
+      if (!anchorEl) return;
+      const obstacles = [...root.querySelectorAll<HTMLElement>("[data-table-obstacle]")]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0)
+        .map(toDesign);
+      const spot = findDealerSpot({
+        anchor: toDesign(anchorEl.getBoundingClientRect()),
+        obstacles,
+        center: { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
+        radius: DEALER_BUTTON_SIZE / 2,
+        bounds: { width: DESIGN_WIDTH, height: DESIGN_HEIGHT },
+      });
+      setDealerSpot((prev) =>
+        spot && (!prev || Math.abs(prev.x - spot.x) > 0.5 || Math.abs(prev.y - spot.y) > 0.5) ? spot : prev,
+      );
+    };
+    measure();
+    // 名前・ベット表示・手札の出入りで席ブロックの大きさが変わったら測り直す。
+    const ro = new ResizeObserver(measure);
+    root.querySelectorAll("[data-table-obstacle]").forEach((el) => ro.observe(el));
+    return () => ro.disconnect();
+  });
+
   return (
     <div ref={fitRef} className="relative flex h-full w-full items-center justify-center">
       <div
+        ref={designRef}
         className="no-image-actions relative"
         style={{
           width: DESIGN_WIDTH,
@@ -342,7 +421,8 @@ export function PokerTable({
           カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
-      <div className="absolute inset-x-0 top-[33%] flex flex-col items-center gap-1">
+      <div className="absolute inset-x-0 top-[31%] flex flex-col items-center gap-1">
+        {/* 実測の邪魔もの判定は中身(ポット表示)の大きさで行う(行全体の幅ではなく)。 */}
         <AnimatePresence mode="popLayout">
           {state && state.collectedPot > 0 && (
             <motion.div
@@ -351,6 +431,7 @@ export function PokerTable({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={SPRING_SNAPPY}
+              data-table-obstacle
               className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
@@ -402,7 +483,7 @@ export function PokerTable({
         {Array.from({ length: 5 }).map((_, i) => {
           const card = state?.board[i];
           return (
-            <div key={i} className={BOARD_CELL_CLASS}>
+            <div key={i} className={BOARD_CELL_CLASS} data-table-obstacle={card ? true : undefined}>
               {card && <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} />}
             </div>
           );
@@ -411,7 +492,7 @@ export function PokerTable({
 
       {/* ディーラーボタン: プレイヤーではなく、その席の前のフェルト上に置く(実卓と同じ扱い)。
           座席の描画とは独立させているので、表示名の長さや席ピルの幅に一切影響されない。 */}
-      {state && <DealerButton slot={displaySlotOf(state.buttonFixedPos)} reduced={reducedMotion} />}
+      {state && dealerSpot && <DealerButton x={dealerSpot.x} y={dealerSpot.y} reduced={reducedMotion} />}
 
       {/* 全座席(スロット0=自分が常に下) */}
       {Array.from({ length: seatCount }).map((_, seatIndex) => {
@@ -493,7 +574,7 @@ export function PokerTable({
         );
 
         return (
-          <div key={seatIndex} className={`absolute ${SEAT_LAYOUT[slot]}`}>
+          <div key={seatIndex} data-seat-slot={slot} data-table-obstacle className={`absolute ${SEAT_LAYOUT[slot]}`}>
             {tappable && player ? (
               <button
                 type="button"
