@@ -187,8 +187,9 @@ function ArtisticPop({ color, children }: { color: string; children: React.React
 /**
  * 解説役「バリィ」と、その吹き出し。
  *
- * バリィが左に立ち、吹き出しのしっぽがバリィの頭の横を指す。吹き出しの中は台詞(summary)が
- * 常時出て、タップで詳しい話(title/body/出典)が同じ吹き出しの中に開く。
+ * バリィが左に立ち、吹き出しのしっぽがバリィの頭の横を指す。吹き出しの中は台詞(summary)だけを
+ * 常時出し、要点の表(サイズ・バリュー・ブラフ…)と詳しい話(title/body/出典)は「詳しく見る」で
+ * 同じ吹き出しの中に開く(要点を常時出すと吹き出しが伸び、その分だけ卓が小さくなっていた。オーナー指摘)。
  * 話し手が未設定(`REVIEW_SPEAKER` が null)なら、情報アイコンだけの吹き出しになる。
  */
 function KnowledgeBody({
@@ -199,7 +200,7 @@ function KnowledgeBody({
   sourceUrl,
 }: {
   summary: string;
-  /** 台詞の下に常時出す要点(ダブル/トリプルバレルのノートの打ち方)。 */
+  /** 要点(ノートの打ち方の表)。「詳しく見る」で開いたときに出す。 */
   points?: { label: string; text: string }[] | undefined;
   title?: string | undefined;
   body?: string | undefined;
@@ -207,7 +208,9 @@ function KnowledgeBody({
 }) {
   const [open, setOpen] = useState(false);
   const speaker = REVIEW_SPEAKER;
-  const expandable = !!(title && body);
+  const hasPoints = !!points && points.length > 0;
+  const hasBody = !!(title && body);
+  const expandable = hasPoints || hasBody;
   return (
     <div className="flex items-start gap-2.5">
       {speaker && (
@@ -233,15 +236,8 @@ function KnowledgeBody({
             <span className="min-w-0 flex-1">
               {speaker && <span className="mb-0.5 block text-[10px] font-black text-accent">{speaker.name}</span>}
               <span className="block text-[12px] font-semibold leading-[1.6] text-fg">{summary}</span>
-              {points && points.length > 0 && (
-                <span className="mt-1.5 block space-y-0.5 border-t border-line pt-1.5">
-                  {points.map((p) => (
-                    <span key={p.label} className="flex gap-1.5 text-[11px] leading-[1.6]">
-                      <span className="w-[4.2em] shrink-0 font-black text-fg-3">{p.label}</span>
-                      <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
-                    </span>
-                  ))}
-                </span>
+              {expandable && (
+                <span className="mt-1 block text-[10px] font-bold text-accent">{open ? "閉じる" : "詳しく見る"}</span>
               )}
             </span>
             {expandable && (
@@ -260,11 +256,26 @@ function KnowledgeBody({
                 transition={FADE}
                 className="overflow-hidden"
               >
-                <div className="border-t border-line px-3 py-2">
-                  <p className="mb-1 text-[11px] font-black text-fg">{title}</p>
-                  {/* オーナーの文章は改行も含めてそのまま出す(整形しない)。 */}
-                  <p className="whitespace-pre-wrap text-[11px] leading-[1.7] text-fg-2">{body}</p>
-                  {sourceUrl && (
+                {/* 開いても卓が潰れないよう、詳しい中身は高さを抑えて吹き出しの中でスクロールさせる。 */}
+                <div className="max-h-[32vh] overflow-y-auto overscroll-contain border-t border-line px-3 py-2">
+                  {hasPoints && (
+                    <div className={`space-y-0.5 ${hasBody ? "mb-2 border-b border-line pb-2" : ""}`}>
+                      {points!.map((p) => (
+                        <div key={p.label} className="flex gap-1.5 text-[11px] leading-[1.6]">
+                          <span className="w-[4.2em] shrink-0 font-black text-fg-3">{p.label}</span>
+                          <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {hasBody && (
+                    <>
+                      <p className="mb-1 text-[11px] font-black text-fg">{title}</p>
+                      {/* オーナーの文章は改行も含めてそのまま出す(整形しない)。 */}
+                      <p className="whitespace-pre-wrap text-[11px] leading-[1.7] text-fg-2">{body}</p>
+                    </>
+                  )}
+                  {hasBody && sourceUrl && (
                     <a
                       href={sourceUrl}
                       target="_blank"
