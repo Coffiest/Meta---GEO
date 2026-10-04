@@ -5,6 +5,14 @@
 |-----------------------------------------------------|-------------------------------------|
 | `apps/web/public/table/dealer_button_source.png`    | `apps/web/public/table/dealer_button_v1.png` |
 | `apps/web/public/table/allin_marker_source.png`     | `apps/web/public/table/allin_marker_v1.png`  |
+| `apps/web/public/table/chip_bet_source.png`         | `apps/web/public/table/chip_bet_v1.png`      |
+
+## チップを出すアイコン(chip_bet)だけは「色抜き」で透過する
+
+このアイコンは台紙(#151513)の上にティール1色で描いた絵で、手と積んだチップの間の隙間も台紙の色で
+表現されている。四隅からの塗り広げだと、手に囲まれた隙間が台紙の色のまま残り、卓の灰色の上で黒い穴に見える。
+そこで台紙の色をすべて透過にし(色抜き)、ティールとの中間色は混ざり具合に応じた半透明にする
+(縁のアンチエイリアスを保つ)。結果はティール1色のシルエットになり、どんな地に置いても絵が崩れない。
 
 やるのは「形の外の台紙を透過」「余白の切り落とし」「縮小」の3つだけで、絵柄・色・構図には手を入れない。
 
@@ -31,15 +39,36 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = ROOT / "apps/web/public/table"
 JOBS = [
-    (TABLE / "dealer_button_source.png", TABLE / "dealer_button_v1.png"),
-    (TABLE / "allin_marker_source.png", TABLE / "allin_marker_v1.png"),
+    (TABLE / "dealer_button_source.png", TABLE / "dealer_button_v1.png", "flood"),
+    (TABLE / "allin_marker_source.png", TABLE / "allin_marker_v1.png", "flood"),
+    (TABLE / "chip_bet_source.png", TABLE / "chip_bet_v1.png", "key"),
 ]
 LONG_SIDE = 192
 TOLERANCE = 6  # 台紙の色(四隅の色)からこの差以内を台紙とみなす(縁取りの #000 は差 21 なので残る)
 
 
-def export(src: Path, out: Path) -> None:
+def color_key(im: Image.Image) -> Image.Image:
+    """台紙の色をすべて透過にし、絵の色との中間色は混ざり具合に応じた半透明にする(1色の絵用)。"""
+    px = im.load()
+    w, h = im.size
+    base = px[0, 0]
+    # 絵の色 = 台紙から最も離れた色(1色の絵なので最大の差を取る色がそれ)。
+    ink = max((px[x, y] for y in range(0, h, 8) for x in range(0, w, 8)), key=lambda c: sum(abs(a - b) for a, b in zip(c, base)))
+    span = sum(abs(a - b) for a, b in zip(ink, base)) or 1
+    out = Image.new("RGBA", im.size)
+    o = out.load()
+    for y in range(h):
+        for x in range(w):
+            d = sum(abs(a - b) for a, b in zip(px[x, y], base))
+            o[x, y] = (*ink, max(0, min(255, round(255 * d / span))))
+    return out
+
+
+def export(src: Path, out: Path, mode: str) -> None:
     im = Image.open(src).convert("RGB")
+    if mode == "key":
+        finish(color_key(im), out)
+        return
     w, h = im.size
     px = im.load()
     base = px[0, 0]
@@ -62,6 +91,10 @@ def export(src: Path, out: Path) -> None:
                 r, g, b, _ = data[x, y]
                 data[x, y] = (r, g, b, 0)
 
+    finish(rgba, out)
+
+
+def finish(rgba: Image.Image, out: Path) -> None:
     # 形の外の余白を切り落とす(描画側で大きさを決めたとき、見た目の大きさと箱の大きさを一致させるため)。
     bbox = rgba.getbbox()
     if bbox:
@@ -74,8 +107,8 @@ def export(src: Path, out: Path) -> None:
 
 
 def main() -> None:
-    for src, out in JOBS:
-        export(src, out)
+    for src, out, mode in JOBS:
+        export(src, out, mode)
 
 
 if __name__ == "__main__":
