@@ -27,6 +27,8 @@ import {
   reportPlayer,
   getEliteFrames,
   getEliteStats,
+  getGeoAccess,
+  GEO_ITM_REQUIRED,
 } from "@meta-geo/db";
 import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
@@ -253,6 +255,18 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
           superHighRoller: qualifiesForTier("superHighRoller", stats),
         },
       });
+      return true;
+    }
+
+    // GEO データベースの利用条件(インマネ回数)。画面の錠とロック画面の表示に使う。
+    if (url.pathname === "/api/lobby/geo-access") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true } });
+      sendJson(res, 200, user ? await getGeoAccess(user.id) : { itmCount: 0, required: GEO_ITM_REQUIRED, unlocked: false });
       return true;
     }
 

@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Lobby";
 import { Loader } from "@/components/ui/Loader";
 import { useAuth } from "@/lib/useAuth";
+import { useGeoAccess } from "@/lib/useGeoAccess";
+import { GeoLockScreen } from "@/components/geo/GeoLockScreen";
 import {
   DIMENSION_LABELS,
   METRIC_META,
@@ -34,6 +36,8 @@ import {
 export default function ResearchPage() {
   const { authAvailable, loading, accessToken } = useAuth();
   const router = useRouter();
+  // データ研究も GEO DATABASE と同じ利用条件(インマネ20回以上)。
+  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken });
 
   // 埋め込み表示ではセッションが無くトークンだけがあるので、トークンの有無で判定する。
   useEffect(() => {
@@ -86,12 +90,15 @@ export default function ResearchPage() {
     setFilters(p.filters ?? {});
   }
 
-  if (loading) {
+  if (loading || geoAccess.state.status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas">
         <Loader size="lg" />
       </div>
     );
+  }
+  if (geoAccess.state.status === "locked") {
+    return <GeoLockScreen itmCount={geoAccess.state.itmCount} required={geoAccess.state.required} />;
   }
 
   return (

@@ -1,6 +1,11 @@
 /** es(スペイン語・中南米向けの中立表現)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const es: Record<string, string> = {
   "tier.requirements": "Requisitos",
+  "geo.lock.title": "Requisito",
+  "geo.lock.req.itm": "Veces en premios",
+  "geo.lock.remaining": "Te faltan {n} para desbloquear GEO DATABASE",
+  "geo.lock.hint": "Termina en premios {n} veces en torneos para desbloquear GEO DATABASE y la Investigación de datos.",
+  "geo.lock.play": "Jugar",
   "tier.requirementsHint": "Cumple todos los requisitos para entrar en esta mesa.",
   "tier.meta": "{bb}BB · niveles de {min} min",
   "tier.locked": "Requisitos",

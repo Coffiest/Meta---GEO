@@ -92,6 +92,11 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 デプロイ先: Vercel(Web) + Fly.io(サーバー) + Supabase(Postgres/Auth)。
 本番URL: **https://meta-geo-poker.vercel.app**(常時固定)。
 
+## GEO データベースの利用条件(オーナー確定)
+
+- データベースタブ(GEO DATABASE とデータ研究)は、**トーナメントでインマネ(賞金が出て終えた)した回数が20回以上**の人だけが使える。有料プランでも同じ条件。SNG(High Roller 等を含む)と MTT をすべて数える(`packages/db/src/geoAccess.ts`)。
+- 条件はサーバーで確かめる(`packages/server/src/geoAccess.ts` の `requireGeoAccess`。`/api/geo-tree/*` と `/api/research/*`)。満たさなければ 403 `GEO_LOCKED`。画面は `GeoLockScreen` を出す。web だけで隠しても API は叩けるので、新しい GEO 系の API を足したら必ず同じ関門を通すこと。
+
 ## 棋譜解析の解説の知識ベース
 
 - 解説に使う知識(記事を読んで得た内容)は **`packages/engine/knowledge/*.md` に溜める**。記事ごとに「要点(漏れなく)」と「解説ルール(```json rule ブロック)」を書く。書き方はファイル冒頭にある。

@@ -54,6 +54,11 @@ type Dict = Record<string, string>;
 
 const ja: Dict = {
   "tier.requirements": "参加条件",
+  "geo.lock.title": "利用条件",
+  "geo.lock.req.itm": "インマネ回数",
+  "geo.lock.remaining": "あと{n}回でGEO DATABASEが使えるようになります",
+  "geo.lock.hint": "トーナメントで{n}回インマネ(賞金圏で終える)すると、GEO DATABASEとデータ研究が使えるようになります。",
+  "geo.lock.play": "Playへ",
   "tier.requirementsHint": "すべての条件を満たすと参加できます。",
   "tier.meta": "{bb}BB・{min}分レベル",
   "tier.locked": "参加条件",
@@ -426,6 +431,11 @@ const ja: Dict = {
 
 const en: Dict = {
   "tier.requirements": "Requirements",
+  "geo.lock.title": "Requirement",
+  "geo.lock.req.itm": "In-the-money finishes",
+  "geo.lock.remaining": "{n} more to unlock GEO DATABASE",
+  "geo.lock.hint": "Finish in the money {n} times in tournaments to unlock GEO DATABASE and Data Research.",
+  "geo.lock.play": "Go play",
   "tier.requirementsHint": "Meet every requirement to join this table.",
   "tier.meta": "{bb}BB · {min}-min levels",
   "tier.locked": "Requirements",
@@ -798,6 +808,11 @@ const en: Dict = {
 
 const ko: Dict = {
   "tier.requirements": "참가 조건",
+  "geo.lock.title": "이용 조건",
+  "geo.lock.req.itm": "인더머니 횟수",
+  "geo.lock.remaining": "{n}번 더 인더머니하면 GEO DATABASE를 쓸 수 있어요",
+  "geo.lock.hint": "토너먼트에서 {n}번 인더머니(상금권 입상)하면 GEO DATABASE와 데이터 연구를 이용할 수 있습니다.",
+  "geo.lock.play": "플레이하기",
   "tier.requirementsHint": "모든 조건을 충족하면 참가할 수 있습니다.",
   "tier.meta": "{bb}BB · {min}분 레벨",
   "tier.locked": "참가 조건",
@@ -1170,6 +1185,11 @@ const ko: Dict = {
 
 const zh: Dict = {
   "tier.requirements": "参加条件",
+  "geo.lock.title": "使用条件",
+  "geo.lock.req.itm": "进入奖励圈次数",
+  "geo.lock.remaining": "再进入奖励圈{n}次即可使用 GEO DATABASE",
+  "geo.lock.hint": "在锦标赛中进入奖励圈{n}次后,即可使用 GEO DATABASE 和数据研究。",
+  "geo.lock.play": "去玩",
   "tier.requirementsHint": "满足所有条件后即可参加。",
   "tier.meta": "{bb}BB・每级{min}分钟",
   "tier.locked": "参加条件",

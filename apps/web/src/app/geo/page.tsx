@@ -38,6 +38,9 @@ import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
+import { useGeoAccess } from "@/lib/useGeoAccess";
+import { GeoLockScreen } from "@/components/geo/GeoLockScreen";
+import type { GeoAccessStatus } from "@/lib/geoApi";
 import { APP_VERSION } from "@/lib/version";
 import { Loader } from "@/components/ui/Loader";
 
@@ -45,24 +48,20 @@ import { Loader } from "@/components/ui/Loader";
 const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
 
 /**
- * /geo のゲート。GEO DATABASE は一般開放済み(ログイン済みユーザーのみ)。
+ * /geo のゲート。GEO DATABASE はログイン済みで、インマネ20回以上の人だけが使える(オーナー確定。
+ * 有料プランでも同じ条件)。条件を満たしていなければ、ロック画面(あと何回か)を出す。サーバーでも確かめる。
  * - 初回アクセス時、または ?guide=1(メニューからの再表示)のときは使い方チュートリアル(GeoGuide)を表示し、
  *   「使ってみる」/スキップで本体(GeoDatabase)へ。以降は本体を直接開く。
  * - 未ログイン(Supabase有効時)はホーム(ログイン画面)へ誘導する。
  */
 export default function GeoPage() {
-  const { authAvailable, loading, session } = useAuth();
+  const { authAvailable, loading, session, accessToken } = useAuth();
+  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken });
   const router = useRouter();
   const [showGuide, setShowGuide] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // database タブを開いた記録を残す(次回以降ホームの解放トーストを出さない)。
-    try {
-      localStorage.setItem(GEO_DB_OPENED_KEY, "1");
-    } catch {
-      /* localStorage不可でも致命ではない */
-    }
     // ?guide=1 は既読でも強制表示(ハンバーガーメニューの「使い方」から)。それ以外は初回のみ。
     const forced =
       typeof window !== "undefined" && new URLSearchParams(window.location.search).get("guide") === "1";
@@ -76,7 +75,7 @@ export default function GeoPage() {
   }, [authAvailable, loading, session, router]);
 
   if (authAvailable && !loading && !session) return null; // リダイレクト中は何も出さない
-  if (loading || !ready) {
+  if (loading || !ready || geoAccess.state.status === "loading") {
     // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
     // アニメーションのみ(文字での「読み込み中」表記は出さない。ユーザー指示)。
     return (
@@ -85,8 +84,31 @@ export default function GeoPage() {
       </div>
     );
   }
-  if (showGuide) return <GeoGuide onDone={() => setShowGuide(false)} />;
-  return <GeoDatabase />;
+  if (geoAccess.state.status === "locked") {
+    return <GeoLockScreen itmCount={geoAccess.state.itmCount} required={geoAccess.state.required} />;
+  }
+  return <GeoUnlocked showGuide={showGuide} onGuideDone={() => setShowGuide(false)} onLocked={geoAccess.lock} />;
+}
+
+/** 利用条件を満たした人の database タブ。開いた記録を残す(以降ホームの「解放」トーストを出さない)。 */
+function GeoUnlocked({
+  showGuide,
+  onGuideDone,
+  onLocked,
+}: {
+  showGuide: boolean;
+  onGuideDone: () => void;
+  onLocked: (status: GeoAccessStatus) => void;
+}) {
+  useEffect(() => {
+    try {
+      localStorage.setItem(GEO_DB_OPENED_KEY, "1");
+    } catch {
+      /* localStorage不可でも致命ではない */
+    }
+  }, []);
+  if (showGuide) return <GeoGuide onDone={onGuideDone} />;
+  return <GeoDatabase onLocked={onLocked} />;
 }
 
 /** 読み込み開始からの経過秒。これ以上かかっているときだけ「時間がかかっています」に切り替える。 */
@@ -150,7 +172,7 @@ function bucketLabelFor(street: Street, bucket: string): string {
   return table[bucket] ?? bucket;
 }
 
-function GeoDatabase() {
+function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** 最下部バージョン表記タップ→パスコード(2357)→管理者画面(GEOデータ削除等)への隠し導線。 */
   const [adminGateOpen, setAdminGateOpen] = useState(false);
@@ -378,6 +400,11 @@ function GeoDatabase() {
         const reason = err instanceof GeoApiError ? err.describe() : err instanceof Error ? err.message : String(err);
         const detail =
           err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        // 利用条件を満たしていない(サーバーが 403 GEO_LOCKED)。再試行せず、ロック画面にする。
+        if (err instanceof GeoApiError && err.kind === "locked") {
+          onLocked({ itmCount: err.itmCount ?? 0, required: err.required ?? 20, unlocked: false });
+          return;
+        }
         const round = retryRoundRef.current + 1;
         retryRoundRef.current = round;
         setNode(null);
