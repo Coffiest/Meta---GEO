@@ -56,8 +56,32 @@ describe("知識ベース → 生成物", () => {
     }
   });
 
-  it("出典が付いている", () => {
-    for (const r of loadAllRules()) expect(r.sourceUrl, r.id).toMatch(/^https:\/\//);
+  it("記事から書き起こしたルールには出典が付いている(局面の既定の解説 spots.md は出典なし)", () => {
+    for (const r of loadAllRules()) {
+      if (r.id.startsWith("spot-")) continue;
+      expect(r.sourceUrl, r.id).toMatch(/^https:\/\//);
+    }
+  });
+
+  it("「解析の対象外」の局面ごとに、既定の解説がある", () => {
+    const ids = new Set(loadAllRules().map((r) => r.id));
+    for (const id of [
+      "spot-bb-vs-limp",
+      "spot-vs-limp-iso",
+      "spot-open-vs-3bet",
+      "spot-vs-4bet",
+      "spot-squeeze-raise",
+      "spot-cold-vs-3bet",
+      "spot-short-vs-open-call",
+      "spot-vs-allin-call",
+      "spot-multiway-bet",
+      "spot-limped-pot-postflop",
+      "spot-3bet-pot-postflop",
+      "spot-general-preflop",
+      "spot-general-postflop",
+    ]) {
+      expect(ids.has(id), id).toBe(true);
+    }
   });
 });
 
@@ -80,6 +104,9 @@ describe("parseKnowledgeMarkdown", () => {
     expect(() => parseKnowledgeMarkdown(bad('{"street":["flop"]}', ',"grade":"mistake"'))).toThrow(/action/);
     expect(() => parseKnowledgeMarkdown(bad('{"street":["preflop"],"action":["checkOrCall"]}'))).toThrow(/ストリート/);
     expect(() => parseKnowledgeMarkdown(bad('{"heroHand":["AXs"]}'))).toThrow(/heroHand/);
+    expect(() =>
+      parseKnowledgeMarkdown(md('```json rule\n{"id":"x","title":"t","summary":"{hnad}","body":"b","when":{}}\n```\n'))
+    ).toThrow(/置き換え語/);
   });
 });
 

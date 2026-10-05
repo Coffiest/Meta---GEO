@@ -41,7 +41,7 @@ export const CLASSIFICATION_LABEL: Record<Classification, string> = {
   great: "Great",
   excellent: "良手",
   good: "好手",
-  book: "常識",
+  book: "定石手",
   inaccuracy: "緩手",
   mistake: "悪手",
   blunder: "大悪手",
@@ -73,8 +73,8 @@ export const EV_BANDS = {
 } as const;
 
 /**
- * プリフロップ専用の3段階バンド(確定仕様)。緩手は付けず、Book(常識)/悪手/大悪手のみ。
- *   常識(book): EV損 < 0.01bb(実質最適。混合戦略の等EV手は理論上ロス0なのでここに残る。0.01は解/丸め誤差の吸収)
+ * プリフロップ専用の3段階バンド(確定仕様)。緩手は付けず、Book(定石手)/悪手/大悪手のみ。
+ *   定石手(book): EV損 < 0.01bb(実質最適。混合戦略の等EV手は理論上ロス0なのでここに残る。0.01は解/丸め誤差の吸収)
  *   悪手(mistake): 0.01 ≤ EV損 < 0.1bb
  *   大悪手(blunder): EV損 ≥ 0.1bb(本来参加すべき手を降りて損した等、全て大悪手)
  * フォールドも他アクションと同じ「最善EV−選択EV」で格付けする(AAフォールドは大悪手)。
@@ -235,17 +235,17 @@ export function classifyDecision(input: ClassifyInput): ClassifyResult | null {
 
   // GTOが最も推奨する(最大頻度の)アクションを選んだなら、それがGTOの推し手=EV損0(正解)とみなす。
   // 例: GTOがフォールドを推奨(頻度100%)→フォールド。モデル上のfold EVが負(幻の高EV手のせい)でも
-  // 大悪手にしない(常識/正着として扱う)。
+  // 大悪手にしない(定石手/正着として扱う)。
   // 一方、AAを10bbジャムに降りる等はコールが最大頻度でフォールドは推奨手でないため、
   // EV損(コールEV−フォールドEV)で評価され大悪手になる。
-  // 混合戦略の非最大頻度側を選んだ場合は、GTOが等EVでプレイする手ならEV損≈0で常識/最善に落ち、
+  // 混合戦略の非最大頻度側を選んだ場合は、GTOが等EVでプレイする手ならEV損≈0で定石手/最善に落ち、
   // モデル上EVが大きく劣る手だけが悪手として拾われる。
   const maxFreq = gtoActions.reduce((m, a) => Math.max(m, a.frequency), 0);
   const choseRecommended = chosenFreq > 0 && chosenFreq >= maxFreq - 1e-9;
   const evLossBb = choseRecommended ? 0 : Math.max(0, baseline - chosenEv);
 
-  // --- プリフロップは3段階(確定仕様): 正着=常識(book) / 悪手 / 大悪手 ---
-  // 「合っていたら常識、間違っていたらEV損で段階分け」。緩手/芸術的/最善/Great等は付けない。
+  // --- プリフロップは3段階(確定仕様): 正着=定石手(book) / 悪手 / 大悪手 ---
+  // 「合っていたら定石手、間違っていたらEV損で段階分け」。緩手/芸術的/最善/Great等は付けない。
   // EV損0.1bb以上は全て大悪手。フォールドも他アクションと同じEV損で格付けする。
   if (isPreflop) {
     if (evLossBb < PREFLOP_BANDS.book) return { classification: "book", evLossBb, chosenFreq };

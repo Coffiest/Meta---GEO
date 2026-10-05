@@ -10,7 +10,6 @@ import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { actionLabel, decisionInfo } from "@/lib/actionNotation";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PREFLOP_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
-import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { Footer } from "@/components/Footer";
 
 
@@ -40,31 +39,8 @@ function DecisionCard({
         notation={notation}
         info={decisionInfo(d.street, d.effStackBb, d.potBb)}
         context={context}
+        gtoLabelOf={(bucket) => bucketLabel(d.street, bucket)}
       />
-
-      {d.gtoActions && d.gtoActions.length > 0 && (
-        <div className="mt-2.5">
-          <p className="text-[10px] font-bold text-fg-2 mb-1">GTO推奨</p>
-          <div className="flex gap-1.5 flex-wrap">
-            {d.gtoActions
-              .filter((a) => a.frequency > 0)
-              .map((a) => (
-                <div
-                  key={a.bucket}
-                  className="rounded-lg px-2 py-1"
-                  style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}
-                >
-                  <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
-                  <span className="text-[11px] font-black tabular-nums ml-1">{Math.round(a.frequency * 100)}%</span>
-                  <span className="text-[9px] font-bold tabular-nums ml-1 opacity-80">
-                    EV{a.evBb >= 0 ? "+" : ""}
-                    {a.evBb.toFixed(1)}
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -137,7 +113,8 @@ export default function ReviewHandPage() {
             heroHoleCards: heroSeat?.holeCards ?? [],
             actions: timeline.actions,
             buttonFixedPos: timeline.buttonFixedPos,
-            seatCount: timeline.seats.length,
+            // 卓は常に6席(配られた人数ではない)。
+            seatCount: 6,
           }
         : undefined,
     [timeline, heroSeat]

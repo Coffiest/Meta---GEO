@@ -3,7 +3,7 @@ import {
   actionLabel,
   actionNotation,
   decisionInfo,
-  positionOfSeat,
+  positionLabelsOf,
   type NotationAction,
 } from "../src/lib/actionNotation";
 
@@ -35,9 +35,54 @@ const BB = 100;
 const table = { buttonFixedPos: 0, bigBlind: BB };
 
 describe("ポジション", () => {
-  it("ボタンからのずれで決まる", () => {
-    expect([0, 1, 2, 3, 4, 5].map((s) => positionOfSeat(s, 0))).toEqual(["BTN", "SB", "BB", "UTG", "HJ", "CO"]);
-    expect(positionOfSeat(0, 3)).toBe("UTG");
+  it("6人なら BTN / SB / BB / UTG / HJ / CO", () => {
+    const labels = positionLabelsOf(preflop(), 0);
+    expect([0, 1, 2, 3, 4, 5].map((s) => labels.get(s))).toEqual(["BTN", "SB", "BB", "UTG", "HJ", "CO"]);
+  });
+
+  it("空席がある(5人)ときも、卓の表示と同じく実際のブラインドから数える(UTG が HJ と出ていた不具合)", () => {
+    seq = 0;
+    // 席3が空席。ボタン0・SB1・BB2、最初に動くのは席4 → UTG(5人なので UTG と CO)。
+    const a = [
+      act(1, "preflop", "postBlind", 50),
+      act(2, "preflop", "postBlind", 100),
+      act(4, "preflop", "raise", 200, 150),
+      act(5, "preflop", "fold"),
+      act(0, "preflop", "fold"),
+      act(1, "preflop", "fold"),
+      act(2, "preflop", "fold"),
+    ];
+    expect(actionLabel(a, 3, table)).toBe("UTG Raise 2bb");
+    expect(actionLabel(a, 4, table)).toBe("CO fold");
+  });
+
+  it("ブラインドの前に空席があっても、BB を UTG と呼ばない", () => {
+    seq = 0;
+    // ボタン1・SB2・席3が空席・BB4。最初に動くのは席5。
+    const a = [
+      act(2, "preflop", "postBlind", 50),
+      act(4, "preflop", "postBlind", 100),
+      act(5, "preflop", "raise", 250, 150),
+      act(0, "preflop", "fold"),
+      act(1, "preflop", "fold"),
+      act(2, "preflop", "fold"),
+      act(4, "preflop", "call", 250, 400),
+    ];
+    const t = { buttonFixedPos: 1, bigBlind: BB };
+    expect(actionLabel(a, 3, t)).toBe("UTG Raise 2.5bb");
+    expect(actionLabel(a, 7, t)).toBe("BB call");
+  });
+});
+
+describe("オールインへのコール", () => {
+  it("相手のベット以下の額のオールイン/レイズはコールと書く", () => {
+    const base = [...preflop(), act(2, "flop", "bet", 300, 550)];
+    const a = [...base, act(3, "flop", "raise", 200, 850)]; // 残り2bbで「ALL IN」ボタン → 中身はコール
+    expect(actionLabel(a, a.at(-1)!.sequenceNumber, table)).toBe("UTG call");
+    const b = [...base, act(3, "flop", "allIn", 300, 850)];
+    expect(actionLabel(b, b.at(-1)!.sequenceNumber, table)).toBe("UTG call");
+    const c = [...base, act(3, "flop", "allIn", 900, 850)];
+    expect(actionLabel(c, c.at(-1)!.sequenceNumber, table)).toBe("UTG ALL IN");
   });
 });
 

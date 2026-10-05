@@ -47,7 +47,7 @@ import type { PotType } from "./potShape.js";
 
 /**
  * 9段階の評価。db の `Classification` と同じ文字列(engine は db に依存しないのでここで定義)。
- * 良い順: 絶妙手 > 最善 > Great > 良手 > 好手 > 常識 > 緩手 > 悪手 > 大悪手。
+ * 良い順: 絶妙手 > 最善 > Great > 良手 > 好手 > 定石手 > 緩手 > 悪手 > 大悪手。
  */
 export type NotionGrade =
   | "artistic"
@@ -446,7 +446,7 @@ const tableBarrel: Rule = (c) => {
   const turn = c.info.role === "turnBarrel" && c.info.street === "turn";
   const river = c.info.role === "riverBarrel" && c.info.street === "river" && c.info.streak >= 3;
   if (!turn && !river) return null;
-  const v = judgeBarrel(turn ? "turn" : "river", c.holeRaw, c.board, { kind: "bet", size: c.size });
+  const v = judgeBarrel(turn ? "turn" : "river", c.holeRaw, c.board, { kind: "bet", size: c.size, fraction: c.f }, c.spr);
   return v ? barrelHit(v) : null;
 };
 
@@ -561,9 +561,11 @@ export function judgeBet(
 export function judgeBarrelCheck(
   spot: BarrelCheckSpot,
   hole: readonly (string | null)[],
-  board: readonly string[]
+  board: readonly string[],
+  /** チェックした時点の SPR(ラグで打つならジオメトリックサイズ、を解説するため)。 */
+  spr: number | null = null
 ): StrategyVerdict | null {
-  const v = judgeBarrel(spot.street, hole, board, { kind: "check" });
+  const v = judgeBarrel(spot.street, hole, board, { kind: "check" }, spr);
   if (!v) return null;
   const hit = barrelHit(v);
   return {

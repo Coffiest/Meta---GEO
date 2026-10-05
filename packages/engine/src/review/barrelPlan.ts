@@ -19,7 +19,9 @@
  *    バリュー=弱いフラッシュ・一部のセット・全てのツーペア・キッカーの強いトップヒット(KT以上)
  *    チェック=強いフラッシュ・ワンペア以上のフラドロ・トップセット
  *    ブラフ=全てのストドロ・ペアなしのフラドロ。ピュアブラフはしない
- *  - ラグ(6♠): 180%。
+ *  - ラグ(6♠): ジオメトリックサイズ(ノートの例の 180% は、その例のスタックでのジオメトリックサイズ)。
+ *    オーナー確定: **常に 180% ではない。** 残りのストリートで同じ割合を打ち続けるとちょうどリバーでオールインになる
+ *    サイズ(`geometricFraction`)を推奨にし、そこから近ければ最善とする。SPR が分からないときだけ表の 180% で見る。
  *    バリュー=トップセット以外の全てのセット・ツーペア・キッカーが強いトップペア(KJ以上)
  *    ブラフ=全てのストドロ・ペアなしのフラドロ・キッカーが弱いA/Q/Jハイ
  *
@@ -40,7 +42,7 @@
  */
 
 import { parseBoardCard, readBoardTexture } from "./boardTexture.js";
-import type { BetSizeClass } from "./betRole.js";
+import { sizeClassOf, type BetSizeClass } from "./betRole.js";
 import { readHandStrength, type HandStrength } from "./handStrength.js";
 import type { NotionGrade } from "./strategyVerdict.js";
 
@@ -126,8 +128,13 @@ export interface BarrelVerdict {
   action: "bet" | "check";
   hand: BarrelHandClass;
   handKey: BarrelHandKey;
-  /** 表のサイズ(オーバーカード/ペア=75% → medium、フラッシュ=50% → small、ラグ=180% → overbet)。 */
+  /** 表のサイズ(オーバーカード/ペア=75% → medium、フラッシュ=50% → small、ラグ=ジオメトリックサイズの段)。 */
   recommended: BetSizeClass;
+  /**
+   * ラグでの推奨サイズ(ジオメトリックサイズ、ポットに対する%)。SPR が分かるラグのときだけ。
+   * 解説はこの数字で「ここはジオメトリックサイズ(約○%)」と言う。
+   */
+  geometricPct: number | null;
   /** 実際のサイズ。チェックは null。 */
   actual: BetSizeClass | null;
   /** 実際 − 表 のサイズの段数(負 = 小さい)。チェックは 0。 */
@@ -359,6 +366,31 @@ function isStrongValue(key: BarrelHandKey): boolean {
   return key !== "topPairStrong" && key !== "overPair";
 }
 
+/**
+ * ジオメトリックサイズ(ポットに対する割合)。残り n ストリートで同じ割合を打ち続けると、ちょうど最後にオールインになる。
+ * `spotPlans.ts` の geometricFraction と同じ式(spotPlans がこのファイルを読むので、循環を避けてここにも置く)。
+ */
+function geometricOf(spr: number, streets: number): number {
+  return (Math.pow(1 + 2 * spr, 1 / streets) - 1) / 2;
+}
+
+/** ターン=残り2ストリート、リバー=残り1ストリート。 */
+const STREETS_LEFT: Record<BarrelStreet, number> = { turn: 2, river: 1 };
+
+/**
+ * ラグのサイズの評価。ジオメトリックサイズとの比で見る(段数ではなく)。
+ * ±25% 以内=最善 / 0.55〜1.8倍=好手 / それより外は離れ方で緩手・悪手。
+ * オールインはその時点の SPR 分を打ったものとして同じ式で見る(リバーのジオメトリックはオールインそのもの)。
+ */
+export function gradeGeometric(actualFraction: number, geometric: number): { grade: NotionGrade; sizeGap: number } {
+  const r = actualFraction / geometric;
+  const sizeGap = r < 0.75 ? -1 : r > 1.33 ? 1 : 0;
+  if (r >= 0.75 && r <= 1.33) return { grade: "best", sizeGap: 0 };
+  if (r >= 0.55 && r <= 1.8) return { grade: "good", sizeGap };
+  if (r >= 0.35 && r <= 2.6) return { grade: "inaccuracy", sizeGap: sizeGap * 2 };
+  return { grade: "mistake", sizeGap: sizeGap * 3 };
+}
+
 /** サイズのずれ(段数の絶対値) → 評価。ぴったり=最善 / 1段=好手 / 2段=緩手 / 3段以上=悪手。 */
 function gradeByGap(gap: number): NotionGrade {
   const g = Math.abs(gap);
@@ -377,14 +409,24 @@ export function judgeBarrel(
   street: BarrelStreet,
   hole: readonly (string | null)[],
   board: readonly string[],
-  action: { kind: "bet"; size: BetSizeClass } | { kind: "check" }
+  action: { kind: "bet"; size: BetSizeClass; fraction?: number | null } | { kind: "check" },
+  /** 打つ前の SPR(残りスタック ÷ ポット)。ラグのジオメトリックサイズの計算に使う。 */
+  spr: number | null = null
 ): BarrelVerdict | null {
   const card = readBarrelCard(street, board);
   if (!card) return null;
   const cls = classifyBarrelHand(street, card, hole, board);
   if (!cls) return null;
-  const recommended = BARREL_SIZE[card];
-  const base = { street, card, hand: cls.hand, handKey: cls.handKey, recommended };
+  const geometric = card === "rag" && spr !== null && spr > 0 ? geometricOf(spr, STREETS_LEFT[street]) : null;
+  const recommended = geometric !== null ? sizeClassOf(geometric) : BARREL_SIZE[card];
+  const base = {
+    street,
+    card,
+    hand: cls.hand,
+    handKey: cls.handKey,
+    recommended,
+    geometricPct: geometric !== null ? Math.round(geometric * 100) : null,
+  };
 
   if (action.kind === "check") {
     const out = (situation: BarrelSituation, grade: NotionGrade): BarrelVerdict => ({
@@ -413,7 +455,10 @@ export function judgeBarrel(
   }
 
   const actual = action.size;
-  const sizeGap = SIZE_ORDER.indexOf(actual) - SIZE_ORDER.indexOf(recommended);
+  // ラグはジオメトリックサイズとの比で見る。割合が分からないときは段数で見る。
+  const geo =
+    geometric !== null && action.fraction != null && action.fraction > 0 ? gradeGeometric(action.fraction, geometric) : null;
+  const sizeGap = geo ? geo.sizeGap : SIZE_ORDER.indexOf(actual) - SIZE_ORDER.indexOf(recommended);
   const out = (situation: BarrelSituation, grade: NotionGrade): BarrelVerdict => ({
     ...base,
     action: "bet",
@@ -427,7 +472,7 @@ export function judgeBarrel(
     case "bluff":
     case "mixedBluff":
     case "optionalBluff":
-      return out(sizeGap === 0 ? "betOk" : sizeGap < 0 ? "betTooSmall" : "betTooBig", gradeByGap(sizeGap));
+      return out(sizeGap === 0 ? "betOk" : sizeGap < 0 ? "betTooSmall" : "betTooBig", geo ? geo.grade : gradeByGap(sizeGap));
     case "checkHand":
       return out("betCheckHand", "inaccuracy");
     case "showdown": {

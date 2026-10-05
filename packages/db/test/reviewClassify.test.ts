@@ -19,7 +19,7 @@ describe("classifyDecision", () => {
     expect(r?.evLossBb).toBeCloseTo(0);
   });
 
-  it("プリフロップの正着は全て 常識(book)(3段階仕様)", () => {
+  it("プリフロップの正着は全て 定石手(book)(3段階仕様)", () => {
     const r = classifyDecision({
       gtoActions: acts([["raise2-5", 0.5, 1.0], ["call", 0.3, 0.9], ["fold", 0.2, 0.0]]),
       chosenBucket: "raise2-5",
@@ -47,7 +47,7 @@ describe("classifyDecision", () => {
     expect(r?.classification).toBe("great");
   });
 
-  it("プリフロップは3段階(常識/悪手/大悪手)。EV損0.1bb以上は全て大悪手", () => {
+  it("プリフロップは3段階(定石手/悪手/大悪手)。EV損0.1bb以上は全て大悪手", () => {
     // 本来ほぼ最適の手を降りて僅かに損(0.05bb) → 悪手。
     const small = acts([["raise2-5", 1.0, 0.05], ["fold", 0.0, 0.0]]);
     expect(classifyDecision({ gtoActions: small, chosenBucket: "fold", isPreflop: true })?.classification).toBe("mistake");
@@ -73,7 +73,7 @@ describe("classifyDecision", () => {
   });
 
   it("GTOがプレイする(頻度>0)手は、モデルEVが低くても正解(大悪手にしない)", () => {
-    // GTOがフォールドを推奨(頻度100%)。頻度0の幻の高EV手があってもEV損0=常識にする(画像のバグ回帰)。
+    // GTOがフォールドを推奨(頻度100%)。頻度0の幻の高EV手があってもEV損0=定石手にする(画像のバグ回帰)。
     const gto = acts([["fold", 1.0, -0.5], ["raise2-5", 0.0, 0.68]]);
     const r = classifyDecision({ gtoActions: gto, chosenBucket: "fold", isPreflop: true });
     expect(r?.classification).toBe("book");

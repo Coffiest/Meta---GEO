@@ -158,7 +158,7 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
       // チェックレイズ後のターンは、ダブルバレルより先に見る(ノートに専用の戦略がある)。
       if (spot?.kind === "afterCheckRaise") v = judgeSpotDecision(spot, action, hole, hand.board, { potType, spr });
       const barrel = action === "check" ? barrelChecks.get(d.sequenceNumber) : undefined;
-      if (!v && barrel) v = judgeBarrelCheck(barrel, hole, hand.board);
+      if (!v && barrel) v = judgeBarrelCheck(barrel, hole, hand.board, spr);
       if (!v && spot) v = judgeSpotDecision(spot, action, hole, hand.board, { potType, spr });
     }
     d.strategy = v ? toStrategy(null, v) : null;

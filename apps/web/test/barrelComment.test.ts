@@ -136,7 +136,7 @@ describe("ダブル/トリプルバレルのバリィの台詞", () => {
     expect(c.points.map((p) => p.label)).toEqual(["サイズ", "バリュー", "ブラフ", "チェック"]);
     const o = judgeBarrel("turn", ["8c", "8s"], BOARDS.overcard.turn, { kind: "check" })!;
     expect(barrelComment(o, BOARDS.overcard.turn).points.map((p) => p.label)).toEqual(["サイズ", "方針", "バリュー", "ブラフ", "チェック"]);
-    expect(c.points[0]!.text).toContain("180%");
+    expect(c.points[0]!.text).toContain("ジオメトリックサイズ");
     const r = judgeBarrel("river", ["9c", "7c"], BOARDS.rag.river, { kind: "check" })!;
     expect(barrelComment(r, BOARDS.rag.river).points.map((p) => p.label)).toContain("リバー");
   });
@@ -150,10 +150,10 @@ describe("ダブル/トリプルバレルのバリィの台詞", () => {
       "トリップス以上とドロー", "フルハウス、トリップス、KT以上のトップペア", "ナッツのフルハウス",
       "全てのフラッシュドロー、キッカーの弱いA〜Tハイ", "Tハイ以下は任意",
       // フラッシュ完成カード
-      "頻度50%、サイズ50%ベット", "弱いフラッシュ、一部のセット、全てのツーペア、キッカーの強いトップヒット",
+      "頻度50%、サイズ50%ベット", "弱いフラッシュ、一部のセット、全てのツーペア、キッカーの強いトップペア",
       "強いフラッシュ、ワンペア以上のフラッシュドロー", "全てのストレートドロー、ペアなしのフラッシュドロー。ピュアブラフはしない",
       // ラグ
-      "頻度50%、180%ベット", "トップセット以外の全てのセット、ツーペア、キッカーが強いトップペア(例ならKJ以上)",
+      "頻度50%、ジオメトリックサイズ", "トップセット以外の全てのセット、ツーペア、キッカーが強いトップペア(例ならKJ以上)",
       "キッカーが弱いA・Q・Jハイ",
       // トリプルバレル
       "トリプルバレル", "ダブルバレルと全く同じ",
