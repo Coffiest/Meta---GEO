@@ -50,7 +50,7 @@ export function AppShareCard() {
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-full bg-n-3 py-1.5 pl-5 pr-1.5 shadow-e1">
-      <span className="text-[13px] font-bold text-fg">{igCopied ? "リンクをコピーしました" : "アプリをシェア"}</span>
+      <span className="text-[13px] font-bold text-fg">{igCopied ? "リンクをコピーしました" : "Share"}</span>
       <div className="flex items-center gap-1.5">
         <button
           onClick={shareToX}

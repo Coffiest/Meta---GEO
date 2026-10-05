@@ -981,6 +981,25 @@ textarea:focus-visible,
   transform: translateX(4px);
 }
 
+/* High Roller / Super High Roller の卓のボタン。Play と同じ意匠で、色だけ銀・金(資格者のアイコン枠と同じ色)。
+   縁取りと文字がその色、押している間はその色で塗りつぶして文字を黒にする。 */
+.line-fill-btn-silver {
+  border-color: rgb(var(--frame-silver-hi) / 0.85);
+  color: rgb(var(--frame-silver-hi));
+}
+.line-fill-btn-silver:active {
+  background-color: rgb(var(--frame-silver-hi));
+  color: rgb(var(--n-0));
+}
+.line-fill-btn-gold {
+  border-color: rgb(var(--frame-gold-hi) / 0.85);
+  color: rgb(var(--frame-gold-hi));
+}
+.line-fill-btn-gold:active {
+  background-color: rgb(var(--frame-gold-hi));
+  color: rgb(var(--n-0));
+}
+
 /* ============================================================================
    起動画面(スプラッシュ)。`components/LaunchSplash.tsx`。
    iOS のネイティブアプリの起動演出と同じく、アイコンのタイルが現れて光り、ワードマークが並び、
