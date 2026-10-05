@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { ADSENSE_CLIENT_ID, ADSENSE_PUBLISHER_ID, adsAllowedFor } from "../src/lib/adsense";
+import { ADSENSE_CLIENT_ID, ADSENSE_PUBLISHER_ID, adsAllowedFor, resolveAdSlot } from "../src/lib/adsense";
+
+describe("resolveAdSlot", () => {
+  const SLOT = "1234567890";
+
+  it("lets the default slot turn on the pages that have our own writing", () => {
+    expect(resolveAdSlot({ placement: "content", specific: undefined, fallback: SLOT })).toBe(SLOT);
+  });
+
+  it("never lets the default slot turn on an in-app screen", () => {
+    // AdSenseは「パブリッシャーのコンテンツを含まない画面」に広告を出すことを禁じており、
+    // 同じアカウントの別サイトが実際にこの違反を受けている。解説ページの広告をONにしたつもりで
+    // アプリ全体にも出てしまう事故を、ここで止める。
+    for (const placement of ["lobby", "result", "reviewSummary", "reviewScore"] as const) {
+      expect(resolveAdSlot({ placement, specific: undefined, fallback: SLOT })).toBeNull();
+    }
+  });
+
+  it("turns on an in-app screen only when that placement's own slot is set", () => {
+    expect(resolveAdSlot({ placement: "lobby", specific: "999", fallback: undefined })).toBe("999");
+    expect(resolveAdSlot({ placement: "result", specific: "999", fallback: SLOT })).toBe("999");
+  });
+
+  it("renders nothing when no ad unit exists yet", () => {
+    expect(resolveAdSlot({ placement: "content", specific: undefined, fallback: undefined })).toBeNull();
+    expect(resolveAdSlot({ placement: "content", specific: "  ", fallback: "  " })).toBeNull();
+  });
+});
 
 describe("ADSENSE_PUBLISHER_ID", () => {
   it("drops the ca- prefix so /ads.txt and the ad script name the same publisher", () => {
