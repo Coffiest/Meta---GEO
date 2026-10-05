@@ -12,19 +12,26 @@
  * スロットIDは広告ユニットごとに異なり、**AdSenseの審査を通してユニットを作るまで存在しない**。
  * 未設定の枠は何も描画しない(空白やダミー広告を出さない)。
  *
- * 置き場所ごとに別ユニットを作るとAdSenseのレポートが置き場所ごとに分かれて便利だが、
- * 最初から5つ作らせるのは手間なので、`NEXT_PUBLIC_ADSENSE_SLOT_ID` を1つ設定するだけで
- * 全ての枠が有効になるようにしてある(個別に設定した置き場所はそちらが優先)。
+ * ## 解説ページとアプリ内画面でスイッチを分けている理由
+ *
+ * AdSenseには「**パブリッシャーのコンテンツを含まない画面に Google の広告を出してはいけない**」という
+ * ポリシーがあり、同じアカウントの別サイトは実際にこの違反を受けている。ロビー・トーナメント結果画面・
+ * 棋譜解析はアプリのUIであって、こちらが書いた本文があるわけではないので、ここに該当しうる。
+ *
+ * そこで既定スロットID(`NEXT_PUBLIC_ADSENSE_SLOT_ID`)は**解説ページにしか効かない**ようにしてある。
+ * アプリ内の枠を出すには、その置き場所専用の環境変数を**明示的に**設定する必要がある。
+ * 「解説ページの広告をONにしたつもりが、アプリ全体にも出ていて違反になった」という事故を防ぐため。
  *
  * ## 環境変数(Vercel)
  *
  *   NEXT_PUBLIC_ADSENSE_CLIENT_ID            ca-pub-...(未設定なら下のフォールバック)
- *   NEXT_PUBLIC_ADSENSE_SLOT_ID              全ての枠の既定スロットID
- *   NEXT_PUBLIC_ADSENSE_LOBBY_SLOT_ID        ホーム/ロビー最下部だけ別ユニットにする場合
- *   NEXT_PUBLIC_ADSENSE_RESULT_SLOT_ID       トーナメント結果画面だけ別ユニットにする場合
- *   NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID       棋譜解析の無料要約画面だけ別ユニットにする場合
- *   NEXT_PUBLIC_ADSENSE_REVIEW_SCORE_SLOT_ID 棋譜解析の解析結果(GTOスコア)だけ別ユニットにする場合
- *   NEXT_PUBLIC_ADSENSE_CONTENT_SLOT_ID      ガイド等のコンテンツページだけ別ユニットにする場合
+ *   NEXT_PUBLIC_ADSENSE_SLOT_ID              解説ページの既定スロットID(アプリ内画面には効かない)
+ *   NEXT_PUBLIC_ADSENSE_CONTENT_SLOT_ID      解説ページだけ別ユニットにする場合
+ *   --- ここから下は明示的に設定したときだけ広告が出る(上の既定値は効かない) ---
+ *   NEXT_PUBLIC_ADSENSE_LOBBY_SLOT_ID        ホーム/ロビー最下部
+ *   NEXT_PUBLIC_ADSENSE_RESULT_SLOT_ID       トーナメント結果画面
+ *   NEXT_PUBLIC_ADSENSE_REVIEW_SLOT_ID       棋譜解析の無料要約画面
+ *   NEXT_PUBLIC_ADSENSE_REVIEW_SCORE_SLOT_ID 棋譜解析の解析結果(GTOスコア)
  *
  * Next.jsは `NEXT_PUBLIC_` で始まる環境変数を**ビルド時に**文字列へ埋め込むので、
  * 値を変えたら再デプロイが必要(実行時に読み直されるわけではない)。
@@ -42,6 +49,12 @@ export const ADSENSE_PUBLISHER_ID = ADSENSE_CLIENT_ID.replace(/^ca-/, "");
 /** 広告の置き場所。1つの置き場所につき1つの広告ユニットを割り当てる。 */
 export type AdPlacement = "lobby" | "result" | "reviewSummary" | "reviewScore" | "content";
 
+/**
+ * 既定スロットIDを使ってよい置き場所 ―― こちらが書いた本文があるページだけ。
+ * ここに無い置き場所(アプリのUI画面)は、専用の環境変数を設定しない限り広告を出さない。
+ */
+const DEFAULT_SLOT_PLACEMENTS: ReadonlySet<AdPlacement> = new Set<AdPlacement>(["content"]);
+
 // `process.env.NEXT_PUBLIC_*` はビルド時に静的な文字列へ置換されるため、キーは必ずリテラルで書く
 // (変数でキーを組み立てると置換されず、常に undefined になる)。
 const PLACEMENT_SLOT: Record<AdPlacement, string | undefined> = {
@@ -54,10 +67,29 @@ const PLACEMENT_SLOT: Record<AdPlacement, string | undefined> = {
 
 const DEFAULT_SLOT = process.env["NEXT_PUBLIC_ADSENSE_SLOT_ID"];
 
-/** その置き場所に使うスロットID。未設定(=広告ユニット未作成)なら null で、枠ごと描画しない。 */
+/**
+ * その置き場所に使うスロットID。未設定(=広告ユニット未作成)なら null で、枠ごと描画しない。
+ *
+ * 既定スロットIDへのフォールバックは解説ページだけ。アプリのUI画面は専用の環境変数を
+ * 設定したときだけ出る(上の「スイッチを分けている理由」参照)。
+ */
 export function adSlotId(placement: AdPlacement): string | null {
-  const id = (PLACEMENT_SLOT[placement] ?? DEFAULT_SLOT ?? "").trim();
-  return id || null;
+  return resolveAdSlot({ placement, specific: PLACEMENT_SLOT[placement], fallback: DEFAULT_SLOT });
+}
+
+/** {@link adSlotId} の中身。環境変数から切り離してテストできるようにしてある。 */
+export function resolveAdSlot(params: {
+  placement: AdPlacement;
+  /** その置き場所専用のスロットID。 */
+  specific: string | undefined;
+  /** 既定のスロットID(解説ページにしか効かない)。 */
+  fallback: string | undefined;
+}): string | null {
+  const specific = (params.specific ?? "").trim();
+  if (specific) return specific;
+  if (!DEFAULT_SLOT_PLACEMENTS.has(params.placement)) return null;
+  const fallback = (params.fallback ?? "").trim();
+  return fallback || null;
 }
 
 /**
