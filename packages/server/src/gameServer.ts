@@ -116,19 +116,19 @@ export function pickBotProfiles(count: number): BotProfile[] {
   return Array.from({ length: count }, (_, i) => ({ name: order[i % order.length]!, avatarKey: null }));
 }
 
-/** タイムバンクまで使って長考する確率(ターン/リバーのみ)。ごく稀に留める。 */
-const TIME_BANK_CHANCE = 0.02;
+/** タイムバンクまで使って長考する確率(ターン/リバーのチェック以外のみ)。200回に1回ほどに留める(オーナー指示)。 */
+const TIME_BANK_CHANCE = 0.005;
 
 /**
  * 自動プレイヤーが「実際にアクションするまでの時間(ms)」を人間らしく決める。持ち時間そのものは
- * 人間と同じ20秒(ACTION_CLOCK_MS)固定で、その中の"どこで"動くかをストリートごとにばらけさせる。
+ * 人間と同じ20秒(ACTION_CLOCK_MS)固定で、その中の"どこで"動くかをアクションの種類でばらけさせる。
  * 返り値が20秒を超えると、呼び出し側(scheduleBotTurn)がタイムバンクを使って延長する。
  *
- * テンポ重視で、待たされる体感が長くならないよう全体を短くしている(以前の約半分)。
- * - チェック: どのストリートでも長考しない(0.15〜0.6秒)。相手のベットが無く考える材料が少ない。
- * - プリフロップ: フォールドは半分がx/f(即降り)、半分は0.3〜1.2秒。参加は0.4〜2.5秒。
- * - フロップ: 全アクション0〜2.5秒でランダム。
- * - ターン以降: 1〜10秒で考える。タイムバンクを使うのはごく稀(TIME_BANK_CHANCE)。
+ * オーナー指示(速すぎて何をしたか分からない、という指摘を受けて):
+ * - チェック・コール・フォールド(受け身の手): どのストリートでも 0.5〜1.5秒でランダム。
+ * - ベット・レイズ・オールイン(チップを出して攻める手): どのストリートでも 2〜4秒でランダム。
+ * - タイムバンクまで使う長考は、タイムバンクのある卓のターン/リバーで、チェック以外の手だけ。
+ *   頻度はごく稀(TIME_BANK_CHANCE)。
  */
 export function botDecisionMs(
   street: string,
@@ -137,28 +137,12 @@ export function botDecisionMs(
   /** タイムバンクの無い卓では、人間と同じく持ち時間の中で必ず動く(延長の演出をしない)。 */
   timeBank = true,
 ): number {
-  const isFold = action.kind === "fold";
-
-  // チェックはストリートを問わず即チェック(0.15〜0.6秒)。
-  if (action.kind === "check") return 150 + rand() * 450;
-
-  if (street === "preflop") {
-    if (isFold) {
-      // 半分はx/fで即降り、半分は0.3〜1.2秒考えてからフォールド。
-      return rand() < 0.5 ? 100 + rand() * 150 : 300 + rand() * 900;
-    }
-    return 400 + rand() * 2100; // 参加: 0.4〜2.5秒
-  }
-
-  if (street === "flop") {
-    return rand() * 2500; // 0〜2.5秒でランダム
-  }
-
-  // ターン/リバー: 1〜10秒で考える。ごく稀にタイムバンクで延長。
-  if (timeBank && rand() < TIME_BANK_CHANCE) {
+  const lateStreet = street === "turn" || street === "river";
+  if (timeBank && lateStreet && action.kind !== "check" && rand() < TIME_BANK_CHANCE) {
     return ACTION_CLOCK_MS + 1500 + rand() * 8000; // 21.5〜約29.5秒(タイムバンク使用)
   }
-  return 1000 + rand() * 9000; // 1〜10秒
+  const aggressive = action.kind === "bet" || action.kind === "raise" || action.kind === "allIn";
+  return aggressive ? 2000 + rand() * 2000 : 500 + rand() * 1000;
 }
 
 /** クライアントの席バッジ表示用に、実行したアクションを表示種別+bb換算前の額に正規化する。 */
