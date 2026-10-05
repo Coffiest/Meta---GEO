@@ -22,7 +22,12 @@ function signed(n: number): string {
   return `${n >= 0 ? "+" : ""}${Math.round(n).toLocaleString()}`;
 }
 
-/** 上辺の帯の素材。資格者のアイコン枠と同じ銀・金で、どの卓の資格がどの枠かを結び付ける。 */
+/** ボタンの色(Play と同じ意匠の銀・金)。資格者のアイコン枠と同じ色で、どの卓の資格がどの枠かを結び付ける。 */
+function lineClass(tier: EliteTier): string {
+  return tier === "superHighRoller" ? "line-fill-btn-gold" : "line-fill-btn-silver";
+}
+
+/** 上辺の帯の素材(条件のポップアップの上辺)。資格者のアイコン枠と同じ銀・金。 */
 function bandClass(tier: EliteTier): string {
   return tier === "superHighRoller" ? "avatar-frame-gold" : "avatar-frame-silver";
 }
@@ -30,7 +35,8 @@ function bandClass(tier: EliteTier): string {
 /**
  * ホームの「Play」の下に並ぶ High Roller / Super High Roller の卓。
  *
- * 2枚は同じ構成・同じ高さ(卓名は2行ぶんの高さを常に取る)で、条件はボタンに書かない(オーナー指示)。
+ * 「Play」と同じ意匠(縁取りのピル・大きい卓名・小さい副題・右に矢印)で、色だけ銀・金(オーナー指示)。
+ * 縦に2段で並べ、条件はボタンに書かない。
  * 資格が無い卓は薄く描き、右上を錠にして「押せない」ことを見た目で伝える。押すと参加はせず、
  * 条件と今の値をポップアップで出す(なぜ押せないか・あと何が足りないかが、押した場所ですぐ分かる)。
  * 資格の判定はサーバーでも必ず行う(この画面の錠は案内であって、守りではない)。
@@ -41,39 +47,33 @@ export function EliteTierCards({ elite, onJoin }: { elite: EliteInfo | null; onJ
 
   return (
     <>
-      <div className="grid grid-cols-2 items-stretch gap-2.5">
+      <div className="flex flex-col gap-2.5">
         {ELITE_TIERS.map((tier, i) => {
           const cfg = SNG_TIERS[tier];
           const eligible = elite ? qualifiesForTier(tier, elite.stats) : false;
           return (
-            <motion.button
+            <motion.div
               key={tier}
-              type="button"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: eligible ? 1 : 0.45, y: 0 }}
               transition={{ ...SPRING_MOVE, delay: 0.05 * (i + 1) }}
-              onClick={() => (eligible ? onJoin(GAME_KEY_BY_TIER[tier]) : setRequirementsFor(tier))}
-              aria-label={`${TIER_LABEL[tier]} ${eligible ? t("play.enter") : t("tier.requirements")}`}
-              className="pressable-lg relative flex h-full flex-col overflow-hidden rounded-2xl bg-surface p-3.5 pt-4 text-left shadow-e1"
+              className="pressable-lg w-full"
             >
-              <span aria-hidden className={`absolute inset-x-0 top-0 h-[3px] ${bandClass(tier)}`} />
-              <span className="flex items-start justify-between gap-2">
-                {/* 卓名は2行ぶんの高さを常に確保し、1行で収まる卓とも下の行の位置を揃える。 */}
-                <span className="line-clamp-2 min-h-[2.5em] text-[14px] font-black leading-[1.25] tracking-tight text-fg">
-                  {TIER_LABEL[tier]}
+              <button
+                type="button"
+                onClick={() => (eligible ? onJoin(GAME_KEY_BY_TIER[tier]) : setRequirementsFor(tier))}
+                aria-label={`${TIER_LABEL[tier]} ${eligible ? t("play.enter") : t("tier.requirements")}`}
+                className={`line-fill-btn ${lineClass(tier)} flex w-full items-center gap-4 px-5 py-4 text-left`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">{TIER_LABEL[tier]}</span>
+                  <span className="mt-1.5 block truncate text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">
+                    {t("play.buyIn")} {cfg.buyIn.toLocaleString()} · {t("tier.meta", { bb: cfg.startingStack / 200, min: cfg.levelDurationMs / 60_000 })}
+                  </span>
                 </span>
-                <Icon
-                  name={eligible ? "arrow-right" : "lock"}
-                  className={`mt-0.5 h-4 w-4 shrink-0 ${eligible ? "text-accent" : "text-fg-2"}`}
-                />
-              </span>
-              <span className="mt-1.5 text-[11px] font-bold tabular-nums text-fg-2">
-                {t("play.buyIn")} {cfg.buyIn.toLocaleString()}
-              </span>
-              <span className="mt-0.5 text-[10px] font-semibold tabular-nums text-fg-3">
-                {t("tier.meta", { bb: cfg.startingStack / 200, min: cfg.levelDurationMs / 60_000 })}
-              </span>
-            </motion.button>
+                <Icon name={eligible ? "arrow-right" : "lock"} className={`h-5 w-5 shrink-0 ${eligible ? "line-fill-arrow" : ""}`} />
+              </button>
+            </motion.div>
           );
         })}
       </div>

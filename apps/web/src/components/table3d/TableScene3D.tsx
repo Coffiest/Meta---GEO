@@ -17,13 +17,13 @@ import {
   type BufferGeometry,
 } from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { CAMERA, DESIGN_HEIGHT, DESIGN_WIDTH, TABLE_SHAPE, tableOutline } from "./geometry";
+import { DESIGN_WIDTH, tableOutline, tableSpec, type TableSpec, type TableShape } from "./geometry";
 
 /** DOM の配置(`geometry.ts` の投影)と同じカメラ。 */
-function makeTableCamera(): PerspectiveCamera {
-  const cam = new PerspectiveCamera(CAMERA.fov, DESIGN_WIDTH / DESIGN_HEIGHT, 0.1, 50);
-  cam.position.set(...CAMERA.position);
-  cam.lookAt(new Vector3(...CAMERA.target));
+function makeTableCamera(spec: TableSpec): PerspectiveCamera {
+  const cam = new PerspectiveCamera(spec.camera.fov, DESIGN_WIDTH / spec.height, 0.1, 50);
+  cam.position.set(...spec.camera.position);
+  cam.lookAt(new Vector3(...spec.camera.target));
   cam.updateMatrixWorld(true);
   cam.updateProjectionMatrix();
   return cam;
@@ -42,15 +42,15 @@ function makeTableCamera(): PerspectiveCamera {
  */
 
 /** スーパー楕円の輪郭を Shape に(XZ → 形の XY。y = -z にして、X 軸で -90° 回すと元の向きに戻る)。 */
-function outlineShape(inset: number): Shape {
-  const pts = tableOutline(inset);
+function outlineShape(shape: TableShape, inset: number): Shape {
+  const pts = tableOutline(shape, inset);
   const s = new Shape();
   pts.forEach((p, i) => (i === 0 ? s.moveTo(p.x, -p.z) : s.lineTo(p.x, -p.z)));
   s.closePath();
   return s;
 }
-function outlinePath(inset: number): Path {
-  const pts = tableOutline(inset);
+function outlinePath(shape: TableShape, inset: number): Path {
+  const pts = tableOutline(shape, inset);
   const p = new Path();
   pts.forEach((q, i) => (i === 0 ? p.moveTo(q.x, -q.z) : p.lineTo(q.x, -q.z)));
   p.closePath();
@@ -71,8 +71,8 @@ function normalizeUv(geo: BufferGeometry): BufferGeometry {
 }
 
 /** フェルトの絵(色の濃淡・繊維の粒・ベットライン・薄いロゴ)。1回だけ canvas に描く。 */
-function makeFeltTexture(): CanvasTexture {
-  const { halfWidth, halfDepth, railWidth } = TABLE_SHAPE;
+function makeFeltTexture(shape: TableShape): CanvasTexture {
+  const { halfWidth, halfDepth, railWidth } = shape;
   const W = 1024;
   const H = Math.round((W * halfDepth) / halfWidth);
   const c = document.createElement("canvas");
@@ -108,7 +108,7 @@ function makeFeltTexture(): CanvasTexture {
   g.strokeStyle = "rgba(190, 255, 240, 0.13)";
   g.lineWidth = 3;
   g.beginPath();
-  tableOutline(railWidth + 0.2).forEach((p, i) => {
+  tableOutline(shape, railWidth + 0.2).forEach((p, i) => {
     const [x, y] = toPx(p.x, p.z);
     if (i === 0) g.moveTo(x!, y!);
     else g.lineTo(x!, y!);
@@ -121,7 +121,7 @@ function makeFeltTexture(): CanvasTexture {
   g.font = `800 ${Math.round(W * 0.075)}px "JetBrains Mono", ui-monospace, monospace`;
   g.textAlign = "center";
   g.textBaseline = "middle";
-  const [lx, ly] = toPx(0, -0.78);
+  const [lx, ly] = toPx(0, -0.78 * (halfDepth / 1.62));
   g.fillText("POKER ART", lx!, ly!);
 
   const tex = new CanvasTexture(c);
@@ -150,12 +150,12 @@ function SceneSetup() {
   return null;
 }
 
-function Table() {
-  const { railWidth, railHeight } = TABLE_SHAPE;
+function Table({ shape }: { shape: TableShape }) {
+  const { railWidth, railHeight } = shape;
   const geos = useMemo(() => {
     const rail = new Shape();
-    rail.curves = outlineShape(0).curves;
-    rail.holes = [outlinePath(railWidth)];
+    rail.curves = outlineShape(shape, 0).curves;
+    rail.holes = [outlinePath(shape, railWidth)];
     const bevel = railHeight * 0.45;
     const railGeo = new ExtrudeGeometry(rail, {
       depth: railHeight - bevel,
@@ -167,16 +167,16 @@ function Table() {
     });
 
     const trim = new Shape();
-    trim.curves = outlineShape(railWidth - 0.004).curves;
-    trim.holes = [outlinePath(railWidth + 0.016)];
+    trim.curves = outlineShape(shape, railWidth - 0.004).curves;
+    trim.holes = [outlinePath(shape, railWidth + 0.016)];
     const trimGeo = new ExtrudeGeometry(trim, { depth: 0.012, bevelEnabled: false, curveSegments: 1 });
 
-    const feltGeo = normalizeUv(new ShapeGeometry(outlineShape(railWidth), 1));
+    const feltGeo = normalizeUv(new ShapeGeometry(outlineShape(shape, railWidth), 1));
 
-    const apronGeo = new ExtrudeGeometry(outlineShape(0.06), { depth: 0.16, bevelEnabled: false, curveSegments: 1 });
+    const apronGeo = new ExtrudeGeometry(outlineShape(shape, 0.06), { depth: 0.16, bevelEnabled: false, curveSegments: 1 });
     return { railGeo, trimGeo, feltGeo, apronGeo };
-  }, [railWidth, railHeight]);
-  const felt = useMemo(() => makeFeltTexture(), []);
+  }, [shape, railWidth, railHeight]);
+  const felt = useMemo(() => makeFeltTexture(shape), [shape]);
 
   useEffect(
     () => () => {
@@ -213,13 +213,20 @@ function Table() {
   );
 }
 
-export default function TableScene3D() {
+/**
+ * @param height 設計枠の高さ(`designHeightFor`)。変わったら卓の形・カメラ・影を作り直す(Canvas ごと)。
+ */
+export default function TableScene3D({ height }: { height: number }) {
+  const spec = useMemo(() => tableSpec(height), [height]);
   const camera = useMemo(() => {
-    const c = makeTableCamera();
+    const c = makeTableCamera(spec);
     return Object.assign(c, { manual: true });
-  }, []);
+  }, [spec]);
+  // 卓が長くなるほど、スポットライトの照らす範囲も広げる(縁が暗く沈みすぎないように)。
+  const spotAngle = Math.min(0.95, 0.62 * Math.pow(spec.shape.halfDepth / 1.62, 0.6));
   return (
     <Canvas
+      key={height}
       camera={camera}
       frameloop="demand"
       dpr={[1, 2]}
@@ -231,7 +238,7 @@ export default function TableScene3D() {
       <hemisphereLight args={["#d7e6e2", "#050506", 0.32]} />
       <spotLight
         position={[0, 4.4, 0.7]}
-        angle={0.62}
+        angle={spotAngle}
         penumbra={0.8}
         intensity={70}
         decay={2}
@@ -247,7 +254,7 @@ export default function TableScene3D() {
       />
       {/* 奥からの弱い逆光。レールの縁が光って立体が読める。 */}
       <directionalLight position={[0, 2.2, -4]} intensity={0.9} color="#9fe8d8" />
-      <Table />
+      <Table shape={spec.shape} />
     </Canvas>
   );
 }

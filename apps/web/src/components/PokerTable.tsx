@@ -15,7 +15,7 @@ import { Seat, type SeatBadge } from "./Seat";
 import { positionLabelsForState } from "@/lib/position";
 import { formatAmount, formatSignedAmount, type AmountDisplayMode } from "@/lib/format";
 import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
-import { tableLayout, type TableLayout } from "./table3d/geometry";
+import { designHeightFor, tableLayout, type TableLayout } from "./table3d/geometry";
 
 // 3D の卓(three.js)は重いので、卓画面に来たときだけ読み込む。
 const TableScene3D = dynamic(() => import("./table3d/TableScene3D"), { ssr: false });
@@ -49,15 +49,15 @@ function supportsWebGL(): boolean {
 const DESIGN_WIDTH = 448;
 const DESIGN_HEIGHT = 597; // 448 * 4 / 3
 
-/** 親の大きさを測り、設計寸法が収まる倍率を返す(拡大はしない)。 */
-function useFitScale(ref: React.RefObject<HTMLElement>): number {
-  const [scale, setScale] = useState(1);
+/** 親(卓に使える領域)の大きさを測る。設計枠の高さと倍率はこの値から決める。 */
+function useAvailableSize(ref: React.RefObject<HTMLElement>): { width: number; height: number } {
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const apply = (w: number, h: number) => {
       if (w <= 0 || h <= 0) return;
-      setScale(Math.min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT, 1));
+      setSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
     };
     apply(el.clientWidth, el.clientHeight);
     const ro = new ResizeObserver(([entry]) => {
@@ -67,7 +67,13 @@ function useFitScale(ref: React.RefObject<HTMLElement>): number {
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
-  return scale;
+  return size;
+}
+
+/** 設計枠(448×高さ)が領域に収まる倍率(拡大はしない)。 */
+function fitScaleOf(available: { width: number; height: number }, designHeight: number): number {
+  if (available.width <= 0 || available.height <= 0) return 1;
+  return Math.min(available.width / DESIGN_WIDTH, available.height / designHeight, 1);
 }
 
 /* 卓画像の箱。以前は x 18〜82% / y 10〜82% に収めていて、スマホでは卓が画面幅の6割ほどしか使えず
@@ -387,22 +393,38 @@ export function PokerTable({
 
   // 卓は設計寸法のまま描き、空いている領域に収まる倍率で全体を縮小する。
   const fitRef = useRef<HTMLDivElement>(null);
-  const fitScale = useFitScale(fitRef);
+  const available = useAvailableSize(fitRef);
 
   // 3D の卓。WebGL が使えるかはマウント後にしか分からないので、分かるまでは 3D の配置で何も描かない
   // (2D の卓画像を一瞬出してから切り替わる、というちらつきを避ける)。
   const [webgl, setWebgl] = useState<boolean | null>(null);
   useEffect(() => setWebgl(supportsWebGL()), []);
   const use3d = view3d && webgl !== false;
-  const layout3d = use3d ? tableLayout() : null;
+  // 3D の卓は、空いている領域の縦横比に合わせて設計枠を縦に伸ばす(上下に帯を余らせない)。
+  // 2D の卓画像は比率が固定なので 597 のまま。
+  const designHeight = use3d ? designHeightFor(available.width, available.height) : DESIGN_HEIGHT;
+  const fitScale = fitScaleOf(available, designHeight);
+  const layout3d = use3d ? tableLayout(designHeight) : null;
 
   // ディーラーボタンの位置は描いたあとに実測して決める(findDealerSpot の説明を参照)。
   const designRef = useRef<HTMLDivElement>(null);
-  const [dealerSpot, setDealerSpot] = useState<{ x: number; y: number } | null>(null);
+  const [measuredSpot, setMeasuredSpot] = useState<{ slot: number; x: number; y: number } | null>(null);
   const buttonSlot = state ? displaySlotOf(state.buttonFixedPos) : null;
+  // 3D の卓: スロットごとの固定の点(geometry.ts の dealer)。実測しないので、ハンドの途中で一切動かない。
+  // 2D の卓: ボタンの席が変わったときに1回だけ実測し、そのハンドの間は固定する。
+  // (以前は描画のたびに測り直していて、誰かが降りて「Fold」が出るとボタンが跳ねていた。オーナー指摘)
+  const dealerSpot =
+    buttonSlot === null
+      ? null
+      : layout3d
+        ? layout3d.dealer[buttonSlot] ?? null
+        : measuredSpot && measuredSpot.slot === buttonSlot
+          ? measuredSpot
+          : null;
   useLayoutEffect(() => {
     const root = designRef.current;
-    if (!root || buttonSlot === null) return;
+    if (!root || buttonSlot === null || layout3d) return;
+    if (measuredSpot && measuredSpot.slot === buttonSlot) return;
     const measure = () => {
       const rootRect = root.getBoundingClientRect();
       if (rootRect.width <= 0) return;
@@ -422,19 +444,13 @@ export function PokerTable({
       const spot = findDealerSpot({
         anchor: toDesign(anchorEl.getBoundingClientRect()),
         obstacles,
-        center: layout3d ? { x: layout3d.center.x, y: layout3d.center.y } : { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
+        center: { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
         radius: DEALER_BUTTON_SIZE / 2,
         bounds: { width: DESIGN_WIDTH, height: DESIGN_HEIGHT },
       });
-      setDealerSpot((prev) =>
-        spot && (!prev || Math.abs(prev.x - spot.x) > 0.5 || Math.abs(prev.y - spot.y) > 0.5) ? spot : prev,
-      );
+      if (spot) setMeasuredSpot({ slot: buttonSlot, x: spot.x, y: spot.y });
     };
     measure();
-    // 名前・ベット表示・手札の出入りで席ブロックの大きさが変わったら測り直す。
-    const ro = new ResizeObserver(measure);
-    root.querySelectorAll("[data-table-obstacle]").forEach((el) => ro.observe(el));
-    return () => ro.disconnect();
   });
 
   return (
@@ -444,9 +460,9 @@ export function PokerTable({
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ width: DESIGN_WIDTH * fitScale, height: DESIGN_HEIGHT * fitScale }}
+          style={{ width: DESIGN_WIDTH * fitScale, height: designHeight * fitScale }}
         >
-          <TableScene3D />
+          <TableScene3D height={designHeight} />
         </div>
       )}
       <div
@@ -454,7 +470,7 @@ export function PokerTable({
         className="no-image-actions relative"
         style={{
           width: DESIGN_WIDTH,
-          height: DESIGN_HEIGHT,
+          height: designHeight,
           // 縮小には transform ではなく zoom を使う。transform はレイアウト上の寸法を変えないので、
           // 箱は 448×597 のまま親をはみ出し、flex の中央寄せが効かなくなる。zoom は寸法ごと縮む。
           // (なお zoom が合成の文脈を作るかはエンジンによって違う。以前は「作らない」前提で
