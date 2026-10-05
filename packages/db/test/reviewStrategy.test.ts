@@ -241,7 +241,7 @@ describe("プローブ・ドンク・チェックレイズの場面", () => {
     expect(call.classification).toBe("good");
   });
 
-  it("表に無い手のコールは、GTOの格付けがあれば残し、無ければ常識的な手にする", () => {
+  it("表に無い手のコールは、GTOの格付けがあれば残し、無ければ定石手にする", () => {
     const { hand, facingSeq } = flopCheckThenFacing(["Ah", "Qc"], "call", ["Kd", "7c", "2h", "5s", "9d"]);
     const withGto = flopDecision(facingSeq, "call", { classification: "inaccuracy" });
     const noGto = flopDecision(facingSeq, "call", { classification: null, evLossBb: null });

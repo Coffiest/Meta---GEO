@@ -29,7 +29,7 @@ export const CLASSIFICATION_META: Record<Classification, ClassificationMeta> = {
   excellent: { label: "良手", glyph: "", color: "#34a853" },
   // 「好手」は「良手」に統合(ラベル・色を excellent に揃える)。個別バッジも同一表示になる。
   good: { label: "良手", glyph: "", color: "#34a853" },
-  book: { label: "常識", glyph: "", color: "#a97142" },
+  book: { label: "定石手", glyph: "", color: "#a97142" },
   inaccuracy: { label: "緩手", glyph: "?!", color: "#f2c744" },
   mistake: { label: "悪手", glyph: "?", color: "#ef8a3c" },
   blunder: { label: "大悪手", glyph: "??", color: "#e5484d" },

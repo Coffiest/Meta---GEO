@@ -47,31 +47,31 @@ const HAND: Record<SpotHandKey, string> = {
   overPair: "オーバーペア",
   topPairTopKicker: "トップペア・トップキッカー",
   topPair: "トップペア",
-  middlePair: "ミドルペア",
+  middlePair: "セカンドペア",
   bottomPair: "ボトムペア",
   underPair: "アンダーペア",
   comboDraw: "コンボドロー",
   nutFlushDraw: "ナッツフラッシュドロー",
   flushDraw: "フラッシュドロー",
-  openEnded: "オープンエンドのストレートドロー",
+  openEnded: "OESD(オープンエンド)",
   gutshot: "ガットショット",
   doubleBackdoor: "ダブルバックドア",
   nutDoubleBackdoor: "ナッツのダブルバックドア",
-  bottomPairDoubleBackdoor: "ダブルバックドア付きのボトムヒット",
+  bottomPairDoubleBackdoor: "ダブルバックドア付きのボトムペア",
   missedStraightDraw: "外れたストレートドロー",
   missedFlushDraw: "外れたフラッシュドロー",
   aceHigh: "Aハイ",
-  air: "何も無い手",
+  air: "エアー",
 };
 
 const PROBE_HAND: Record<ProbeHandKey, string> = {
-  tpNotTk: "TPTK以外のトップペア",
+  tpNotTk: "トップキッカー以外のトップペア",
   twoPair: "ツーペア",
   twoPairPlus: "ツーペア以上",
   gutshot: "ガットショット",
-  oesd: "オープンエンドのストレートドロー",
-  midBottomHit: "ミドル〜ボトムヒット",
-  bottomHit: "ボトムヒット",
+  oesd: "OESD(オープンエンド)",
+  midBottomHit: "セカンドペア〜ボトムペア",
+  bottomHit: "ボトムペア",
   underPair: "アンダーペア",
   set: "セット",
   flushCardBet: "ショーダウンバリューもエアーでもない手",
@@ -85,7 +85,7 @@ const SIZE_NAME: Record<BetSizeClass, string> = {
   overbet: "オーバーベット",
 };
 
-const PROBE_SIZE: Record<ProbeSize, string> = { "33": "33%", "50": "50%", "2e": "2e(リバーでちょうどオールインになるサイズ)" };
+const PROBE_SIZE: Record<ProbeSize, string> = { "33": "33%", "50": "50%", "2e": "ジオメトリックサイズ(リバーでちょうどオールインになるサイズ)" };
 
 const SUIT: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 
@@ -206,7 +206,7 @@ function donkComment(v: DonkVerdict): BarrelComment {
       { label: "打つ手", text: r ? r.hands : "打たない(チェックから入る)" },
       {
         label: "成立",
-        text: "フロップのローボード・コネクトボード / ターンリピート / 3betPotのロー1枚ストレートボード / フラッシュ完成カード / ストレート完成カード / ナッツが変化しOOP側にナッツ級ができた時",
+        text: "フロップのローボード・コネクトボード / ターンリピート / 3ベットポットのロー1枚ストレートボード / フラッシュ完成カード / ストレート完成カード / ナッツが変化しOOP側にナッツ級ができた時",
       },
       {
         label: "誤り",

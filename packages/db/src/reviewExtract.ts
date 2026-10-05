@@ -1,4 +1,4 @@
-import type { IcmStage } from "@meta-geo/engine";
+import { normalizeCallLikeAggression, reviewPositions, type IcmStage } from "@meta-geo/engine";
 import { stackBucketOf, bucketPreflopRaiseBb, bucketPostflopPct } from "./geoTree.js";
 
 /**
@@ -16,7 +16,6 @@ import { stackBucketOf, bucketPreflopRaiseBb, bucketPostflopPct } from "./geoTre
  */
 
 export const SEAT_COUNT = 6;
-const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
 const STREET_ORDER = ["preflop", "flop", "turn", "river"] as const;
 
 export interface ExtractSeat {
@@ -65,9 +64,17 @@ export interface HeroDecision {
   outOfScopeReason?: string;
 }
 
-function positionOf(seatIndex: number, buttonFixedPos: number): string {
-  const offset = (((seatIndex - buttonFixedPos) % SEAT_COUNT) + SEAT_COUNT) % SEAT_COUNT;
-  return POSITION_NAMES[offset] ?? "";
+/**
+ * GTO の表・解説の条件に使うポジション(6-max の表の言葉)。実際のブラインドの席から数える
+ * (`reviewPositions`)。ボタンからの席のずれで数えると、空席があるとずれていた。
+ */
+export function strategyPositionsOf(hand: ExtractHand): Map<number, string> {
+  return reviewPositions({
+    seatIndexes: hand.seats.map((s) => s.seatIndex),
+    buttonFixedPos: hand.buttonFixedPos,
+    seatCount: SEAT_COUNT,
+    actions: hand.actions,
+  }).strategy;
 }
 
 function boardForStreet(board: string[], street: string): string[] {
@@ -88,7 +95,10 @@ function isHeroInPosition(heroSeat: number, otherSeat: number, buttonFixedPos: n
   return order(heroSeat) > order(otherSeat);
 }
 
-export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): HeroDecision[] {
+export function extractHeroDecisions(rawHand: ExtractHand, heroUserId: string): HeroDecision[] {
+  // オールインへのコールなど「中身はコール」の手を、コールとして読む(normalizeActions.ts)。
+  const hand: ExtractHand = { ...rawHand, actions: normalizeCallLikeAggression(rawHand.actions) };
+  const positions = strategyPositionsOf(hand);
   const bb = hand.levelBigBlind;
   const heroSeatEntry = hand.seats.find((s) => s.userId === heroUserId);
   if (!heroSeatEntry || bb <= 0) return [];
@@ -118,8 +128,9 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
     const maxPossible = priorStreet + behindStack;
     const isAllIn = action.kind === "allIn" || (behindStack > 0 && toAmount >= maxPossible);
     if (action.kind === "fold") return "fold";
-    if (isAllIn) return "allIn";
+    // 残り全部でのコール(オールインへのコール)もコール。オールインのバケットは「額を上げた」手だけ。
     if (action.kind === "check" || action.kind === "call") return isPreflop ? "call" : "checkOrCall";
+    if (isAllIn) return "allIn";
     if (isPreflop) return bucketPreflopRaiseBb(toAmount / bb);
     const betAmount = toAmount - priorStreet;
     const pct = action.potBefore > 0 ? (betAmount / action.potBefore) * 100 : 0;
@@ -170,8 +181,9 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
 
       let bucket: string;
       if (action.kind === "fold") bucket = "fold";
-      else if (isAllIn) bucket = "allIn";
+      // 残り全部でのコール(オールインへのコール)もコール。オールインのバケットは「額を上げた」手だけ。
       else if (action.kind === "check" || action.kind === "call") bucket = isPreflop ? "call" : "checkOrCall";
+      else if (isAllIn) bucket = "allIn";
       else if (isPreflop) bucket = bucketPreflopRaiseBb(toAmount / bb);
       else {
         const betAmount = toAmount - priorStreet;
@@ -192,7 +204,7 @@ export function extractHeroDecisions(hand: ExtractHand, heroUserId: string): Her
       decisions.push({
         sequenceNumber: action.sequenceNumber,
         street: currentStreet,
-        heroPos: positionOf(heroSeat, hand.buttonFixedPos),
+        heroPos: positions.get(heroSeat) ?? "",
         relPos,
         effStackBb: behindStack / bb,
         potBb: action.potBefore / bb,

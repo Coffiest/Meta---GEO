@@ -95,3 +95,6 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 - 解説に使う知識(記事を読んで得た内容)は **`packages/engine/knowledge/*.md` に溜める**。記事ごとに「要点(漏れなく)」と「解説ルール(```json rule ブロック)」を書く。書き方はファイル冒頭にある。
 - ルールは「いつ出すか(when)/ 何を言うか(summary・body)/ バッジ(grade)」を持つ。サーバーが決定ごとに1件当てはめ(`packages/db/src/reviewStrategy.ts` の `attachArticles`)、画面は id で文章を引く。バッジの優先は **Notion > 知識ベース > GTO**。プリフロップのバッジ付きルールは `keepGto`(GTO の表がある局面では表を優先)。
 - md を書き換えたら `pnpm --filter @meta-geo/engine run knowledge` で生成物を作り直す(忘れるとテストが落ちる)。
+- **解説の言葉は `packages/engine/knowledge/terminology.md`(用語集)に揃える。** 「大1枚+小1枚」「つながらない」のような説明ではなく、「ハイ+ローのオフスート」「ツーギャッパー」のような日本語のポーカー用語で書く。用語集に無い言葉を使うなら先に用語集へ足す。
+- **GTO の評価が付かない局面(「解析の対象外」)の解説は `packages/engine/knowledge/spots.md`。** 局面ごとに「対象外になる条件」と既定の解説がある。どの決定にも必ず解説を出す(優先順: バレル/スポットの表 → 記事のルール → プリフロップの GTO の一般論 → Notion の知識 → spots.md)。
+- 棋譜解析のポジションは `reviewPositions`(実際のブラインドの席から数える。画面は卓と同じ名前、GTO の表は 6-max の言葉)。アクションは `normalizeCallLikeAggression` を通してから読む(額を上げていないオールイン/レイズはコール)。

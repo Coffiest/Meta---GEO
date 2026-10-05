@@ -64,6 +64,10 @@ export interface ArticleWhen {
   preflopSpot?: PreflopSpotKind[];
   /** プリフロップで、自分がまだ自発的に動いていない(ブラインド以外にチップを入れていない)。「コールド」の判定。 */
   heroFirstAction?: boolean;
+  /** プリフロップで、オープン1回+コーラーがいる所で決める(スクイーズ/オーバーコールの局面)。 */
+  squeezeSpot?: boolean;
+  /** 相手のオールイン(または残り全部を賭けるベット)に直面している。 */
+  facingAllIn?: boolean;
   potType?: PotType[];
   blindVsBlind?: boolean;
   heroPreflopAggressor?: boolean;
@@ -121,6 +125,8 @@ const WHEN_KEYS: Record<keyof ArticleWhen, "list" | "bool" | "range"> = {
   spr: "range",
   preflopSpot: "list",
   heroFirstAction: "bool",
+  squeezeSpot: "bool",
+  facingAllIn: "bool",
   potType: "list",
   blindVsBlind: "bool",
   heroPreflopAggressor: "bool",
@@ -195,6 +201,13 @@ const POSTFLOP_ACTIONS = new Set(["fold", "checkOrCall", "bet20-40", "bet40-60",
 
 export class KnowledgeFormatError extends Error {}
 
+/**
+ * 解説の文中で使える置き換え語。画面(`apps/web/src/lib/articleRules.ts` の fillTemplate)が決定ごとの値に置き換える。
+ *  {hand} 手札(K4o)/ {handCategory} 手札の分類 / {pos} ポジション / {effBb} 残りスタック(bb)
+ *  {facingBb} 直面している額(bb)/ {potOdds} コールに必要な勝率(%)/ {spr} SPR
+ */
+export const TEMPLATE_KEYS = ["hand", "handCategory", "pos", "effBb", "facingBb", "potOdds", "spr"] as const;
+
 /** ルールの JSON を検証して ArticleRule にする。誤りは場所が分かる文言で投げる。 */
 export function validateArticleRule(raw: unknown, article: string, sourceUrl: string | null): ArticleRule {
   const fail = (msg: string): never => {
@@ -247,6 +260,12 @@ export function validateArticleRule(raw: unknown, article: string, sourceUrl: st
     const okPre = streets.length === 0 || streets.includes("preflop") ? PREFLOP_ACTIONS.has(a) : false;
     const okPost = streets.length === 0 || streets.some((s) => s !== "preflop") ? POSTFLOP_ACTIONS.has(a) : false;
     if (!okPre && !okPost) fail(`${String(id)}: action ${a} はそのストリートに無い`);
+  }
+  // 置き換え語(`{hand}` など)は、画面が知っている名前だけ(書き間違えるとそのまま画面に出る)。
+  for (const k of ["title", "summary", "body"] as const) {
+    for (const m of (r[k] as string).matchAll(/\{([A-Za-z]+)\}/g)) {
+      if (!(TEMPLATE_KEYS as readonly string[]).includes(m[1]!)) fail(`${String(id)}: ${k} に未知の置き換え語 {${m[1]}}`);
+    }
   }
   // バッジを付けるなら、hero が何をしたかを必ず条件にする(手を問わずに良し悪しは言えない)。
   if (grade !== null && actions.length === 0) fail(`${String(id)}: grade を付けるルールは when.action が必須`);
@@ -409,6 +428,9 @@ export interface ArticleFacts {
   preflopSpot: PreflopSpotKind | null;
   /** プリフロップの決定で、自分がまだ自発的に動いていないか。ポストフロップは null。 */
   heroFirstAction: boolean | null;
+  /** プリフロップでオープン1回+コーラーがいる所で決めるか。ポストフロップは null。 */
+  squeezeSpot: boolean | null;
+  facingAllIn: boolean;
   potType: PotType;
   blindVsBlind: boolean;
   heroPreflopAggressor: boolean;
@@ -492,11 +514,14 @@ export function readArticleFacts(hand: ArticleHandInput, d: ArticleDecisionInput
   // プリフロップで直面している状況。
   let preflopSpot: PreflopSpotKind | null = null;
   let heroFirstAction: boolean | null = null;
+  let squeezeSpot: boolean | null = null;
   if (d.street === "preflop") {
     const prior = before.filter((a) => a.street === "preflop" && !isForcedPost(a.kind));
     heroFirstAction = !prior.some((a) => a.seatIndex === d.seatIndex);
     const raises = prior.filter((a) => isAggression(a.kind)).length;
     const calls = prior.filter((a) => a.kind === "call").length;
+    const raiseIdx = prior.findIndex((a) => isAggression(a.kind));
+    squeezeSpot = raises === 1 && prior.slice(raiseIdx + 1).some((a) => a.kind === "call");
     preflopSpot =
       raises === 0 ? (calls > 0 ? "vsLimp" : "unopened") : raises === 1 ? "vsOpen" : raises === 2 ? "vs3bet" : "vs4bet";
   }
@@ -538,6 +563,12 @@ export function readArticleFacts(hand: ArticleHandInput, d: ArticleDecisionInput
     spr: d.potBb > 0 ? d.effStackBb / d.potBb : null,
     preflopSpot,
     heroFirstAction,
+    squeezeSpot,
+    // 相手がこのストリートでオールインした、または直面している額が自分の残りスタック以上。
+    facingAllIn:
+      facing !== null &&
+      (facing >= d.effStackBb ||
+        before.some((a) => a.street === d.street && a.seatIndex !== d.seatIndex && a.kind === "allIn")),
     potType: shape.type,
     blindVsBlind: shape.isBlindVsBlind,
     heroPreflopAggressor: lastRaiser === d.seatIndex,
@@ -587,6 +618,8 @@ export function ruleMatches(rule: ArticleRule, f: ArticleFacts): boolean {
   if (!inRange(f.spr, w.spr)) return false;
   if (!inList(f.preflopSpot, w.preflopSpot)) return false;
   if (!isBool(f.heroFirstAction, w.heroFirstAction)) return false;
+  if (!isBool(f.squeezeSpot, w.squeezeSpot)) return false;
+  if (!isBool(f.facingAllIn, w.facingAllIn)) return false;
   if (!inList(f.potType, w.potType)) return false;
   if (!isBool(f.blindVsBlind, w.blindVsBlind)) return false;
   if (!isBool(f.heroPreflopAggressor, w.heroPreflopAggressor)) return false;

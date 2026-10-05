@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
-import { icmStageOf, type IcmStage } from "@meta-geo/engine";
+import { icmStageOf, normalizeCallLikeAggression, type IcmStage } from "@meta-geo/engine";
 import { SNG_PAYOUTS } from "./bankroll.js";
-import { extractHeroDecisions, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
+import { extractHeroDecisions, strategyPositionsOf, type ExtractHand, type HeroDecision } from "./reviewExtract.js";
 import { handClassLabel } from "./preflopBaseline.js";
 import { openGtoActions, defenseGtoActions, vsJamGtoActions } from "./reviewGto.js";
 import {
@@ -65,10 +65,9 @@ function stageOfHand(h: {
 }
 
 const SEAT_COUNT = 6;
-const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
-function positionOfSeat(seatIndex: number, buttonFixedPos: number): string {
-  const offset = (((seatIndex - buttonFixedPos) % SEAT_COUNT) + SEAT_COUNT) % SEAT_COUNT;
-  return POSITION_NAMES[offset] ?? "";
+/** GTO の表に使うポジション(実際のブラインドの席から数える。reviewExtract.ts の strategyPositionsOf)。 */
+function positionOfSeat(hand: ExtractHand, seatIndex: number): string {
+  return strategyPositionsOf(hand).get(seatIndex) ?? "";
 }
 
 /** heroのプリフロップ意思決定の直前文脈(スポット種別)。 */
@@ -106,7 +105,7 @@ function detectPreflopSpot(hand: ExtractHand, heroSeat: number, decisionSeq: num
   }
   if (raises.length === 1) {
     if (limpersOrCallers > 0) return { kind: "unsupported", reason: "squeeze" };
-    const pos = positionOfSeat(raises[0]!.seatIndex, hand.buttonFixedPos);
+    const pos = positionOfSeat(hand, raises[0]!.seatIndex);
     return raises[0]!.kind === "allIn" ? { kind: "vsJam", jammerPos: pos } : { kind: "vsOpen", openerPos: pos };
   }
   return { kind: "unsupported", reason: "3bet-line" };
@@ -139,8 +138,8 @@ export function detectHandSrp(hand: ExtractHand): { openerPos: string; defenderP
   }
   if (raiser === null || caller === null || callsBeforeRaise > 0 || raiserKind === "allIn") return null;
   return {
-    openerPos: positionOfSeat(raiser, hand.buttonFixedPos),
-    defenderPos: positionOfSeat(caller, hand.buttonFixedPos),
+    openerPos: positionOfSeat(hand, raiser),
+    defenderPos: positionOfSeat(hand, caller),
   };
 }
 
@@ -366,9 +365,11 @@ function summarize(decisions: ReviewedDecision[]): {
  * 生のハンドオブジェクトから抽出→分類→集計まで行う。
  */
 export function analyzeExtractedHand(
-  hand: ExtractHand,
+  rawHand: ExtractHand,
   heroUserId: string,
 ): { decisions: ReviewedDecision[]; summary: ReturnType<typeof summarize> } | null {
+  // オールインへのコールなど「中身はコール」の手をコールとして読む(ベット扱いでバレルと解説していた)。
+  const hand: ExtractHand = { ...rawHand, actions: normalizeCallLikeAggression(rawHand.actions) };
   const heroSeatEntry = hand.seats.find((s) => s.userId === heroUserId);
   if (!heroSeatEntry) return null;
   const heroDecisions = extractHeroDecisions(hand, heroUserId);
@@ -597,7 +598,7 @@ function heroNotSeated(seats: { userId: string }[], heroUserId: string): boolean
  * 「振り返る価値が無いハンド」か(解析・再生・カウントの対象外にする)。
  * ・heroが何もしなかった(意思決定0件): BBまでフォールドで回ってきてBBがそのまま勝った(ウォーク)等。
  * ・heroの意思決定が「プリフロップのチェックだけ」(BBオプションをチェックしただけで何もしなかった)。
- * ・heroの意思決定が「プリフロップの正しいフォールドだけ」(常識/対象外の定型フォールド)。
+ * ・heroの意思決定が「プリフロップの正しいフォールドだけ」(定石手/対象外の定型フォールド)。
  * 一方、次は対象に含める(=falseを返す):
  * ・AAを降りた等、EVを損したフォールド(悪手/大悪手)。
  * ・オープン後に3betへフォールド等、意思決定が2件以上。
@@ -903,14 +904,16 @@ async function loadExtractHand(handId: string): Promise<ExtractHand | null> {
       startingStack: s.startingStack,
       holeCards: s.holeCards,
     })),
-    actions: hand.actions.map((a) => ({
-      sequenceNumber: a.sequenceNumber,
-      seatIndex: a.seatIndex,
-      street: a.street,
-      kind: a.kind,
-      toAmount: a.toAmount,
-      potBefore: a.potBefore,
-    })),
+    actions: normalizeCallLikeAggression(
+      hand.actions.map((a) => ({
+        sequenceNumber: a.sequenceNumber,
+        seatIndex: a.seatIndex,
+        street: a.street,
+        kind: a.kind,
+        toAmount: a.toAmount,
+        potBefore: a.potBefore,
+      })),
+    ),
   };
 }
 

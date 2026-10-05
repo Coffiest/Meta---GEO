@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { DecisionInfoRow } from "@/components/review/DecisionInfoRow";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
-import { articleRuleById } from "@/lib/articleRules";
+import { articleRuleById, fillTemplate, isFallbackRule, type TemplateVars } from "@/lib/articleRules";
+import { handCategory, handLabel } from "@/lib/handCategory";
+import { preflopComment } from "@/lib/preflopComment";
 import { barrelComment } from "@/lib/barrelComment";
 import { spotComment } from "@/lib/spotComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { Loader } from "@/components/ui/Loader";
 import { CLASSIFICATION_META, outOfScopeLabel, type Classification } from "@/lib/classification";
-import { FADE, SPRING_MOVE, SPRING_THROW } from "@/lib/motion";
+import { FADE, SPRING_MOVE, SPRING_SHEET, SPRING_THROW } from "@/lib/motion";
 import type { ReviewedDecision } from "@/lib/reviewApi";
 
 /**
@@ -25,7 +29,7 @@ const GRADE_LINE: Record<Classification, string> = {
   great: "Great！ここはこの一手しかない場面だったよ。",
   excellent: "良い手だね。最善とほとんど変わらないよ。",
   good: "悪くない手だよ。もう少しいい選択肢もあったけどね。",
-  book: "セオリーどおりの手だね。",
+  book: "定石どおりの手だね。",
   inaccuracy: "ちょっともったいない手かも。もう少しいい選択肢があったよ。",
   mistake: "ここは悪手だね。ほかの選択肢を考えてみよう。",
   blunder: "ここは大きく損をしちゃう手だよ。次は気をつけようね。",
@@ -38,7 +42,7 @@ const GRADE_SENTENCE: Record<Classification, string> = {
   great: "素晴らしい手です",
   excellent: "良手です",
   good: "良手です",
-  book: "常識的な手です",
+  book: "定石手です",
   inaccuracy: "緩手です",
   mistake: "悪手です",
   blunder: "大悪手です",
@@ -63,6 +67,7 @@ export function DecisionHeadline({
   notation,
   info,
   context,
+  gtoLabelOf,
 }: {
   decision: ReviewedDecision;
   /** その手の表記(`UTG bet 33%` など。`actionNotation.ts`)。 */
@@ -71,6 +76,8 @@ export function DecisionHeadline({
   info?: string;
   /** 解説の引き当てに使う文脈。渡さなければ格付けごとの一言になる。 */
   context?: KnowledgeContext;
+  /** 渡すと、情報の横に GTO の正解のアクション(`Fold 100% EV+0.0`)を小さく並べる。バケットの表示名。 */
+  gtoLabelOf?: (bucket: string) => string;
 }) {
   const facts = useMemo(
     // ボードはその決定の時点まで切って判定する(最終ボードで見ると質感がずれる)。
@@ -85,20 +92,28 @@ export function DecisionHeadline({
   const spot = decision.strategy?.spot;
   // 知識ベース(GTO Wizard の記事など)のルール。サーバーが決定に当てはめたものを id で引く。
   // バッジの無い決定(マルチウェイ等)でも、当たっていれば解説だけは出す。
+  const vars = templateVarsOf(decision, context, notation);
   const article = articleRuleById(decision.article?.id);
   const articleNote = article
-    ? { title: article.title, summary: article.summary, body: article.body, sourceUrl: article.sourceUrl ?? undefined }
+    ? {
+        title: fillTemplate(article.title, vars),
+        summary: fillTemplate(article.summary, vars),
+        body: fillTemplate(article.body, vars),
+        sourceUrl: article.sourceUrl ?? undefined,
+      }
     : undefined;
-  const note = c
-    ? barrel
-      ? barrelComment(barrel, context?.board)
-      : spot
-        ? spotComment(spot, context?.board)
-        : (articleNote ??
-          (context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined))
-    : solving
-      ? undefined
-      : articleNote;
+  // 解説の優先順(どの決定にも必ず何か出す。「解析の対象外だよ」だけで終わらせない):
+  //  バレル/スポットの表 → 記事のルール → プリフロップの GTO の一般論 → Notion の知識 → 局面の既定の解説(spots.md)
+  const note = ((): Note | undefined => {
+    if (solving) return undefined;
+    if (c && barrel) return barrelComment(barrel, context?.board);
+    if (c && spot) return spotComment(spot, context?.board);
+    if (articleNote && !isFallbackRule(article)) return articleNote;
+    // プリフロップは、その手とレンジを名指しする GTO の一般論を、Notion の一般的な一言より先に出す。
+    const preflop = preflopComment(decision, vars);
+    const knowledge = context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined;
+    return preflop ?? knowledge ?? articleNote;
+  })();
   const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
   // GTOのEV損は、バッジの根拠(プリフロップ=GTO / ポストフロップ=Notion)に関わらず出す。
@@ -133,7 +148,9 @@ export function DecisionHeadline({
         )}
         <p className="min-w-0 flex-1 truncate text-[15px] font-black tracking-[-0.01em] text-fg">
           {notation}
-          <span className="ml-2 font-bold">{c ? GRADE_SENTENCE[c] : solving ? "解析中です" : "解析の対象外です"}</span>
+          <span className={`ml-2 font-bold ${!c && !solving && note ? "text-[12px] text-fg-3" : ""}`}>
+            {c ? GRADE_SENTENCE[c] : solving ? "解析中です" : note ? "GTO評価なし" : "解析の対象外です"}
+          </span>
         </p>
         {evLoss !== null && evLoss > 0.02 && (
           <span className="shrink-0 rounded-lg bg-crimson-500/15 px-1.5 py-0.5 text-[11px] font-black tabular-nums text-crimson-300">
@@ -157,9 +174,43 @@ export function DecisionHeadline({
           sourceUrl={note && "sourceUrl" in note ? note.sourceUrl : undefined}
         />
       </div>
-      {info && <p className="mt-2 text-[11px] font-semibold tabular-nums text-fg-3">{info}</p>}
+      {gtoLabelOf ? (
+        <DecisionInfoRow info={info} gtoActions={decision.gtoActions} labelOf={gtoLabelOf} />
+      ) : (
+        info && <p className="mt-2 text-[11px] font-semibold tabular-nums text-fg-3">{info}</p>
+      )}
     </div>
   );
+}
+
+/** 吹き出しに出す解説の形(表・記事・Notion・一般論のどれから来ても同じ)。 */
+interface Note {
+  title?: string;
+  summary: string;
+  body?: string;
+  points?: { label: string; text: string }[];
+  sourceUrl?: string;
+}
+
+/** 解説の置き換え語(`{hand}` など)の、この決定での値。 */
+function templateVarsOf(d: ReviewedDecision, context: KnowledgeContext | undefined, notation: string): TemplateVars {
+  const v: TemplateVars = {};
+  const hole = context?.heroHoleCards ?? [];
+  const hand = handLabel(hole);
+  const cat = handCategory(hole);
+  if (hand) v.hand = hand;
+  if (cat) v.handCategory = cat;
+  const pos = notation.split(" ")[0];
+  if (pos) v.pos = pos;
+  v.effBb = d.effStackBb.toFixed(0);
+  const facing = d.facingSizeBb ?? 0;
+  if (facing > 0) {
+    v.facingBb = facing.toFixed(1);
+    // potBb は相手のベット込みのポット。コール後のポット = potBb + コール額。
+    v.potOdds = String(Math.round((facing / (d.potBb + facing)) * 100));
+  }
+  if (d.potBb > 0) v.spr = (d.effStackBb / d.potBb).toFixed(1);
+  return v;
 }
 
 /**
@@ -235,8 +286,8 @@ function KnowledgeBody({
         <div className="rounded-2xl border border-line bg-surface-2">
           <button
             type="button"
-            onClick={() => expandable && setOpen((v) => !v)}
-            aria-expanded={expandable ? open : undefined}
+            onClick={() => expandable && setOpen(true)}
+            aria-haspopup={expandable ? "dialog" : undefined}
             disabled={!expandable}
             className={`flex w-full items-start gap-2 px-3 py-2 text-left ${expandable ? "pressable" : "cursor-default"}`}
           >
@@ -244,60 +295,10 @@ function KnowledgeBody({
             <span className="min-w-0 flex-1">
               {speaker && <span className="mb-0.5 block text-[10px] font-black text-accent">{speaker.name}</span>}
               <span className="block text-[12px] font-semibold leading-[1.6] text-fg">{summary}</span>
-              {expandable && (
-                <span className="mt-1 block text-[10px] font-bold text-accent">{open ? "閉じる" : "詳しく見る"}</span>
-              )}
+              {expandable && <span className="mt-1 block text-[10px] font-bold text-accent">詳しく見る</span>}
             </span>
-            {expandable && (
-              <Icon
-                name="chevron-right"
-                className={`mt-[2px] h-3 w-3 shrink-0 text-fg-3 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
-              />
-            )}
+            {expandable && <Icon name="chevron-right" className="mt-[2px] h-3 w-3 shrink-0 text-fg-3" />}
           </button>
-          <AnimatePresence initial={false}>
-            {open && expandable && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={FADE}
-                className="overflow-hidden"
-              >
-                {/* 開いても卓が潰れないよう、詳しい中身は高さを抑えて吹き出しの中でスクロールさせる。 */}
-                <div className="max-h-[32vh] overflow-y-auto overscroll-contain border-t border-line px-3 py-2">
-                  {hasPoints && (
-                    <div className={`space-y-0.5 ${hasBody ? "mb-2 border-b border-line pb-2" : ""}`}>
-                      {points!.map((p) => (
-                        <div key={p.label} className="flex gap-1.5 text-[11px] leading-[1.6]">
-                          <span className="w-[4.2em] shrink-0 font-black text-fg-3">{p.label}</span>
-                          <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {hasBody && (
-                    <>
-                      <p className="mb-1 text-[11px] font-black text-fg">{title}</p>
-                      {/* オーナーの文章は改行も含めてそのまま出す(整形しない)。 */}
-                      <p className="whitespace-pre-wrap text-[11px] leading-[1.7] text-fg-2">{body}</p>
-                    </>
-                  )}
-                  {hasBody && sourceUrl && (
-                    <a
-                      href={sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-accent"
-                    >
-                      出典
-                      <Icon name="chevron-right" className="h-2.5 w-2.5 shrink-0" />
-                    </a>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
         {speaker && (
           // しっぽ: 吹き出しと同じ面の小さな正方形を45度回し、外側の2辺にだけ罫を引く。
@@ -308,6 +309,118 @@ function KnowledgeBody({
           />
         )}
       </div>
+      <KnowledgeSheet
+        open={open && expandable}
+        onClose={() => setOpen(false)}
+        summary={summary}
+        points={hasPoints ? points : undefined}
+        title={title}
+        body={hasBody ? body : undefined}
+        sourceUrl={sourceUrl}
+      />
     </div>
+  );
+}
+
+/**
+ * 「詳しく見る」の中身。卓が隠れてよいので、画面のほぼ全体を使って読みやすい大きさで出す(オーナー指示)。
+ * 解析の画面はスプリングで動くモーダルの中にあり、その中の `fixed` は親の transform に閉じ込められるため、
+ * body 直下へポータルで出す。下から出るシート(SPRING_SHEET)で、背景のタップか「閉じる」で閉じる。
+ */
+function KnowledgeSheet({
+  open,
+  onClose,
+  summary,
+  points,
+  title,
+  body,
+  sourceUrl,
+}: {
+  open: boolean;
+  onClose: () => void;
+  summary: string;
+  points?: { label: string; text: string }[] | undefined;
+  title?: string | undefined;
+  body?: string | undefined;
+  sourceUrl?: string | undefined;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  const speaker = REVIEW_SPEAKER;
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="knowledge-sheet"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={FADE}
+          onClick={onClose}
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70"
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={title ?? "解説"}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={SPRING_SHEET}
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-[92dvh] w-full max-w-xl flex-col rounded-t-sheet glass-sheet shadow-e4"
+          >
+            <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+              {speaker && (
+                <img
+                  src={speaker.avatarSrc}
+                  alt=""
+                  draggable={false}
+                  className="h-10 w-auto shrink-0 select-none"
+                  style={{ aspectRatio: "331 / 419" }}
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                {speaker && <p className="text-[11px] font-black text-accent">{speaker.name}</p>}
+                <h2 className="text-[16px] font-black leading-snug tracking-tight text-fg">{title ?? "解説"}</h2>
+              </div>
+              <button type="button" onClick={onClose} className="pressable shrink-0 rounded-full bg-surface-3 px-3 py-1.5 text-[12px] font-bold text-fg">
+                閉じる
+              </button>
+            </div>
+            <div className="safe-area-bottom flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-4">
+              <p className="text-[15px] font-bold leading-[1.75] text-fg">{summary}</p>
+              {points && (
+                <div className="mt-4 space-y-2 rounded-2xl bg-surface-2 p-3.5">
+                  {points.map((p) => (
+                    <div key={p.label} className="flex gap-3 text-[14px] leading-[1.7]">
+                      <span className="w-[5em] shrink-0 font-black text-fg-3">{p.label}</span>
+                      <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {body && (
+                // オーナーの文章は改行も含めてそのまま出す(整形しない)。
+                <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2">{body}</p>
+              )}
+              {sourceUrl && (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-5 inline-flex items-center gap-1 text-[12px] font-bold text-accent"
+                >
+                  出典
+                  <Icon name="chevron-right" className="h-3 w-3 shrink-0" />
+                </a>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

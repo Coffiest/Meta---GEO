@@ -354,7 +354,7 @@ describe("プリフロップのミスの向き", () => {
     expect(idsFor(x, pre, 50)[0]).toBe("preflop-too-aggressive");
   });
 
-  it("正しい手(常識)には出さない", () => {
+  it("正しい手(定石手)には出さない", () => {
     const x = pf("fold", "fold", [{ bucket: "raise2-5", frequency: 0.9, evBb: 1 }, { bucket: "fold", frequency: 0.1, evBb: 0 }], "book");
     expect(idsFor(x, pre, 50)).not.toContain("preflop-overfold");
   });

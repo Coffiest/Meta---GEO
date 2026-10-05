@@ -19,6 +19,7 @@ import {
   type MadeCategory,
 } from "@meta-geo/engine/src/review/handStrength.js";
 import { readPotShape, type PotShape, type PotType } from "@meta-geo/engine/src/review/potShape.js";
+import { normalizeCallLikeAggression } from "@meta-geo/engine/src/review/normalizeActions.js";
 import type {
   BoardChange,
   StrategyReason,
@@ -139,7 +140,7 @@ export interface KnowledgeWhen {
 export interface KnowledgeContext {
   board: readonly string[];
   heroHoleCards: readonly (string | null)[];
-  actions: readonly { seatIndex: number; street: string; kind: string }[];
+  actions: readonly { seatIndex: number; street: string; kind: string; toAmount?: number | null }[];
   buttonFixedPos: number;
   seatCount: number;
 }
@@ -172,7 +173,11 @@ export function factsForDecision(street: string, ctx: KnowledgeContext): Knowled
   return {
     texture: readBoardTexture(board),
     hand: readHandStrength(ctx.heroHoleCards, board),
-    pot: readPotShape(ctx.actions, { buttonFixedPos: ctx.buttonFixedPos, seatCount: ctx.seatCount }),
+    // オールインへのコールなど「中身はコール」の手はコールとして数える(3betポットと誤読しない)。
+    pot: readPotShape(normalizeCallLikeAggression(ctx.actions.map((a) => ({ ...a, toAmount: a.toAmount ?? null }))), {
+      buttonFixedPos: ctx.buttonFixedPos,
+      seatCount: ctx.seatCount,
+    }),
   };
 }
 

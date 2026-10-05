@@ -131,23 +131,14 @@ function DecisionPanel({
 }) {
   return (
     <div>
-      <DecisionHeadline decision={d} notation={notation} info={info} context={context} />
-      {d.gtoActions && d.gtoActions.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {d.gtoActions
-            .filter((a) => a.frequency > 0)
-            .map((a) => (
-              <div key={a.bucket} className="rounded-full px-2.5 py-1" style={{ background: bucketColor(a.bucket), color: bucketTextColor(bucketColor(a.bucket)) }}>
-                <span className="text-[11px] font-bold">{bucketLabel(d.street, a.bucket)}</span>
-                <span className="ml-1 text-[11px] font-black tabular-nums">{Math.round(a.frequency * 100)}%</span>
-                <span className="ml-1 text-[9px] font-bold tabular-nums opacity-80">
-                  EV{a.evBb >= 0 ? "+" : ""}
-                  {a.evBb.toFixed(1)}
-                </span>
-              </div>
-            ))}
-        </div>
-      )}
+      {/* GTO の正解のアクションは、情報の横に小さく並べる(縦の高さを使わない)。 */}
+      <DecisionHeadline
+        decision={d}
+        notation={notation}
+        info={info}
+        context={context}
+        gtoLabelOf={(bucket) => bucketLabel(d.street, bucket)}
+      />
       <GeoSolution d={d} />
     </div>
   );
@@ -269,7 +260,8 @@ export function ReviewReplayView({
             heroHoleCards: heroCards,
             actions: currentHand.timeline.actions,
             buttonFixedPos: currentHand.timeline.buttonFixedPos,
-            seatCount: currentHand.timeline.seats.length,
+            // 卓は常に6席(配られた人数ではない。空席があるとポットの形・BvB の判定がずれていた)。
+            seatCount: 6,
           }
         : undefined,
     [currentHand, heroCards]

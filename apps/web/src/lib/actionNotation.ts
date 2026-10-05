@@ -1,3 +1,6 @@
+// engine はモジュール単位でインポートする(ルートは node:crypto を取り込むため)。
+import { normalizeCallLikeAggression } from "@meta-geo/engine/src/review/normalizeActions.js";
+import { reviewPositions } from "@meta-geo/engine/src/review/reviewPositions.js";
 /**
  * 棋譜解析で1手を短く書く表記(オーナー確定)。例: `UTG bet 33%` / `BB x/r 3x` / `CO ALL IN`。
  *
@@ -13,7 +16,7 @@
  * | `Raise 3x` | ポストフロップのレイズ。サイズは相手のベットの何倍か |
  * | `ALL IN` | オールイン |
  *
- * ポジションは棋譜解析の決定(`heroPos`)と同じ数え方(ボタンからの席のずれ)で出す。
+ * ポジションは卓の表示と同じ(実際のブラインドの席から数える。`positionLabelsOf`)。
  */
 
 export interface NotationAction {
@@ -26,13 +29,16 @@ export interface NotationAction {
   potBefore: number;
 }
 
-/** サーバーの `reviewExtract.ts` と同じ並び(ボタンからのずれ 0..5)。 */
-const POSITION_NAMES = ["BTN", "SB", "BB", "UTG", "HJ", "CO"] as const;
-const SEAT_COUNT = POSITION_NAMES.length;
+const SEAT_COUNT = 6;
 
-export function positionOfSeat(seatIndex: number, buttonFixedPos: number): string {
-  const offset = (((seatIndex - buttonFixedPos) % SEAT_COUNT) + SEAT_COUNT) % SEAT_COUNT;
-  return POSITION_NAMES[offset] ?? "";
+/**
+ * 画面に出すポジション名。卓の表示と同じく、実際のブラインドの席から数える(`reviewPositions` の display)。
+ * 以前はボタンからの席のずれで数えていて、空席があると UTG のアクションが「HJ」と出ていた(オーナー指摘)。
+ * 参加している席は、アクション(ブラインドの投入を含む)の出てくる席。
+ */
+export function positionLabelsOf(actions: readonly NotationAction[], buttonFixedPos: number): Map<number, string> {
+  const seatIndexes = [...new Set(actions.map((a) => a.seatIndex))];
+  return reviewPositions({ seatIndexes, buttonFixedPos, seatCount: SEAT_COUNT, actions }).display;
 }
 
 /** 小数1桁まで。整数なら小数点を出さない(2.0 → "2", 2.5 → "2.5")。 */
@@ -48,7 +54,9 @@ function short(n: number): string {
  * @param sequenceNumber 表記したい手
  * @param bigBlind そのハンドのBB額(プリフロップのレイズを bb で書くため)
  */
-export function actionNotation(actions: readonly NotationAction[], sequenceNumber: number, bigBlind: number): string {
+export function actionNotation(rawActions: readonly NotationAction[], sequenceNumber: number, bigBlind: number): string {
+  // オールインへのコールなど「中身はコール」の手はコールと書く(raise / ALL IN と出ていた)。
+  const actions = normalizeCallLikeAggression(rawActions);
   const idx = actions.findIndex((a) => a.sequenceNumber === sequenceNumber);
   const a = actions[idx];
   if (!a) return "";
@@ -103,7 +111,8 @@ export function actionLabel(
 ): string {
   const a = actions.find((x) => x.sequenceNumber === sequenceNumber);
   if (!a) return "";
-  return `${positionOfSeat(a.seatIndex, table.buttonFixedPos)} ${actionNotation(actions, sequenceNumber, table.bigBlind)}`;
+  const pos = positionLabelsOf(actions, table.buttonFixedPos).get(a.seatIndex) ?? "";
+  return `${pos} ${actionNotation(actions, sequenceNumber, table.bigBlind)}`;
 }
 
 /** 棋譜解析・ハンド履歴でのストリート名(オーナー確定: 英語表記)。 */

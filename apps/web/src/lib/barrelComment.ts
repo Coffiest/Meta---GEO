@@ -43,12 +43,12 @@ const HAND_NAME: Record<BarrelHandKey, string> = {
   overPair: "オーバーペア",
   topPairStrong: "キッカーの強いトップペア",
   topPairWeak: "キッカーの弱いトップペア",
-  middlePair: "ミドルペア",
+  middlePair: "セカンドペア",
   bottomPair: "ボトムペア",
   underPair: "アンダーペア",
   flushDrawWithPair: "ペア付きのフラッシュドロー",
   flushDraw: "フラッシュドロー",
-  openEnded: "オープンエンドのストレートドロー",
+  openEnded: "OESD(オープンエンド)",
   gutshot: "ガットショット",
   missedStraightDraw: "外れたストレートドロー",
   missedFlushDraw: "外れたフラッシュドロー",
@@ -88,7 +88,7 @@ function cardLabel(card: string | undefined): string | null {
 const TOP_PAIR_LINE: Record<BarrelCard, string> = {
   overcard: "トップペアでバリューになるのは、キッカーがT以上(例ならAT以上)のときだけだよ。",
   paired: "トップペアでバリューになるのは、キッカーがT以上(例ならKT以上)のときだけだよ。",
-  flush: "トップヒットでバリューになるのは、キッカーがT以上(例ならKT以上)のときだけだよ。",
+  flush: "トップペアでバリューになるのは、キッカーがT以上(例ならKT以上)のときだけだよ。",
   rag: "トップペアでバリューになるのは、キッカーがJ以上(例ならKJ以上)のときだけだよ。",
 };
 
@@ -101,7 +101,7 @@ const TOO_SMALL_WHY: Record<BarrelCard, string> = {
   flush:
     "小さすぎると、相手のフラッシュドローやペアに安く付いてこられて、バリューもフォールドエクイティも足りなくなるよ",
   rag:
-    "ラグは相手の手が強くならないカード。大きく打つと、バリューを最大化できて、レイズも返されにくく、リバーでちょうどオールインまで持っていけるんだ(ジオメトリックサイズ)",
+    "ラグは相手のレンジが強くならないブランクだから、ここはジオメトリックサイズで打つ場面なんだ。残りのストリートで同じ割合を打てばリバーでちょうどオールインになるサイズで、バリューを最大化できて、レイズも返されにくいよ",
 };
 
 /** サイズが大きすぎるときの理由(カードごと)。ラグは表のサイズが最大なので無い。 */
@@ -110,18 +110,28 @@ const TOO_BIG_WHY: Record<BarrelCard, string> = {
   paired: "大きすぎると、バリューを取りたい弱い手が全部降りて、強い手にだけコールされちゃうよ",
   flush:
     "フラッシュが完成しうるカードでは相手にもフラッシュがあるから、大きく打つとフラッシュにしかコールされず、ブラフも通りにくいんだ",
-  rag: "",
+  rag: "ジオメトリックサイズより大きく打つと、ターンで相手の弱い手まで降りちゃって、リバーで取れるバリューも残らないよ",
 };
 
+/**
+ * 表のサイズの言い方。ラグはジオメトリックサイズで、SPR が分かればそのスタックでの%も添える
+ * (オーナー確定: 常に 180% ではない。ノートの 180% は例のスタックでのジオメトリックサイズ)。
+ */
+function sizeText(v: BarrelVerdict): string {
+  if (v.card !== "rag") return BARREL_TABLE[v.card].size;
+  if (v.geometricPct === null || v.geometricPct === undefined) return "ジオメトリックサイズ";
+  return v.street === "river" ? `ジオメトリックサイズ(リバーなのでオールイン、ポットの約${v.geometricPct}%)` : `ジオメトリックサイズ(このスタックならポットの約${v.geometricPct}%)`;
+}
+
 /** どうするべきか(表のサイズで打つ)。 */
-function betAdvice(card: BarrelCard): string {
-  return `${BARREL_TABLE[card].size}で打とうね。`;
+function betAdvice(v: BarrelVerdict): string {
+  return `${sizeText(v)}で打とうね。`;
 }
 
 /** 台詞を組み立てる。 */
 function sentence(v: BarrelVerdict, cardText: string, barrelName: string): string {
   const hand = HAND_NAME[v.handKey];
-  const size = BARREL_TABLE[v.card].size;
+  const size = sizeText(v);
   const river = v.street === "river";
 
   switch (v.situation) {
@@ -138,12 +148,12 @@ function sentence(v: BarrelVerdict, cardText: string, barrelName: string): strin
     case "betTooSmall":
       return (
         `${hand}は${barrelName}で打つ手だから、打ったのはいいね。でも${cardText}のサイズは${size}なんだ。` +
-        `${SIZE_NAME[v.actual ?? "block"]}だと小さすぎるよ。${TOO_SMALL_WHY[v.card]}。${betAdvice(v.card)}`
+        `${SIZE_NAME[v.actual ?? "block"]}だと小さすぎるよ。${TOO_SMALL_WHY[v.card]}。${betAdvice(v)}`
       );
     case "betTooBig":
       return (
         `${hand}は${barrelName}で打つ手だから、打ったのはいいね。でも${cardText}のサイズは${size}なんだ。` +
-        `${SIZE_NAME[v.actual ?? "overbet"]}は大きすぎるよ。${TOO_BIG_WHY[v.card]}。${betAdvice(v.card)}`
+        `${SIZE_NAME[v.actual ?? "overbet"]}は大きすぎるよ。${TOO_BIG_WHY[v.card]}。${betAdvice(v)}`
       );
     case "betCheckHand": {
       if (v.handKey === "flushDrawWithPair") {
