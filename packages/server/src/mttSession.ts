@@ -20,7 +20,8 @@ import {
   getEliteFrames,
   type PayoutPlace,
 } from "@meta-geo/db";
-import { decideBotAction, lastAggressorSeat } from "./bot.js";
+import { lastAggressorSeat } from "./bot.js";
+import { decideStrongBotAction } from "./botStrategy/index.js";
 import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
@@ -1090,7 +1091,13 @@ export class MttSession implements GameSession {
     ).length;
     // ボットの意思決定が万一失敗しても手番(卓・プロセス)を止めない:チェック可ならチェック、でなければフォールド。
     try {
-      return decideBotAction({
+      // GTO の表(プリフロップ)と相手のレンジに対する勝率(ポストフロップ)で決める。表の無い局面は従来の判断。
+      return decideStrongBotAction({
+        hand,
+        seatIndex,
+        seatCount: MTT_TABLE_SEAT_COUNT,
+        canRaise: !seat.hasActedThisStreet,
+        legacy: {
         street: state.street,
         holeCards: holeCards as unknown as readonly [Card, Card],
         board: state.board,
@@ -1103,6 +1110,7 @@ export class MttSession implements GameSession {
         activeOpponentCount,
         bigBlind: this.mtt?.getCurrentLevel().bigBlind,
         isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
+        },
       });
     } catch (err) {
       console.error("[mtt] decideBotAction failed (fallback to check/fold):", err);
