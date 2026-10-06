@@ -41,8 +41,10 @@ function generateCouponCode(): string {
 export interface CouponCode {
   /** 表示用に整形済みのコード("GEO-ABCD-2345")。 */
   code: string;
-  /** 適用すると付与される無料月数。 */
+  /** 適用すると付与される無料月数(days があればそちらが優先)。 */
   months: number;
+  /** 適用すると付与される無料日数。古いクーポンは null。 */
+  days: number | null;
   /** 適用済みなら適用時刻、未使用ならnull。 */
   redeemedAt: Date | null;
   /** 自分が使ったのか、渡した相手が使ったのか。未使用ならnull。 */
@@ -65,7 +67,7 @@ export async function getCouponWallet(userId: string): Promise<CouponWallet> {
       where: { ownerUserId: userId },
       orderBy: [{ redeemedAt: { sort: "asc", nulls: "first" } }, { createdAt: "desc" }],
       take: 100,
-      select: { code: true, months: true, redeemedAt: true, redeemedByUserId: true, createdAt: true },
+      select: { code: true, months: true, days: true, redeemedAt: true, redeemedByUserId: true, createdAt: true },
     }),
     getPremiumCouponStatus(userId),
   ]);
@@ -74,6 +76,7 @@ export async function getCouponWallet(userId: string): Promise<CouponWallet> {
     coupons: rows.map((r) => ({
       code: formatCouponCode(r.code),
       months: r.months,
+      days: r.days,
       redeemedAt: r.redeemedAt,
       redeemedByMe: r.redeemedAt ? r.redeemedByUserId === userId : null,
       createdAt: r.createdAt,
@@ -91,7 +94,8 @@ export async function getCouponWallet(userId: string): Promise<CouponWallet> {
 export async function issueCouponForReferral(
   referralId: string,
   ownerUserId: string,
-  months: number
+  months: number,
+  days: number | null = null
 ): Promise<string | null> {
   const existing = await prisma.premiumCouponCode.findUnique({
     where: { referralId },
@@ -102,7 +106,7 @@ export async function issueCouponForReferral(
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const created = await prisma.premiumCouponCode.create({
-        data: { code: generateCouponCode(), ownerUserId, months, source: "referral", referralId },
+        data: { code: generateCouponCode(), ownerUserId, months, days, source: "referral", referralId },
         select: { code: true },
       });
       return formatCouponCode(created.code);
@@ -125,6 +129,8 @@ export type RedeemCouponResult =
       ok: true;
       /** 付与された無料月数。 */
       months: number;
+      /** 付与された無料日数(日数のクーポンのとき)。 */
+      days: number | null;
       /** 適用後の無料アクセス期限。 */
       expiresAt: Date;
     }
@@ -142,7 +148,7 @@ export async function redeemCouponCode(userId: string, rawCode: string): Promise
 
   const coupon = await prisma.premiumCouponCode.findUnique({
     where: { code },
-    select: { id: true, months: true, redeemedAt: true },
+    select: { id: true, months: true, days: true, redeemedAt: true },
   });
   if (!coupon) return { ok: false, reason: "invalid" };
   if (coupon.redeemedAt) return { ok: false, reason: "used" };
@@ -154,8 +160,8 @@ export async function redeemCouponCode(userId: string, rawCode: string): Promise
   if (claimed.count === 0) return { ok: false, reason: "used" };
 
   try {
-    const expiresAt = await extendPremiumCoupon(userId, coupon.months);
-    return { ok: true, months: coupon.months, expiresAt };
+    const expiresAt = await extendPremiumCoupon(userId, coupon.months, coupon.days);
+    return { ok: true, months: coupon.months, days: coupon.days, expiresAt };
   } catch (err) {
     // 期限の延長に失敗したらクーポンを未使用に戻す(使ったのに何も貰えない状態を作らない)。
     console.error("[coupon] failed to extend premium access, releasing coupon:", err);

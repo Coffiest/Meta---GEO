@@ -34,9 +34,9 @@ function TicketGlyph({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 /**
- * 獲得した「棋譜解析プラン1ヶ月無料」クーポンの一覧。いつでも中身を確認でき、コードは
+ * 獲得した「棋譜解析プラン無料」クーポン(招待の特典は1週間)の一覧。いつでも中身を確認でき、コードは
  * タップ1回でコピーできる。未使用のクーポンはその場で適用でき、適用すると棋譜解析の
- * 無料期間が1ヶ月伸びる(残りがあればその後ろへ積み上がる)。
+ * 無料期間がクーポンの日数ぶん伸びる(残りがあればその後ろへ積み上がる)。
  *
  * 人から貰ったコードを貼り付けて使うための入力欄も持つ(クーポンは1枚1回だけ使える)。
  *
@@ -93,7 +93,10 @@ export function CouponWallet({
         setCodeInput("");
         setMessage({
           tone: "ok",
-          text: t("coupon.applied", { n: String(result.months), date: formatCouponDate(result.expiresAt) }),
+          text:
+            result.days != null
+              ? t("coupon.appliedDays", { n: String(result.days), date: formatCouponDate(result.expiresAt) })
+              : t("coupon.applied", { n: String(result.months), date: formatCouponDate(result.expiresAt) }),
         });
         await reload();
         onRedeemed?.();
@@ -244,7 +247,9 @@ function CouponRow({
             ? coupon.redeemedByMe
               ? t("coupon.usedByMe", { date: formatCouponDate(coupon.redeemedAt!) })
               : t("coupon.usedByOther", { date: formatCouponDate(coupon.redeemedAt!) })
-            : t("coupon.worth", { n: String(coupon.months) })}
+            : coupon.days != null
+              ? t("coupon.worthDays", { n: String(coupon.days) })
+              : t("coupon.worth", { n: String(coupon.months) })}
         </p>
       </div>
       {!used && (

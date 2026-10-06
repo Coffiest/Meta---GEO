@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   completeOnboarding,
@@ -10,6 +11,8 @@ import {
   getPlayerNotesForTargets,
   getReferralSummary,
   redeemReferralCode,
+  settlePendingReferrals,
+  REFERRAL_QUALIFY_TOURNAMENTS,
   getCouponWallet,
   redeemCouponCode,
   getHandProfitGraph,
@@ -111,6 +114,40 @@ async function resolveDbUser(verified: VerifiedUser) {
  * ロビー画面用のREST API。`/api/lobby/*` 配下のリクエストを処理する。
  * 該当するルートがなければ false を返す(呼び出し側で404にフォールバックする)。
  */
+
+/**
+ * IP をネットワーク単位にそろえる。IPv6 は同じ家の端末でも末尾が違うので先頭 64bit(/64)だけ使う。
+ * IPv4(と IPv4 を埋め込んだ ::ffff:a.b.c.d)はそのまま。
+ */
+export function networkPrefix(ip: string): string {
+  if (!ip.includes(":") || ip.includes(".")) return ip.replace(/^::ffff:/i, "");
+  const [head = "", tail = ""] = ip.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail ? tail.split(":") : [];
+  const groups = ip.includes("::") ? [...h, ...new Array<string>(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+  return groups
+    .slice(0, 4)
+    .map((g) => (g || "0").toLowerCase().replace(/^0+(?=.)/, ""))
+    .join(":");
+}
+
+/**
+ * 接続元のネットワークの鍵付きハッシュ(招待の自作自演の判定用)。生の IP は保存しない。
+ * Fly.io の前段が付ける Fly-Client-IP を優先し、無ければ X-Forwarded-For の先頭。
+ */
+function networkHash(req: IncomingMessage): string | null {
+  const fly = req.headers["fly-client-ip"];
+  const forwarded = req.headers["x-forwarded-for"];
+  const raw =
+    (Array.isArray(fly) ? fly[0] : fly) ??
+    (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0] ??
+    req.socket.remoteAddress ??
+    "";
+  const ip = networkPrefix(raw.trim());
+  if (!ip) return null;
+  const secret = process.env["IP_HASH_SECRET"] ?? process.env["SUPABASE_JWT_SECRET"] ?? "poker-art-referral";
+  return createHmac("sha256", secret).update(ip).digest("hex").slice(0, 32);
+}
 export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (!url.pathname.startsWith("/api/lobby/")) return false;
@@ -589,7 +626,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await resolveDbUser(verified);
-      sendJson(res, 200, await getReferralSummary(user.id));
+      sendJson(res, 200, await getReferralSummary(user.id, { ipHash: networkHash(req) }));
       return true;
     }
 
@@ -603,18 +640,18 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       const user = await resolveDbUser(verified);
       const body = await readJsonBody(req);
       const code = typeof body["code"] === "string" ? body["code"] : "";
-      const result = await redeemReferralCode(user.id, code);
-      // 招待が成立したら、招待した人へプッシュで知らせる(称号が上がる瞬間を逃さないため)。
-      // 通知の失敗で招待そのものを失敗させない。
-      if (result.ok) {
+      const result = await redeemReferralCode(user.id, code, { ipHash: networkHash(req) });
+      // 招待が成立したら、招待した人へプッシュで知らせる。特典はまだ出ない(友達が遊んだら発行)。
+      // 対象外(同じネットワーク)のときは知らせない。通知の失敗で招待そのものを失敗させない。
+      if (result.ok && result.status === "pending") {
         const inviter = await prisma.referral.findUnique({
           where: { inviteeUserId: user.id },
           select: { inviterUserId: true },
         });
         if (inviter) {
           void sendPushToUser(inviter.inviterUserId, {
-            title: "棋譜解析1ヶ月無料クーポンを獲得",
-            body: `${user.displayName} さんがあなたの招待で参加しました。ホームからクーポンを確認できます。`,
+            title: "招待が成立しました",
+            body: `${user.displayName} さんがあなたの招待で参加しました。${REFERRAL_QUALIFY_TOURNAMENTS}回トーナメントを遊ぶと、棋譜解析1週間無料クーポンが届きます。`,
             path: "/",
             tag: "referral",
           }).catch(() => undefined);
@@ -633,6 +670,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const user = await resolveDbUser(verified);
+      // 待ちの招待の特典をここでも確かめる(クーポン一覧は棋譜解析の画面からも開くため)。
+      await settlePendingReferrals(user.id).catch(() => undefined);
       sendJson(res, 200, await getCouponWallet(user.id));
       return true;
     }

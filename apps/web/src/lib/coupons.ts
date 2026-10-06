@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 「棋譜解析プラン1ヶ月無料」クーポンのクライアント側ヘルパー。
- * 招待が成立すると1枚発行され、獲得した人はいつでも一覧で確認・コピーできる。
+ * 「棋譜解析プラン無料」クーポンのクライアント側ヘルパー。
+ * 招待した友達がトーナメントを遊ぶと1枚(1週間)発行され、獲得した人はいつでも一覧で確認・コピーできる。
  * 無料期間が始まるのは、棋譜解析の画面でコードを適用したとき。
  */
 
@@ -12,6 +12,8 @@ export interface CouponCode {
   /** 表示用に整形済みのコード("GEO-ABCD-2345")。 */
   code: string;
   months: number;
+  /** 無料日数(招待の特典は7)。古いクーポンは null で months を使う。 */
+  days: number | null;
   /** 適用済みなら適用時刻(ISO)、未使用ならnull。 */
   redeemedAt: string | null;
   /** 自分が使ったのか、渡した相手が使ったのか。未使用ならnull。 */
@@ -26,7 +28,7 @@ export interface CouponWallet {
 }
 
 export type RedeemCouponResult =
-  | { ok: true; months: number; expiresAt: string }
+  | { ok: true; months: number; days: number | null; expiresAt: string }
   | { ok: false; reason: "invalid" | "used" };
 
 /** 入力/貼り付けされたコードを正規化する(サーバー側 normalizeCouponCode と同じ規則)。 */

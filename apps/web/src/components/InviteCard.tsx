@@ -27,7 +27,7 @@ function RewardGlyph({ className = "h-4 w-4" }: { className?: string }) {
 /** X(旧Twitter)ロゴ。絵文字禁止のためSVGで実装。 */
 /**
  * ホームの「友達を招待」カード。招待コード/リンクの共有と、獲得したクーポンの枚数を表示する。
- * 特典は「棋譜解析プラン1ヶ月無料クーポン」(1招待=1枚)。コードの確認・コピー・適用は
+ * 特典は「棋譜解析プラン1週間無料クーポン」(招待した友達がトーナメントを3回遊んだら1枚)。コードの確認・コピー・適用は
  * すぐ下の CouponWallet で行う。バーチャルチップは一切配らない(射幸性と自己招待による
  * 増殖を避けるための意図的な設計)。
  * まだ誰の招待も受けていないユーザーには、招待コードの手入力欄も出す。
@@ -127,7 +127,12 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
         <p className="text-[10px] font-black uppercase tracking-[0.24em] text-fg-3">{t("invite.eyebrow")}</p>
       </div>
       <h3 className="mt-1.5 text-[19px] font-black leading-tight tracking-tight text-fg">{t("invite.title")}</h3>
-      <p className="mt-1.5 text-[12.5px] leading-relaxed text-n-9">{t("invite.lead")}</p>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-n-9">
+        {t("invite.lead", {
+          q: String(summary.reward.qualifyTournaments),
+          cap: String(summary.reward.monthlyCap),
+        })}
+      </p>
 
       {/* 招待成立数と、獲得したクーポンの枚数 */}
       <div className="mt-3.5 flex items-stretch gap-2">
@@ -155,8 +160,50 @@ export function InviteCard({ accessToken }: { accessToken?: string }) {
       </div>
 
       <p className="mt-2 text-[11.5px] font-semibold text-accent">
-        {t("invite.rewardHint", { n: String(summary.reward.monthsPerInvite) })}
+        {t("invite.rewardHint", {
+          n: String(summary.reward.daysPerInvite),
+          q: String(summary.reward.qualifyTournaments),
+        })}
       </p>
+
+      {/* 招待した友達ごとの進み具合(トーナメントを何回遊んだか)。 */}
+      {summary.invitees.length > 0 && (
+        <div className="mt-3 rounded-xl bg-canvas px-3.5 py-2.5">
+          <p className="text-[10px] font-bold tracking-wide text-fg-2">{t("invite.progressTitle")}</p>
+          <ul className="mt-1.5 space-y-1.5">
+            {summary.invitees.map((inv, i) => (
+              <li key={`${inv.displayName}-${i}`} className="flex items-center gap-2 text-[12px]">
+                <span className="min-w-0 flex-1 truncate font-bold text-fg">{inv.displayName}</span>
+                {inv.status === "pending" ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="flex gap-0.5">
+                      {Array.from({ length: summary.reward.qualifyTournaments }, (_, k) => (
+                        <span
+                          key={k}
+                          className={`h-1.5 w-3 rounded-full ${k < inv.progress ? "bg-accent" : "bg-n-5"}`}
+                        />
+                      ))}
+                    </span>
+                    <span className="tabular-nums text-[11px] font-bold text-fg-2">
+                      {t("invite.status.pending", {
+                        n: String(inv.progress),
+                        q: String(summary.reward.qualifyTournaments),
+                      })}
+                    </span>
+                  </span>
+                ) : inv.status === "rewarded" ? (
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-accent">
+                    <Icon name="check" className="h-3.5 w-3.5" />
+                    {t("invite.status.rewarded")}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-fg-3">{t("invite.status.ineligible")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 招待コード */}
       <div className="mt-3.5 rounded-xl glass-panel px-3.5 py-2.5">
