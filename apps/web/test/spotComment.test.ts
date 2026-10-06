@@ -112,7 +112,7 @@ describe("プローブ・ドンク・チェックレイズのバリィの台詞"
     for (const { v, board } of all) {
       if (!shouldFix.has(v.situation)) continue;
       const s = spotComment(v, board).summary;
-      expect(/うね|基本なんだ/.test(s), `${v.kind}/${v.situation}: ${s}`).toBe(true);
+      expect(/チェック|コール|フォールド|レイズ|オールイン|打とう|立ち回ろう/.test(s), `${v.kind}/${v.situation}: ${s}`).toBe(true);
     }
   });
 
@@ -147,6 +147,6 @@ describe("プローブ・ドンク・チェックレイズのバリィの台詞"
     const card: ProbeCard = "overcard";
     const v = judgeProbe("turn", ["Jh", "Jd"], ["Qs", "7d", "2c", "Kh", "3s"], null)!;
     expect(v.card).toBe(card);
-    expect(spotComment(v, ["Qs", "7d", "2c", "Kh", "3s"]).summary).toContain("ノートに記載が無い");
+    expect(spotComment(v, ["Qs", "7d", "2c", "Kh", "3s"]).summary).toContain("複雑すぎるシチュエーション");
   });
 });

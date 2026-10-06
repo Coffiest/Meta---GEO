@@ -29,18 +29,18 @@ export function preflopComment(
   const facing = (d.facingSizeBb ?? 0) > 0;
   const who = [v.pos, v.hand].filter(Boolean).join("の");
   const cat = v.handCategory ? `(${v.handCategory})` : "";
-  const subject = who ? `${who}${cat}` : "この手";
-  const range = facing ? "続けるレンジ" : `${v.pos ?? ""}のオープンレンジ`.trim();
+  const subject = who ? `${who}${cat}` : "このハンド";
+  const range = facing ? "コンティニューするレンジ" : `${v.pos ?? ""}のオープンレンジ`.trim();
 
   let summary: string;
   if (heroFreq >= 0.3) {
-    summary = `${subject}は、GTOで${VERB[hero] ?? hero}が${pct(heroFreq)}の手だよ。定石どおりだね。`;
+    summary = `${subject}は、GTOで${VERB[hero] ?? hero}が${pct(heroFreq)}のハンドだよ。定石どおりだね。`;
   } else if (top.bucket === "fold") {
-    summary = `${subject}は${range}の外なんだ。GTOでは${pct(top.frequency)}降りる手だから、ここは降りようね。`;
+    summary = `${subject}は${range}の外なんだ。GTOでは${pct(top.frequency)}降りるハンドだから、ここはフォールドしよう。`;
   } else if (hero === "fold") {
-    summary = `${subject}は${range}に入る手だよ。GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}だから、降りずに参加しようね。`;
+    summary = `${subject}は${range}に入るハンドだよ。GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}だから、降りずにオープンしようね。`;
   } else {
-    summary = `${subject}は、GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}の手なんだ。${VERB[hero] ?? hero}より${VERB[top.bucket] ?? top.bucket}を選ぼうね。`;
+    summary = `${subject}は、GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}のハンドなんだ。${VERB[hero] ?? hero}より${VERB[top.bucket] ?? top.bucket}を選ぼうね。`;
   }
   const lines = acts
     .slice()
@@ -52,7 +52,7 @@ export function preflopComment(
     summary,
     body:
       `この局面の GTO の頻度とEV:\n${lines}\n\n` +
-      "プリフロップは、ポジション(後ろに何人残っているか)とスタックの深さで参加する手の範囲(レンジ)が決まる。" +
-      "前のポジションほど絞り、BTN や SB は広く参加する。スタックが浅くなるほど、コールよりもオールインかフォールドの二択が増える。",
+      "プリフロップは、ポジション(後ろに何人残っているか)とスタックの深さで参加するハンドレンジが決まる。" +
+      "前のポジションほどタイトに、BTN や SB は広くオープンする。スタックが浅くなるほど、コールが減りオールインかフォールドの二択が増える。",
   };
 }

@@ -25,15 +25,15 @@ import type { BarrelComment } from "./barrelComment";
 
 /**
  * プローブ・ドンク・チェックレイズの評価(`SpotVerdict`)から、バリィの台詞を組み立てる。
- *
+ *「手」ではなく「ハンド」と表記する。「ノート通り」ではなく「セオリー通り」という表現にする。
  * オーナー指示: Notion に記載のある場面では、打った/打たなかった/コールした/降りたのどれでも、
  * **必ず**なぜ良い(悪い)か・どうするべきかをバリィが話す。ノートの手の選び方・サイズ・頻度は落とさない。
  * 形は `barrelComment.ts` と同じ(台詞 + その局面の表の行 + 節全体の詳細)。
  */
 
 const HAND: Record<SpotHandKey, string> = {
-  straightFlush: "ストレートフラッシュ",
-  quads: "フォーカード",
+  straightFlush: "ストフラ",
+  quads: "クワッズ",
   fullHouse: "フルハウス",
   nutFlush: "ナッツフラッシュ",
   flush: "フラッシュ",
@@ -51,15 +51,15 @@ const HAND: Record<SpotHandKey, string> = {
   bottomPair: "ボトムペア",
   underPair: "アンダーペア",
   comboDraw: "コンボドロー",
-  nutFlushDraw: "ナッツフラッシュドロー",
+  nutFlushDraw: "ナッツフラドロ",
   flushDraw: "フラッシュドロー",
   openEnded: "OESD(オープンエンド)",
   gutshot: "ガットショット",
   doubleBackdoor: "ダブルバックドア",
   nutDoubleBackdoor: "ナッツのダブルバックドア",
   bottomPairDoubleBackdoor: "ダブルバックドア付きのボトムペア",
-  missedStraightDraw: "外れたストレートドロー",
-  missedFlushDraw: "外れたフラッシュドロー",
+  missedStraightDraw: "ストレートドロー滑り",
+  missedFlushDraw: "フラドロ滑り",
   aceHigh: "Aハイ",
   air: "エアー",
 };
@@ -105,30 +105,30 @@ function probeComment(v: ProbeVerdict, board: readonly string[]): BarrelComment 
   const hand = v.handKey ? PROBE_HAND[v.handKey] : HAND[v.handLabel];
   const sizes = [...new Set(v.sizes)].map((s) => PROBE_SIZE[s]).join("か");
   const boardKind = v.favorable ? "有利ボード" : "不利ボード";
-  const freq = v.frequency === null ? "ノートに記載が無い" : `${v.frequency}%`;
+  const freq = v.frequency === null ? "複雑すぎるシチュエーション" : `${v.frequency}%`;
 
   let summary: string;
   switch (v.situation) {
     case "betOk":
-      summary = `${cardText}で、${hand}を${sizes}でプローブ。ノートどおり、ばっちりだね！${boardKind}だから頻度は${freq}だよ。`;
+      summary = `${cardText}で、${hand}を${sizes}でプローブ。セオリーどおり、ばっちりだね！${boardKind}だから頻度は${freq}だよ。`;
       break;
     case "betOtherSize":
-      summary = `${hand}はプローブで打つ手だから、打ったのはいいね。でも${cardText}では、${hand}は${sizes}で打つ手なんだ。今のサイズは別の手の組のサイズだから、${sizes}で打とうね。`;
+      summary = `${hand}はプローブで打つ手だから、打ったのはいいね。でも${cardText}では、${hand}は${sizes}で打つ手なんだ。今のサイズは別のハンドのサイズだから、${sizes}で打とうね。`;
       break;
     case "betSizeOff":
-      summary = `${hand}はプローブで打つ手だから、打ったのはいいね。でもサイズが表と違うよ。${cardText}では、${hand}は${sizes}で打とうね。`;
+      summary = `${hand}はプローブで打つ手だから、打ったのはいいね。でもサイズが違うよ。${cardText}では、${hand}は${sizes}で打とうね。`;
       break;
     case "betNotListed":
-      summary = `${HAND[v.handLabel]}は、${cardText}のプローブで打つ手に入っていないんだ。表に無い手は打たずに、チェックしようね。`;
+      summary = `${HAND[v.handLabel]}は、${cardText}のプローブで打つハンドに入っていないんだ。このハンドは打たずに、チェックしようね。`;
       break;
     case "betRepeat":
-      summary = `${STREET[v.street]}でボードがペアになったら、プローブはせずにレンジでチェックするんだ。ここは打たずにチェックしようね。`;
+      summary = `${STREET[v.street]}でボードがペアになったら、プローブはせずにレンジでチェックするんだ。ここは打たずにチェックで大丈夫。`;
       break;
     case "checkRepeatOk":
-      summary = `ボードがペアになった${STREET[v.street]}は、レンジでチェック。ノートどおり、ナイスチェック！`;
+      summary = `ボードがペアになった${STREET[v.street]}は、レンジでチェック。セオリー通りのナイスチェック！`;
       break;
     case "checkNotListedOk":
-      summary = `${HAND[v.handLabel]}は、${cardText}のプローブで打つ手じゃないから、チェックで正解だよ。ナイス！`;
+      summary = `${HAND[v.handLabel]}は、${cardText}のプローブで打つハンドじゃないから、チェックで正解だよ。ナイス！`;
       break;
     case "checkListedLowFreqOk":
       summary = `${hand}は、打つなら${sizes}でプローブする手だよ。でも${cardText}の頻度は${freq}(${boardKind})で、チェックが多い場面だから、チェックでも大丈夫。ナイス判断だね！`;
@@ -144,8 +144,8 @@ function probeComment(v: ProbeVerdict, board: readonly string[]): BarrelComment 
     points: [
       { label: "場面", text: PROBE_DEFINITION },
       { label: "カード", text: `${row.title}(${boardKind})` },
-      { label: "打つ手", text: row.hands },
-      { label: "頻度", text: `有利ボード ${row.favorable} / 不利ボード ${row.unfavorable ?? "ノートに記載なし(有利ボードと同じ手で見る)"}` },
+      { label: "打つハンド", text: row.hands },
+      { label: "頻度", text: `有利ボード ${row.favorable} / 不利ボード ${row.unfavorable ?? "不明(有利ボードと同じ手で見る)"}` },
     ],
     body: PROBE_BODY,
   };
@@ -167,34 +167,34 @@ function donkComment(v: DonkVerdict): BarrelComment {
   let summary: string;
   switch (v.situation) {
     case "betGood":
-      summary = `${r!.title}でのドンク、ナイス！${r!.why}から、相手(オリジナル)はチェックバックしたくなる場面なんだ。${hand}は「${r!.hands}」の手だね。`;
+      summary = `${r!.title}でのドンク、ナイス！${r!.why}から、相手(オリジナル)はチェックバックしたくなる場面なんだ。${hand}は「${r!.hands}」のハンドだね。`;
       break;
     case "betGoodTooBig":
-      summary = `${r!.title}でドンクが成立する場面で、${hand}を打ったのはいいね。でもドローのドンクは、無理やりオッズを合わせる目的で安く打つものなんだ。${SIZE_NAME[v.actual ?? "large"]}は大きすぎるよ。33〜50%くらいで打とうね。`;
+      summary = `${r!.title}でドンクが成立する場面で、${hand}を打ったのはいいね。でもドローのドンクは、無理やりオッズを合わせる目的で安く打つものなんだ（＝ブロックベットというよ）。${SIZE_NAME[v.actual ?? "large"]}は大きすぎるよ。33〜50%くらいで打とうね。`;
       break;
     case "betNoFit":
-      summary = `${r!.why}から、ここはドンクが成立する場面だよ。ただ、ここでドンクを打つのは「${r!.hands}」。${hand}はその手じゃないから、チェックでもよかったね。`;
+      summary = `${r!.why}から、ここはドンクが成立する場面だよ。ただ、ここでドンクを打つのは「${r!.hands}」。${hand}は該当しないから、チェックでもよかったね。`;
       break;
     case "betNoReason":
-      summary = `ここはドンクが成立しない場面なんだ。ドンクが成立するのは、オリジナルがチェックバックしたいスポット(きみの側にナッツ級が移ったスポット)だけ。ここはチェックから入ろうね。`;
+      summary = `ここはドンクが成立しない場面なんだ。ドンクが成立するのは、オリジナルがチェックバックしたいスポット(きみのレンジにのみナッツ級が移ったスポット)だけ。ここはチェックでOKだよ。`;
       break;
     case "betNoReasonTurnDraw":
       summary = `ターンでドローを、無理やりオッズを合わせるために打つドンクは、リピートボード以外ではやらないんだ。ここは打たずにチェックしようね。`;
       break;
     case "betNoReasonRiverBlock":
-      summary = `ドンクが許されない場面での、純粋なリバーブロックベットになってるよ。ブロックベットもドンクの条件を満たすときだけ打って、ここはチェックしようね。`;
+      summary = `ドンクが許されない場面での、純粋なリバーブロックベットになってしまっているよ。ブロックベットもドンクの条件を満たすときだけ打って、ここはチェックしようね。`;
       break;
     case "betNoReasonRag":
       summary = `ラグでのドンクベットは、血迷った謎ドンクになっちゃう。きみの側にナッツ級が移ったわけじゃないから、チェックから入ろうね。`;
       break;
     case "checkShouldDonk":
-      summary = `${r!.why}から、ここはドンクを打つべき場面だよ。ここで打つのは「${r!.hands}」で、${hand}はまさにその手。チェックだと${miss}。${v.fit === "draw" ? "33〜50%くらいで安く打とうね。" : "先に打っていこうね。"}`;
+      summary = `${r!.why}から、ここはドンクを打つべき場面だよ。ここで打つのは「${r!.hands}」で、${hand}はまさにそのハンド。チェックだと${miss}。${v.fit === "draw" ? "33〜50%くらいで安く打とうね。" : "先打ちじゃい！"}`;
       break;
     case "checkOkNoFit":
-      summary = `${r!.why}から、ドンクが成立する場面ではあるね。でもドンクで打つのは「${r!.hands}」で、${hand}はその手じゃないから、チェックで正解だよ。ナイス！`;
+      summary = `${r!.why}から、ドンクが成立する場面ではあるね。でもドンクで打つのは「${r!.hands}」で、${hand}は該当しないから、チェックで正解だよ。ナイス！`;
       break;
     case "checkOkNoReason":
-      summary = `${street}のこの場面はドンクが成立しないから、チェックで正解！ドンクが成立するのは、オリジナルがチェックバックしたい(きみの側にナッツ級が移った)場面だけなんだ。`;
+      summary = `${street}のこの場面はドンクが成立しないから、チェックで正解！ドンクが成立するのは、オリジナルがチェックバックしたい(きみのレンジにのみナッツ級が移った)場面だけなんだ。`;
       break;
   }
 
@@ -203,7 +203,7 @@ function donkComment(v: DonkVerdict): BarrelComment {
     summary,
     points: [
       { label: "理由", text: r ? `${r.title}。${r.why}` : "ドンクが成立する条件に当たらない" },
-      { label: "打つ手", text: r ? r.hands : "打たない(チェックから入る)" },
+      { label: "打つハンド", text: r ? r.hands : "打たない(チェック)" },
       {
         label: "成立",
         text: "フロップのローボード・コネクトボード / ターンリピート / 3ベットポットのロー1枚ストレートボード / フラッシュ完成カード / ストレート完成カード / ナッツが変化しOOP側にナッツ級ができた時",
@@ -230,7 +230,7 @@ function checkRaiseComment(v: CheckRaiseVerdict): BarrelComment {
   let summary: string;
   switch (v.situation) {
     case "raiseOk":
-      summary = `${where}で、${hand}を${role}でチェックレイズ。ノートどおりで、サイズも${recText}でばっちりだね！${short}`;
+      summary = `${where}で、${hand}を${role}でチェックレイズ。セオリーどおりで、サイズも${recText}でばっちりだね！${short}`;
       break;
     case "raiseSizeOff":
       summary = `${hand}は${where}でチェックレイズする手だから、レイズはいいね。でもサイズは${recText}が基本なんだ。${SIZE_NAME[v.actual ?? "overbet"]}だと${v.sizeGap > 0 ? "大きすぎる" : "小さすぎる"}よ。${short}`;
@@ -244,28 +244,28 @@ function checkRaiseComment(v: CheckRaiseVerdict): BarrelComment {
             : `${hand}は、${where}ではコールに回す手なんだ。チェックレイズはセットとツーペア以上で打とうね。`;
       break;
     case "raiseNotListed":
-      summary = `${hand}は、${where}のチェックレイズの表に入っていない手なんだ。チェックレイズは下の「バリュー」と「ブラフ」の手で打って、この手はコールかフォールドにしようね。`;
+      summary = `${hand}は、${where}のチェックレイズの表に入っていない手なんだ。チェックレイズは下の「バリュー」と「ブラフ」の手で打って、このハンドはコールorフォールドにしようね。`;
       break;
     case "raiseMonotone":
-      summary = `モノトーンボードはパッシブにプレイするんだ(チェックレイズは頻度5%で小さく)。ここはレイズせずに、コールで受けようね。`;
+      summary = `モノトーンボードはパッシブにプレイするんだ(チェックレイズは頻度5%で小さく)。ここはレイズせずに、コールでOK。`;
       break;
     case "callRaiseHand":
-      summary = `${hand}は、${where}でチェックレイズの${role}候補になる手だよ。頻度は控えめだから毎回じゃないけど、チェックレイズが少ないと相手にたくさんベットされて降ろされちゃう。ときどきレイズを混ぜようね。${short}`;
+      summary = `${hand}は、${where}でチェックレイズの${role}候補になるハンドだよ。頻度は控えめだから毎回じゃないけど、チェックレイズが少ないと相手にたくさんベットされて降ろされちゃう。ときどきレイズを混ぜようね。${short}`;
       break;
     case "callValueCallOk":
       summary = `${hand}をコール、ナイス！${where}では、この手はレイズせずにコールに回す手なんだ。`;
       break;
     case "foldValue":
-      summary = `${hand}は、${where}でバリューになる手だよ。ここで降りるのはもったいない！チェックレイズかコールで続けようね。${short}`;
+      summary = `${hand}は、${where}でバリューになる手だよ。ここで降りるのはもったいない！チェックレイズかコールで勝負じゃい！${short}`;
       break;
     case "foldBluff":
-      summary = `${hand}は、チェックレイズのブラフに使う手なんだ。降りると、5枚目までカードを引ければ逆転できたかもしれないエクイティを捨てちゃう(エクイティの放棄)。チェックレイズかコールで続けようね。`;
+      summary = `${hand}は、チェックレイズのブラフに使うハンドなんだ。降りると、5枚目までカードを引ければ逆転できたかもしれないエクイティを捨てちゃう(エクイティの放棄)。チェックレイズかコールで立ち回ろう。`;
       break;
     case "callNotListed":
-      summary = `${hand}は、${where}のチェックレイズの表には入っていない手だから、レイズしないのはノートどおりだよ。コールで良いかは、ノートに記載が無いからGTOの評価も見てみよう。`;
+      summary = `${hand}は、${where}のチェックレイズの表には入っていない手だから、レイズしないのはセオリーどおりだよ。コールで良いかは、ノートに記載が無いからGTOの評価も見てみよう。`;
       break;
     case "foldNotListed":
-      summary = `${hand}は、${where}のチェックレイズの表には入っていない手だから、レイズしないのはノートどおりだよ。降りて良いかは、ノートに記載が無いからGTOの評価も見てみよう。`;
+      summary = `${hand}は、${where}のチェックレイズの表には入っていない手だから、レイズしないのはセオリーどおりだよ。降りて良いかは、ノートに記載が無いからGTOの評価も見てみよう。`;
       break;
   }
 
@@ -291,13 +291,13 @@ function afterCheckRaiseComment(v: AfterCheckRaiseVerdict, board: readonly strin
   let summary: string;
   switch (v.situation) {
     case "checkRangeOk":
-      summary = `チェックレイズしてコールされたあと、${cardText}が落ちたターンはレンジ全体でチェック。ノートどおり、ナイス！`;
+      summary = `チェックレイズしてコールされたあと、${cardText}が落ちたターンはレンジ全体でチェック。セオリーどおり、ナイス！`;
       break;
     case "betRangeCheck":
       summary = `チェックレイズしてコールされたあと、${cardText}が落ちたらレンジ全体でチェックするんだ。ここは打たずにチェックしようね。`;
       break;
     case "betFlushOk":
-      summary = `チェックレイズのあとのフラッシュ完成カード${label ? `(${label})` : ""}は、全てのハンドで安くベット。ノートどおり、ナイス！`;
+      summary = `チェックレイズのあとのフラッシュ完成カード${label ? `(${label})` : ""}は、全てのハンドで安くベット。セオリーどおり、ナイス！`;
       break;
     case "betFlushSize":
       summary = `チェックレイズのあとのフラッシュ完成カードでは、全てのハンドで安くベットするんだ。${SIZE_NAME[v.actual ?? "large"]}は大きすぎるよ。33〜50%くらいで打とうね。`;
@@ -308,8 +308,8 @@ function afterCheckRaiseComment(v: AfterCheckRaiseVerdict, board: readonly strin
     case "betOk":
       summary =
         v.hand === "value"
-          ? `ラグ${label ? `(${label})` : ""}で${hand}をポットベット。リバーでのオールインを目指す、ノートどおりの打ち方だね！`
-          : `ラグ${label ? `(${label})` : ""}で${hand}をブラフでベット。全てのドローとボトムペアはブラフで打つ手、ノートどおりだね！`;
+          ? `ラグ${label ? `(${label})` : ""}で${hand}をポットベット。リバーでのオールインを目指す、セオリーどおりの打ち方だね！`
+          : `ラグ${label ? `(${label})` : ""}で${hand}をブラフでベット。全てのドローとボトムペアはブラフで打つ手、セオリーどおりだね！`;
       break;
     case "betSizeOff":
       summary = `ラグでは、${hand}はポットくらいでベットする手なんだ。${SIZE_NAME[v.actual ?? "block"]}だと${v.sizeGap > 0 ? "大きすぎる" : "小さすぎる"}よ。ポットくらいで打って、リバーでのオールインを目指そうね。`;
