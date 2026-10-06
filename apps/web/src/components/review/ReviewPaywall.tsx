@@ -11,7 +11,7 @@ import { CouponWallet } from "@/components/CouponWallet";
  * ペイウォール。ロックされた解析のチラ見せ → 使い放題プラン(¥980/月)の価値訴求 → 単一の
  * 強いCTA(Stripe Checkout)で加入導線を提示する。アイコンは全てSVG。
  *
- * 課金せずに開放する手段として、招待で貰った「1ヶ月無料クーポン」をこの場で適用できる。
+ * 課金せずに開放する手段として、招待で貰った「無料クーポン」をこの場で適用できる。
  */
 
 const BENEFITS: { title: string; desc: string; icon: IconName }[] = [
@@ -181,7 +181,7 @@ export function ReviewPaywall({
         </p>
       </motion.div>
 
-      {/* 課金以外の開放手段。招待で貰ったクーポンをここで適用すると1ヶ月無料で解析できる。 */}
+      {/* 課金以外の開放手段。招待で貰ったクーポンをここで適用すると無料期間のあいだ解析できる。 */}
       <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }} className="mt-3">
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
         <Link

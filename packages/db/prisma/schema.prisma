@@ -25,6 +25,8 @@ model User {
   /// 友達招待用のコード(例 "K7QMX2AB")。ホームの招待カードを初めて開いたときに発行する。
   /// 未発行はnull(BOTには発行しない)。
   referralCode String?   @unique
+  /// 招待カードを最後に開いたときの接続元(IP の鍵付きハッシュ)。同じネットワークからの自己招待を弾くのに使う。
+  referralIpHash String?
   createdAt    DateTime  @default(now())
   /// アカウント削除(退会)した時刻。未削除はnull。
   ///
@@ -80,6 +82,13 @@ model Referral {
   invitee       User     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
   /// 適用時に入力された招待コード(発行後に変わることはないが、履歴として残す)。
   code          String
+  /// 特典の状態。pending=招待された人がまだ遊んでいない / rewarded=クーポン発行済み /
+  /// ineligible=同じネットワークからの招待などで特典の対象外(複数アカウントの自作自演の対策)。
+  status        String   @default("pending")
+  /// クーポンを発行した時刻(30日あたりの上限の判定に使う)。
+  rewardedAt    DateTime?
+  /// 招待された人がコードを適用したときの接続元(IP の鍵付きハッシュ。生の IP は持たない)。
+  ipHash        String?
   createdAt     DateTime @default(now())
 
   @@index([inviterUserId, createdAt])
@@ -98,8 +107,10 @@ model PremiumCouponCode {
   /// このクーポンを獲得した人。
   ownerUserId      String
   owner            User      @relation("CouponOwner", fields: [ownerUserId], references: [id])
-  /// 適用すると付与される無料月数。
+  /// 適用すると付与される無料月数(days があればそちらを使う)。
   months           Int       @default(1)
+  /// 適用すると付与される無料日数。招待の特典は1週間(7)。古いクーポンは null(months を使う)。
+  days             Int?
   /// 発行理由(referral=友達招待)。将来キャンペーン等で増やせるようにしている。
   source           String    @default("referral")
   /// 発行元の招待。1招待につき1枚だけ発行するための冪等キー(招待以外の発行はnull)。

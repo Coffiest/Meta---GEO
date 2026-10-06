@@ -9,15 +9,25 @@
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 const PENDING_KEY = "pendingReferralCode";
 
+export type ReferralStatus = "pending" | "rewarded" | "ineligible";
+
 export interface ReferralInvitee {
   displayName: string;
   avatarKey: string | null;
   createdAt: string;
+  /** 特典の状態(pending=友達が遊ぶのを待っている / rewarded=クーポン発行済み / ineligible=対象外)。 */
+  status: ReferralStatus;
+  /** 遊び終えたトーナメントの数。 */
+  progress: number;
 }
 
 export interface ReferralReward {
-  /** 1招待あたりに発行されるクーポンの無料月数。 */
-  monthsPerInvite: number;
+  /** 1招待あたりに発行されるクーポンの無料日数。 */
+  daysPerInvite: number;
+  /** 特典の発行に必要な、招待された人のトーナメント数。 */
+  qualifyTournaments: number;
+  /** 30日あたりの発行の上限。 */
+  monthlyCap: number;
   /** 発行された累計枚数。 */
   couponsEarned: number;
   /** まだ使っていない枚数。 */
@@ -33,7 +43,7 @@ export interface ReferralSummary {
 }
 
 export type RedeemReferralResult =
-  | { ok: true; inviterDisplayName: string; rewardMonths: number }
+  | { ok: true; inviterDisplayName: string; status: ReferralStatus }
   | { ok: false; reason: "invalid" | "self" | "already" };
 
 /** 入力/URL由来の招待コードを正規化する(サーバー側 normalizeReferralCode と同じ規則)。 */

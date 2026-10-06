@@ -98,12 +98,18 @@ export async function getPremiumCouponStatus(userId: string): Promise<PremiumCou
  * すでに有効な期限があればその終了日から延長する(招待するほど後ろに伸びる)。
  * 期限切れ/未付与なら今日から起算する。
  */
-export async function extendPremiumCoupon(userId: string, months: number): Promise<Date> {
+export async function extendPremiumCoupon(userId: string, months: number, days?: number | null): Promise<Date> {
   const existing = await prisma.premiumCoupon.findUnique({ where: { userId } });
   const now = new Date();
   const base = existing && existing.expiresAt > now ? existing.expiresAt : now;
   const expiresAt = new Date(base);
-  expiresAt.setMonth(expiresAt.getMonth() + months);
+  // 日数の指定があればそちら(招待の特典は1週間)。月数の累計には数えない。
+  if (days != null) {
+    expiresAt.setDate(expiresAt.getDate() + days);
+    months = 0;
+  } else {
+    expiresAt.setMonth(expiresAt.getMonth() + months);
+  }
 
   await prisma.premiumCoupon.upsert({
     where: { userId },

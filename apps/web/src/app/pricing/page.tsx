@@ -135,7 +135,7 @@ export default function PricingPage() {
                     </p>
                   )}
                   <p className="mt-1 text-center text-[11px] leading-relaxed text-fg-2">
-                    クーポンを追加で適用すると、この無料期間がさらに1ヶ月ずつ延びます。
+                    クーポンを追加で適用すると、この無料期間がクーポンの日数ぶん延びます。
                   </p>
                   <button
                     onClick={handleSubscribe}
