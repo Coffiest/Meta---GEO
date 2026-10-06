@@ -32,6 +32,7 @@ import {
 } from "@meta-geo/db";
 import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
+import { isAdminIdentity } from "./adminAuth.js";
 import { activeGames } from "./activeGames.js";
 import { liveStatus } from "./liveStatus.js";
 import {
@@ -265,8 +266,11 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 401, { error: "unauthorized" });
         return true;
       }
-      const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true } });
-      sendJson(res, 200, user ? await getGeoAccess(user.id) : { itmCount: 0, required: GEO_ITM_REQUIRED, unlocked: false });
+      const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true, email: true } });
+      const access = user ? await getGeoAccess(user.id) : { itmCount: 0, required: GEO_ITM_REQUIRED, unlocked: false };
+      // 管理者のアカウントは、運営のために利用条件に関係なく使える(管理者画面への入口が GEO タブにあるため)。
+      if (isAdminIdentity(verified.email ?? user?.email ?? null, user?.id ?? null)) access.unlocked = true;
+      sendJson(res, 200, access);
       return true;
     }
 

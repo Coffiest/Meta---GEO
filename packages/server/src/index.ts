@@ -10,7 +10,7 @@ import { handleAdminApiRequest } from "./adminApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { handleFeedbackApiRequest } from "./feedbackApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
-import { checkAdminAuth, warnIfDefaultAdminPasscode } from "./adminAuth.js";
+import { checkAdminAccess, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
 import { pruneResolvedErrorReports } from "@meta-geo/db";
 import {
@@ -71,13 +71,13 @@ const httpServer = createServer((req, res) => {
   // 例外メッセージ・卓ID・DBエラーコードなど内部情報を含むため、管理者パスコードで保護する
   // (以前は無認証で、無認証のまま毎回DBを叩いてプールを消費できた)。
   if (path === "/api/diagnostics") {
-    const auth = checkAdminAuth(req);
-    if (auth !== "ok") {
-      res.writeHead(auth === "rate_limited" ? 429 : 401, {
+    void checkAdminAccess(req).then((auth) => {
+    if (auth.status !== "ok") {
+      res.writeHead(auth.status === "rate_limited" ? 429 : auth.status === "not_admin" ? 403 : 401, {
         "content-type": "application/json; charset=utf-8",
         "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
       });
-      res.end(JSON.stringify({ error: auth === "rate_limited" ? "too many attempts" : "unauthorized" }));
+      res.end(JSON.stringify({ error: auth.status === "rate_limited" ? "too many attempts" : "unauthorized" }));
       return;
     }
     getDiagnostics()
@@ -94,6 +94,11 @@ const httpServer = createServer((req, res) => {
         if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });
         if (!res.writableEnded) res.end(JSON.stringify({ error: "diagnostics failed" }));
       });
+    }).catch((err) => {
+      recordError("diagnostics auth", err);
+      if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });
+      if (!res.writableEnded) res.end(JSON.stringify({ error: "internal" }));
+    });
     return;
   }
 

@@ -9,7 +9,6 @@ import { useI18n } from "@/lib/i18n";
 import { APP_VERSION } from "@/lib/version";
 import { Header, HeaderLogo } from "./Header";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { PasscodeModal } from "./PasscodeModal";
 
 function GoogleIcon() {
   return (
@@ -156,8 +155,6 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   /** 新規登録後、確認メールを送ったアドレス(セット中は手順ガイドパネルを表示)。 */
   const [confirmSentTo, setConfirmSentTo] = useState<string | null>(null);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
-  /** バージョン表記タップ→パスコード(2357)→管理者画面への隠し導線。 */
-  const [adminGateOpen, setAdminGateOpen] = useState(false);
   const router = useRouter();
   const reduce = useReducedMotion();
   const { t } = useI18n();
@@ -547,34 +544,11 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           ))}
         </nav>
 
-        {/* バージョン表記(タップ→パスコード2357→管理者画面への隠し導線) */}
+        {/* バージョン表記。管理者画面への入口はログイン後(GEO タブ)だけに置く(管理者の操作はログイン中のアカウントでも確かめるため)。 */}
         <div className="mt-8 flex justify-center">
-          <button
-            onClick={() => setAdminGateOpen(true)}
-            className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
-          >
-            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
-          </button>
+          <p className="text-[11px] font-medium tracking-wide text-fg-3">Poker ART v{APP_VERSION} ・ © 2026 Poker ART</p>
         </div>
       </div>
-
-      <AnimatePresence>
-        {adminGateOpen && (
-          <PasscodeModal
-            expected="2357"
-            title="パスコードを入力"
-            onSuccess={(code) => {
-              try {
-                sessionStorage.setItem("adminPasscode", code);
-              } catch {
-                /* プライベートブラウズ等でsessionStorage不可でも/admin側で再入力できる */
-              }
-              router.push("/admin");
-            }}
-            onClose={() => setAdminGateOpen(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

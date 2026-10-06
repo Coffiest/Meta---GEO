@@ -30,7 +30,7 @@ import {
   type GeoBackfillProgress,
 } from "@meta-geo/db";
 import { hasXCredentials, draftReply } from "@meta-geo/marketing";
-import { checkAdminAuth } from "./adminAuth.js";
+import { checkAdminAccess } from "./adminAuth.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -120,23 +120,34 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     res.writeHead(204, {
       "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
       "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "content-type, x-admin-passcode",
+      "access-control-allow-headers": "content-type, x-admin-passcode, authorization",
     });
     res.end();
     return true;
   }
 
-  const auth = checkAdminAuth(req);
-  if (auth === "rate_limited") {
+  const auth = await checkAdminAccess(req);
+  if (auth.status === "rate_limited") {
     sendJson(res, 429, { error: "試行回数が多すぎます。しばらく待ってから再度お試しください。" });
     return true;
   }
-  if (auth !== "ok") {
+  if (auth.status === "unauthorized") {
     sendJson(res, 401, { error: "unauthorized" });
+    return true;
+  }
+  if (auth.status === "not_admin") {
+    // パスコードは正しいが、管理者のアカウントではない。画面に自分のユーザーIDを出して、登録の依頼に使ってもらう。
+    sendJson(res, 403, { error: "forbidden", code: "NOT_ADMIN", userId: auth.userId });
     return true;
   }
 
   try {
+    // 管理者として通るかだけを確かめる(画面のパスコード入力の答え合わせ。照合はサーバーだけで行う)。
+    if (url.pathname === "/api/admin/session" && req.method === "GET") {
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
     // プレイヤー検索(名前/メール/ID部分一致)。GEOデータ件数(総ハンド/除外済み)も添える。
     if (url.pathname === "/api/admin/users" && req.method === "GET") {
       const q = url.searchParams.get("q") ?? "";

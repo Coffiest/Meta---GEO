@@ -43,3 +43,25 @@ describe("adminAuth", () => {
     expect(isValidUnlockCode("")).toBe(false);
   });
 });
+
+describe("管理者のアカウント", () => {
+  it("一覧に無いメールアドレス・未ログインは管理者ではない(組み込みの一覧はハッシュだけを持つ)", async () => {
+    const { isAdminIdentity } = await import("../src/adminAuth.js");
+    expect(isAdminIdentity("someone@example.com", null)).toBe(false);
+    expect(isAdminIdentity(null, null)).toBe(false);
+  });
+
+  it("env ADMIN_EMAILS / ADMIN_USER_IDS で足せる", async () => {
+    const { isAdminIdentity } = await import("../src/adminAuth.js");
+    process.env["ADMIN_EMAILS"] = "ops@example.com, other@example.com";
+    process.env["ADMIN_USER_IDS"] = "user-123";
+    try {
+      expect(isAdminIdentity("  OPS@example.com ", null)).toBe(true); // 大文字・空白は無視
+      expect(isAdminIdentity(null, "user-123")).toBe(true);
+      expect(isAdminIdentity("x@example.com", "user-999")).toBe(false);
+    } finally {
+      delete process.env["ADMIN_EMAILS"];
+      delete process.env["ADMIN_USER_IDS"];
+    }
+  });
+});
