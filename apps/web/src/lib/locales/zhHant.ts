@@ -81,6 +81,7 @@ export const zhHant: Record<string, string> = {
   "seat.chat": "聊天",
   "seat.timeBankUsed": "時間銀行",
   "seat.away": "離座中",
+  "seat.muck": "蓋牌",
 
   "common.close": "關閉",
   "greeting.morning": "早安",

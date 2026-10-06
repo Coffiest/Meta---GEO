@@ -596,6 +596,19 @@ function GameScreen({
     ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
 
+  // ショーダウンで手を見せずに捨てた(マックした)席。フォールドで決着していないハンドの終わりに、
+  // 降りずに残っていたのに手札が1枚も公開されなかった席。
+  const muckedSeats = useMemo(() => {
+    if (!lastHandEnded || lastHandEnded.result.wonByFold || !state) return null;
+    const out = new Set<number>();
+    for (const s of state.seats) {
+      if (s.status === "folded") continue;
+      const cards = lastHandEnded.holeCards[s.seatIndex];
+      if (!cards || cards.every((c) => c == null)) out.add(s.seatIndex);
+    }
+    return out.size > 0 ? out : null;
+  }, [lastHandEnded, state]);
+
   // 敗退した瞬間に結果画面で卓を覆ってしまうと、自分が飛んだそのハンドの相手の手札を
   // 見られないまま終わる(特にオールイン勝負のショーダウン)。結果画面は少し待ってから出し、
   // その間は卓とショーダウンを見せる。待てない人のために「結果を見る」ボタンも同時に出す。
@@ -751,6 +764,7 @@ function GameScreen({
             yourCards={yourCards}
             seatCount={SEAT_COUNT}
             revealedHoleCards={revealedHoleCards}
+            muckedSeats={muckedSeats}
             players={players}
             bigBlind={bigBlind}
             lastActionBySeat={lastActionBySeat}
