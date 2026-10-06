@@ -79,13 +79,13 @@ function TabButton({ item, active }: { item: FooterNavItem; active: boolean }) {
   }`;
   if (item.href) {
     return (
-      <Link href={item.href} className={className} aria-current={active ? "page" : undefined}>
+      <Link href={item.href} className={className} aria-current={active ? "page" : undefined} data-tour={`tab-${item.key}`}>
         {content}
       </Link>
     );
   }
   return (
-    <button onClick={item.onClick} className={className} aria-current={active ? "page" : undefined}>
+    <button onClick={item.onClick} className={className} aria-current={active ? "page" : undefined} data-tour={`tab-${item.key}`}>
       {content}
     </button>
   );
@@ -115,13 +115,13 @@ function CenterButton({ href, active }: { href?: string; active: boolean }) {
   const className = "pressable relative flex h-[52px] flex-1 items-center justify-center rounded-full";
   if (!href || active) {
     return (
-      <div className={className} aria-current={active ? "page" : undefined}>
+      <div className={className} aria-current={active ? "page" : undefined} data-tour="tab-db">
         {content}
       </div>
     );
   }
   return (
-    <Link href={href} aria-label="GEOデータベース" className={className}>
+    <Link href={href} aria-label="GEOデータベース" className={className} data-tour="tab-db">
       {content}
     </Link>
   );

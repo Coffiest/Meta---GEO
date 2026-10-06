@@ -17,7 +17,7 @@ import { TournamentResultScreen, fetchResultSnapshot, type ResultStatsSnapshot }
 import { GameHandHistorySheet } from "@/components/GameHandHistorySheet";
 import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
-import { WelcomeTour, hasTourBeenSeen } from "@/components/WelcomeTour";
+import { CoachTour, hasTourBeenSeen } from "@/components/CoachTour";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
 import { fetchBlockedUserIds } from "@/lib/playerModeration";
@@ -1506,8 +1506,6 @@ export default function Page() {
     return <LoadingScreen />;
   }
 
-  // 初回ログイン時のみ一度だけ: ホームを出す直前にチュートリアルを挟む。
-  if (showTour) return <WelcomeTour onDone={() => setShowTour(false)} />;
 
   // ログイン中アカウントに紐付いているプロバイダ一覧(例: ["google"], ["apple", "google"])。
   // 同一メールのApple/GoogleはSupabaseが同一アカウントに統合するため、複数表示されることがある。
@@ -1542,6 +1540,8 @@ export default function Page() {
           void auth.signOut();
         }}
       />
+      {/* 初回ログイン時のみ一度だけ: ホームの実際のボタンにスポットライトを当てて案内する(コーチマーク)。 */}
+      {showTour && <CoachTour onDone={() => setShowTour(false)} />}
       {/* 離席中に終わったゲームの結果サジェスト(復帰時に1回だけ表示)。 */}
       <AnimatePresence>
         {resultSuggestion && (
