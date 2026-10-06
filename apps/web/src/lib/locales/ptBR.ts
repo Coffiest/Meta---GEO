@@ -209,7 +209,7 @@ export const ptBR: Record<string, string> = {
   "lobby.chartNeedMore": "Faltam mais alguns torneios para exibir o gráfico.",
   "lobby.seats": "{n} jogadores",
   "lobby.payout": "Ganho",
-  "lobby.tapDetail": "Toque para ver detalhes →",
+  "lobby.tapReview": "Revisão de mãos",
   "lobby.you": "(Você)",
   "lobby.nTournaments": "{n} torneios",
   "lobby.all": "Todas",

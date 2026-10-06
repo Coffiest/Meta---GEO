@@ -209,7 +209,7 @@ export const es: Record<string, string> = {
   "lobby.chartNeedMore": "Se necesitan algunos torneos más para mostrar el gráfico.",
   "lobby.seats": "Mesa de {n}",
   "lobby.payout": "Ganado",
-  "lobby.tapDetail": "Toca para ver detalles →",
+  "lobby.tapReview": "Revisión de manos",
   "lobby.you": "(Tú)",
   "lobby.nTournaments": "{n} torneos",
   "lobby.all": "Todas",

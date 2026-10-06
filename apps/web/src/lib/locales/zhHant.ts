@@ -209,7 +209,7 @@ export const zhHant: Record<string, string> = {
   "lobby.chartNeedMore": "還需要多一些錦標賽場數才能顯示圖表。",
   "lobby.seats": "{n}人桌",
   "lobby.payout": "獲得",
-  "lobby.tapDetail": "點一下查看詳情 →",
+  "lobby.tapReview": "牌譜分析",
   "lobby.you": "（你）",
   "lobby.nTournaments": "{n} 場錦標賽",
   "lobby.all": "全部",
