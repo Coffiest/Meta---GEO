@@ -33,6 +33,7 @@ export * from "./review/spotPlans.js";
 export * from "./review/icm.js";
 export * from "./review/articleRules.js";
 export * from "./review/normalizeActions.js";
+export * from "./review/powerNumber.js";
 export * from "./review/reviewPositions.js";
 export * from "./review/articleRules.generated.js";
 export * from "./sngTiers.js";

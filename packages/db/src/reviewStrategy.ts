@@ -9,6 +9,9 @@ import {
   readArticleFacts,
   readBoardChange,
   matchArticleRule,
+  judgePowerNumber,
+  gradePowerNumber,
+  PN_MAX_STACK_BB,
   ARTICLE_RULES,
   type ArticleRule,
   type BarrelVerdict,
@@ -21,6 +24,7 @@ import {
   type StrategyTag,
 } from "@meta-geo/engine";
 import { SEAT_COUNT, type ExtractHand } from "./reviewExtract.js";
+import { handClassLabel } from "./preflopBaseline.js";
 import type { ReviewedDecision } from "./review.js";
 
 /**
@@ -65,6 +69,62 @@ export interface DecisionArticle {
   grade: NotionGrade | null;
   /** true なら GTO の格付けがある決定ではバッジを置き換えない。 */
   keepGto: boolean;
+}
+
+/**
+ * パワーナンバーの判定(15bb 以下・誰も参加していない局面のオープン)。画面は表と一緒に解説する。
+ * `pn` は表の数字。∞ は "inf"、空欄(有効M が 3 未満のときだけオールイン)は "-"(JSON で Infinity を運べないため)。
+ */
+export interface DecisionPowerNumber {
+  handClass: string;
+  pn: number | "inf" | "-";
+  m: number;
+  playersBehind: number;
+  effectiveM: number;
+  correct: "push" | "fold";
+  followed: boolean;
+  grade: NotionGrade;
+}
+
+const VOLUNTARY = new Set(["fold", "check", "call", "bet", "raise", "allIn"]);
+
+/**
+ * 15bb 以下で、自分の前に誰も参加していない(全員フォールド)プリフロップの決定に、パワーナンバーの判定を載せる。
+ * 有効M = (開始時のスタック ÷ その時点のポット[SB+BB+アンティ]) × 後ろに控えている人数。
+ * 席の持ち主によって分岐しない。
+ */
+export function attachPowerNumbers(hand: ExtractHand, decisions: ReviewedDecision[]): void {
+  const bb = hand.levelBigBlind;
+  const dealt = hand.seats.filter((s) => s.holeCards.length === 2);
+  for (const d of decisions) {
+    d.powerNumber = null;
+    if (d.street !== "preflop" || bb <= 0) continue;
+    const seat = hand.seats.find((s) => s.seatIndex === d.seatIndex);
+    if (!seat) continue;
+    const stackBb = seat.startingStack / bb;
+    if (stackBb > PN_MAX_STACK_BB) continue;
+    const before = hand.actions.filter(
+      (a) => a.street === "preflop" && a.sequenceNumber < d.sequenceNumber && VOLUNTARY.has(a.kind),
+    );
+    // 誰かが参加済み(リンプ・レイズ)、または自分が2回目の決定なら対象外。
+    if (before.some((a) => a.kind !== "fold" || a.seatIndex === d.seatIndex)) continue;
+    const foldedBefore = new Set(before.map((a) => a.seatIndex)).size;
+    const playersBehind = dealt.length - 1 - foldedBefore;
+    const handClass = handClassLabel(seat.holeCards);
+    if (!handClass || playersBehind < 1) continue;
+    const v = judgePowerNumber({ handClass, stackBb, potBb: d.potBb, playersBehind, action: d.actionTaken.bucket });
+    if (!v) continue;
+    d.powerNumber = {
+      handClass,
+      pn: v.pn === null ? "-" : v.pn === Infinity ? "inf" : v.pn,
+      m: v.m,
+      playersBehind,
+      effectiveM: v.effectiveM,
+      correct: v.correct,
+      followed: v.followed,
+      grade: gradePowerNumber(v, d.actionTaken.bucket),
+    };
+  }
 }
 
 /**
@@ -164,6 +224,7 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
     d.strategy = v ? toStrategy(null, v) : null;
   }
   attachArticles(hand, decisions);
+  attachPowerNumbers(hand, decisions);
 }
 
 /**
@@ -176,6 +237,11 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
  */
 export function applyNotionGrades(decisions: ReviewedDecision[]): void {
   for (const d of decisions) {
+    // 15bb 以下のオープンは、パワーナンバーで格付けする(オーナー指示。GTO の表・記事より優先)。
+    if (d.powerNumber) {
+      d.classification = d.powerNumber.grade;
+      continue;
+    }
     const g = d.strategy?.grade;
     if (!g) {
       applyArticleGrade(d);
