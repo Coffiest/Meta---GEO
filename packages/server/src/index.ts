@@ -8,6 +8,7 @@ import { getStripeClient, handleSubscriptionApiRequest } from "./subscriptionApi
 import { startSubscriptionReconciler } from "./subscriptionReconciler.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
+import { handleFeedbackApiRequest } from "./feedbackApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
 import { checkAdminAuth, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
@@ -111,8 +112,11 @@ const httpServer = createServer((req, res) => {
                 if (handled6) return;
                 return handleResearchApiRequest(req, res).then((handled7) => {
                   if (handled7) return;
-                  res.writeHead(404);
-                  res.end();
+                  return handleFeedbackApiRequest(req, res).then((handled8) => {
+                    if (handled8) return;
+                    res.writeHead(404);
+                    res.end();
+                  });
                 });
               });
             });

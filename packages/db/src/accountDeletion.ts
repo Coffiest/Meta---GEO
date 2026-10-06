@@ -80,6 +80,8 @@ export async function deleteAccount(userId: string): Promise<DeleteAccountResult
     await tx.referral.deleteMany({ where: { OR: [{ inviterUserId: userId }, { inviteeUserId: userId }] } });
     // エラー報告は不具合調査のため内容を残し、本人との紐付けだけ外す。
     await tx.errorReport.updateMany({ where: { userId }, data: { userId: null } });
+    // ご意見フォームの投稿は写真に個人の情報が写っていることがあるので、写真ごと消す。
+    await tx.feedback.deleteMany({ where: { userId } });
 
     // --- User 行の匿名化(削除はしない: GEOデータの参照元を壊さないため) ---
     await tx.user.update({
