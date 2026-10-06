@@ -18,6 +18,7 @@ import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { AppShareCard } from "./AppShareCard";
+import { FeedbackCard } from "./FeedbackCard";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
@@ -175,6 +176,7 @@ function GameStartButton({
         animate={{ opacity: 1, y: 0 }}
         transition={SPRING_MOVE}
         className="pressable-lg w-full"
+        data-tour="play"
       >
         <button
           type="button"
@@ -1296,9 +1298,11 @@ export function Lobby({
         widthClass="max-w-3xl lg:max-w-none"
         center={<TopNav activeKey={tab === "tournaments" ? "history" : tab} items={navItems} />}
         right={
+          <span data-tour="menu" className="inline-flex rounded-full">
           <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel={t("lobby.menuOpen")}>
             <HamburgerIcon open={menuOpen} />
           </HeaderIconButton>
+          </span>
         }
       />
 
@@ -1349,7 +1353,9 @@ export function Lobby({
             <TabHeader command="./poker-art --boot" eyebrow="System online" title="Home" />
 
             <GameStartButton onJoin={onJoin} devMtt={searchParams.get("mtt") === "dev"} />
-            <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
+            <div data-tour="elite">
+              <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
+            </div>
 
             {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
                 (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
@@ -1357,6 +1363,7 @@ export function Lobby({
 
             <PushOptInCard accessToken={accessToken} />
 
+            <div data-tour="rating">
             <RRRatingCard
               displayName={displayName}
               avatarKey={avatarKey}
@@ -1369,6 +1376,9 @@ export function Lobby({
               onViewLeaderboard={() => setTab("leaderboard")}
               onViewHistory={() => setTab("tournaments")}
             />
+            </div>
+
+            {accessToken && <FeedbackCard accessToken={accessToken} />}
 
             <AppShareCard />
 

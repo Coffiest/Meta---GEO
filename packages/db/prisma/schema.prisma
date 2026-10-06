@@ -45,6 +45,7 @@ model User {
   couponsOwned         PremiumCouponCode[]   @relation("CouponOwner")
   couponsRedeemed      PremiumCouponCode[]   @relation("CouponRedeemer")
   errorReports         ErrorReport[]
+  feedbacks            Feedback[]
 
   @@index([deletedAt])
 }
@@ -634,6 +635,46 @@ model ErrorReport {
   @@index([createdAt])
   @@index([scope, createdAt])
   @@index([resolvedAt])
+}
+
+/// ホームの「ご意見フォーム」から届いた、要望・不具合の報告・その他のメッセージ。管理者画面で読む。
+/// 写真は別表(FeedbackImage)に分け、一覧を読むときに画像の中身を引かない。
+model Feedback {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  /// 送り主(ログイン必須)。アカウント削除で一緒に消す(写真に個人の情報が写っていることがあるため)。
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "request"(要望)| "bug"(不具合)| "other"(その他)
+  kind String
+  body String
+
+  appVersion String?
+  userAgent  String?
+
+  /// 管理者が読んだ時刻。未読はnull。
+  readAt DateTime?
+
+  images FeedbackImage[]
+
+  @@index([createdAt])
+  @@index([readAt])
+}
+
+model FeedbackImage {
+  id         String   @id @default(uuid())
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  /// "image/jpeg" | "image/png" | "image/webp"
+  mime       String
+  data       Bytes
+  bytes      Int
+  /// 添付の並び順(0〜)
+  position   Int
+
+  @@index([feedbackId])
 }
 
 // ---------------------------------------------------------------------------

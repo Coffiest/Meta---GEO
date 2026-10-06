@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasscodeModal } from "@/components/PasscodeModal";
+import { FeedbackInbox } from "@/components/admin/FeedbackInbox";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -418,6 +419,9 @@ export default function AdminPage() {
 
         {passcode && (
           <>
+            {/* ホームのご意見フォームから届いたもの(要望・不具合・その他)。 */}
+            <FeedbackInbox passcode={passcode} />
+
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
             <div className="mb-4 rounded-xl border border-line p-3.5">
               <div className="flex items-start gap-2.5">

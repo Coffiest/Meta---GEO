@@ -18,6 +18,10 @@ import {
   revokeCompSubscription,
   searchUsersForAdmin,
   listErrorReports,
+  listFeedback,
+  countUnreadFeedback,
+  getFeedbackImage,
+  setFeedbackRead,
   summarizeErrorReports,
   setErrorReportResolved,
   getStorageReport,
@@ -232,6 +236,47 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       await setErrorReportResolved(id, resolved);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // ホームの「ご意見フォーム」から届いたもの。`?unread=1` で未読のみ。写真は id だけ返す(中身は下で1枚ずつ)。
+    if (url.pathname === "/api/admin/feedback" && req.method === "GET") {
+      const limit = clampLimit(url.searchParams.get("limit"), 100, 1, 200);
+      const unreadOnly = url.searchParams.get("unread") === "1";
+      const [items, unread] = await Promise.all([listFeedback({ limit, unreadOnly }), countUnreadFeedback()]);
+      sendJson(res, 200, { items, unread });
+      return true;
+    }
+
+    // ご意見の写真1枚(`?id=`)。画面は fetch で取り(パスコードのヘッダーが要るため)、Blob で表示する。
+    if (url.pathname === "/api/admin/feedback-image" && req.method === "GET") {
+      const id = url.searchParams.get("id") ?? "";
+      const img = id ? await getFeedbackImage(id) : null;
+      if (!img) {
+        sendJson(res, 404, { error: "not found" });
+        return true;
+      }
+      res.writeHead(200, {
+        "content-type": img.mime,
+        "content-length": String(img.data.length),
+        "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff",
+      });
+      res.end(img.data);
+      return true;
+    }
+
+    // 既読/未読の切り替え: { id, read }
+    if (url.pathname === "/api/admin/feedback-read" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      if (!id) {
+        sendJson(res, 400, { error: "id is required" });
+        return true;
+      }
+      await setFeedbackRead(id, body["read"] !== false);
       sendJson(res, 200, { ok: true });
       return true;
     }
