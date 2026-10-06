@@ -232,7 +232,9 @@ export type GeoApiErrorKind =
   /** 到達したがHTTPエラー応答(4xx/5xx)。 */
   | "http"
   /** 応答は返ったがJSONとして解釈できない。 */
-  | "parse";
+  | "parse"
+  /** 利用条件(インマネ回数)を満たしていない(403 GEO_LOCKED)。再試行しない。 */
+  | "locked";
 
 export class GeoApiError extends Error {
   readonly kind: GeoApiErrorKind;
@@ -241,6 +243,9 @@ export class GeoApiError extends Error {
   /** サーバーが返したエラー本文(先頭200文字)。原因特定の決め手になることが多い。 */
   readonly serverMessage: string | null;
   readonly elapsedMs: number;
+  /** locked のときの、今のインマネ回数と必要な回数。 */
+  readonly itmCount: number | null;
+  readonly required: number | null;
 
   constructor(params: {
     kind: GeoApiErrorKind;
@@ -249,6 +254,8 @@ export class GeoApiError extends Error {
     serverMessage?: string | null;
     elapsedMs: number;
     message: string;
+    itmCount?: number | null;
+    required?: number | null;
   }) {
     super(params.message);
     this.name = "GeoApiError";
@@ -257,6 +264,8 @@ export class GeoApiError extends Error {
     this.status = params.status ?? null;
     this.serverMessage = params.serverMessage ?? null;
     this.elapsedMs = params.elapsedMs;
+    this.itmCount = params.itmCount ?? null;
+    this.required = params.required ?? null;
   }
 
   /** 画面にそのまま出せる日本語の一文(原因が読んで分かる粒度)。 */
@@ -273,6 +282,8 @@ export class GeoApiError extends Error {
         return `サーバーがエラーを返しました（HTTP ${this.status}${this.serverMessage ? `: ${this.serverMessage}` : ""}）。`;
       case "parse":
         return "サーバーの応答を解釈できませんでした（想定外の形式）。";
+      case "locked":
+        return `GEO DATABASE はインマネ${this.required ?? 20}回で使えるようになります(今 ${this.itmCount ?? 0}回)。`;
     }
   }
 
@@ -292,6 +303,35 @@ export class GeoApiError extends Error {
  */
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/**
+ * GEO の API に付けるログインのトークン。GEO は利用条件(インマネ20回)をサーバーで確かめるので、
+ * 画面(`app/geo/page.tsx`)がログイン状態を知った時点で設定する。
+ */
+let geoAccessToken: string | null = null;
+export function setGeoAccessToken(token: string | null): void {
+  geoAccessToken = token;
+}
+
+export interface GeoAccessStatus {
+  itmCount: number;
+  required: number;
+  unlocked: boolean;
+}
+
+/** GEO の利用条件(インマネ回数)を取得する。 */
+export async function fetchGeoAccess(accessToken: string): Promise<GeoAccessStatus | null> {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/lobby/geo-access`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as GeoAccessStatus;
+  } catch {
+    return null;
+  }
+}
+
 async function postJson<T>(path: string, body: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const startedAt = Date.now();
   const elapsed = () => Date.now() - startedAt;
@@ -307,7 +347,10 @@ async function postJson<T>(path: string, body: unknown, timeoutMs = REQUEST_TIME
     res = await fetch(`${SERVER_URL}${path}`, {
       method: "POST",
       cache: "no-store",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(geoAccessToken ? { authorization: `Bearer ${geoAccessToken}` } : {}),
+      },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -326,16 +369,23 @@ async function postJson<T>(path: string, body: unknown, timeoutMs = REQUEST_TIME
   if (!res.ok) {
     // サーバーが返した本文(JSONの error フィールド、無ければ生テキスト)を原因として持ち回る。
     let serverMessage: string | null = null;
+    let locked: { itmCount: number; required: number } | null = null;
     try {
       const text = (await res.text()).slice(0, 200);
       try {
-        const parsed = JSON.parse(text) as { error?: unknown };
+        const parsed = JSON.parse(text) as { error?: unknown; code?: unknown; itmCount?: unknown; required?: unknown };
         serverMessage = typeof parsed.error === "string" ? parsed.error : text || null;
+        if (res.status === 403 && parsed.code === "GEO_LOCKED") {
+          locked = { itmCount: Number(parsed.itmCount) || 0, required: Number(parsed.required) || 20 };
+        }
       } catch {
         serverMessage = text || null;
       }
     } catch {
       /* 本文が読めなくてもステータスだけで十分な情報になる */
+    }
+    if (locked) {
+      throw new GeoApiError({ kind: "locked", path, status: 403, elapsedMs: elapsed(), message: "GEO_LOCKED", ...locked });
     }
     throw new GeoApiError({
       kind: "http",

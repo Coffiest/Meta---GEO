@@ -1,6 +1,11 @@
 /** pt-BR(ブラジル・ポルトガル語)の辞書。キーは i18n.tsx の ja と同じ。 */
 export const ptBR: Record<string, string> = {
   "tier.requirements": "Requisitos",
+  "geo.lock.title": "Requisito",
+  "geo.lock.req.itm": "Vezes no dinheiro",
+  "geo.lock.remaining": "Faltam {n} para desbloquear o GEO DATABASE",
+  "geo.lock.hint": "Termine no dinheiro {n} vezes em torneios para desbloquear o GEO DATABASE e a Pesquisa de dados.",
+  "geo.lock.play": "Jogar",
   "tier.requirementsHint": "Cumpra todos os requisitos para entrar nesta mesa.",
   "tier.meta": "{bb}BB · níveis de {min} min",
   "tier.locked": "Requisitos",

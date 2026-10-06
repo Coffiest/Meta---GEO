@@ -1,3 +1,4 @@
+import { requireGeoAccess } from "./geoAccess.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readJsonBodyLimited } from "./httpBody.js";
 import {
@@ -240,11 +241,14 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
     res.writeHead(204, {
       "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
       "access-control-allow-methods": "POST, OPTIONS",
-      "access-control-allow-headers": "content-type",
+      "access-control-allow-headers": "content-type, authorization",
     });
     res.end();
     return true;
   }
+
+  // 利用条件(インマネ20回以上)。共有のノードキャッシュより前で確かめる。
+  if (!(await requireGeoAccess(req, res))) return true;
 
   try {
     if (url.pathname === "/api/geo-tree/preflop-node" && req.method === "POST") {

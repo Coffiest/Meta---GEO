@@ -5,6 +5,7 @@ export * from "./researchQuery.js";
 export * from "./storage.js";
 export * from "./eliteTier.js";
 export * from "./bankroll.js";
+export * from "./geoAccess.js";
 export * from "./geoTree.js";
 export * from "./rrRating.js";
 export * from "./rankedEntries.js";

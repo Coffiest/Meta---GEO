@@ -1,3 +1,4 @@
+import { requireGeoAccess } from "./geoAccess.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   getOrCreateUserByAuthId,
@@ -69,6 +70,8 @@ export async function handleResearchApiRequest(req: IncomingMessage, res: Server
     email: verified.email,
     displayName: verified.email?.split("@")[0] ?? "Player",
   });
+  // データ研究も Database タブの機能なので、GEO と同じ利用条件(インマネ20回以上)。
+  if (!(await requireGeoAccess(req, res))) return true;
 
   if (url.pathname === "/api/research/summary" && req.method === "GET") {
     const scope: ResearchScope = url.searchParams.get("scope") === "me" ? "me" : "all";

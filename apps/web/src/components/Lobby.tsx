@@ -23,6 +23,7 @@ import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
 import { EliteTierCards, type EliteInfo } from "./EliteTierCards";
+import { fetchGeoAccess } from "@/lib/geoApi";
 import { InstallAppCard } from "./InstallAppCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { SegmentedTabs } from "./ui/SegmentedTabs";
@@ -1161,10 +1162,19 @@ export function Lobby({
       opened = true; // localStorage不可の環境では出さない側に倒す
     }
     if (opened) return;
-    setShowGeoToast(true);
-    // トーストらしく数秒で自動的に引っ込める(次回ホーム表示時に database 未訪問ならまた出る)。
-    const timer = setTimeout(() => setShowGeoToast(false), 6000);
-    return () => clearTimeout(timer);
+    // 利用条件(インマネ20回)を満たした人にだけ出す(満たしていない人に「解放」と言わない)。
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void fetchGeoAccess(accessToken).then((r) => {
+      if (cancelled || !r?.unlocked) return;
+      setShowGeoToast(true);
+      // トーストらしく数秒で自動的に引っ込める(次回ホーム表示時に database 未訪問ならまた出る)。
+      timer = setTimeout(() => setShowGeoToast(false), 6000);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [accessToken]);
 
   // 参加中ゲームを常時確認: マウント時 + 復帰(focus/visibilitychange)時 + 30秒間隔。
