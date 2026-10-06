@@ -368,6 +368,7 @@ function GameScreen({
   accessToken,
   unlockCode,
   onExit,
+  onPlayAgain,
 }: {
   displayName: string;
   avatarKey: string | null;
@@ -375,6 +376,8 @@ function GameScreen({
   accessToken?: string;
   unlockCode?: string;
   onExit: () => void;
+  /** 同じ種類のトーナメントにもう一度参加する(結果のポップアップの「もう一度プレイ」)。 */
+  onPlayAgain?: () => void;
 }) {
   const {
     connected,
@@ -595,6 +598,11 @@ function GameScreen({
   const revealedHoleCards = shownHoleCards
     ? Object.fromEntries(Object.entries(shownHoleCards).map(([seat, cards]) => [Number(seat), cards]))
     : null;
+
+  const gameLabel =
+    gameKey === "mtt"
+      ? "MTT トーナメント"
+      : tierLabel(tournamentInfo?.tier ?? (gameKey === "sng_shr" ? "superHighRoller" : gameKey === "sng_hr" ? "highRoller" : "regular"));
 
   // ショーダウンで手を見せずに捨てた(マックした)席。フォールドで決着していないハンドの終わりに、
   // 降りずに残っていたのに手札が1枚も公開されなかった席。
@@ -1053,7 +1061,9 @@ function GameScreen({
             gameKey={gameKey === "mtt" ? "mtt" : "sng"}
             totalEntrants={tournamentInfo?.total ?? null}
             displayName={displayName}
+            eventName={gameLabel}
             onExit={onExit}
+            onPlayAgain={gameKey === "mtt" || leftResult ? undefined : onPlayAgain}
             canReEntry={gameKey === "mtt" && !leftResult && Boolean(tournamentOver?.canReEntry)}
             reEntryCost={tournamentOver?.reEntryCost ?? 2000}
             onReEntry={reEntry}
@@ -1067,7 +1077,7 @@ function GameScreen({
           level={level}
           levelEndsAt={levelEndsAt}
           tournamentInfo={tournamentInfo}
-          gameLabel={gameKey === "mtt" ? "MTT トーナメント" : tierLabel(tournamentInfo?.tier ?? (gameKey === "sng_shr" ? "superHighRoller" : gameKey === "sng_hr" ? "highRoller" : "regular"))}
+          gameLabel={gameLabel}
           onClose={() => setStructureOpen(false)}
         />
       )}
@@ -1249,6 +1259,8 @@ export default function Page() {
   const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
+  // 「もう一度プレイ」で卓を作り直すための番号(GameScreen の key。変えると接続ごと新しく入り直す)。
+  const [gameRound, setGameRound] = useState(0);
   // MTTは通常「準備中」でサーバー側もゲートしている。解錠パスコードを入れて入室した場合のみ、
   // その値をソケットのjoinGameに載せてサーバーのゲートを通す(SNGでは undefined)。
   const [unlockCode, setUnlockCode] = useState<string | undefined>(undefined);
@@ -1488,12 +1500,14 @@ export default function Page() {
     return (
       <AdsAllowedProvider accessToken={accessToken}>
         <GameScreen
+          key={gameRound}
           displayName={profile.displayName}
           avatarKey={profile.avatarKey}
           gameKey={gameKey}
           accessToken={accessToken}
           unlockCode={unlockCode}
           onExit={() => setGameKey(null)}
+          onPlayAgain={() => setGameRound((n) => n + 1)}
         />
       </AdsAllowedProvider>
     );
