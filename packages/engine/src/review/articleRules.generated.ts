@@ -4,6 +4,448 @@ import type { ArticleRule } from "./articleRules.js";
 
 export const ARTICLE_RULES: readonly ArticleRule[] = [
   {
+    "id": "icm-bvb-sb-limp-good",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "ICM 下の BvB: SB はリンプでポットを小さく",
+    "summary": "プレッシャーのかかる場面の BvB で SB リンプ、いい選択だよ。ICM が強いほど SB はレイズを減らして、リンプでポットを小さく保つのが GTO でも主流なんだ。",
+    "body": "ICM は全体の打ち方を保守的にするから、SB まで全員降りてくる BvB が増えて、ここの打ち方が成績に直結する。均衡の柱は2つ。リンプ/チェックでポットを小さく保つことと、オールインで降ろすこと。リスクプレミアムが大きいほど、SB のオープンレイズは大きく減って、バブルや最終卓ではほぼ「リンプかフォールド」になる。小さめのオフスートのブロードウェイや中くらいのスーテッドは、レイズからリンプへ移るよ。OOP の SB がポットを大きくするのは特に損なんだ。",
+    "grade": "good",
+    "keepGto": true,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "unopened"
+      ],
+      "icmStage": [
+        "nearBubble",
+        "bubble",
+        "finalTable"
+      ],
+      "effStackBb": {
+        "min": 22
+      },
+      "action": [
+        "call"
+      ]
+    }
+  },
+  {
+    "id": "icm-bvb-sb-raise-polar",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "ICM 下の BvB: SB のレイズは狭くポラライズ",
+    "summary": "ICM 下の BvB で SB からレイズするなら、レンジは狭くポラライズに。バリューは大きいペア・スーテッドエース・スーテッドブロードウェイ、ブラフは低めのスーテッド。中くらいの手はリンプに回そうね。",
+    "body": "40bb・ICM 下の SB のレイズは狭くてポラライズ。バリューは一番大きいペア、スーテッドエース、スーテッドブロードウェイだけで、ブラフには低めのスーテッドと高めのオフスートを混ぜる。たとえば T3s は T6s より良いブラフ。コールされたときは弱いけど、3ベットされたときに迷わず降りられるからだよ。小さめのオフスートのブロードウェイと中くらいのスーテッドはリンプへ、レイズ→フォールドには強すぎる中くらいの手は、浅くなったらオールインへ移る。",
+    "grade": null,
+    "keepGto": true,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "unopened"
+      ],
+      "icmStage": [
+        "nearBubble",
+        "bubble",
+        "finalTable"
+      ],
+      "effStackBb": {
+        "min": 22
+      },
+      "action": [
+        "raise2-5",
+        "raise5+"
+      ]
+    }
+  },
+  {
+    "id": "icm-bvb-sb-short-shove",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "20bb 前後の BvB: SB のオープンシャブは主力",
+    "summary": "{effBb}bb の BvB で SB からシャブ、理にかなってるよ。この深さだとオープンシャブが SB の主な武器で、ICM で BB は降りやすいんだ。",
+    "body": "スタックが 20bb 前後まで浅くなると、SB はコールや小さいレイズより、シャブかフォールドを選ぶ。直感に反して、オープンシャブは低リスクな選択なんだ。シャブのレンジの中心は、ブロッカーを持つ中くらいの強さの手。3bb のレイズはよりポラライズ(大きいペア・スーテッドエース・小さいスーテッド・大きめのオフスート)、リンプはややポラライズ。カバーされている側でも、BB の方がリスクプレミアムで降りやすいから、積極的にシャブっていいよ。",
+    "grade": "good",
+    "keepGto": true,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "unopened"
+      ],
+      "effStackBb": {
+        "min": 12,
+        "max": 26
+      },
+      "action": [
+        "allIn"
+      ]
+    }
+  },
+  {
+    "id": "icm-bvb-sb-aa-limp",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "BvB の AA はリンプに向かない",
+    "summary": "AA のリンプはもったいないよ。AA は BB のレイズのレンジをブロックしちゃうから、リンプしてもレイズしてもらいにくいんだ。",
+    "body": "ICM 下の BvB では SB のリンプが増えるけど、AA はリンプに向かない手。BB が SB のリンプにレイズしてくるレンジを AA がブロックしてしまうので、リンプ→レイズでチップを増やす機会が減る。AA はレイズ(浅ければオールイン)で、自分からポットを作ろう。",
+    "grade": "inaccuracy",
+    "keepGto": true,
+    "priority": 5,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "unopened"
+      ],
+      "heroHand": [
+        "AA"
+      ],
+      "action": [
+        "call"
+      ]
+    }
+  },
+  {
+    "id": "icm-bvb-bb-vs-limp-keep-raising",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "SB のリンプには、BB はしっかりレイズを混ぜる",
+    "summary": "SB のリンプに対して、BB は ICM 下でもレイズをあまり減らさなくていいよ。コールと3ベットを混ぜて、SB に手を読ませないようにしよう。",
+    "body": "ICM がかかると SB のレイズ頻度は大きく下がるけど、BB のレイズ頻度はそれほど下がらない。BB はどの段階でもしっかりレイズする。BB がコールとレイズを混ぜることで、SB はリンプするかどうかを単純な基準で決められなくなる。強い手はもちろん、ブロッカーのある手もアイソレートに使おう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "BB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "vsLimp"
+      ],
+      "action": [
+        "raise2-5",
+        "raise5+",
+        "allIn"
+      ]
+    }
+  },
+  {
+    "id": "icm-bvb-sb-oop-big-pot",
+    "article": "ICM とブラインドバトル: SB の戦い方",
+    "sourceUrl": "https://blog.gtowizard.com/icm-and-blind-battles-the-small-blind/",
+    "title": "OOP の SB は大きいポットを作らない",
+    "summary": "BvB の SB は OOP。ポストフロップで大きく打ってポットを膨らませるのは、エクイティを実現しにくい SB には特に損だよ。",
+    "body": "OOP の SB にとって、ポットを大きくするのは特に悪い。後から行動する BB の方がエクイティを実現しやすく、SB はポットをコントロールしにくいから。ICM がかかればなおさら。大きく打つのは、ナッツ級か、相手を確実に降ろしたいはっきりした理由があるときだけにしよう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "flop",
+        "turn"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "inPosition": false,
+      "icmStage": [
+        "nearBubble",
+        "bubble",
+        "finalTable"
+      ],
+      "action": [
+        "bet80-100",
+        "bet100+"
+      ]
+    }
+  },
+  {
+    "id": "bvb-bb-defend-wide",
+    "article": "MTT のブラインドヘッズ(BvB)をうまく制する",
+    "sourceUrl": "https://note.com/kakip4952/n/n59ddeabb2cd5",
+    "title": "BvB の BB は広く守る",
+    "summary": "{hand} を BvB の BB で降りるのはもったいないかも。SB のオープンは広いから、ポジションのある BB は広めに守るのが基本だよ。",
+    "body": "BvB は SB が OOP で、お互いのレンジがとても広い特殊な局面。BB は IP を活かして多くのハンドでアクションできる。目安として、SB のオープン 25% に対して BB は 45% 前後をコールし、11% 前後を3ベットする(40bb・プライズの目安)。スーテッドエース、ブロードウェイ、ポケットペア、スーテッドコネクターのような手は、ポジションがある分だけ守る価値が高いよ。",
+    "grade": null,
+    "keepGto": true,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "BB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "vsOpen"
+      ],
+      "effStackBb": {
+        "min": 20
+      },
+      "action": [
+        "fold"
+      ],
+      "heroHand": [
+        "22+",
+        "A2s+",
+        "K7s+",
+        "Q8s+",
+        "J8s+",
+        "T8s+",
+        "97s+",
+        "86s+",
+        "75s+",
+        "65s",
+        "54s",
+        "A8o+",
+        "KTo+",
+        "QTo+",
+        "JTo"
+      ]
+    }
+  },
+  {
+    "id": "bvb-sb-postflop-small-pot",
+    "article": "MTT のブラインドヘッズ(BvB)をうまく制する",
+    "sourceUrl": "https://note.com/kakip4952/n/n59ddeabb2cd5",
+    "title": "BvB の SB はポストフロップを小さく",
+    "summary": "BvB の SB は OOP。アンティでポットが大きい後半ほど、OOP のミスは高くつくよ。C ベットは小さめと、チェックを増やして、ポットをコントロールしよう。",
+    "body": "BvB は SB が OOP で、アンティ込みでポットが大きく、お互いのレンジがとても広い。アンティが上がる後半ほど OOP でのミスのコストが大きくなるので、C ベットの頻度を少し落として、チェックで小さいポットを保つのが基本。打つなら 1/3 ポットくらいの小さいサイズが中心になるよ。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "flop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "inPosition": false,
+      "potType": [
+        "srp",
+        "limped"
+      ],
+      "action": [
+        "bet60-80",
+        "bet80-100",
+        "bet100+"
+      ]
+    }
+  },
+  {
+    "id": "bvb-sb-vs-big-3bet-jam-or-fold",
+    "article": "MTT のブラインドヘッズ(BvB)をうまく制する",
+    "sourceUrl": "https://note.com/kakip4952/n/n59ddeabb2cd5",
+    "title": "BvB で大きい3ベットを受けたら、4ベットシャブかフォールド",
+    "summary": "BvB で大きい3ベットを受けたら、コールして OOP でポストフロップを戦うより、4ベットシャブかフォールドで決着させる方がいいよ。",
+    "body": "BB の3ベットが 7bb を超えるような大きさなら、コミットしているかブラフかの二極になりやすい。OOP の SB がコールすると、低い SPR で難しいポストフロップを OOP で戦うことになる。強い手は4ベットシャブ、それ以外はフォールドで決着させよう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "preflop"
+      ],
+      "heroPos": [
+        "SB"
+      ],
+      "blindVsBlind": true,
+      "preflopSpot": [
+        "vs3bet"
+      ],
+      "facingSizeBb": {
+        "min": 7
+      },
+      "effStackBb": {
+        "max": 45
+      },
+      "action": [
+        "call"
+      ]
+    }
+  },
+  {
+    "id": "river-bluffcatch-bluff-ratio",
+    "article": "ブラフキャッチとブロッカー(ブロッカーより大事なこと)",
+    "sourceUrl": "https://kihara-poker.hatenablog.com/entry/2021/05/24/112024",
+    "title": "リバーのブラフキャッチは「相手のブラフの割合」で決める",
+    "summary": "リバーの大きいベットへのブラフキャッチは、ブロッカーより「相手がどれくらいブラフを打つか」が本質だよ。ブラフ:バリューが 1:2 より多い相手ならコール、少ない相手ならフォールドが基本。",
+    "body": "ポットサイズのベットにコールするなら、相手のベットのうち 33% 以上がブラフである必要がある(ブラフ:バリュー = 1:2)。上手い相手はほぼこの割合でブラフを打つけど、多くの相手はここから外れる。ブロッカーを持っていても、相手のブラフの割合は 2〜4% 上がる程度。相手のレンジにそもそも何のコンボがあるか、バリューのレンジはどこまでか、そして過去のプレイからブラフを打つ人かどうか。この3つでコールかフォールドかを決めよう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "river"
+      ],
+      "facingBet": true,
+      "facingPotPct": {
+        "min": 60
+      },
+      "made": [
+        "topPair",
+        "middlePair",
+        "bottomPair",
+        "pocketPairBelow",
+        "highCard",
+        "overPair"
+      ]
+    }
+  },
+  {
+    "id": "comfy-bets-top-pair-third-barrel",
+    "article": "心地よいベット数を意識しよう",
+    "sourceUrl": "https://kihara-poker.hatenablog.com/entry/2020/10/30/151503",
+    "title": "トップペアの心地よいベット数は2回",
+    "summary": "トップペアの心地よいベット数はだいたい2回。リバーまで3回打つと、コールしてくるのは勝っている手ばかりになりやすいよ。リバーはチェックしてショーダウンを目指そう。",
+    "body": "KT を K-5-3 で持っているようなトップペア(キッカーがトップではない)は、フロップとターンの2回打つのが心地よい。3回目のベットにコールしてくる相手のレンジに対しては、勝っている確率が 50% を切ってしまう。リバーはチェックして、相手のベットには状況に応じて対応しよう。逆に AA のようなオーバーペアやセットなら、3回打ち切っていいよ。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "river"
+      ],
+      "role": [
+        "riverBarrel"
+      ],
+      "made": [
+        "topPair"
+      ],
+      "kicker": [
+        "good",
+        "low"
+      ],
+      "action": [
+        "bet40-60",
+        "bet60-80",
+        "bet80-100",
+        "bet100+",
+        "allIn"
+      ]
+    }
+  },
+  {
+    "id": "comfy-bets-overpair-three-streets",
+    "article": "心地よいベット数を意識しよう",
+    "sourceUrl": "https://kihara-poker.hatenablog.com/entry/2020/10/30/151503",
+    "title": "オーバーペアは3回打ち切る",
+    "summary": "オーバーペアの心地よいベット数は3回。ここでリバーも打ち切って、相手のトップペアからしっかりバリューを取ろう。",
+    "body": "AA を K-5-3 で持つようなオーバーペアは、3回打って全部コールされても、相手の K から大きなバリューが取れる。相手にレイズされて4回目に直面しても「心地よい数 +1」なので、コールは有力。ボードが大きく変わらない限り、3ストリートのバリューを狙おう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "river"
+      ],
+      "role": [
+        "riverBarrel"
+      ],
+      "made": [
+        "overPair"
+      ],
+      "boardPaired": false,
+      "boardFlushPossible": false
+    }
+  },
+  {
+    "id": "comfy-bets-overcard-turn-check",
+    "article": "心地よいベット数を意識しよう",
+    "sourceUrl": "https://kihara-poker.hatenablog.com/entry/2020/10/30/151503",
+    "title": "ターンのオーバーカードで、心地よいベット数が減る",
+    "summary": "ターンにオーバーカードが落ちて、自分の手は2番手のペアになった。心地よいベット数が1回に減ったから、ここはチェックでポットを小さく保とう。",
+    "body": "KT を K-6-4 で持っていてターンに A が落ちると、心地よいベット数は 2 回から 1 回に減る。打っても降りてくれるのは弱い手ばかりで、コールしてくるのは勝っている手が多くなる。ボードが変わったら、手の相対的な強さを見直そう。逆に T が落ちてツーペアになれば、心地よいベット数は 4 回に増えるよ。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "turn"
+      ],
+      "boardChange": [
+        "overcard"
+      ],
+      "made": [
+        "middlePair"
+      ],
+      "facingBet": false,
+      "action": [
+        "bet40-60",
+        "bet60-80",
+        "bet80-100",
+        "bet100+"
+      ]
+    }
+  },
+  {
+    "id": "comfy-bets-draw-raise-vs-one-bet",
+    "article": "心地よいベット数を意識しよう",
+    "sourceUrl": "https://kihara-poker.hatenablog.com/entry/2020/10/30/151503",
+    "title": "ドローのレイズは、相手の心地よいベット数を外すため",
+    "summary": "ドローでのレイズは、相手の「心地よいベット数」を外すためのもの。1回しか打ちたくない手(AQ のようなトップペア未満)にはよく効くよ。",
+    "body": "75 を K-6-4 で持つようなドローには、自分の心地よいベット数の考え方は当てはまらない。代わりに相手の心地よいベット数を外す。相手が AQ のように1回しか打ちたくない手なら、レイズで相手の手の価値を最小にできる。相手が 44(セット)のように何回でも打ちたい手なら、レイズはせずにドローの完成を待とう。",
+    "grade": null,
+    "keepGto": false,
+    "priority": 0,
+    "when": {
+      "street": [
+        "flop",
+        "turn"
+      ],
+      "facingBet": true,
+      "made": [
+        "highCard"
+      ],
+      "anyDraw": [
+        "openEnded",
+        "flushDraw",
+        "nutFlushDraw"
+      ],
+      "action": [
+        "bet40-60",
+        "bet60-80",
+        "bet80-100",
+        "bet100+",
+        "allIn"
+      ]
+    }
+  },
+  {
     "id": "cold-3bet-bb-call-weak",
     "article": "3ベットにコールドコールすべき場面はあるのか(コールド4ベットの考え方)",
     "sourceUrl": "https://blog.gtowizard.com/should-you-ever-cold-call-a-3-bet/",
