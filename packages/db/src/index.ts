@@ -33,3 +33,4 @@ export * from "./errorReport.js";
 export * from "./feedback.js";
 export * from "./accountDeletion.js";
 export * from "./marketing.js";
+export { PREFLOP_BANDS, type Preflop100Pos } from "./data/preflop100.js";

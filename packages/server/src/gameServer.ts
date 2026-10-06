@@ -15,7 +15,8 @@ import {
   type SngTierConfig,
 } from "@meta-geo/engine";
 import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries } from "@meta-geo/db";
-import { decideBotAction, lastAggressorSeat } from "./bot.js";
+import { lastAggressorSeat } from "./bot.js";
+import { decideStrongBotAction } from "./botStrategy/index.js";
 import { computeRevealedSeats } from "./showdown.js";
 import { HandActionClock } from "./actionClock.js";
 import { activeGames } from "./activeGames.js";
@@ -989,19 +990,26 @@ export class TableSession implements GameSession {
     const activeOpponentCount = state.seats.filter(
       (s) => s.seatIndex !== seatIndex && (s.status === "active" || s.status === "allIn"),
     ).length;
-    return decideBotAction({
-      street: state.street,
-      holeCards: holeCards as unknown as readonly [Card, Card],
-      board: state.board,
-      currentBetToMatch: state.currentBetToMatch,
-      streetContribution: seat.streetContribution,
-      minRaiseToAmount: hand.getMinRaiseToAmount(),
-      potBefore: state.potTotal,
-      stack: seat.stack,
+    // GTO の表(プリフロップ)と相手のレンジに対する勝率(ポストフロップ)で決める。表の無い局面は従来の判断。
+    return decideStrongBotAction({
+      hand,
+      seatIndex,
+      seatCount: this.seatCount,
       canRaise: !seat.hasActedThisStreet,
-      activeOpponentCount,
-      bigBlind: this.tournament?.getCurrentLevel().bigBlind,
-      isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
+      legacy: {
+        street: state.street,
+        holeCards: holeCards as unknown as readonly [Card, Card],
+        board: state.board,
+        currentBetToMatch: state.currentBetToMatch,
+        streetContribution: seat.streetContribution,
+        minRaiseToAmount: hand.getMinRaiseToAmount(),
+        potBefore: state.potTotal,
+        stack: seat.stack,
+        canRaise: !seat.hasActedThisStreet,
+        activeOpponentCount,
+        bigBlind: this.tournament?.getCurrentLevel().bigBlind,
+        isAggressor: lastAggressorSeat(hand.getEvents()) === seatIndex,
+      },
     });
   }
 
