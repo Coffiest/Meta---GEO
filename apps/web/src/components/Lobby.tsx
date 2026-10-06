@@ -370,7 +370,8 @@ function TournamentHistoryCard({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay }}
         whileTap={{ scale: 0.985 }}
-        onClick={() => setOpen(true)}
+        // ワンタップでそのトーナメントの棋譜解析を開く(オーナー指示)。解析を開けない記録だけ詳細シートを出す。
+        onClick={() => (onOpenReview && point.tournamentId ? onOpenReview(point.tournamentId) : setOpen(true))}
         className="w-full text-left rounded-[18px] glass-panel shadow-e1 p-3.5"
       >
         <div className="flex items-start justify-between mb-2.5">
@@ -400,7 +401,10 @@ function TournamentHistoryCard({
             <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
           </div>
         </div>
-        <div className="text-right text-[10px] text-fg-2">{t("lobby.tapDetail")}</div>
+        <div className="flex items-center justify-end gap-1 text-[11px] font-bold text-accent">
+          <span>{t("lobby.tapReview")}</span>
+          <Icon name="chevron-right" className="h-3.5 w-3.5" />
+        </div>
       </motion.button>
 
       <AnimatePresence>
