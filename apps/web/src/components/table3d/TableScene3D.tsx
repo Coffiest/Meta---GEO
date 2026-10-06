@@ -70,9 +70,16 @@ function normalizeUv(geo: BufferGeometry): BufferGeometry {
   return geo;
 }
 
+/** フェルトをレールの下へ敷き込む幅(レールの面取り bevelSize 0.03 より十分大きく)。`Table` のコメント参照。 */
+const FELT_TUCK = 0.08;
+/** レールの面取りの幅。穴(内側の線)はこの分だけ外へ広がって見える。 */
+const RAIL_BEVEL_SIZE = 0.03;
+
 /** フェルトの絵(色の濃淡・繊維の粒・ベットライン・薄いロゴ)。1回だけ canvas に描く。 */
 function makeFeltTexture(shape: TableShape): CanvasTexture {
   const { halfWidth, halfDepth, railWidth } = shape;
+  // 絵はフェルトの面全体(レールの下へ敷き込んだ分を含む)に貼る。位置の換算もその範囲で行う。
+  const inset = railWidth - FELT_TUCK;
   const W = 1024;
   const H = Math.round((W * halfDepth) / halfWidth);
   const c = document.createElement("canvas");
@@ -102,8 +109,8 @@ function makeFeltTexture(shape: TableShape): CanvasTexture {
 
   // ベットライン(卓の形を内側に縮めた細い線)。
   const toPx = (x: number, z: number) => [
-    ((x + (halfWidth - railWidth)) / (2 * (halfWidth - railWidth))) * W,
-    ((z + (halfDepth - railWidth)) / (2 * (halfDepth - railWidth))) * H,
+    ((x + (halfWidth - inset)) / (2 * (halfWidth - inset))) * W,
+    ((z + (halfDepth - inset)) / (2 * (halfDepth - inset))) * H,
   ];
   g.strokeStyle = "rgba(190, 255, 240, 0.13)";
   g.lineWidth = 3;
@@ -161,17 +168,23 @@ function Table({ shape }: { shape: TableShape }) {
       depth: railHeight - bevel,
       bevelEnabled: true,
       bevelThickness: bevel,
-      bevelSize: 0.03,
+      bevelSize: RAIL_BEVEL_SIZE,
       bevelSegments: 6,
       curveSegments: 1,
     });
 
+    // 金属の縁は、レールの見えている内側の線(面取りで bevelSize だけ外へ広がる)にぴったり沿わせる。
+    const railEdge = railWidth - RAIL_BEVEL_SIZE;
     const trim = new Shape();
-    trim.curves = outlineShape(shape, railWidth - 0.004).curves;
-    trim.holes = [outlinePath(shape, railWidth + 0.016)];
+    trim.curves = outlineShape(shape, railEdge - 0.004).curves;
+    trim.holes = [outlinePath(shape, railEdge + 0.016)];
     const trimGeo = new ExtrudeGeometry(trim, { depth: 0.012, bevelEnabled: false, curveSegments: 1 });
 
-    const feltGeo = normalizeUv(new ShapeGeometry(outlineShape(shape, railWidth), 1));
+    // フェルトはレールの下まで敷き込む(FELT_TUCK)。ExtrudeGeometry の面取りは穴の輪郭を外へ押し広げる
+    // (bevelSize の分だけ穴が大きくなる)ため、フェルトをレールの内側の線ちょうどで切ると、レールとの間に
+    // 細い隙間が開く。正面からは見えないが、奥のレールは見下ろす角度になるので、その隙間から下の背景が
+    // 黒い帯として透けていた(オーナー指摘「卓の上部が埋めきれていない」)。レールの中に隠れる分には見えない。
+    const feltGeo = normalizeUv(new ShapeGeometry(outlineShape(shape, railWidth - FELT_TUCK), 1));
 
     const apronGeo = new ExtrudeGeometry(outlineShape(shape, 0.06), { depth: 0.16, bevelEnabled: false, curveSegments: 1 });
     return { railGeo, trimGeo, feltGeo, apronGeo };
