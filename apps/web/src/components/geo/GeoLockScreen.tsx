@@ -11,7 +11,16 @@ import { SPRING_MOVE } from "@/lib/motion";
  * High Roller の条件のポップアップと同じ構成(錠・見出し・今の値 / 必要な値)に、進み具合のバーを添える。
  * 遊んでもらうための仕掛けなので、「あと○回」を大きく見せ、ロビーへ戻る導線を置く。
  */
-export function GeoLockScreen({ itmCount, required }: { itmCount: number; required: number }) {
+export function GeoLockScreen({
+  itmCount,
+  required,
+  onShowGuide,
+}: {
+  itmCount: number;
+  required: number;
+  /** 「GEO でできることを見る」(説明の全画面を開く)。 */
+  onShowGuide?: () => void;
+}) {
   const { t } = useI18n();
   const remaining = Math.max(0, required - itmCount);
   const ratio = required > 0 ? Math.min(1, itmCount / required) : 0;
@@ -49,6 +58,15 @@ export function GeoLockScreen({ itmCount, required }: { itmCount: number; requir
           {t("geo.lock.play")}
           <Icon name="arrow-right" className="h-4 w-4" />
         </Link>
+        {onShowGuide && (
+          <button
+            type="button"
+            onClick={onShowGuide}
+            className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
+          >
+            {t("geo.lock.guide")}
+          </button>
+        )}
       </motion.div>
     </div>
   );

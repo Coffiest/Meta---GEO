@@ -85,7 +85,10 @@ export default function GeoPage() {
     );
   }
   if (geoAccess.state.status === "locked") {
-    return <GeoLockScreen itmCount={geoAccess.state.itmCount} required={geoAccess.state.required} />;
+    const { itmCount, required } = geoAccess.state;
+    // 条件を満たしていない人にも、初回は GEO で何ができるかを見せる(遊ぶ動機づけ)。最後は「Playへ」。
+    if (showGuide) return <GeoGuide locked={{ itmCount, required }} onDone={() => setShowGuide(false)} />;
+    return <GeoLockScreen itmCount={itmCount} required={required} onShowGuide={() => setShowGuide(true)} />;
   }
   return <GeoUnlocked showGuide={showGuide} onGuideDone={() => setShowGuide(false)} onLocked={geoAccess.lock} />;
 }
