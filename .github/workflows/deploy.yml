@@ -24,14 +24,61 @@ name: Deploy
 # VAPID系の2つが未設定でもデプロイは失敗せず、プッシュ通知機能のみ無効化される
 # (購読APIは503を返し、ホームの通知カード自体が表示されなくなる)。
 # 手動実行(Actionsタブ → Deploy → Run workflow)または main への push で動く。
+#
+# ## サーバーの入れ替えは、必要なときだけ・誰も遊んでいないときに行う
+#
+# 進行中の卓はサーバーのメモリにしか無い。サーバーを入れ替える(再起動する)と、遊んでいる人の卓が
+# 全部消えて、画面に「進行中の卓が見つかりません」(NO_SESSION)と出る。以前は main への push の
+# たびに無条件で入れ替えていた(しかも Fly の secrets 反映と本体のデプロイで、1回につき2回再起動)ので、
+# 見た目だけの変更でも遊んでいる人の卓を消していた。そこで次の3段で守る:
+#
+#   1. changes        サーバーに関わる変更が無ければ、サーバーとDBには触らない(Webだけ出す)
+#   2. wait-for-quiet 入れ替える前に、誰かが対局中の間は待つ(上限あり)
+#   3. secrets は --stage で、本体のデプロイと同時に反映する(余計な再起動をしない)
+#
+# 急ぐ修正は、手動実行の `force` で「サーバーも必ず入れ替え・対局中でも待たない」にできる。
+# (卓を保存して再起動後に復元する根本策は別。この3段は「再起動の回数と、巻き込む人」を減らすもの。)
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force:
+        description: "サーバーも必ず入れ替え、対局中の人がいても待たずに進める(遊んでいる人の卓は消える)"
+        type: boolean
+        default: false
 
 jobs:
+  # サーバーに関わる変更があるか。いま動いているサーバーの版(/health の sha)と比べて決める。
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.diff.outputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 動いているサーバーの版との差分を取るため、履歴が要る
+      - id: diff
+        run: bash .github/scripts/server-changed.sh
+        env:
+          FORCE: ${{ inputs.force }}
+
+  # 入れ替える前に、対局中の人がいなくなるのを待つ(DBの移行より前。待っている間に、
+  # 新しいDBのスキーマで古いサーバーが動く時間を延ばさないため)。
+  wait-for-quiet:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/wait-for-quiet.sh 25
+        env:
+          FORCE: ${{ inputs.force }}
+
   migrate-db:
+    needs: [changes, wait-for-quiet]
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,18 +105,46 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   deploy-server:
-    needs: migrate-db
+    needs: [changes, migrate-db]
+    if: needs.changes.outputs.server == 'true'
+    # サーバーの入れ替えは1度に1つだけ。重なると、同じマシンへ2つの flyctl deploy が走る。
+    # (待っている実行が複数あれば古い方は取り消されるが、判定は「動いているサーバーの版」との
+    #  差分なので、新しい方の実行がその分も含めて入れ替える。)
+    concurrency:
+      group: deploy-server
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 動いているサーバーの版との差分を取るため
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Set Fly secrets
+      # この順番が回ってきた時点で、もう一度「入れ替えが要るか」を確かめる。サーバーの変更を含む
+      # 直前の実行が先に入れ替えを終えていると、こちらは(Webだけの変更なら)もう不要になっている。
+      # 判定は最初の changes ジョブの時点のもので、その後の入れ替えを知らない。
+      - name: Recheck whether the server still needs replacing
+        id: recheck
+        run: bash .github/scripts/server-changed.sh
+        env:
+          FORCE: ${{ inputs.force }}
+      # DBの移行に数分かかる間に、新しい対局が始まっているかもしれない。再起動の直前にもう一度
+      # (短く)確かめる。
+      - name: Wait for a quiet moment (before restart)
+        if: steps.recheck.outputs.server == 'true'
+        run: bash .github/scripts/wait-for-quiet.sh 5
+        env:
+          FORCE: ${{ inputs.force }}
+      # --stage: 設定だけして再起動はしない。次の `flyctl deploy` が一緒に反映する。
+      # (以前は `secrets set` が即座に再起動し、本体のデプロイでもう一度再起動していたので、
+      #  1回のデプロイでサーバーが2回落ちていた。)
+      - name: Set Fly secrets (staged)
+        if: steps.recheck.outputs.server == 'true'
         run: |
           # WEB_ORIGIN は本番Webオリジンに限定する(以前は "*" で全API/Socket.IOがオリジン無制限だった)。
           # secrets.WEB_ORIGIN があればそれを、無ければ固定の本番URLを使う。
           ORIGIN="${{ secrets.WEB_ORIGIN }}"
           if [ -z "$ORIGIN" ]; then ORIGIN="https://meta-geo-poker.vercel.app"; fi
-          flyctl secrets set \
+          flyctl secrets set --stage \
             DATABASE_URL="${{ secrets.DATABASE_URL }}" \
             WEB_ORIGIN="$ORIGIN" \
             SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
@@ -82,35 +157,40 @@ jobs:
             --app meta---geo
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Set ADMIN_PASSCODE (secret が設定されている場合のみ)
+      - name: Set ADMIN_PASSCODE (staged。secret が設定されている場合のみ)
+        if: steps.recheck.outputs.server == 'true'
         # 未設定なら既定パスコードのまま(移行期間)。空文字で上書きしないよう ifガードする。
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ADMIN_PASSCODE: ${{ secrets.ADMIN_PASSCODE }}
         run: |
           if [ -n "$ADMIN_PASSCODE" ]; then
-            flyctl secrets set ADMIN_PASSCODE="$ADMIN_PASSCODE" --app meta---geo
-            echo "ADMIN_PASSCODE を設定しました。"
+            flyctl secrets set --stage ADMIN_PASSCODE="$ADMIN_PASSCODE" --app meta---geo
+            echo "ADMIN_PASSCODE を設定しました(次のデプロイで反映)。"
           else
             echo "ADMIN_PASSCODE secret 未設定。既定パスコードのまま稼働します(移行期間)。"
           fi
       - name: Deploy to Fly.io
+        if: steps.recheck.outputs.server == 'true'
         run: |
           flyctl deploy \
             --config packages/server/fly.toml \
             --dockerfile packages/server/Dockerfile \
             --app meta---geo \
             --remote-only \
+            --build-arg GIT_SHA=${{ github.sha }} \
             .
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # マッチング待合・進行中の卓をインメモリで保持するため、必ず単一マシンで動かす。
       # (複数マシンだと別マシンのプレイヤー同士が同卓できず、常にBOT卓になる。)
       - name: Pin to a single machine
+        if: steps.recheck.outputs.server == 'true'
         run: flyctl scale count 1 --app meta---geo --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Health check
+        if: steps.recheck.outputs.server == 'true'
         run: |
           for i in 1 2 3 4 5 6 7 8; do
             if curl -sf https://meta---geo.fly.dev/health; then exit 0; fi
@@ -125,7 +205,17 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-web:
-    needs: deploy-server
+    # サーバーを入れ替えない実行(Webだけの変更)ではサーバーのジョブが skipped になる。
+    # 既定では「needs が skipped なら自分も skipped」になるので、success か skipped のときに限って
+    # 進める。サーバーが失敗した/取り消されたときに、新しいWebだけが先に出てしまうのは避ける
+    # (新しいWebが、まだ入れ替わっていないサーバーに無い機能を呼ぶことになる)。
+    needs: [changes, deploy-server]
+    if: ${{ !cancelled() && needs.changes.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.deploy-server.result) }}
+    # Vercel へのデプロイとエイリアスの貼り直しが重ならないようにする(古い実行が最後に終わって、
+    # 古い版のエイリアスで上書きしてしまうのを防ぐ)。
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
