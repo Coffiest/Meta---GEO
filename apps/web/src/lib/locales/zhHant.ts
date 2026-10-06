@@ -200,7 +200,6 @@ export const zhHant: Record<string, string> = {
   "lobby.sec.profit": "盈虧",
   "lobby.sec.trend": "盈虧走勢",
   "lobby.sec.tourneyResults": "錦標賽成績",
-  "lobby.sec.playstyle": "打法風格",
   "lobby.recentTourneys": "最近錦標賽場數",
   "lobby.needLoginStats": "需要登入才能記錄數據。",
   "lobby.needLoginHistory": "需要登入才能記錄手牌紀錄。",

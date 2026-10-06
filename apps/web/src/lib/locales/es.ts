@@ -200,7 +200,6 @@ export const es: Record<string, string> = {
   "lobby.sec.profit": "Balance",
   "lobby.sec.trend": "Evolución",
   "lobby.sec.tourneyResults": "Resultados en torneos",
-  "lobby.sec.playstyle": "Estilo de juego",
   "lobby.recentTourneys": "Torneos recientes",
   "lobby.needLoginStats": "Inicia sesión para registrar tus estadísticas.",
   "lobby.needLoginHistory": "Inicia sesión para registrar tu historial de manos.",
