@@ -134,6 +134,7 @@ const ja: Dict = {
   "seat.chat": "チャット",
   "seat.timeBankUsed": "タイムバンク",
   "seat.away": "離席中",
+  "seat.muck": "Muck",
 
   "common.close": "閉じる",
   "greeting.morning": "おはよう",
@@ -555,6 +556,7 @@ const en: Dict = {
   "seat.chat": "Chat",
   "seat.timeBankUsed": "Time Bank",
   "seat.away": "Away",
+  "seat.muck": "Muck",
 
   "common.close": "Close",
   "greeting.morning": "Good morning",
@@ -976,6 +978,7 @@ const ko: Dict = {
   "seat.chat": "채팅",
   "seat.timeBankUsed": "타임뱅크",
   "seat.away": "자리비움",
+  "seat.muck": "머크",
 
   "common.close": "닫기",
   "greeting.morning": "좋은 아침",
@@ -1397,6 +1400,7 @@ const zh: Dict = {
   "seat.chat": "聊天",
   "seat.timeBankUsed": "时间银行",
   "seat.away": "离席中",
+  "seat.muck": "盖牌",
 
   "common.close": "关闭",
   "greeting.morning": "早上好",

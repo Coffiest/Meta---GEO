@@ -81,6 +81,7 @@ export const es: Record<string, string> = {
   "seat.chat": "Chat",
   "seat.timeBankUsed": "Banco de tiempo",
   "seat.away": "Ausente",
+  "seat.muck": "Muck",
 
   "common.close": "Cerrar",
   "greeting.morning": "Buenos días",

@@ -81,6 +81,7 @@ export const ptBR: Record<string, string> = {
   "seat.chat": "Chat",
   "seat.timeBankUsed": "Time bank",
   "seat.away": "Ausente",
+  "seat.muck": "Muck",
 
   "common.close": "Fechar",
   "greeting.morning": "Bom dia",

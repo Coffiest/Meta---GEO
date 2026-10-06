@@ -159,6 +159,8 @@ export interface SeatViewProps {
   onStackTap?: () => void;
   /** 席ピルの左外に積む補助操作(タイムバンク・離席)。自席にだけ渡す。 */
   aside?: ReactNode;
+  /** ショーダウンで手を見せずに捨てた(マックした)。手札の上に「Muck」を出す。 */
+  mucked?: boolean;
 }
 
 export function Seat({
@@ -188,6 +190,7 @@ export function Seat({
   displayMode = "bb",
   onStackTap,
   aside = null,
+  mucked = false,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -278,6 +281,17 @@ export function Seat({
                   />
                 );
               })}
+            {/* ショーダウンでマックした手: 手札の上に「Muck」。手を見せなかったことを卓の全員に示す。 */}
+            {mucked && showCards && (
+              <motion.span
+                initial={{ opacity: 0, y: 4, x: "-50%" }}
+                animate={{ opacity: 1, y: 0, x: "-50%" }}
+                transition={SPRING_SNAPPY}
+                className="pointer-events-none absolute -top-2.5 left-1/2 z-40 rounded-full bg-n-4 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-e1 ring-1 ring-canvas"
+              >
+                {t("seat.muck")}
+              </motion.span>
+            )}
             {/* ハンドショウ意思ON(どちらか1枚でも): 押した本人にだけ分かる目のアイコンをカード束の
                 右上に重ねる(相手には何も伝わらない ― 意思は終了時にまとめて公開される)。 */}
             {anyArmed && showCards && (
