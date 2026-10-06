@@ -62,7 +62,20 @@ const httpServer = createServer((req, res) => {
       "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
       "cache-control": "no-store",
     });
-    res.end(JSON.stringify({ ok: true }));
+    // uptimeSec: 画面に「進行中の卓が見つかりません」(NO_SESSION)が出たとき、直前にサーバーが
+    //   再起動していたかを実測で確かめるため(再起動直後なら小さい値になる)。
+    // playing: いま対局中の人数。デプロイが「誰かが遊んでいる間は再起動を待つ」ために読む。
+    //   人数だけで、誰が・どの卓にいるかは返さない。
+    // sha: 動いているサーバーの版(デプロイ時に Docker の build-arg で埋める。ローカルでは null)。
+    //   デプロイが「サーバーに関わる変更があるときだけ入れ替える」ための基準になる。
+    res.end(
+      JSON.stringify({
+        ok: true,
+        uptimeSec: Math.round(process.uptime()),
+        playing: lobby.playingCount(),
+        sha: process.env["GIT_SHA"] || null,
+      }),
+    );
     return;
   }
 

@@ -63,6 +63,21 @@ export class Lobby {
     if (typeof timer.unref === "function") timer.unref();
   }
 
+  /**
+   * いま対局中(進行中の卓にいて、まだ終わっていない)の人数。
+   *
+   * 卓はこのサーバーのメモリにしか無く、サーバーを再起動すると全員の卓が消える
+   * (画面には「進行中の卓が見つかりません」と出る)。デプロイの前に「今は再起動して良いか」を
+   * 判断するために `/health` で返す。
+   */
+  playingCount(): number {
+    let n = 0;
+    for (const [userId, session] of this.activeSessions) {
+      if (!session.isFinished() && !session.isUserDone(userId)) n += 1;
+    }
+    return n;
+  }
+
   /** 終了済みセッションへの参照を activeSessions から取り除く。プロセス常駐のメモリ肥大を防ぐ。 */
   private pruneFinishedSessions(): void {
     for (const [userId, session] of this.activeSessions) {

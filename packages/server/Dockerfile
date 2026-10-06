@@ -21,6 +21,11 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @meta-geo/db run generate
 
 ENV NODE_ENV=production
+# 動いているサーバーの版(コミットSHA)。/health が返し、デプロイが「サーバーに関わる変更があるときだけ
+# 入れ替える」判定の基準にする。ARG は値が変わるたびに以降のレイヤーを作り直させるので、
+# キャッシュを無駄にしないよう、重い手順(pnpm install など)より後ろの、最後の方に置く。
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
 EXPOSE 4000
 
 CMD ["pnpm", "--filter", "@meta-geo/server", "exec", "tsx", "src/index.ts"]
