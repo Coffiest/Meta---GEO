@@ -200,7 +200,6 @@ export const ptBR: Record<string, string> = {
   "lobby.sec.profit": "Lucro",
   "lobby.sec.trend": "Evolução",
   "lobby.sec.tourneyResults": "Resultados em torneios",
-  "lobby.sec.playstyle": "Estilo de jogo",
   "lobby.recentTourneys": "Torneios recentes",
   "lobby.needLoginStats": "Entre para registrar suas estatísticas.",
   "lobby.needLoginHistory": "Entre para registrar seu histórico de mãos.",

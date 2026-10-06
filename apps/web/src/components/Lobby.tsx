@@ -1393,8 +1393,8 @@ export function Lobby({
               stats ? (
                 <>
                   {/* 収支サマリー(出典: uiverse.io by Gidarxの「アイコン付き見出し+仕切り線で
-                      2分割された金額表記」を、獲得/参加費の2軸へ組み替えて適用。収支・ROIは
-                      各列の下に色付きの差分表記として残し、タップで従来どおり説明モーダルを開ける)。 */}
+                      2分割された金額表記」)。左が収支・右が ROI(オーナー指定)。得た金額・かけた金額は
+                      各列の下の小さい補足に回し、タップで従来どおり説明モーダルを開ける。 */}
                   <AnimatedCard delay={0.06}>
                     <div className="flex items-center gap-3 border-b border-line pb-4">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15">
@@ -1410,30 +1410,32 @@ export function Lobby({
                     <div className="flex divide-x divide-line pt-4">
                       <div className="flex-1 pr-4">
                         <StatTile
-                          label={t("stat.payouts")}
-                          value={stats.totalPayouts.toLocaleString()}
-                          countTo={stats.totalPayouts}
-                          format={(n) => Math.round(n).toLocaleString()}
+                          label={t("stat.profit")}
+                          value={formatSigned(stats.profit)}
+                          valueClass={signedClass(stats.profit)}
+                          countTo={stats.profit}
+                          format={(n) => formatSigned(Math.round(n))}
                           valueSize="lg"
-                          onInfo={() => setInfoKey("payouts")}
-                          captionLabel={t("stat.profit")}
-                          captionValue={formatSigned(stats.profit)}
-                          captionClass={signedClass(stats.profit)}
-                          onCaptionInfo={() => setInfoKey("profit")}
+                          onInfo={() => setInfoKey("profit")}
+                          captionLabel={t("stat.payouts")}
+                          captionValue={stats.totalPayouts.toLocaleString()}
+                          captionClass="text-fg-2"
+                          onCaptionInfo={() => setInfoKey("payouts")}
                         />
                       </div>
                       <div className="flex-1 pl-4">
                         <StatTile
-                          label={t("stat.buyIns")}
-                          value={stats.totalBuyIns.toLocaleString()}
-                          countTo={stats.totalBuyIns}
-                          format={(n) => Math.round(n).toLocaleString()}
+                          label={t("stat.roi")}
+                          value={`${stats.roi * 100 - 100 >= 0 ? "+" : ""}${(stats.roi * 100 - 100).toFixed(1)}%`}
+                          valueClass={signedClass(stats.roi * 100 - 100)}
+                          countTo={stats.roi * 100 - 100}
+                          format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
                           valueSize="lg"
-                          onInfo={() => setInfoKey("buyIns")}
-                          captionLabel={t("stat.roi")}
-                          captionValue={`${stats.roi * 100 - 100 >= 0 ? "+" : ""}${(stats.roi * 100 - 100).toFixed(1)}%`}
-                          captionClass={signedClass(stats.roi * 100 - 100)}
-                          onCaptionInfo={() => setInfoKey("roi")}
+                          onInfo={() => setInfoKey("roi")}
+                          captionLabel={t("stat.buyIns")}
+                          captionValue={stats.totalBuyIns.toLocaleString()}
+                          captionClass="text-fg-2"
+                          onCaptionInfo={() => setInfoKey("buyIns")}
                         />
                       </div>
                     </div>
@@ -1462,33 +1464,6 @@ export function Lobby({
                         countTo={stats.itmRate * 100}
                         format={(n) => `${n.toFixed(1)}%`}
                         onInfo={() => setInfoKey("itmRate")}
-                      />
-                    </div>
-                  </AnimatedCard>
-
-                  <AnimatedCard delay={0.14}>
-                    <div className="mb-3"><RuleLabel>{t("lobby.sec.playstyle")}</RuleLabel></div>
-                    <div className="grid grid-cols-3 gap-x-2 gap-y-4">
-                      <StatTile
-                        label={t("stat.vpip")}
-                        value={`${(stats.vpipRate * 100).toFixed(0)}%`}
-                        countTo={stats.vpipRate * 100}
-                        format={(n) => `${n.toFixed(0)}%`}
-                        onInfo={() => setInfoKey("vpip")}
-                      />
-                      <StatTile
-                        label={t("stat.pfr")}
-                        value={`${(stats.pfrRate * 100).toFixed(0)}%`}
-                        countTo={stats.pfrRate * 100}
-                        format={(n) => `${n.toFixed(0)}%`}
-                        onInfo={() => setInfoKey("pfr")}
-                      />
-                      <StatTile
-                        label={t("stat.threeBet")}
-                        value={`${(stats.threeBetRate * 100).toFixed(0)}%`}
-                        countTo={stats.threeBetRate * 100}
-                        format={(n) => `${n.toFixed(0)}%`}
-                        onInfo={() => setInfoKey("threeBet")}
                       />
                     </div>
                   </AnimatedCard>
