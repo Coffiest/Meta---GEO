@@ -71,6 +71,20 @@ export interface ReviewedDecision {
    * 古い保存済みの解析には無い。
    */
   article?: { id: string; grade: Classification | null; keepGto: boolean } | null;
+  /**
+   * 15bb 以下・誰も参加していない局面のオープンの、パワーナンバーの判定(格付けはこれで決まっている)。
+   * pn は表の数字。∞ は "inf"、空欄は "-"。古い保存済みの解析には無い。
+   */
+  powerNumber?: {
+    handClass: string;
+    pn: number | "inf" | "-";
+    m: number;
+    playersBehind: number;
+    effectiveM: number;
+    correct: "push" | "fold";
+    followed: boolean;
+    grade: Classification;
+  } | null;
 }
 
 export interface ReviewResult {

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionInfoRow } from "@/components/review/DecisionInfoRow";
+import { PowerNumberTable } from "@/components/review/PowerNumberTable";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
 import { articleRuleById, fillTemplate, isFallbackRule, type TemplateVars } from "@/lib/articleRules";
@@ -106,6 +107,8 @@ export function DecisionHeadline({
   //  バレル/スポットの表 → 記事のルール → プリフロップの GTO の一般論 → Notion の知識 → 局面の既定の解説(spots.md)
   const note = ((): Note | undefined => {
     if (solving) return undefined;
+    // 15bb 以下のオープンは、パワーナンバーの判定(格付けもこれ)。表を一緒に見せる。
+    if (decision.powerNumber) return powerNumberComment(decision.powerNumber);
     if (c && barrel) return barrelComment(barrel, context?.board);
     if (c && spot) return spotComment(spot, context?.board);
     if (articleNote && !isFallbackRule(article)) return articleNote;
@@ -172,6 +175,7 @@ export function DecisionHeadline({
           title={note?.title}
           body={note?.body}
           sourceUrl={note && "sourceUrl" in note ? note.sourceUrl : undefined}
+          extra={note?.extra}
         />
       </div>
       {gtoLabelOf ? (
@@ -190,6 +194,42 @@ interface Note {
   body?: string;
   points?: { label: string; text: string }[];
   sourceUrl?: string;
+  /** 「詳しく見る」の中に出す図(パワーナンバー表など)。 */
+  extra?: ReactNode;
+}
+
+const PN_SOURCE = "https://poker-nyuumon.com/power-number/";
+
+/** パワーナンバーの判定を、バリィの台詞と「詳しく見る」の本文・表にする。 */
+function powerNumberComment(p: NonNullable<ReviewedDecision["powerNumber"]>): Note {
+  const pnText = p.pn === "inf" ? "∞" : p.pn === "-" ? "–(空欄)" : String(p.pn);
+  const effM = p.effectiveM.toFixed(1);
+  const verdict = p.correct === "push" ? "オールイン" : "フォールド";
+  const compare =
+    p.pn === "inf"
+      ? "∞ だから、どんな有効M でもオールイン"
+      : p.pn === "-"
+        ? `空欄のマスは有効M が 3 未満のときだけオールイン。有効M は ${effM} だから${verdict}`
+        : `有効M ${effM} ${p.correct === "push" ? "<" : "≧"} ${pnText} だから${verdict}`;
+  const summary = p.followed
+    ? `${p.handClass} のパワーナンバーは ${pnText}。${compare}。表どおりの正解だよ!`
+    : `${p.handClass} のパワーナンバーは ${pnText}。${compare}が正解だったよ。`;
+  return {
+    title: "パワーナンバーで判定(15bb 以下)",
+    summary,
+    points: [
+      { label: "手札", text: `${p.handClass}(パワーナンバー ${pnText})` },
+      { label: "M", text: `${p.m.toFixed(1)}(スタック ÷ ブラインドとアンティの合計)` },
+      { label: "有効M", text: `${effM}(M × 後ろの ${p.playersBehind} 人)` },
+      { label: "正解", text: verdict },
+    ],
+    body:
+      "15bb 以下で、自分より前に誰も参加していない(全員フォールドで回ってきた)ときは、パワーナンバーでオールインかフォールドかを決める。\n" +
+      "M = 持ちスタック ÷(SB + BB + アンティ)、有効M = M × 後ろに控えている人数。有効M が表の数字より小さければオールイン、そうでなければフォールド。\n" +
+      "表の右上はスーテッド、対角はペア、左下はオフスート。∞ はいつでもオールイン、空欄は有効M が 3 未満のときだけオールイン。後ろの人数が少ないほど(BTN・SB ほど)広くオールインできるよ。",
+    sourceUrl: PN_SOURCE,
+    extra: <PowerNumberTable highlight={p.handClass} />,
+  };
 }
 
 /** 解説の置き換え語(`{hand}` など)の、この決定での値。 */
@@ -257,8 +297,10 @@ function KnowledgeBody({
   title,
   body,
   sourceUrl,
+  extra,
 }: {
   summary: string;
+  extra?: ReactNode;
   /** 要点(ノートの打ち方の表)。「詳しく見る」で開いたときに出す。 */
   points?: { label: string; text: string }[] | undefined;
   title?: string | undefined;
@@ -269,7 +311,7 @@ function KnowledgeBody({
   const speaker = REVIEW_SPEAKER;
   const hasPoints = !!points && points.length > 0;
   const hasBody = !!(title && body);
-  const expandable = hasPoints || hasBody;
+  const expandable = hasPoints || hasBody || !!extra;
   return (
     <div className="flex items-start gap-2.5">
       {speaker && (
@@ -317,6 +359,7 @@ function KnowledgeBody({
         title={title}
         body={hasBody ? body : undefined}
         sourceUrl={sourceUrl}
+        extra={extra}
       />
     </div>
   );
@@ -335,7 +378,9 @@ function KnowledgeSheet({
   title,
   body,
   sourceUrl,
+  extra,
 }: {
+  extra?: ReactNode;
   open: boolean;
   onClose: () => void;
   summary: string;
@@ -401,6 +446,7 @@ function KnowledgeSheet({
                   ))}
                 </div>
               )}
+              {extra && <div className="mt-4">{extra}</div>}
               {body && (
                 // オーナーの文章は改行も含めてそのまま出す(整形しない)。
                 <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2">{body}</p>

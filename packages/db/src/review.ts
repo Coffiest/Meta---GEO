@@ -25,7 +25,13 @@ import {
   type GtoActionEV,
 } from "./reviewClassify.js";
 import { getGeoNodeForReviewSpot, type HandClassMatrixResult } from "./geoTree.js";
-import { applyNotionGrades, attachStrategies, type DecisionArticle, type DecisionStrategy } from "./reviewStrategy.js";
+import {
+  applyNotionGrades,
+  attachStrategies,
+  type DecisionArticle,
+  type DecisionPowerNumber,
+  type DecisionStrategy,
+} from "./reviewStrategy.js";
 
 /**
  * 局後検討のオーケストレーション。1ハンド×1hero(自分)の意思決定を抽出→GTO基準で分類→永続化する。
@@ -215,6 +221,12 @@ export interface ReviewedDecision {
    * `grade` は Notion の評価が無い決定にだけバッジとして効く(`applyNotionGrades`)。
    */
   article: DecisionArticle | null;
+  /**
+   * 15bb 以下で誰も参加していない局面のオープンの判定(パワーナンバー)。オーナー指示で、この局面は GTO の表ではなく
+   * パワーナンバーで格付けする(`applyNotionGrades` が classification を置き換える)。それ以外の決定は null。
+   * 古い保存結果には無いことがある(読む側は undefined も null と同じに扱う)。
+   */
+  powerNumber?: DecisionPowerNumber | null;
 }
 
 export interface ReviewResult {
@@ -333,6 +345,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       geo: null,
       strategy: null,
       article: null,
+      powerNumber: null,
     };
   });
 }
