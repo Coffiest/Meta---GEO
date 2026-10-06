@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { adminHeaders } from "@/lib/adminApi";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -26,14 +27,14 @@ function fmt(iso: string): string {
 }
 
 /** 写真1枚。パスコードのヘッダーが要るので fetch で取り、Blob の URL で出す。 */
-function FeedbackPhoto({ id, passcode }: { id: string; passcode: string }) {
+function FeedbackPhoto({ id, passcode, accessToken }: { id: string; passcode: string; accessToken: string | null }) {
   const [url, setUrl] = useState<string | null>(null);
   const [big, setBig] = useState(false);
   useEffect(() => {
     let revoked: string | null = null;
     let cancelled = false;
     void fetch(`${SERVER_URL}/api/admin/feedback-image?id=${encodeURIComponent(id)}`, {
-      headers: { "x-admin-passcode": passcode },
+      headers: adminHeaders(passcode, accessToken),
     })
       .then((r) => (r.ok ? r.blob() : null))
       .then((b) => {
@@ -46,7 +47,7 @@ function FeedbackPhoto({ id, passcode }: { id: string; passcode: string }) {
       cancelled = true;
       if (revoked) URL.revokeObjectURL(revoked);
     };
-  }, [id, passcode]);
+  }, [id, passcode, accessToken]);
   if (!url) return <div className="h-20 w-20 animate-pulse rounded-lg bg-surface-2" />;
   return (
     <>
@@ -68,7 +69,7 @@ function FeedbackPhoto({ id, passcode }: { id: string; passcode: string }) {
  * 管理者画面の「ご意見」。ホームのご意見フォームから届いた要望・不具合・その他を新しい順に並べる。
  * 既読にすると「未読のみ」から消える。
  */
-export function FeedbackInbox({ passcode }: { passcode: string }) {
+export function FeedbackInbox({ passcode, accessToken }: { passcode: string; accessToken: string | null }) {
   const [items, setItems] = useState<FeedbackItem[] | null>(null);
   const [unread, setUnread] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(true);
@@ -79,7 +80,7 @@ export function FeedbackInbox({ passcode }: { passcode: string }) {
     setError(false);
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/feedback${unreadOnly ? "?unread=1" : ""}`, {
-        headers: { "x-admin-passcode": passcode },
+        headers: adminHeaders(passcode, accessToken),
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { items: FeedbackItem[]; unread: number };
@@ -88,7 +89,7 @@ export function FeedbackInbox({ passcode }: { passcode: string }) {
     } catch {
       setError(true);
     }
-  }, [passcode, unreadOnly]);
+  }, [passcode, accessToken, unreadOnly]);
 
   useEffect(() => {
     void load();
@@ -97,7 +98,7 @@ export function FeedbackInbox({ passcode }: { passcode: string }) {
   async function markRead(id: string, read: boolean) {
     await fetch(`${SERVER_URL}/api/admin/feedback-read`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+      headers: { "content-type": "application/json", ...adminHeaders(passcode, accessToken) },
       body: JSON.stringify({ id, read }),
     }).catch(() => {});
     void load();
@@ -150,7 +151,7 @@ export function FeedbackInbox({ passcode }: { passcode: string }) {
                 {f.images.length > 0 && (
                   <div className="mt-2 flex gap-2">
                     {f.images.map((img) => (
-                      <FeedbackPhoto key={img.id} id={img.id} passcode={passcode} />
+                      <FeedbackPhoto key={img.id} id={img.id} passcode={passcode} accessToken={accessToken} />
                     ))}
                   </div>
                 )}

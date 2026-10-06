@@ -1,5 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { authAvailable, verifyAccessToken } from "./auth.js";
 
 /**
  * 管理者パスコードの検証を1か所に集約する。
@@ -109,4 +110,65 @@ export function warnIfDefaultAdminPasscode(): void {
         "本番では GitHub Secrets / Fly secrets に ADMIN_PASSCODE を設定してください。",
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 管理者アカウント(パスコードに加えて、ログイン中のアカウントも確かめる)
+//
+// パスコードはこのリポジトリと昔のクライアントに平文で載っていたため、それだけでは守りにならない。
+// 管理者の操作は「パスコード」かつ「管理者のアカウントでログインしている」ときだけ通す。
+//  - 管理者のアカウントは、メールアドレスの SHA-256(下の一覧と env ADMIN_EMAILS)か、ユーザーID(env ADMIN_USER_IDS)で決める。
+//    メールアドレスそのものはソースに書かない(ハッシュだけ)。
+//  - 認証そのものが無い開発環境(!authAvailable())では、パスコードだけで通す。
+// ---------------------------------------------------------------------------
+
+/** オーナーのアカウントのメールアドレスの SHA-256(小文字・前後の空白なし)。 */
+const BUILTIN_ADMIN_EMAIL_SHA256 = ["541bf50f1a6c1a9c8e3a48a6c381c1b55064be3b603a6a8719111598aac20460"];
+
+function sha256(v: string): string {
+  return createHash("sha256").update(v.trim().toLowerCase()).digest("hex");
+}
+
+function envList(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
+
+/** そのメールアドレス / ユーザーID が管理者か。 */
+export function isAdminIdentity(email: string | null | undefined, userId: string | null | undefined): boolean {
+  if (userId && envList("ADMIN_USER_IDS").includes(userId)) return true;
+  if (!email) return false;
+  const h = sha256(email);
+  if (BUILTIN_ADMIN_EMAIL_SHA256.includes(h)) return true;
+  return envList("ADMIN_EMAILS").some((e) => sha256(e) === h);
+}
+
+function bearerOf(req: IncomingMessage): string | undefined {
+  const header = req.headers["authorization"];
+  const value = Array.isArray(header) ? header[0] : header;
+  return value?.startsWith("Bearer ") ? value.slice("Bearer ".length) : undefined;
+}
+
+export type AdminAccessResult =
+  | { status: "ok" }
+  | { status: "rate_limited" }
+  | { status: "unauthorized" }
+  /** パスコードは正しいが、ログインしていない / 管理者のアカウントではない。userId は画面に出して登録に使う。 */
+  | { status: "not_admin"; userId: string | null };
+
+/** 管理者のリクエストを検証する(パスコード + 管理者のアカウント)。 */
+export async function checkAdminAccess(req: IncomingMessage): Promise<AdminAccessResult> {
+  const pass = checkAdminAuth(req);
+  if (pass === "rate_limited") return { status: "rate_limited" };
+  if (pass !== "ok") return { status: "unauthorized" };
+  if (!authAvailable()) return { status: "ok" };
+  const verified = await verifyAccessToken(bearerOf(req)).catch(() => null);
+  if (!verified) return { status: "not_admin", userId: null };
+  const { prisma } = await import("@meta-geo/db");
+  const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true, email: true } });
+  const email = verified.email ?? user?.email ?? null;
+  if (isAdminIdentity(email, user?.id ?? null)) return { status: "ok" };
+  return { status: "not_admin", userId: user?.id ?? null };
 }

@@ -105,4 +105,21 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 - md を書き換えたら `pnpm --filter @meta-geo/engine run knowledge` で生成物を作り直す(忘れるとテストが落ちる)。
 - **解説の言葉は `packages/engine/knowledge/terminology.md`(用語集)に揃える。** 「大1枚+小1枚」「つながらない」のような説明ではなく、「ハイ+ローのオフスート」「ツーギャッパー」のような日本語のポーカー用語で書く。用語集に無い言葉を使うなら先に用語集へ足す。
 - **GTO の評価が付かない局面(「解析の対象外」)の解説は `packages/engine/knowledge/spots.md`。** 局面ごとに「対象外になる条件」と既定の解説がある。どの決定にも必ず解説を出す(優先順: バレル/スポットの表 → 記事のルール → プリフロップの GTO の一般論 → Notion の知識 → spots.md)。
+- **15bb 以下・誰も参加していない局面のオープンは、パワーナンバーで格付けする(オーナー指示)。** 表と判定は `packages/engine/src/review/powerNumber.ts`(出典: poker-nyuumon.com/power-number)。有効M =(開始時のスタック ÷ その時点のポット[SB+BB+アンティ])× 後ろに控えている人数。有効M が表の数字より小さければオールイン、∞ はいつでも、空欄は有効M が 3 未満のときだけ。`attachPowerNumbers` が決定に載せ、`applyNotionGrades` が GTO・記事より優先して格付けを置き換える。画面は解説の「詳しく見る」に同じ数字・同じ色の表(`PowerNumberTable`。画像は使わず部品で描く)を出す。
 - 棋譜解析のポジションは `reviewPositions`(実際のブラインドの席から数える。画面は卓と同じ名前、GTO の表は 6-max の言葉)。アクションは `normalizeCallLikeAggression` を通してから読む(額を上げていないオールイン/レイズはコール)。
+
+## 自動の席の意思決定(`packages/server/src/botStrategy/`)
+
+- 入口は `decideStrongBotAction`(`gameServer.ts` / `mttSession.ts` の `computeBotAction` から呼ぶ)。表の無い局面だけ従来の `bot.ts` に任せる。
+- **プリフロップは計算済みの GTO の表から頻度どおりに選ぶ**(`@meta-geo/db` の `openGtoActions` / `defenseGtoActions` / `vsJamGtoActions` / `buildPreflopOpenerVs3betNode`)。15bb 未満のオープンは Nash のジャムかフォールド。25bb を超える深いオールインには、相手のジャムのレンジを広めに見積もって勝率とポットオッズで決める(強い手だけだと決めつけて降りすぎない)。
+- **ポストフロップは相手のレンジに対する勝率(モンテカルロ)**。プリフロップの手からレンジを作り、ベット・レイズしてきた相手は役やドローに寄せる。C ベット・バレル・ドンクしない(ターンで低いカードがペアになったときの小さいドンクだけ例外)・降りすぎない(小さいベットにはショーダウンバリューで守る)。
+- 相手のオールインへのコールは `{ kind: "call" }` で送る(記録がレイズにならない)。返す手は `sanitize` でエンジンが受け付ける形に整える。
+- 時間の調整(`botDecisionMs`)とは独立。ペイロードに何も足さない。席の持ち主によって分岐しない。
+- 頻度のテストは `packages/server/test/botStrategy.test.ts`(BTN のオープン率・BvB・BB の守り・オーバーシャブへのコール・C ベット率・ドンク率・判断の速さ)。
+
+## 管理者画面(セキュリティ)
+
+- 管理者の操作は「パスコード」かつ「管理者のアカウントでログインしている」ときだけ通す(`packages/server/src/adminAuth.ts` の `checkAdminAccess`)。管理者のアカウントは、メールアドレスの SHA-256(ソースにはハッシュだけ)・env `ADMIN_EMAILS`・env `ADMIN_USER_IDS` で決める。
+- **パスコードの答えを画面のコードに書かない。** 照合はサーバーだけ(`/api/admin/session`。画面は `lib/adminApi.ts`)。入口は GEO タブの最下部だけ(ログイン画面には置かない)。
+- 管理者画面は `noindex`(robots.txt には書かない。書くと場所を教えてしまう)。
+

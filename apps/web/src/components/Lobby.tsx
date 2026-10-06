@@ -128,9 +128,6 @@ interface HistoryRow {
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
-/** 準備中(MTT)の開発者向け入室パスコード。 */
-const DEV_UNLOCK_CODE = "2357";
-
 /** 対局スタートカードのCTA矢印(右向き)。絵文字禁止のためSVGストロークで実装。 */
 function EnterArrow({ className }: { className?: string }) {
   return (
@@ -197,11 +194,11 @@ function GameStartButton({
       <AnimatePresence>
         {devMttOpen && (
           <PasscodeModal
-            expected={DEV_UNLOCK_CODE}
             title={t("lobby.comingSoon.devTitle")}
-            onSuccess={() => {
+            // 答えは画面に持たない。入力したコードをそのまま送り、サーバーが照合する(違えば参加できない旨が出る)。
+            onSuccess={(code) => {
               setDevMttOpen(false);
-              onJoin("mtt", DEV_UNLOCK_CODE);
+              onJoin("mtt", code);
             }}
             onClose={() => setDevMttOpen(false)}
           />

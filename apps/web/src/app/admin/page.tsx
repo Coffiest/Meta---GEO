@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { FeedbackInbox } from "@/components/admin/FeedbackInbox";
+import { adminHeaders, checkAdminSession } from "@/lib/adminApi";
+import { useAuth } from "@/lib/useAuth";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -32,7 +34,8 @@ function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active
 }
 
 /**
- * 管理者画面。ログイン画面/GEO DATABASE画面最下部のバージョン表記→パスコード(2357)から到達する。
+ * 管理者画面。GEO DATABASE画面最下部のバージョン表記→パスコードから到達する。
+ * パスコードに加えて、ログイン中のアカウントが管理者として登録されているかをサーバーで確かめる(答えは画面に持たない)。
  * プレイヤー名/ID/メールで検索し、任意ユーザーへ
  * - 棋譜解析 使い放題プランの無料付与(1週間/1ヶ月プリセット + 任意のN週間/Nヶ月)
  * - GEO戦略DBからのプレイライン削除(全期間 or 期間指定の論理削除)と復元
@@ -118,6 +121,12 @@ const POSITIONS_BY_PLAYER_COUNT: Record<number, string[]> = {
 export default function AdminPage() {
   const [passcode, setPasscode] = useState<string | null>(null);
   const [gateNeeded, setGateNeeded] = useState(false);
+  // 管理者の操作は、パスコードに加えてログイン中のアカウントもサーバーで確かめる(adminApi.ts)。
+  const { loading: authLoading, accessToken } = useAuth();
+  const tokenRef = useRef<string | null>(null);
+  tokenRef.current = accessToken ?? null;
+  /** パスコードは正しいが、管理者として登録されていないアカウントのとき(登録の依頼に使う ID を出す)。 */
+  const [notAdmin, setNotAdmin] = useState<{ userId: string | null } | null>(null);
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,14 +157,24 @@ export default function AdminPage() {
   const [geoTo, setGeoTo] = useState("");
 
   useEffect(() => {
+    if (authLoading) return;
+    let stored: string | null = null;
     try {
-      const stored = sessionStorage.getItem("adminPasscode");
-      if (stored) setPasscode(stored);
-      else setGateNeeded(true);
+      stored = sessionStorage.getItem("adminPasscode");
     } catch {
-      setGateNeeded(true);
+      stored = null;
     }
-  }, []);
+    if (!stored) {
+      setGateNeeded(true);
+      return;
+    }
+    const code = stored;
+    void checkAdminSession(code, accessToken).then((r) => {
+      if (r.status === "ok") setPasscode(code);
+      else if (r.status === "notAdmin") setNotAdmin({ userId: r.userId });
+      else setGateNeeded(true);
+    });
+  }, [authLoading, accessToken]);
 
   const search = useCallback(
     async (q: string, code: string) => {
@@ -163,7 +182,7 @@ export default function AdminPage() {
       setError(null);
       try {
         const res = await fetch(`${SERVER_URL}/api/admin/users?q=${encodeURIComponent(q)}`, {
-          headers: { "x-admin-passcode": code },
+          headers: adminHeaders(code, tokenRef.current),
         });
         if (res.status === 401) {
           try {
@@ -189,7 +208,7 @@ export default function AdminPage() {
   const loadGeoBackfill = useCallback(
     async (code: string) => {
       try {
-        const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, { headers: { "x-admin-passcode": code } });
+        const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, { headers: adminHeaders(code, tokenRef.current) });
         if (!res.ok) return;
         setGeoBackfill((await res.json()) as GeoBackfillStatus);
       } catch {
@@ -203,7 +222,7 @@ export default function AdminPage() {
   const loadPosStats = useCallback(async (code: string) => {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/geo-position-stats`, {
-        headers: { "x-admin-passcode": code },
+        headers: adminHeaders(code, tokenRef.current),
       });
       if (!res.ok) return;
       setPosStats((await res.json()) as GeoPositionStats);
@@ -217,7 +236,7 @@ export default function AdminPage() {
     try {
       const qs = flaggedOnly ? "?severity=warning&limit=50" : "?severity=info&limit=50";
       const res = await fetch(`${SERVER_URL}/api/admin/marketing/trends${qs}`, {
-        headers: { "x-admin-passcode": code },
+        headers: adminHeaders(code, tokenRef.current),
       });
       if (!res.ok) return;
       const data = (await res.json()) as { items: TrendRow[] };
@@ -261,7 +280,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/grant`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({ userId, unit, amount }),
       });
       if (!res.ok) throw new Error(String(res.status));
@@ -285,7 +304,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({ onlyMissing: true }),
       });
       const data = (await res.json()) as GeoBackfillStatus & { alreadyRunning?: boolean };
@@ -305,7 +324,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/research-backfill`, {
         method,
-        headers: { "x-admin-passcode": passcode },
+        headers: adminHeaders(passcode, tokenRef.current),
       });
       const data = (await res.json()) as ResearchBackfillStatus & { alreadyRunning?: boolean };
       setResearchBackfill(data);
@@ -322,7 +341,7 @@ export default function AdminPage() {
     if (!passcode) return;
     setError(null);
     try {
-      const res = await fetch(`${SERVER_URL}/api/admin/storage`, { headers: { "x-admin-passcode": passcode } });
+      const res = await fetch(`${SERVER_URL}/api/admin/storage`, { headers: adminHeaders(passcode, tokenRef.current) });
       if (!res.ok) throw new Error(String(res.status));
       setStorage((await res.json()) as StorageReport);
     } catch {
@@ -340,7 +359,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/geo-delete`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({
           userId,
           ...(from ? { from: new Date(from).toISOString() } : {}),
@@ -368,7 +387,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/geo-restore`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) throw new Error(String(res.status));
@@ -390,7 +409,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/revoke`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) throw new Error(String(res.status));
@@ -417,10 +436,21 @@ export default function AdminPage() {
           </Link>
         </header>
 
+        {notAdmin && !passcode && (
+          <div className="mb-4 rounded-xl border border-line p-4 text-[12px] leading-relaxed text-fg-2">
+            <p className="text-[13px] font-black text-fg">このアカウントは管理者として登録されていません</p>
+            <p className="mt-1">
+              管理者の操作は、管理者として登録したアカウントでログインしているときだけ使えます。別のアカウントでログインし直すか、
+              次の ID を管理者に登録してください。
+            </p>
+            <p className="mt-2 break-all font-mono text-[11px] text-fg">{notAdmin.userId ?? "(ログインしていません)"}</p>
+          </div>
+        )}
+
         {passcode && (
           <>
             {/* ホームのご意見フォームから届いたもの(要望・不具合・その他)。 */}
-            <FeedbackInbox passcode={passcode} />
+            <FeedbackInbox passcode={passcode} accessToken={accessToken ?? null} />
 
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
             <div className="mb-4 rounded-xl border border-line p-3.5">
@@ -726,7 +756,7 @@ export default function AdminPage() {
                                 if (!passcode) return;
                                 void fetch(`${SERVER_URL}/api/admin/marketing/trend-reviewed`, {
                                   method: "POST",
-                                  headers: { "content-type": "application/json", "x-admin-passcode": passcode },
+                                  headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
                                   body: JSON.stringify({ id: t.id }),
                                 })
                                   .then(() => loadTrends(passcode, onlyFlagged))
@@ -976,8 +1006,16 @@ export default function AdminPage() {
       <AnimatePresence>
         {gateNeeded && (
           <PasscodeModal
-            expected="2357"
             title="管理者パスコード"
+            verify={async (code) => {
+              const r = await checkAdminSession(code, tokenRef.current);
+              if (r.status === "notAdmin") {
+                setGateNeeded(false);
+                setNotAdmin({ userId: r.userId });
+                return false;
+              }
+              return r.status === "ok";
+            }}
             onSuccess={(code) => {
               try {
                 sessionStorage.setItem("adminPasscode", code);

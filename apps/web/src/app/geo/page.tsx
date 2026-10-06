@@ -38,6 +38,7 @@ import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
+import { checkAdminSession } from "@/lib/adminApi";
 import { useGeoAccess } from "@/lib/useGeoAccess";
 import { GeoLockScreen } from "@/components/geo/GeoLockScreen";
 import type { GeoAccessStatus } from "@/lib/geoApi";
@@ -177,9 +178,11 @@ function bucketLabelFor(street: Street, bucket: string): string {
 
 function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** 最下部バージョン表記タップ→パスコード(2357)→管理者画面(GEOデータ削除等)への隠し導線。 */
+  /** 最下部バージョン表記タップ→パスコード→管理者画面(GEOデータ削除等)への隠し導線。照合はサーバーだけで行う。 */
   const [adminGateOpen, setAdminGateOpen] = useState(false);
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const router = useRouter();
+  const { accessToken: adminToken } = useAuth();
   // データ源。GTOモードへの入口は廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。
   // 内部の分岐(GEO/GTOで別エンドポイントを叩く等)はそのまま残してあるが、常に"geo"側だけを通る。
   const [mode] = useState<"geo" | "gto">("geo");
@@ -903,7 +906,7 @@ function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void
           </Link>
         </section>
 
-        {/* バージョン表記(タップ→パスコード2357→管理者画面。GEOデータの閲覧/削除等)。
+        {/* バージョン表記(タップ→パスコード→管理者画面。GEOデータの閲覧/削除等)。
             ホーム画面フッターと同じターミナルプロンプト風の表記に揃えている。 */}
         <div className="mt-10 flex justify-center">
           <button
@@ -915,14 +918,23 @@ function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void
             <span className="term-cursor bg-fg-3" style={{ width: 4, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
           </button>
         </div>
+        {adminNotice && <p className="mt-2 text-center text-[10px] text-fg-3">{adminNotice}</p>}
         </main>
       </div>
 
       <AnimatePresence>
         {adminGateOpen && (
           <PasscodeModal
-            expected="2357"
             title="管理者パスコード"
+            verify={async (code) => {
+              const r = await checkAdminSession(code, adminToken);
+              if (r.status === "notAdmin") {
+                setAdminNotice(`このアカウントは管理者として登録されていません(ID: ${r.userId ?? "不明"})`);
+                setAdminGateOpen(false);
+                return false;
+              }
+              return r.status === "ok";
+            }}
             onSuccess={(code) => {
               try {
                 sessionStorage.setItem("adminPasscode", code);

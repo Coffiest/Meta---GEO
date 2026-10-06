@@ -7,41 +7,51 @@ import { Icon } from "./Icon";
 
 /**
  * 4桁パスコード入力モーダル(GEO近日公開画面の隠しゲートと同じ意匠)。
- * expected と一致したら onSuccess を呼ぶ。ログイン画面→管理者画面の入口などで共用する。
+ *
+ * **答えは画面に持たない。** 照合はサーバーだけで行う(`verify`)。以前は正解を画面のコードに平文で持っていたため、
+ * 配信される JS から誰でも読めた。`verify` を渡さなければ、入力をそのまま onSuccess に渡す(サーバー側で判定する手続き向け)。
  */
 export function PasscodeModal({
-  expected,
   title,
+  verify,
   onSuccess,
   onClose,
 }: {
-  expected: string;
   title: string;
+  /** サーバーで答え合わせする。true なら onSuccess。 */
+  verify?: (code: string) => Promise<boolean>;
   onSuccess: (code: string) => void;
   onClose: () => void;
 }) {
   const [code, setCode] = useState("");
   const [wrong, setWrong] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  function submitCode(next: string) {
-    if (next === expected) {
+  async function submitCode(next: string) {
+    if (next.length < 4) return;
+    if (!verify) {
       onSuccess(next);
       return;
     }
-    if (next.length >= 4) {
-      setWrong(true);
-      setTimeout(() => {
-        setWrong(false);
-        setCode("");
-      }, 500);
+    setChecking(true);
+    const ok = await verify(next).catch(() => false);
+    setChecking(false);
+    if (ok) {
+      onSuccess(next);
+      return;
     }
+    setWrong(true);
+    setTimeout(() => {
+      setWrong(false);
+      setCode("");
+    }, 500);
   }
 
   function pushDigit(d: string) {
-    if (code.length >= 4) return;
+    if (code.length >= 4 || checking) return;
     const next = code + d;
     setCode(next);
-    if (next.length === 4) submitCode(next);
+    if (next.length === 4) void submitCode(next);
   }
 
   return (

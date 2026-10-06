@@ -1,4 +1,6 @@
 "use client";
+import { useAuth } from "@/lib/useAuth";
+import { adminHeaders } from "@/lib/adminApi";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -69,6 +71,10 @@ export default function DiagnosticsPage() {
   // 実行中の測定を識別する。測定中に「再測定」を押された場合、古い測定の結果を
   // 混ぜて二重に並べないための番号。
   const runId = useRef(0);
+  // 管理者の確認は、パスコードに加えてログイン中のアカウントでも行う(adminApi.ts)。
+  const { accessToken } = useAuth();
+  const tokenRef = useRef<string | null>(null);
+  tokenRef.current = accessToken ?? null;
 
   const load = useCallback(async () => {
     const myRun = ++runId.current;
@@ -81,12 +87,12 @@ export default function DiagnosticsPage() {
       const passcode = typeof window !== "undefined" ? sessionStorage.getItem("adminPasscode") : null;
       const res = await fetch(`${SERVER_URL}/api/diagnostics`, {
         cache: "no-store",
-        headers: passcode ? { "x-admin-passcode": passcode } : {},
+        headers: passcode ? adminHeaders(passcode, tokenRef.current) : {},
       });
       if (runId.current !== myRun) return;
       setFetchMs(Math.round(performance.now() - started));
-      if (res.status === 401) {
-        setFetchError("この画面は管理者専用です。ホーム画面フッターのバージョン表記からパスコードで管理画面を開いてください。");
+      if (res.status === 401 || res.status === 403) {
+        setFetchError("この画面は管理者専用です。管理者のアカウントでログインし、GEO タブの最下部のバージョン表記からパスコードで管理画面を開いてください。");
         setSnapshot(null);
       } else if (!res.ok) {
         setFetchError(`サーバーが ${res.status} ${res.statusText} を返しました`);

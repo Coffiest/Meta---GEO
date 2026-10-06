@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getGeoAccess, GEO_ITM_REQUIRED, prisma } from "@meta-geo/db";
 import { authAvailable, verifyAccessToken } from "./auth.js";
+import { isAdminIdentity } from "./adminAuth.js";
 
 /**
  * GEO データベース(データベースタブ: GEO の木・データ研究)の利用条件の確認。
@@ -41,8 +42,10 @@ export async function requireGeoAccess(req: IncomingMessage, res: ServerResponse
   }
   const until = unlockedUntil.get(verified.authId);
   if (until !== undefined && until > Date.now()) return true;
-  const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true } });
+  const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true, email: true } });
   const access = user ? await getGeoAccess(user.id) : { itmCount: 0, required: GEO_ITM_REQUIRED, unlocked: false };
+  // 管理者のアカウントは利用条件に関係なく使える(運営のため。管理者画面への入口も GEO タブにある)。
+  if (isAdminIdentity(verified.email ?? user?.email ?? null, user?.id ?? null)) access.unlocked = true;
   if (access.unlocked) {
     unlockedUntil.set(verified.authId, Date.now() + UNLOCKED_TTL_MS);
     return true;
