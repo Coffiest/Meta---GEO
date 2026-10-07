@@ -162,7 +162,7 @@ export default function DiagnosticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas text-fg">
+    <div className="min-h-screen text-fg">
       <div className="mx-auto w-full max-w-2xl px-5 pb-16 pt-[calc(env(safe-area-inset-top)+24px)]">
         <div className="flex items-center gap-2.5">
           <span className="h-2.5 w-2.5 rounded-full bg-accent" />

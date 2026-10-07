@@ -138,7 +138,7 @@ export default function PricingPage() {
   const price = prices[selected];
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen">
       <div className="mx-auto max-w-md px-4 pb-16">
         <header className="flex items-center justify-between pb-4 pt-[calc(env(safe-area-inset-top)+12px)]">
           <Link href="/" aria-label="閉じる" className="pressable flex h-10 w-10 items-center justify-center rounded-full text-fg-2">

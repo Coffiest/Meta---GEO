@@ -187,7 +187,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           html 側の指定を上書きしてしまい和文がWebフォントに到達しなくなる。
           ここでは何も指定せず、html の font-family
           (var(--font-mono) → 'JetBrains Mono' → 'M PLUS 1 Code')をそのまま継承させる。 */}
-      <body className="min-h-screen bg-canvas text-fg antialiased">
+      <body className="min-h-screen text-fg antialiased">
         {/* 環境光。個々の部品ではなく空間そのものを発光させることで、テーマの「アート」を
             全画面に一度に効かせる。操作には干渉しない(pointer-events: none)。 */}
         <div className="aura" aria-hidden="true" />

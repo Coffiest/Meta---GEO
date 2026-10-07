@@ -65,7 +65,7 @@ function ScoreRing({ score }: { score: number | null }) {
         style={{ background: `radial-gradient(closest-side, rgb(var(--accent) / ${0.12 + frac * 0.3}), transparent 75%)` }}
       />
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" stroke="#242426" strokeWidth="11" />
+        <circle cx="60" cy="60" r={R} fill="none" stroke="rgb(var(--n-4))" strokeWidth="11" />
         {score !== null && (
           <motion.circle
             cx="60"

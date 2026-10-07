@@ -79,7 +79,7 @@ export default function GeoPage() {
     // 認証確認 / 表示判定が終わるまでの軽量プレースホルダ(SSRとの表示ちらつきも防ぐ)。
     // アニメーションのみ(文字での「読み込み中」表記は出さない。ユーザー指示)。
     return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas">
+      <div className="flex min-h-screen items-center justify-center">
         <Loader size="lg" />
       </div>
     );

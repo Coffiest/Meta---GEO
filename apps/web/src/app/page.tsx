@@ -1157,7 +1157,7 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
   }, []);
   const slow = seconds >= 5;
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center">
       <TermPrompt command="poker-art --connect" />
       {/* アニメーション(跳ねる玉)だけで「読み込み中」を示す。文字での「読み込み中」表記は
           アニメーションと重複するため出さない(ユーザー指示)。labelはaria-labelとしてのみ使われ、
@@ -1186,7 +1186,7 @@ function LoadingScreen({ what = "読み込み中" }: { what?: string }) {
  */
 function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: () => void }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-canvas px-6 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 px-6 text-center">
       <div className="flex items-center gap-2 text-n-9">
         <Loader size="sm" label="接続を再試行しています" />
         <p className="text-sm font-medium">接続を再試行しています…</p>
@@ -1371,7 +1371,7 @@ export default function Page() {
   // ゲストプレイは廃止。ログインなしでは常にログイン画面より先に進めない。
   if (!auth.authAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas text-n-9 text-sm px-6 text-center">
+      <div className="min-h-screen flex items-center justify-center text-n-9 text-sm px-6 text-center">
         {t("app.authUnavailable")}
       </div>
     );
@@ -1433,7 +1433,7 @@ export default function Page() {
     if (profileError?.detail) techParts.push(profileError.detail.slice(0, 120));
     const techDetail = techParts.join(" · ");
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-base font-bold text-fg">{t("app.profileFetchFailed")}</p>
         <p className="max-w-xs text-sm text-n-9">{reasonMsg}</p>
         <div className="flex flex-col items-center gap-2.5">
