@@ -448,8 +448,8 @@ export function TournamentResultScreen({
           </button>
         )}
 
-        {/* 無料の人だけに出す案内(インマネ直後は GEO、それ以外は解析)。 */}
-        {tournamentId && <UpsellCard accessToken={accessToken} variant={itm ? "itm" : "review"} />}
+        {/* 無料の人だけに出す、有料プランの案内(プランは料金ページで選んでもらう)。 */}
+        {tournamentId && <UpsellCard accessToken={accessToken} />}
 
         <div className={`grid gap-2 ${tournamentId ? "mt-2" : "mt-4"} ${onPlayAgain || showReEntry ? "grid-cols-2" : "grid-cols-1"}`}>
           <button onClick={onExit} className="rounded-2xl bg-surface-2 py-3.5 text-[14px] font-black text-fg pressable">

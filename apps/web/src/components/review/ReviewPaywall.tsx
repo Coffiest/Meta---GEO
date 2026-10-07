@@ -1,36 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { startCheckout, SubscriptionUnavailableError, useSubscriptionStatus } from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
+import { Icon } from "../Icon";
+import { SPRING_SHEET } from "@/lib/motion";
+import { useSubscriptionStatus } from "@/lib/subscription";
 
 /**
- * 棋譜解析の無料枠(24時間ローリング1回)を使い切ったときに、モーダル総括の代わりに表示する
- * ペイウォール。ロックされた解析のチラ見せ → 使い放題プラン(¥980/月)の価値訴求 → 単一の
- * 強いCTA(Stripe Checkout)で加入導線を提示する。アイコンは全てSVG。
- *
- * 課金せずに開放する手段として、招待で貰った「無料クーポン」をこの場で適用できる。
+ * 棋譜解析の無料枠(24時間に1回)を使い切った人が、2回目の局後検討を開こうとしたときのポップアップ
+ * (オーナー指示。chess.com の「局後検討を無制限に!」の作りを参考にする)。
+ * 押すとプランを選ぶ画面(/pricing)へ進む。特定のプランは勧めず、シルバー/ゴールド/プラチナから選んでもらう。
+ * 根拠の無い数字(「上達が○倍」など)は書かない。課金せずに開放する手段として、招待のクーポンも残す。
  */
-
-const BENEFITS: { title: string; desc: string; icon: IconName }[] = [
-  {
-    title: "棋譜解析が使い放題",
-    desc: "24時間の待ち時間なし。トーナメントを何度でも解析。",
-    icon: "refresh",
-  },
-  {
-    title: "GTO精度スコア & EVロス",
-    desc: "全アクションをGTO基準で採点し、失ったEVを可視化。",
-    icon: "bar-chart",
-  },
-  {
-    title: "ワースト・ベスト & 通し再生",
-    desc: "痛恨のミスと会心の一手をハイライト。全ハンド1手ずつ再生。",
-    icon: "trophy",
-  },
-];
 
 function nextFreeText(nextFreeAt: string | null): string | null {
   if (!nextFreeAt) return null;
@@ -41,173 +23,103 @@ function nextFreeText(nextFreeAt: string | null): string | null {
   return h > 0 ? `次の無料解析まで あと約${h}時間` : `次の無料解析まで あと約${Math.max(1, m)}分`;
 }
 
-import { ReportErrorButton } from "../ReportErrorButton";
-import { Icon, type IconName } from "../Icon";
-import { Loader } from "../ui/Loader";
+/** 虫眼鏡と分類バッジの挿絵(SVG。絵文字は使わない)。色は棋譜解析の分類の配色(データ可視化の例外)。 */
+function ReviewArt() {
+  return (
+    <svg viewBox="0 0 220 170" className="mx-auto h-[150px] w-auto" aria-hidden>
+      <defs>
+        <pattern id="rp-board" width="24" height="24" patternUnits="userSpaceOnUse">
+          <rect width="24" height="24" fill="#1d3b34" />
+          <rect width="12" height="12" fill="#2a5a4f" />
+          <rect x="12" y="12" width="12" height="12" fill="#2a5a4f" />
+        </pattern>
+      </defs>
+      <rect x="50" y="20" width="120" height="120" rx="8" fill="url(#rp-board)" />
+      <circle cx="104" cy="74" r="34" fill="#0A0A0B" stroke="#d9d9de" strokeWidth="7" />
+      <circle cx="104" cy="74" r="25" fill="#26c2a3" />
+      <path d="M104 58l5 10 11 1.6-8 7.8 1.9 11L104 83l-9.9 5.4L96 77.4l-8-7.8 11-1.6z" fill="#04211B" />
+      <rect x="126" y="98" width="12" height="34" rx="6" transform="rotate(-45 132 115)" fill="#8e8e93" />
+      <circle cx="46" cy="30" r="20" fill="#26c2a3" />
+      <text x="46" y="37" textAnchor="middle" fontSize="20" fontWeight="900" fill="#04211B">!!</text>
+      <circle cx="178" cy="62" r="18" fill="#f5b70a" />
+      <text x="178" y="69" textAnchor="middle" fontSize="18" fontWeight="900" fill="#1c1400">?!</text>
+      <circle cx="56" cy="140" r="20" fill="#e5484d" />
+      <text x="56" y="147" textAnchor="middle" fontSize="20" fontWeight="900" fill="#fff">??</text>
+    </svg>
+  );
+}
 
 export function ReviewPaywall({
   tournamentId,
   accessToken,
   nextFreeAt,
   onUnlocked,
+  onClose,
 }: {
   tournamentId: string;
   accessToken: string | undefined;
   nextFreeAt: string | null;
   /** クーポン適用などで解析が開放されたときに呼ばれる(呼び出し側で解析を取り直す)。 */
   onUnlocked?: () => void;
+  /** ×で閉じる(局後検討を閉じる)。 */
+  onClose?: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  // 無料体験(7日・1人1回)が使える人には「無料で試す」を前に出す(体験の有無は加入率を大きく左右する)。
   const { status } = useSubscriptionStatus(accessToken);
   const trial = status?.trialEligible ?? false;
   const trialDays = status?.trialDays ?? 7;
-  const [msg, setMsg] = useState<string | null>(null);
-  // App Store配布のiOSアプリ内かどうか。trueならStripe課金ボタンを出さずウェブへ誘導する。
-
-  const onSubscribe = async () => {
-    if (!accessToken) {
-      setMsg("ご登録にはログインが必要です。");
-      return;
-    }
-    setBusy(true);
-    setMsg(null);
-    try {
-      await startCheckout(accessToken, tournamentId); // 成功時は Stripe へリダイレクト
-    } catch (e) {
-      setBusy(false);
-      if (e instanceof SubscriptionUnavailableError) {
-        setMsg("決済は現在準備中です。まもなくご利用いただけます。");
-      } else {
-        setMsg("チェックアウトを開始できませんでした。時間をおいてお試しください。");
-      }
-    }
-  };
-
   const countdown = nextFreeText(nextFreeAt);
+  const pricingHref = `/pricing?from=review&t=${encodeURIComponent(tournamentId)}`;
 
   return (
-    <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
-      {/* ロックされた解析のチラ見せ */}
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-        className="relative overflow-hidden rounded-[24px] bg-n-4 p-5 shadow-e2"
-      >
-        {/* 背面: ぼかしたスコアのプレビュー */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-between px-5 opacity-20 blur-[3px]">
-          <span className="text-6xl font-black text-white tabular-nums">87%</span>
-          <span className="text-right text-white">
-            <span className="block text-[10px] font-bold uppercase tracking-widest">総ロスEV</span>
-            <span className="block text-2xl font-black tabular-nums">−12.4bb</span>
-          </span>
-        </div>
-        <div className="relative flex flex-col items-center text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
-            <Icon name="lock" className="h-5 w-5" />
-          </span>
-          <p className="mt-3 text-[17px] font-black leading-tight text-white">
-            このトーナメントの解析は<br />シルバー以上で開放
-          </p>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-fg-3">
-            無料枠(24時間に1回)は使い切りました。
-            {countdown ? `${countdown}。` : ""}
-            <br />今すぐ全ハンドをGTO解析するには—
-          </p>
-        </div>
-      </motion.div>
-
-      {/* プランカード(ゴールド強調) */}
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-        className="mt-3 glass-panel rounded-[24px] p-4 ring-2 ring-inset ring-accent shadow-glow"
-      >
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">シルバー</p>
-            <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
-          </div>
-          <p className="text-fg">
-            <span className="text-[34px] tracking-[-0.02em] font-black tabular-nums leading-none">¥980</span>
-            <span className="ml-1 text-[12px] font-bold text-fg-2">/月</span>
-          </p>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {BENEFITS.map((b) => (
-            <motion.div
-              key={b.title}
-              variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
-              className="flex items-start gap-3"
-            >
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-n-4">
-                <Icon name={b.icon} className="h-4 w-4" style={{ color: "#5FE0C6" }} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-black text-fg leading-tight">{b.title}</p>
-                <p className="text-[11px] leading-snug text-fg-2">{b.desc}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        <>
-        <motion.button
-          variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onSubscribe}
-          disabled={busy}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable disabled:opacity-60"
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={SPRING_SHEET}
+      className="relative mx-auto w-full max-w-[380px] rounded-[24px] bg-surface-2 px-5 pb-5 pt-6 shadow-e4"
+      role="dialog"
+      aria-labelledby="review-paywall-title"
+    >
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="pressable absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-fg-2"
         >
-          {busy ? (
-            <Loader size="sm" />
-          ) : (
-            <>
-              {trial ? `${trialDays}日間 無料で試す` : "シルバーに登録"}
-              <Icon name="chevron-right" className="h-4 w-4" />
-            </>
-          )}
-        </motion.button>
+          <Icon name="close" className="h-5 w-5" />
+        </button>
+      )}
 
-        {msg && (
-          <div className="mt-2 text-center">
-            <p className="text-[11px] font-bold text-crimson-300">{msg}</p>
-            <ReportErrorButton scope="review:paywall" message={msg} className="mt-1.5 justify-center" />
-          </div>
-        )}
-        </>
+      <ReviewArt />
 
-        {trial && (
-          <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-2">
-            体験終了後は月額¥980(税込)で自動更新。体験中に解約すれば料金はかかりません。
-          </p>
-        )}
-        <Link
-          href="/pricing"
-          className="mt-2 flex items-center justify-center gap-1 text-[12px] font-bold text-accent"
-        >
-          GEO DATABASE も使えるゴールド・プラチナを見る
-          <Icon name="chevron-right" className="h-3.5 w-3.5" />
-        </Link>
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-fg-3">
-          いつでも解約可能・クレジットカード決済(Stripe)
-          <br />
-          <Link href="/legal/tokushoho" className="underline decoration-dotted underline-offset-2 hover:text-n-9">
-            特定商取引法に基づく表記
-          </Link>
-        </p>
-      </motion.div>
+      <div className="mt-3 flex justify-center">
+        <span className="rounded-md bg-accent/15 px-2.5 py-1 text-[11px] font-black text-accent">
+          今日の無料解析を使い切りました
+        </span>
+      </div>
+      <h2 id="review-paywall-title" className="mt-3 text-center text-[26px] font-black leading-tight tracking-tight text-fg">
+        局後検討を無制限に!
+      </h2>
+      <p className="mt-2 text-center text-[13px] leading-relaxed text-fg-2">
+        プレミアム会員なら、どのトーナメントも待たずに何度でも解析。全ハンドを GTO 基準で採点し、解説付きで振り返れます。
+      </p>
+
+      <Link
+        href={pricingHref}
+        className="pressable mt-5 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow"
+      >
+        さあプレミアム会員に
+        <Icon name="chevron-right" className="h-5 w-5" />
+      </Link>
+      <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
+        {trial ? `シルバー・ゴールド・プラチナから選べます。はじめての方は${trialDays}日間無料。` : "シルバー・ゴールド・プラチナから選べます。"}
+      </p>
+      {countdown && <p className="mt-1 text-center text-[11px] font-bold text-fg-3 tabular-nums">{countdown}</p>}
 
       {/* 課金以外の開放手段。招待で貰ったクーポンをここで適用すると無料期間のあいだ解析できる。 */}
-      <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }} className="mt-3">
+      <div className="mt-4 border-t border-line pt-3">
         <CouponWallet accessToken={accessToken} onRedeemed={onUnlocked} compact />
-        <Link
-          href="/"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full glass-panel text-[13px] font-bold text-fg pressable"
-        >
-          <Icon name="user-plus" className="h-4 w-4" />
-          友達を招待してクーポンを増やす
-        </Link>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }

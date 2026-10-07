@@ -13,15 +13,14 @@ import { useSubscriptionStatus } from "@/lib/subscription";
  *
  * 出す場所は「いま欲しくなった瞬間」に限る(価値を体験した直後・できないことに当たった瞬間)。
  * 文脈に合わせた案内は、汎用の案内より加入率が高い(RevenueCat / Adapty などの調査)。
- *  - itm: インマネした直後 → GEO で答え合わせ(ゴールド)
- *  - review: トーナメントを終えた直後 → 解析を無制限に(シルバー)
+ * 特定のプランは勧めず、料金ページでシルバー/ゴールド/プラチナから選んでもらう(オーナー指示)。
  * 閉じたら3日間は出さない(しつこく出すと逆効果)。無料体験が使える人には「7日間無料」を前に出す。
  * 煽り(残り時間のカウントダウン・在庫切れなど)は使わない(景品表示法の有利誤認にならないように)。
  */
 const SNOOZE_KEY = "pokerart.upsellSnoozedUntil.v1";
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
 
-export function UpsellCard({ accessToken, variant }: { accessToken: string | undefined; variant: "itm" | "review" }) {
+export function UpsellCard({ accessToken }: { accessToken: string | undefined }) {
   const { t } = useI18n();
   const { status, loading } = useSubscriptionStatus(accessToken);
   const [snoozed, setSnoozed] = useState(true);
@@ -60,8 +59,8 @@ export function UpsellCard({ accessToken, variant }: { accessToken: string | und
       >
         <Icon name="close" className="h-3.5 w-3.5" />
       </button>
-      <p className="pr-6 text-[14px] font-black leading-snug text-fg">{t(`upsell.${variant}.title`)}</p>
-      <p className="mt-1 text-[12px] leading-relaxed text-fg-2">{t(`upsell.${variant}.body`)}</p>
+      <p className="pr-6 text-[14px] font-black leading-snug text-fg">{t("upsell.title")}</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-fg-2">{t("upsell.body")}</p>
       <Link
         href="/pricing"
         className="pressable mt-3 flex items-center justify-center gap-1.5 rounded-full border border-accent py-2.5 text-[13px] font-black text-accent"
