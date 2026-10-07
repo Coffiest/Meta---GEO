@@ -10,7 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { Header, HeaderLogo } from "./Header";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { PasscodeModal } from "./PasscodeModal";
-import { checkAdminSession, markAdminAfterLogin } from "@/lib/adminApi";
+import { checkAdminSession } from "@/lib/adminApi";
 
 function GoogleIcon() {
   return (
@@ -159,9 +159,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
   const router = useRouter();
   const reduce = useReducedMotion();
-  /** 管理者画面への入口(バージョン表記を押す)。パスコードを通したら、管理者のアカウントでのログインを待つ。 */
+  /** 管理者画面への入口(バージョン表記を押す)。パスコードが合えばそのまま管理者画面へ。 */
   const [adminGate, setAdminGate] = useState(false);
-  const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const { t } = useI18n();
 
   const resetFeedback = () => {
@@ -549,9 +548,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           ))}
         </nav>
 
-        {/* バージョン表記。押すと管理者のパスコードを聞く(オーナー指示。GEO タブの最下部と並ぶもう1つの入口)。
-            見た目は普通の文字のまま。パスコードが合っていても、管理者のアカウントでログインするまでは入れない
-            (サーバーが「パスコード」かつ「管理者のアカウント」で確かめる)。ログインできたら管理者画面へ進む。 */}
+        {/* バージョン表記。押すと管理者のパスコードを聞き、合っていればそのまま管理者画面へ進む(オーナー指示。
+            GEO タブの最下部と並ぶもう1つの入口)。見た目は普通の文字のまま。照合はサーバーだけ。 */}
         <div className="mt-8 flex flex-col items-center gap-2">
           <button
             type="button"
@@ -560,25 +558,20 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           >
             Poker ART v{APP_VERSION} ・ © 2026 Poker ART
           </button>
-          {adminNotice && <p className="text-center text-[11px] font-semibold text-accent">{adminNotice}</p>}
         </div>
         <AnimatePresence>
           {adminGate && (
             <PasscodeModal
               title="管理者パスコード"
-              verify={async (code) => {
-                // ログイン前なので「管理者のアカウントではない(未ログイン)」が返る。それはパスコードが合っている印。
-                const r = await checkAdminSession(code, auth.accessToken ?? null);
-                return r.status === "ok" || r.status === "notAdmin";
-              }}
+              verify={async (code) => (await checkAdminSession(code, auth.accessToken ?? null)).status === "ok"}
               onSuccess={(code) => {
                 setAdminGate(false);
-                markAdminAfterLogin(code);
-                if (auth.accessToken) {
-                  window.location.href = "/admin";
-                  return;
+                try {
+                  sessionStorage.setItem("adminPasscode", code);
+                } catch {
+                  /* 保存できない環境では、管理者画面でもう一度パスコードを聞く */
                 }
-                setAdminNotice("管理者のアカウントでログインすると、管理者画面が開きます。");
+                window.location.href = "/admin";
               }}
               onClose={() => setAdminGate(false)}
             />

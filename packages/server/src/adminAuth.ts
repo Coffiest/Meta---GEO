@@ -1,6 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { authAvailable, verifyAccessToken } from "./auth.js";
 
 /**
  * 管理者パスコードの検証を1か所に集約する。
@@ -113,13 +112,10 @@ export function warnIfDefaultAdminPasscode(): void {
 }
 
 // ---------------------------------------------------------------------------
-// 管理者アカウント(パスコードに加えて、ログイン中のアカウントも確かめる)
+// 管理者アカウント(GEO の利用条件の免除に使う。管理者画面の関門はパスコードだけ = オーナー指示)
 //
-// パスコードはこのリポジトリと昔のクライアントに平文で載っていたため、それだけでは守りにならない。
-// 管理者の操作は「パスコード」かつ「管理者のアカウントでログインしている」ときだけ通す。
 //  - 管理者のアカウントは、メールアドレスの SHA-256(下の一覧と env ADMIN_EMAILS)か、ユーザーID(env ADMIN_USER_IDS)で決める。
 //    メールアドレスそのものはソースに書かない(ハッシュだけ)。
-//  - 認証そのものが無い開発環境(!authAvailable())では、パスコードだけで通す。
 // ---------------------------------------------------------------------------
 
 /** オーナーのアカウントのメールアドレスの SHA-256(小文字・前後の空白なし)。 */
@@ -145,12 +141,6 @@ export function isAdminIdentity(email: string | null | undefined, userId: string
   return envList("ADMIN_EMAILS").some((e) => sha256(e) === h);
 }
 
-function bearerOf(req: IncomingMessage): string | undefined {
-  const header = req.headers["authorization"];
-  const value = Array.isArray(header) ? header[0] : header;
-  return value?.startsWith("Bearer ") ? value.slice("Bearer ".length) : undefined;
-}
-
 export type AdminAccessResult =
   | { status: "ok" }
   | { status: "rate_limited" }
@@ -158,17 +148,14 @@ export type AdminAccessResult =
   /** パスコードは正しいが、ログインしていない / 管理者のアカウントではない。userId は画面に出して登録に使う。 */
   | { status: "not_admin"; userId: string | null };
 
-/** 管理者のリクエストを検証する(パスコード + 管理者のアカウント)。 */
+/**
+ * 管理者のリクエストを検証する。**パスコードだけで通す**(オーナー指示。以前は「パスコード + 管理者のアカウント」だったが、
+ * ログインしていなくても入れるようにしてほしいとの指示で外した)。総当たり対策の IP ごとの回数制限はそのまま。
+ * 管理者のアカウントの判定(`isAdminIdentity`)は、GEO の利用条件の免除にだけ使っている。
+ */
 export async function checkAdminAccess(req: IncomingMessage): Promise<AdminAccessResult> {
   const pass = checkAdminAuth(req);
   if (pass === "rate_limited") return { status: "rate_limited" };
   if (pass !== "ok") return { status: "unauthorized" };
-  if (!authAvailable()) return { status: "ok" };
-  const verified = await verifyAccessToken(bearerOf(req)).catch(() => null);
-  if (!verified) return { status: "not_admin", userId: null };
-  const { prisma } = await import("@meta-geo/db");
-  const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true, email: true } });
-  const email = verified.email ?? user?.email ?? null;
-  if (isAdminIdentity(email, user?.id ?? null)) return { status: "ok" };
-  return { status: "not_admin", userId: user?.id ?? null };
+  return { status: "ok" };
 }

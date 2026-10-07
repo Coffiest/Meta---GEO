@@ -27,25 +27,3 @@ export async function checkAdminSession(passcode: string, accessToken: string | 
   }
 }
 
-/** ログイン画面でパスコードを通したあと、ログインできたら管理者画面へ進むための印(同じタブの間だけ残る)。 */
-const ADMIN_AFTER_LOGIN_KEY = "pokerart.adminAfterLogin";
-
-export function markAdminAfterLogin(passcode: string): void {
-  try {
-    sessionStorage.setItem("adminPasscode", passcode);
-    sessionStorage.setItem(ADMIN_AFTER_LOGIN_KEY, "1");
-  } catch {
-    /* 保存できない環境では、ログイン後に GEO タブから入ってもらう */
-  }
-}
-
-/** 印があれば消して true(1回だけ)。 */
-export function takeAdminAfterLogin(): boolean {
-  try {
-    if (sessionStorage.getItem(ADMIN_AFTER_LOGIN_KEY) !== "1") return false;
-    sessionStorage.removeItem(ADMIN_AFTER_LOGIN_KEY);
-    return true;
-  } catch {
-    return false;
-  }
-}

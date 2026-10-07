@@ -132,7 +132,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 
 ## 管理者画面(セキュリティ)
 
-- 管理者の操作は「パスコード」かつ「管理者のアカウントでログインしている」ときだけ通す(`packages/server/src/adminAuth.ts` の `checkAdminAccess`)。管理者のアカウントは、メールアドレスの SHA-256(ソースにはハッシュだけ)・env `ADMIN_EMAILS`・env `ADMIN_USER_IDS` で決める。
-- **パスコードの答えを画面のコードに書かない。** 照合はサーバーだけ(`/api/admin/session`。画面は `lib/adminApi.ts`)。入口は GEO タブの最下部と、ログイン画面のバージョン表記(オーナー指示)。ログイン画面ではパスコードを通したあと、管理者のアカウントでログインできた時点で管理者画面へ進む(`markAdminAfterLogin` / `takeAdminAfterLogin`)。
+- 管理者の操作は**パスコードだけで通す**(オーナー指示。ログインしていなくても入れる。`packages/server/src/adminAuth.ts` の `checkAdminAccess`。IP ごとの回数制限あり)。管理者のアカウント(メールアドレスの SHA-256・env `ADMIN_EMAILS`・env `ADMIN_USER_IDS`)は、GEO の利用条件の免除にだけ使う。
+- **パスコードの答えを画面のコードに書かない。** 照合はサーバーだけ(`/api/admin/session`。画面は `lib/adminApi.ts`)。入口は GEO タブの最下部と、ログイン画面のバージョン表記(オーナー指示。パスコードが合えばそのまま管理者画面へ進む)。
 - 管理者画面は `noindex`(robots.txt には書かない。書くと場所を教えてしまう)。
 

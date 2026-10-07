@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { IncomingMessage } from "node:http";
-import { checkAdminAuth, isValidUnlockCode } from "../src/adminAuth.js";
+import { checkAdminAccess, checkAdminAuth, isValidUnlockCode } from "../src/adminAuth.js";
 
 /** x-admin-passcode ヘッダとIPだけを持つ最小の擬似リクエストを作る。 */
 function req(passcode: string | undefined, ip: string): IncomingMessage {
@@ -26,6 +26,11 @@ describe("adminAuth", () => {
   it("accepts the correct passcode and rejects a wrong one", () => {
     expect(checkAdminAuth(req("secret-code", "1.1.1.1"))).toBe("ok");
     expect(checkAdminAuth(req("nope", "2.2.2.2"))).toBe("unauthorized");
+  });
+
+  it("管理者画面はパスコードだけで入れる(ログインしていなくてよい。オーナー指示)", async () => {
+    expect(await checkAdminAccess(req("secret-code", "9.9.9.9"))).toEqual({ status: "ok" });
+    expect(await checkAdminAccess(req("nope", "9.9.9.8"))).toEqual({ status: "unauthorized" });
   });
 
   it("rate limits after too many failures from one IP", () => {
