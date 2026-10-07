@@ -95,8 +95,12 @@ export interface CoachHand {
   actions: readonly CoachAction[];
 }
 
-/** ベット後に、相手のオールインへのコールに必要な勝率がこれ以下ならコミット。SPR 1 で必要勝率 33.3% の目安に合わせる(オーナー指示で 37% から緩めた。出典: cardplayer.com の SPR 解説)。 */
-export const COMMIT_MAX_REQUIRED_EQUITY = 0.34;
+/**
+ * ベット後に、相手のオールインへのコールに必要な勝率がこれ以下ならコミット(大悪手)。
+ * 分かりやすくコミットしているときだけ言う(オーナー指示: 37%・34% では「すぐコミットと言われて不快」)。
+ * 25% = 残りのスタックがポットの半分(SPR 0.5)。ここまで来ると降りるのは明らかに損(出典: cardplayer.com の SPR 解説)。
+ */
+export const COMMIT_MAX_REQUIRED_EQUITY = 0.25;
 /** ポラライズしていない(安すぎる)バレルの上限。 */
 export const POLARIZE_MAX_PCT = 0.4;
 /** ブロックベットのサイズ(33〜50%。端数の揺れを少し許す)。 */

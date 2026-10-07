@@ -43,15 +43,15 @@ function builder(stacks: number[], hole: Record<number, string[]>, board: string
 }
 
 describe("コーチのルール", () => {
-  it("2. 7bb で 2.25bb のオープン(残りでオールインにコールするしかない)はコミット → 大悪手", () => {
-    const b = builder([4000, 4000, 4000, 4000, 4000, 700], { 5: ["Kh", "Td"] }, [], 100, 100);
+  it("2. 5bb で 2.25bb のオープン(残りでオールインにコールするしかない)はコミット → 大悪手", () => {
+    const b = builder([4000, 4000, 4000, 4000, 4000, 500], { 5: ["Kh", "Td"] }, [], 100, 100);
     b.act(3, "fold", null);
     b.act(4, "fold", null);
     const seq = b.act(5, "raise", 225);
     const v = judgeCoach(b.hand, seq)!;
     expect(v.id).toBe("commit");
     expect(v.grade).toBe("blunder");
-    expect(v.requiredEquity!).toBeLessThan(0.34);
+    expect(v.requiredEquity!).toBeLessThanOrEqual(0.25);
   });
 
   it("2. 40bb の普通のオープンはコミットではない", () => {
