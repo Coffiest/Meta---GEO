@@ -125,7 +125,7 @@ export default function PricingPage() {
         </p>
         {trialEligible && !active && (
           <p className="mt-3 rounded-xl bg-accent/10 px-3 py-2 text-[12px] font-bold text-accent">
-            はじめての方は、どのプランでも{trialDays}日間無料で試せます(お1人様1回)。
+            はじめての方は、どのプランでも{trialDays}日間無料で試せます(お1人様1回)。体験終了後は選んだプランの月額で自動更新されます。体験中に解約すれば料金はかかりません。
           </p>
         )}
         {byCoupon && (
@@ -144,7 +144,14 @@ export default function PricingPage() {
                 className={`rounded-2xl p-5 ${current ? "border-2 border-accent bg-n-2 shadow-glow" : "border border-line bg-n-2"}`}
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-[17px] font-black text-fg">{PLAN_LABEL[plan]}</h2>
+                  <h2 className="flex items-center gap-2 text-[17px] font-black text-fg">
+                    {PLAN_LABEL[plan]}
+                    {plan === "gold" && !current && (
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-black text-accent ring-1 ring-inset ring-accent">
+                        おすすめ
+                      </span>
+                    )}
+                  </h2>
                   <p className="tracking-[-0.025em]">
                     <span className="text-[26px] font-black text-fg tabular-nums">¥{price.toLocaleString()}</span>
                     <span className="ml-1 text-[11px] font-bold text-fg-2">/ 月(税込)</span>

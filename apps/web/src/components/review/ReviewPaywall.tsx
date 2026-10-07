@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { startCheckout, SubscriptionUnavailableError } from "@/lib/subscription";
+import { startCheckout, SubscriptionUnavailableError, useSubscriptionStatus } from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
 
 /**
@@ -58,6 +58,10 @@ export function ReviewPaywall({
   onUnlocked?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // 無料体験(7日・1人1回)が使える人には「無料で試す」を前に出す(体験の有無は加入率を大きく左右する)。
+  const { status } = useSubscriptionStatus(accessToken);
+  const trial = status?.trialEligible ?? false;
+  const trialDays = status?.trialDays ?? 7;
   const [msg, setMsg] = useState<string | null>(null);
   // App Store配布のiOSアプリ内かどうか。trueならStripe課金ボタンを出さずウェブへ誘導する。
 
@@ -102,7 +106,7 @@ export function ReviewPaywall({
             <Icon name="lock" className="h-5 w-5" />
           </span>
           <p className="mt-3 text-[17px] font-black leading-tight text-white">
-            このトーナメントの解析は<br />使い放題プランで開放
+            このトーナメントの解析は<br />シルバー以上で開放
           </p>
           <p className="mt-1.5 text-[12px] leading-relaxed text-fg-3">
             無料枠(24時間に1回)は使い切りました。
@@ -119,7 +123,7 @@ export function ReviewPaywall({
       >
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">使い放題プラン</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">シルバー</p>
             <p className="mt-0.5 text-[13px] font-bold text-fg">棋譜解析 無制限</p>
           </div>
           <p className="text-fg">
@@ -158,7 +162,7 @@ export function ReviewPaywall({
             <Loader size="sm" />
           ) : (
             <>
-              使い放題プランに登録
+              {trial ? `${trialDays}日間 無料で試す` : "シルバーに登録"}
               <Icon name="chevron-right" className="h-4 w-4" />
             </>
           )}
@@ -172,6 +176,18 @@ export function ReviewPaywall({
         )}
         </>
 
+        {trial && (
+          <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-2">
+            体験終了後は月額¥980(税込)で自動更新。体験中に解約すれば料金はかかりません。
+          </p>
+        )}
+        <Link
+          href="/pricing"
+          className="mt-2 flex items-center justify-center gap-1 text-[12px] font-bold text-accent"
+        >
+          GEO DATABASE も使えるゴールド・プラチナを見る
+          <Icon name="chevron-right" className="h-3.5 w-3.5" />
+        </Link>
         <p className="mt-3 text-center text-[10px] leading-relaxed text-fg-3">
           いつでも解約可能・クレジットカード決済(Stripe)
           <br />
