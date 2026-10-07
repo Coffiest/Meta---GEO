@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import {
   changePlan,
@@ -15,28 +15,41 @@ import {
 } from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
 
-/** プランごとにできること。soon = まだ提供していない(準備中と表示する)。 */
-const PLAN_FEATURES: Record<PlanId, { text: string; soon?: boolean }[]> = {
-  silver: [
-    { text: "棋譜解析を待ち時間なしで無制限に(解説付き)" },
-    { text: "広告なし", soon: true },
-  ],
-  gold: [
-    { text: "シルバーの内容すべて" },
-    { text: "GEOデータベース(インマネ10回でプリフロップ、20回でポストフロップ)" },
-  ],
-  platinum: [
-    { text: "ゴールドの内容すべて" },
-    { text: "GEOデータベースを条件なしですべて" },
-    { text: "データ研究" },
-    { text: "棋譜解析で相手がマックした手札を見る", soon: true },
-  ],
-};
+/**
+ * 機能の一覧(chess.com のプラン選択画面にならう。オーナー指示)。選んだプランで使えるものにチェック、使えないものは薄く。
+ * soon = まだ提供していない(準備中と表示する)。
+ */
+const FEATURES: { text: string; icon: IconName; plans: PlanId[]; soon?: boolean }[] = [
+  { text: "棋譜解析が無制限(解説付き)", icon: "search", plans: ["silver", "gold", "platinum"] },
+  { text: "広告なし", icon: "close", plans: ["silver", "gold", "platinum"], soon: true },
+  { text: "GEO DATABASE プリフロップ", icon: "db", plans: ["gold", "platinum"] },
+  { text: "GEO DATABASE ポストフロップ以降", icon: "layers", plans: ["gold", "platinum"] },
+  { text: "GEO をインマネ回数の条件なしで", icon: "lock", plans: ["platinum"] },
+  { text: "データ研究", icon: "stats", plans: ["platinum"] },
+  { text: "相手がマックした手札を見る", icon: "cards", plans: ["platinum"], soon: true },
+];
+
+/** タブの並び(上位から。chess.com と同じ)。 */
+const TAB_ORDER: PlanId[] = ["platinum", "gold", "silver"];
+
+/** プランの印(SVG)。プラチナ=王冠、ゴールド=星、シルバー=盾。 */
+function PlanMark({ plan, active }: { plan: PlanId; active: boolean }) {
+  const fill = plan === "platinum" ? "#c7d2dc" : plan === "gold" ? "#f5b70a" : "#9aa3ad";
+  return (
+    <svg viewBox="0 0 48 48" className={`h-11 w-11 transition-opacity ${active ? "opacity-100" : "opacity-40"}`} aria-hidden>
+      {plan === "platinum" && <path d="M6 16l9 8 9-14 9 14 9-8-4 22H10z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />}
+      {plan === "gold" && (
+        <path d="M24 5l5.9 12 13.1 1.9-9.5 9.3 2.2 13.1L24 35.1 12.3 41.3l2.2-13.1L5 18.9 18.1 17z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />
+      )}
+      {plan === "silver" && <path d="M24 5l16 6v12c0 10-7 17-16 20C15 40 8 33 8 23V11z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />}
+    </svg>
+  );
+}
 
 const PLAN_ORDER: PlanId[] = ["silver", "gold", "platinum"];
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
-import { Icon, HeroIcon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 
 export default function PricingPage() {
@@ -45,6 +58,17 @@ export default function PricingPage() {
   const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 選んでいるタブ。既定はおすすめのゴールド(加入中なら今のプラン)。
+  const [selected, setSelected] = useState<PlanId>("gold");
+  // 局後検討のポップアップから来たときは見出しを合わせる。
+  const [fromReview, setFromReview] = useState(false);
+  useEffect(() => {
+    try {
+      setFromReview(new URLSearchParams(window.location.search).get("from") === "review");
+    } catch {
+      /* 見出しが変わらないだけ */
+    }
+  }, []);
   // App Store配布のiOSアプリ内かどうか(サーバーサイドレンダー時はfalse扱いのまま、
   // マウント後にUAを見て確定させる)。trueなら課金ボタン自体を出さずウェブへ誘導する。
 
@@ -93,6 +117,9 @@ export default function PricingPage() {
   const trialEligible = status?.trialEligible ?? false;
   const trialDays = status?.trialDays ?? 7;
   const prices = status?.prices ?? DEFAULT_PRICES;
+  useEffect(() => {
+    if (status?.active && status.plan && status.status !== "referral") setSelected(status.plan);
+  }, [status?.active, status?.plan, status?.status]);
 
   function buttonLabel(plan: PlanId): string {
     if (canChange && currentPlan) {
@@ -102,102 +129,123 @@ export default function PricingPage() {
     return byCoupon ? "期間終了後も続けて使う" : "このプランに登録";
   }
 
+  const isCurrent = active && !byCoupon && currentPlan === selected;
+  const price = prices[selected];
+
   return (
     <div className="min-h-screen bg-canvas">
-      <div className="max-w-md mx-auto px-4 pb-16">
-        <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-6">
-          <div className="text-[11px] tracking-[0.25em] text-accent font-semibold">POKER ART</div>
-          <Link href="/" className="text-[12px] text-n-9 hover:text-fg">
-            戻る
+      <div className="mx-auto max-w-md px-4 pb-16">
+        <header className="flex items-center justify-between pb-4 pt-[calc(env(safe-area-inset-top)+12px)]">
+          <Link href="/" aria-label="閉じる" className="pressable flex h-10 w-10 items-center justify-center rounded-full text-fg-2">
+            <Icon name="close" className="h-6 w-6" />
           </Link>
+          <span className="text-[11px] font-semibold tracking-[0.25em] text-accent">POKER ART</span>
+          <span className="w-10" />
         </header>
 
-        {/* 見出しの主張を1段上げるための大きめアイコン。ここだけ Hugeicons(面のある絵柄)を使う。 */}
-        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-n-4 text-accent">
-          <HeroIcon name="graph-up" size={30} />
-        </span>
-        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-accent">Plans</p>
-        <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-fg">
-          プランを選ぶ<span className="text-accent">.</span>
+        <h1 className="text-center text-[26px] font-black leading-tight tracking-tight text-fg">
+          {fromReview ? "局後検討を無制限に" : "プレミアム会員"}
         </h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-n-9">
-          無料プランの棋譜解析は24時間に1回まで。月額のみ・いつでも解約できます。
-        </p>
-        {trialEligible && !active && (
-          <p className="mt-3 rounded-xl bg-accent/10 px-3 py-2 text-[12px] font-bold text-accent">
-            はじめての方は、どのプランでも{trialDays}日間無料で試せます(お1人様1回)。体験終了後は選んだプランの月額で自動更新されます。体験中に解約すれば料金はかかりません。
-          </p>
-        )}
         {byCoupon && (
-          <p className="mt-3 text-[12px] leading-relaxed text-n-9">
+          <p className="mt-2 text-center text-[12px] leading-relaxed text-n-9">
             クーポンで無料期間中{couponUntil ? `(${couponUntil} まで)` : ""}。クーポンを追加すると期間が延びます。
           </p>
         )}
 
-        <div className="mt-5 space-y-3">
-          {PLAN_ORDER.map((plan) => {
-            const current = active && !byCoupon && currentPlan === plan;
-            const price = prices[plan];
+        {/* プランのタブ(上位から) */}
+        <div role="tablist" aria-label="プラン" className="mt-6 grid grid-cols-3 border-b border-line">
+          {TAB_ORDER.map((plan) => {
+            const on = selected === plan;
             return (
-              <div
+              <button
                 key={plan}
-                className={`rounded-2xl p-5 ${current ? "border-2 border-accent bg-n-2 shadow-glow" : "border border-line bg-n-2"}`}
+                role="tab"
+                aria-selected={on}
+                onClick={() => setSelected(plan)}
+                className="pressable relative flex flex-col items-center gap-1.5 pb-3 pt-4"
               >
-                <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="flex items-center gap-2 text-[17px] font-black text-fg">
-                    {PLAN_LABEL[plan]}
-                    {plan === "gold" && !current && (
-                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-black text-accent ring-1 ring-inset ring-accent">
-                        おすすめ
-                      </span>
-                    )}
-                  </h2>
-                  <p className="tracking-[-0.025em]">
-                    <span className="text-[26px] font-black text-fg tabular-nums">¥{price.toLocaleString()}</span>
-                    <span className="ml-1 text-[11px] font-bold text-fg-2">/ 月(税込)</span>
-                  </p>
-                </div>
-                <ul className="mt-3 space-y-2">
-                  {PLAN_FEATURES[plan].map((f) => (
-                    <li key={f.text} className="flex items-start gap-2.5 text-[13px] font-medium text-n-10">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent">
-                        <Icon name="check" className="h-3 w-3" />
-                      </span>
-                      <span>
-                        {f.text}
-                        {f.soon && <span className="ml-1.5 text-[10px] font-bold text-fg-2">準備中</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {current ? (
-                  <div className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-accent/10 py-2.5 text-[13px] font-black text-accent">
-                    <Icon name="check" className="h-4 w-4" />
-                    加入中
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => void handleSubscribe(plan)}
-                    disabled={submitting != null || (active && !byCoupon && !canChange)}
-                    className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable transition disabled:opacity-60"
-                  >
-                    {submitting === plan ? <Loader size="sm" /> : buttonLabel(plan)}
-                  </button>
+                {plan === "gold" && (
+                  <span className="absolute -top-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-black text-on-accent">
+                    おすすめ
+                  </span>
                 )}
-              </div>
+                <PlanMark plan={plan} active={on} />
+                <span className={`text-[14px] font-black ${on ? "text-fg" : "text-fg-3"}`}>{PLAN_LABEL[plan]}</span>
+                {active && !byCoupon && currentPlan === plan && <span className="text-[10px] font-bold text-accent">加入中</span>}
+                {on && <span className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-accent" />}
+              </button>
             );
           })}
         </div>
 
+        {/* 機能の一覧 */}
+        <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+          {FEATURES.map((f) => {
+            const has = f.plans.includes(selected);
+            return (
+              <li key={f.text} className={`flex items-center gap-3 px-3.5 py-3 ${has ? "" : "opacity-35"}`}>
+                <Icon name={f.icon} className="h-5 w-5 shrink-0 text-accent" />
+                <span className="flex-1 text-[14px] font-bold text-fg">
+                  {f.text}
+                  {f.soon && <span className="ml-1.5 text-[10px] font-bold text-fg-2">準備中</span>}
+                </span>
+                {has ? (
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent">
+                    <Icon name="check" className="h-3.5 w-3.5" />
+                  </span>
+                ) : (
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-fg-3">
+                    <Icon name="minus" className="h-3.5 w-3.5" />
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        {selected === "gold" && (
+          <p className="mt-2 text-[11px] leading-relaxed text-fg-3">
+            ゴールドの GEO は、インマネ10回でプリフロップ、20回でポストフロップ以降が開きます。
+          </p>
+        )}
+
+        {/* 価格(月額のみ) */}
+        <div className="mt-6 text-center">
+          <p className="tracking-[-0.02em]">
+            <span className="text-[32px] font-black tabular-nums text-fg">¥{price.toLocaleString()}</span>
+            <span className="ml-1 text-[14px] font-bold text-fg-2">/ 月(税込)</span>
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-fg-3">
+            {trialEligible && !active
+              ? `はじめての方は${trialDays}日間無料。体験終了後は月額で自動更新、体験中に解約すれば料金はかかりません。`
+              : "月額・いつでも解約できます。"}
+          </p>
+        </div>
+
+        {/* 決定ボタン */}
+        {isCurrent ? (
+          <div className="mt-4 flex h-14 items-center justify-center gap-1.5 rounded-2xl bg-accent/15 text-[15px] font-black text-accent">
+            <Icon name="check" className="h-5 w-5" />
+            {PLAN_LABEL[selected]}に加入中
+          </div>
+        ) : (
+          <button
+            onClick={() => void handleSubscribe(selected)}
+            disabled={submitting != null || (active && !byCoupon && !canChange)}
+            className="pressable mt-4 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow disabled:opacity-60"
+          >
+            {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
+          </button>
+        )}
         {canChange && (
-          <p className="mt-3 text-[11px] leading-relaxed text-fg-2">
-            加入中にプランを変えると、差額は日割りでその場で請求(下げる場合は次回以降の請求から差し引き)されます。
+          <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
+            差額は日割りで、上げるときはその場で請求、下げるときは次回以降の請求から差し引きます。
           </p>
         )}
         {active && !byCoupon && (
           <button
             onClick={handleManage}
-            className="mt-3 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg pressable"
+            className="pressable mt-3 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg"
           >
             契約を管理する(解約・支払い方法)
           </button>
@@ -210,7 +258,7 @@ export default function PricingPage() {
         )}
 
         {/* 課金せずに使う手段。招待で貰ったクーポンをここでも確認・コピー・適用できる。 */}
-        <div className="mt-4">
+        <div className="mt-6">
           <CouponWallet accessToken={accessToken} onRedeemed={() => void reload()} />
         </div>
 

@@ -540,6 +540,7 @@ export function TournamentReviewModal({
             tournamentId={tournamentId}
             accessToken={accessToken}
             nextFreeAt={quota.nextFreeAt}
+            onClose={onClose}
             onUnlocked={() => {
               setQuota(null);
               setRetryToken((n) => n + 1);
