@@ -76,7 +76,7 @@ function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: 
       {/* ぼかした見本 */}
       <div className="rounded-[18px] bg-canvas" aria-hidden>
         <div className="flex border-b border-line px-3 text-[13px] font-black">
-          {["プリフロップ", "フロップ", "ターン", "リバー"].map((tab, i) => (
+          {["Preflop", "Flop", "Turn", "River"].map((tab, i) => (
             <span key={tab} className={`relative flex-1 py-3 text-center ${i === 0 ? "text-fg" : "text-fg-3"}`}>
               {tab}
               {i === 0 && <span className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-accent" />}
