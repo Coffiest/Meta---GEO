@@ -118,6 +118,15 @@ function ordinal(n: number): string {
 /** 結果のポップアップに並べる手の分類(chess.com の結果画面と同じく、良い手と悪い手の代表だけ)。 */
 const RESULT_CLASSES: Classification[] = ["artistic", "best", "great", "inaccuracy", "mistake", "blunder"];
 
+/** 結果に出すバッジは3種類まで(オーナー指示。chess.com にならう)。絶妙手と大悪手を最優先し、件数のあるものから選ぶ。 */
+const BADGE_PRIORITY: Classification[] = ["artistic", "blunder", "best", "mistake", "great", "inaccuracy"];
+function pickResultBadges(counts: Partial<Record<Classification, number>> | undefined): Classification[] {
+  const withCount = BADGE_PRIORITY.filter((c) => (counts?.[c] ?? 0) > 0);
+  const picked = [...withCount, ...BADGE_PRIORITY.filter((c) => !withCount.includes(c))].slice(0, 3);
+  // 並びは良い手 → 悪い手の順に戻す。
+  return RESULT_CLASSES.filter((c) => picked.includes(c));
+}
+
 /** 手の分類ごとの件数。棋譜解析の無料の要約(課金ゲート無し)から取り、解析中は数秒おきに取り直す。 */
 function useReviewCounts(tournamentId: string | null | undefined, accessToken: string | undefined) {
   const [data, setData] = useState<TournamentReviewSummary | null>(null);
@@ -414,22 +423,24 @@ export function TournamentResultScreen({
 
         {/* 2) 手の分類の件数 */}
         {tournamentId && accessToken && !review.failed && (
-          <div className="mt-4 grid grid-cols-6 gap-1">
-            {RESULT_CLASSES.map((c, i) => (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {pickResultBadges(counts).map((c, i) => (
               <motion.div
                 key={c}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING_SNAPPY, delay: 0.15 + i * 0.04 }}
-                className="flex flex-col items-center gap-1"
+                className="flex flex-col items-center gap-1.5"
               >
-                <ClassificationBadge classification={c} size={26} />
-                {counts ? (
-                  <span className="text-[15px] font-black tabular-nums text-fg">{counts[c] ?? 0}</span>
-                ) : (
-                  <span className="h-[18px] w-5 animate-pulse rounded bg-surface-2" />
-                )}
-                <span className="w-full truncate text-center text-[9px] font-bold text-fg-3">
+                <span className="flex items-center gap-2">
+                  <ClassificationBadge classification={c} size={34} />
+                  {counts ? (
+                    <span className="text-[24px] font-black tabular-nums text-fg">{counts[c] ?? 0}</span>
+                  ) : (
+                    <span className="h-[26px] w-5 animate-pulse rounded bg-surface-2" />
+                  )}
+                </span>
+                <span className="w-full truncate text-center text-[12px] font-bold text-fg-2">
                   {CLASSIFICATION_META[c].label}
                 </span>
               </motion.div>

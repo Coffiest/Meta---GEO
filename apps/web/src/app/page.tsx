@@ -617,11 +617,24 @@ function GameScreen({
     return out.size > 0 ? out : null;
   }, [lastHandEnded, state]);
 
-  // 敗退した瞬間に結果画面で卓を覆ってしまうと、自分が飛んだそのハンドの相手の手札を
-  // 見られないまま終わる(特にオールイン勝負のショーダウン)。結果画面は少し待ってから出し、
-  // その間は卓とショーダウンを見せる。待てない人のために「結果を見る」ボタンも同時に出す。
-  const SHOWDOWN_GRACE_MS = 6000;
-  const BUST_GRACE_MS = 1500;
+  // 飛んだ席(ハンドが終わってスタックが0)。席に「PLAYER OUT」を貼る。自分が飛んだときは自分の席にも必ず貼る。
+  const outSeats = useMemo(() => {
+    if (!state) return null;
+    const out = new Set<number>();
+    if (lastHandEnded) {
+      for (const s of state.seats) {
+        // ハンド終了時点の state のスタックは配当前なので、配当を足して0なら飛んだ。
+        if (s.playerId && s.stack + (lastHandEnded.result.payouts[s.playerId] ?? 0) === 0) out.add(s.seatIndex);
+      }
+    }
+    if (tournamentOver && yourSeatIndex != null) out.add(yourSeatIndex);
+    return out.size > 0 ? out : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastHandEnded, state, tournamentOver, yourSeatIndex]);
+
+  // 敗退したら、席に「PLAYER OUT」を約1秒見せてから結果のポップアップを出す(オーナー指示)。
+  const SHOWDOWN_GRACE_MS = 1200;
+  const BUST_GRACE_MS = 1200;
   const [resultReady, setResultReady] = useState(false);
   useEffect(() => {
     if (!tournamentOver) {
@@ -773,6 +786,7 @@ function GameScreen({
             seatCount={SEAT_COUNT}
             revealedHoleCards={revealedHoleCards}
             muckedSeats={muckedSeats}
+            outSeats={outSeats}
             players={players}
             bigBlind={bigBlind}
             lastActionBySeat={lastActionBySeat}
@@ -984,25 +998,6 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {/* 敗退直後のショーダウン猶予。相手の手札を見終えた人がすぐ進めるようにボタンを出す。 */}
-      <AnimatePresence>
-        {resultPending && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+24px)] z-40 mx-auto flex w-[92%] max-w-md justify-center"
-          >
-            <button
-              type="button"
-              onClick={() => setResultReady(true)}
-              className="rounded-full bg-n-4 px-6 py-3 text-[13px] font-black text-white shadow-e3 pressable"
-            >
-              結果を見る
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* 卓が本当に消えている場合の案内。強制退出はせず、本人の操作でホームへ戻れるようにする。 */}
       <AnimatePresence>
