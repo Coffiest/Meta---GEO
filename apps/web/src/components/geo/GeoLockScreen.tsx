@@ -6,68 +6,135 @@ import { Icon } from "@/components/Icon";
 import { useI18n } from "@/lib/i18n";
 import { SPRING_MOVE } from "@/lib/motion";
 
+/** 段階ごとの解放の回数(サーバーの `packages/db/src/geoAccess.ts` と同じ。表示用)。 */
+const PREFLOP_AT = 10;
+const POSTFLOP_AT = 20;
+
 /**
- * GEO DATABASE の利用条件(インマネ20回以上)を満たしていないときに、データベースタブの代わりに出す画面。
- * High Roller の条件のポップアップと同じ構成(錠・見出し・今の値 / 必要な値)に、進み具合のバーを添える。
+ * GEO DATABASE の利用条件の錠(オーナー確定: インマネ10回でプリフロップまで、20回でポストフロップ以降とデータ研究)。
+ * High Roller の条件のポップアップと同じ構成(錠・見出し・今の値 / 必要な値)に、進み具合のバーと、
+ * 段階の一覧と、なぜ縛っているかの説明(GEO は実際のプレイデータで成り立っている)を添える。
  * 遊んでもらうための仕掛けなので、「あと○回」を大きく見せ、ロビーへ戻る導線を置く。
+ *
+ * stage = "preflop": まだ何も使えない(全画面) / "postflop": プリフロップまでの人がポストフロップ以降を開いた。
  */
-export function GeoLockScreen({
+export function GeoLockCard({
   itmCount,
   required,
+  stage = "preflop",
   onShowGuide,
+  onClose,
 }: {
   itmCount: number;
   required: number;
+  stage?: "preflop" | "postflop";
   /** 「GEO でできることを見る」(説明の全画面を開く)。 */
   onShowGuide?: () => void;
+  /** 渡すと「閉じる」を出す(ポストフロップの錠をシートで出すとき)。 */
+  onClose?: () => void;
 }) {
   const { t } = useI18n();
   const remaining = Math.max(0, required - itmCount);
   const ratio = required > 0 ? Math.min(1, itmCount / required) : 0;
+  const steps = [
+    { at: PREFLOP_AT, label: t("geo.lock.stage.preflop") },
+    { at: POSTFLOP_AT, label: t("geo.lock.stage.postflop") },
+  ];
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={SPRING_MOVE}
-        className="w-full max-w-[360px] rounded-2xl bg-surface-2 p-6 shadow-e4"
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={SPRING_MOVE}
+      className="w-full max-w-[360px] rounded-2xl bg-surface-2 p-6 shadow-e4"
+    >
+      <div className="flex items-center gap-2">
+        <Icon name="lock" className="h-4 w-4 shrink-0 text-fg-2" />
+        <p className="text-[11px] font-black tracking-[0.08em] text-fg-2">{t("geo.lock.title")}</p>
+      </div>
+      <h1 className="mt-1 text-[22px] font-black tracking-tight text-fg">
+        {stage === "postflop" ? t("geo.lock.postflopTitle") : "GEO DATABASE"}
+      </h1>
+
+      <div className="mt-5 flex items-baseline justify-between gap-3 tabular-nums">
+        <span className="text-[13px] font-semibold text-fg-2">{t("geo.lock.req.itm")}</span>
+        <span className="text-[15px] font-black text-fg">
+          {itmCount}
+          <span className="font-semibold text-fg-3"> / {required}</span>
+        </span>
+      </div>
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={required}
+        aria-valuenow={itmCount}
       >
-        <div className="flex items-center gap-2">
-          <Icon name="lock" className="h-4 w-4 shrink-0 text-fg-2" />
-          <p className="text-[11px] font-black tracking-[0.08em] text-fg-2">{t("geo.lock.title")}</p>
-        </div>
-        <h1 className="mt-1 text-[22px] font-black tracking-tight text-fg">GEO DATABASE</h1>
+        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round(ratio * 100)}%` }} />
+      </div>
+      <p className="mt-3 text-[13px] font-bold text-accent">
+        {stage === "postflop" ? t("geo.lock.remainingPostflop", { n: remaining }) : t("geo.lock.remaining", { n: remaining })}
+      </p>
 
-        <div className="mt-5 flex items-baseline justify-between gap-3 tabular-nums">
-          <span className="text-[13px] font-semibold text-fg-2">{t("geo.lock.req.itm")}</span>
-          <span className="text-[15px] font-black text-fg">
-            {itmCount}
-            <span className="font-semibold text-fg-3"> / {required}</span>
-          </span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-valuemin={0} aria-valuemax={required} aria-valuenow={itmCount}>
-          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round(ratio * 100)}%` }} />
-        </div>
-        <p className="mt-3 text-[13px] font-bold text-accent">{t("geo.lock.remaining", { n: remaining })}</p>
-        <p className="mt-2 text-[12px] leading-relaxed text-fg-3">{t("geo.lock.hint", { n: required })}</p>
+      {/* 段階の一覧(10回 = プリフロップ / 20回 = ポストフロップ以降・データ研究)。 */}
+      <ul className="mt-3 space-y-1.5">
+        {steps.map((s) => {
+          const done = itmCount >= s.at;
+          return (
+            <li key={s.at} className="flex items-center gap-2 text-[12px]">
+              <span
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${done ? "bg-accent text-on-accent" : "bg-surface-3 text-fg-3"}`}
+              >
+                <Icon name={done ? "check" : "lock"} className="h-2.5 w-2.5" />
+              </span>
+              <span className="w-14 shrink-0 font-black tabular-nums text-fg">{t("geo.lock.stage.times", { n: s.at })}</span>
+              <span className={done ? "font-semibold text-fg" : "text-fg-2"}>{s.label}</span>
+            </li>
+          );
+        })}
+      </ul>
 
-        <Link
-          href="/"
-          className="pressable mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-[14px] font-black text-on-accent shadow-glow"
+      {/* なぜ縛っているか(オーナー指示の説明)。 */}
+      <p className="mt-4 rounded-xl bg-canvas px-3 py-2.5 text-[11.5px] leading-relaxed text-fg-2">{t("geo.lock.why")}</p>
+
+      <Link
+        href="/"
+        className="pressable mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-[14px] font-black text-on-accent shadow-glow"
+      >
+        {t("geo.lock.play")}
+        <Icon name="arrow-right" className="h-4 w-4" />
+      </Link>
+      {onShowGuide && (
+        <button
+          type="button"
+          onClick={onShowGuide}
+          className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
         >
-          {t("geo.lock.play")}
-          <Icon name="arrow-right" className="h-4 w-4" />
-        </Link>
-        {onShowGuide && (
-          <button
-            type="button"
-            onClick={onShowGuide}
-            className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
-          >
-            {t("geo.lock.guide")}
-          </button>
-        )}
-      </motion.div>
+          {t("geo.lock.guide")}
+        </button>
+      )}
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
+        >
+          {t("common.close")}
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+/** まだ GEO DATABASE を使えないときに、データベースタブの代わりに出す全画面。 */
+export function GeoLockScreen(props: {
+  itmCount: number;
+  required: number;
+  stage?: "preflop" | "postflop";
+  onShowGuide?: () => void;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-6 py-8">
+      <GeoLockCard {...props} />
     </div>
   );
 }

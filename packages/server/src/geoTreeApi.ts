@@ -247,8 +247,9 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
     return true;
   }
 
-  // 利用条件(インマネ20回以上)。共有のノードキャッシュより前で確かめる。
-  if (!(await requireGeoAccess(req, res))) return true;
+  // 利用条件。プリフロップはインマネ10回、ポストフロップ以降は20回。共有のノードキャッシュより前で確かめる。
+  const needsPostflop = route === "postflop-node" || route.startsWith("gto-postflop");
+  if (!(await requireGeoAccess(req, res, needsPostflop ? "full" : "preflop"))) return true;
 
   try {
     if (url.pathname === "/api/geo-tree/preflop-node" && req.method === "POST") {

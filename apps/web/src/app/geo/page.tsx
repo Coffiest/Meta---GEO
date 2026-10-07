@@ -39,9 +39,8 @@ import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { useAuth } from "@/lib/useAuth";
 import { checkAdminSession } from "@/lib/adminApi";
-import { useGeoAccess } from "@/lib/useGeoAccess";
-import { GeoLockScreen } from "@/components/geo/GeoLockScreen";
-import type { GeoAccessStatus } from "@/lib/geoApi";
+import { useGeoAccess, type GeoLockInfo } from "@/lib/useGeoAccess";
+import { GeoLockCard, GeoLockScreen } from "@/components/geo/GeoLockScreen";
 import { APP_VERSION } from "@/lib/version";
 import { Loader } from "@/components/ui/Loader";
 
@@ -49,7 +48,7 @@ import { Loader } from "@/components/ui/Loader";
 const GEO_DB_OPENED_KEY = "pokerart.geoDbOpened.v1";
 
 /**
- * /geo のゲート。GEO DATABASE はログイン済みで、インマネ20回以上の人だけが使える(オーナー確定。
+ * /geo のゲート。GEO DATABASE はログイン済みで、インマネ10回でプリフロップ、20回でポストフロップ以降が使える(オーナー確定。
  * 有料プランでも同じ条件)。条件を満たしていなければ、ロック画面(あと何回か)を出す。サーバーでも確かめる。
  * - 初回アクセス時、または ?guide=1(メニューからの再表示)のときは使い方チュートリアル(GeoGuide)を表示し、
  *   「使ってみる」/スキップで本体(GeoDatabase)へ。以降は本体を直接開く。
@@ -86,12 +85,19 @@ export default function GeoPage() {
     );
   }
   if (geoAccess.state.status === "locked") {
-    const { itmCount, required } = geoAccess.state;
+    const { itmCount, required, stage } = geoAccess.state;
     // 条件を満たしていない人にも、初回は GEO で何ができるかを見せる(遊ぶ動機づけ)。最後は「Playへ」。
     if (showGuide) return <GeoGuide locked={{ itmCount, required }} onDone={() => setShowGuide(false)} />;
-    return <GeoLockScreen itmCount={itmCount} required={required} onShowGuide={() => setShowGuide(true)} />;
+    return <GeoLockScreen itmCount={itmCount} required={required} stage={stage} onShowGuide={() => setShowGuide(true)} />;
   }
-  return <GeoUnlocked showGuide={showGuide} onGuideDone={() => setShowGuide(false)} onLocked={geoAccess.lock} />;
+  return (
+    <GeoUnlocked
+      showGuide={showGuide}
+      onGuideDone={() => setShowGuide(false)}
+      onLocked={geoAccess.lock}
+      postflopLock={geoAccess.state.postflopLock}
+    />
+  );
 }
 
 /** 利用条件を満たした人の database タブ。開いた記録を残す(以降ホームの「解放」トーストを出さない)。 */
@@ -99,10 +105,13 @@ function GeoUnlocked({
   showGuide,
   onGuideDone,
   onLocked,
+  postflopLock,
 }: {
   showGuide: boolean;
   onGuideDone: () => void;
-  onLocked: (status: GeoAccessStatus) => void;
+  onLocked: (info: GeoLockInfo) => void;
+  /** プリフロップまでの人(インマネ10〜19回)。ポストフロップ以降を開こうとしたら錠を出す。 */
+  postflopLock: { itmCount: number; required: number } | null;
 }) {
   useEffect(() => {
     try {
@@ -112,7 +121,7 @@ function GeoUnlocked({
     }
   }, []);
   if (showGuide) return <GeoGuide onDone={onGuideDone} />;
-  return <GeoDatabase onLocked={onLocked} />;
+  return <GeoDatabase onLocked={onLocked} postflopLock={postflopLock} />;
 }
 
 /** 読み込み開始からの経過秒。これ以上かかっているときだけ「時間がかかっています」に切り替える。 */
@@ -176,7 +185,15 @@ function bucketLabelFor(street: Street, bucket: string): string {
   return table[bucket] ?? bucket;
 }
 
-function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void }) {
+function GeoDatabase({
+  onLocked,
+  postflopLock: initialPostflopLock,
+}: {
+  onLocked: (info: GeoLockInfo) => void;
+  postflopLock: { itmCount: number; required: number } | null;
+}) {
+  // ポストフロップ以降の錠(インマネ20回未満)。サーバーが 403 GEO_POSTFLOP_LOCKED を返したときにも立てる。
+  const [postflopLock, setPostflopLock] = useState(initialPostflopLock);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** 最下部バージョン表記タップ→パスコード→管理者画面(GEOデータ削除等)への隠し導線。照合はサーバーだけで行う。 */
   const [adminGateOpen, setAdminGateOpen] = useState(false);
@@ -408,7 +425,16 @@ function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void
           err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         // 利用条件を満たしていない(サーバーが 403 GEO_LOCKED)。再試行せず、ロック画面にする。
         if (err instanceof GeoApiError && err.kind === "locked") {
-          onLocked({ itmCount: err.itmCount ?? 0, required: err.required ?? 20, unlocked: false });
+          onLocked({ itmCount: err.itmCount ?? 0, required: err.required ?? 10, stage: "preflop" });
+          return;
+        }
+        // プリフロップまでの人がポストフロップ以降を開いた。プリフロップの最後に戻して錠を出す。
+        if (err instanceof GeoApiError && err.kind === "postflopLocked") {
+          setPostflopLock({ itmCount: err.itmCount ?? 0, required: err.required ?? 20 });
+          setStreet("preflop");
+          setBoard([]);
+          setStreetLines((prev) => ({ ...prev, flop: [], turn: [], river: [] }));
+          setPendingStreet("flop");
           return;
         }
         const round = retryRoundRef.current + 1;
@@ -949,7 +975,27 @@ function GeoDatabase({ onLocked }: { onLocked: (status: GeoAccessStatus) => void
       </AnimatePresence>
 
       <AnimatePresence>
-        {pendingStreet && (
+        {pendingStreet && postflopLock && (
+          // ポストフロップ以降はインマネ20回で解放(オーナー確定)。ボードを選ぶ代わりに錠を出す。
+          <motion.div
+            key="postflop-lock"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/60 px-6 py-8"
+            onClick={closeBoardPicker}
+          >
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[360px]">
+              <GeoLockCard
+                itmCount={postflopLock.itmCount}
+                required={postflopLock.required}
+                stage="postflop"
+                onClose={closeBoardPicker}
+              />
+            </div>
+          </motion.div>
+        )}
+        {pendingStreet && !postflopLock && (
           <BoardCardPicker
             cardsNeeded={pendingStreet === "flop" ? 3 : 1}
             usedCards={board}
