@@ -61,7 +61,60 @@ export function geoAccessOf(itmCount: number, level: GeoAccessLevel): GeoAccess 
   };
 }
 
+/** 2つの段階の高い方。 */
+export function maxGeoLevel(a: GeoAccessLevel, b: GeoAccessLevel): GeoAccessLevel {
+  return RANK[a] >= RANK[b] ? a : b;
+}
+
+/** 管理者が個別に緩めた段階(User.geoAccessOverride)。"preflop" / "full" 以外は「無し」。 */
+export type GeoAccessOverride = Exclude<GeoAccessLevel, "none">;
+
+export function parseGeoOverride(value: unknown): GeoAccessOverride | null {
+  return value === "preflop" || value === "full" ? value : null;
+}
+
+/** インマネの回数と管理者の個別設定から、使える段階を決める(個別設定は緩める方向にだけ効く)。 */
+export function effectiveGeoLevel(itmCount: number, override: GeoAccessOverride | null): GeoAccessLevel {
+  const byItm = geoLevelForItm(itmCount);
+  return override ? maxGeoLevel(byItm, override) : byItm;
+}
+
 export async function getGeoAccess(userId: string): Promise<GeoAccess> {
-  const itmCount = await getItmCount(userId);
-  return geoAccessOf(itmCount, geoLevelForItm(itmCount));
+  const [itmCount, user] = await Promise.all([
+    getItmCount(userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { geoAccessOverride: true } }),
+  ]);
+  return geoAccessOf(itmCount, effectiveGeoLevel(itmCount, parseGeoOverride(user?.geoAccessOverride)));
+}
+
+/** 管理者画面: プレイヤーごとの GEO の利用条件の個別設定(null で回数どおりに戻す)。 */
+export async function setGeoAccessOverride(userId: string, override: GeoAccessOverride | null): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { geoAccessOverride: override } });
+}
+
+/** 管理者画面の一覧用: インマネの回数・個別設定・実際に使える段階。 */
+export interface AdminGeoAccess {
+  itmCount: number;
+  override: GeoAccessOverride | null;
+  level: GeoAccessLevel;
+}
+
+export async function getAdminGeoAccess(userIds: readonly string[]): Promise<Map<string, AdminGeoAccess>> {
+  const result = new Map<string, AdminGeoAccess>();
+  if (userIds.length === 0) return result;
+  const [counts, users] = await Promise.all([
+    prisma.tournamentEntry.groupBy({
+      by: ["userId"],
+      where: { userId: { in: [...userIds] }, finishPosition: { not: null }, payout: { gt: 0 } },
+      _count: { _all: true },
+    }),
+    prisma.user.findMany({ where: { id: { in: [...userIds] } }, select: { id: true, geoAccessOverride: true } }),
+  ]);
+  const countOf = new Map(counts.map((c) => [c.userId, c._count._all]));
+  for (const u of users) {
+    const itmCount = countOf.get(u.id) ?? 0;
+    const override = parseGeoOverride(u.geoAccessOverride);
+    result.set(u.id, { itmCount, override, level: effectiveGeoLevel(itmCount, override) });
+  }
+  return result;
 }

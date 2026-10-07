@@ -6,6 +6,9 @@ import {
   excludeGeoData,
   getGeoBackfillStatus,
   getGeoDataCounts,
+  getAdminGeoAccess,
+  parseGeoOverride,
+  setGeoAccessOverride,
   getGeoPositionStats,
   listTrendItems,
   markTrendReviewed,
@@ -32,6 +35,7 @@ import {
 } from "@meta-geo/db";
 import { hasXCredentials, draftReply } from "@meta-geo/marketing";
 import { checkAdminAccess } from "./adminAuth.js";
+import { clearGeoAccessCache } from "./geoAccess.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -164,10 +168,32 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     if (url.pathname === "/api/admin/users" && req.method === "GET") {
       const q = url.searchParams.get("q") ?? "";
       const users = await searchUsersForAdmin(q);
-      const geoCounts = await getGeoDataCounts(users.map((u) => u.id));
+      const ids = users.map((u) => u.id);
+      const [geoCounts, geoAccess] = await Promise.all([getGeoDataCounts(ids), getAdminGeoAccess(ids)]);
       sendJson(res, 200, {
-        users: users.map((u) => ({ ...u, geo: geoCounts.get(u.id) ?? { totalHands: 0, excludedHands: 0 } })),
+        users: users.map((u) => ({
+          ...u,
+          geo: geoCounts.get(u.id) ?? { totalHands: 0, excludedHands: 0 },
+          geoAccess: geoAccess.get(u.id) ?? { itmCount: 0, override: null, level: "none" },
+        })),
       });
+      return true;
+    }
+
+    // GEO データベースの利用条件の個別設定: { userId, override: "preflop" | "full" | null }。
+    // インマネの回数が足りなくても、プリフロップまで / 全部を使えるようにする(null で回数どおりに戻す)。
+    if (url.pathname === "/api/admin/geo-override" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const userId = typeof body["userId"] === "string" ? body["userId"] : "";
+      const override = parseGeoOverride(body["override"]);
+      if (!userId || (body["override"] !== null && override === null)) {
+        sendJson(res, 400, { error: "userId and override(preflop|full|null) are required" });
+        return true;
+      }
+      await setGeoAccessOverride(userId, override);
+      clearGeoAccessCache();
+      const access = (await getAdminGeoAccess([userId])).get(userId) ?? null;
+      sendJson(res, 200, { ok: true, geoAccess: access });
       return true;
     }
 

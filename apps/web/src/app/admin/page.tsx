@@ -19,7 +19,24 @@ interface AdminUser {
   subscription: { status: string; currentPeriodEnd: string | null; active: boolean } | null;
   /** GEO戦略DBに入っているこのプレイヤーのハンド数(総数/除外済み)。 */
   geo: { totalHands: number; excludedHands: number };
+  /** GEO データベースの利用条件: インマネの回数・管理者の個別設定・実際に使える段階。 */
+  geoAccess: { itmCount: number; override: GeoOverride | null; level: "none" | "preflop" | "full" };
 }
+
+type GeoOverride = "preflop" | "full";
+
+/** 個別設定の選択肢(回数どおり / プリフロップまで / 全部)。 */
+const GEO_OVERRIDE_OPTIONS: { value: GeoOverride | null; label: string }[] = [
+  { value: null, label: "回数どおり" },
+  { value: "preflop", label: "プリフロップまで" },
+  { value: "full", label: "全部" },
+];
+
+const GEO_LEVEL_LABEL: Record<AdminUser["geoAccess"]["level"], string> = {
+  none: "使えない",
+  preflop: "プリフロップまで",
+  full: "全部使える",
+};
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -397,6 +414,27 @@ export default function AdminPage() {
       await search(query, passcode);
     } catch {
       setError("復元に失敗しました。");
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function setGeoOverride(userId: string, override: GeoOverride | null) {
+    if (!passcode) return;
+    setBusyUserId(userId);
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/geo-override`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
+        body: JSON.stringify({ userId, override }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setNotice(override ? "GEO の利用条件を個別に設定しました" : "GEO の利用条件をインマネの回数どおりに戻しました");
+      await search(query, passcode);
+    } catch {
+      setError("GEO の利用条件の設定に失敗しました。");
     } finally {
       setBusyUserId(null);
     }
@@ -914,6 +952,39 @@ export default function AdminPage() {
                           </motion.div>
                         )}
                       </AnimatePresence>
+
+                      {/* GEO データベースの利用条件(インマネ10回でプリフロップ / 20回で全部)。足りなくても個別に緩められる。 */}
+                      <div className="mt-3 border-t border-n-3 pt-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">GEOの利用</p>
+                          <p className="text-[11px] font-bold text-n-9 tabular-nums">
+                            インマネ {u.geoAccess.itmCount}回 ・{" "}
+                            <span className={u.geoAccess.level === "none" ? "text-fg-2" : "text-accent"}>
+                              {GEO_LEVEL_LABEL[u.geoAccess.level]}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="mt-2 flex overflow-hidden rounded-full border border-line text-[11px] font-black">
+                          {GEO_OVERRIDE_OPTIONS.map((opt) => {
+                            const selected = u.geoAccess.override === opt.value;
+                            return (
+                              <button
+                                key={opt.label}
+                                onClick={() => {
+                                  if (!selected) void setGeoOverride(u.id, opt.value);
+                                }}
+                                disabled={busy}
+                                aria-pressed={selected}
+                                className={`pressable flex-1 px-2 py-1.5 transition-colors disabled:opacity-40 ${
+                                  selected ? "bg-accent/15 text-accent" : "text-fg-2"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
                       {/* GEOプレイラインデータの管理(論理削除/復元) */}
                       <div className="mt-3 border-t border-n-3 pt-3">
