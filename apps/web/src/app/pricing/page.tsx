@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import { useAuth } from "@/lib/useAuth";
 import {
   changePlan,
@@ -145,6 +147,7 @@ export default function PricingPage() {
   }
 
   const isCurrent = active && !byCoupon && currentPlan === selected;
+  const reduce = useReducedMotion();
   const price = prices[selected];
 
   return (
@@ -187,7 +190,14 @@ export default function PricingPage() {
                 <PlanMark plan={plan} active={on} />
                 <span className={`text-[14px] font-black ${on ? "text-fg" : "text-fg-3"}`}>{PLAN_LABEL[plan]}</span>
                 {active && !byCoupon && currentPlan === plan && <span className="text-[10px] font-bold text-accent">加入中</span>}
-                {on && <span className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-accent" />}
+                {/* 選択の下線はタブの間を滑って移る(同じ部品が動く = どこからどこへ移ったかが分かる)。 */}
+                {on && (
+                  <motion.span
+                    layoutId="plan-tab-underline"
+                    transition={reduce ? FADE : SPRING_SNAPPY}
+                    className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-accent"
+                  />
+                )}
               </button>
             );
           })}
@@ -198,7 +208,12 @@ export default function PricingPage() {
           {FEATURES.map((f) => {
             const has = f.plans.includes(selected);
             return (
-              <li key={f.text} className={`flex items-center gap-3 px-3.5 py-3 ${has ? "" : "opacity-35"}`}>
+              <motion.li
+                key={f.text}
+                animate={{ opacity: has ? 1 : 0.35 }}
+                transition={FADE}
+                className="flex items-center gap-3 px-3.5 py-3"
+              >
                 <Icon name={f.icon} className="h-5 w-5 shrink-0 text-accent" />
                 <span className="flex-1 text-[14px] font-bold text-fg">
                   {f.text}
@@ -213,7 +228,7 @@ export default function PricingPage() {
                     <Icon name="minus" className="h-3.5 w-3.5" />
                   </span>
                 )}
-              </li>
+              </motion.li>
             );
           })}
         </ul>
@@ -224,10 +239,23 @@ export default function PricingPage() {
           </p>
         )}
 
+        {/* 価格と決定ボタンは、画面下に浮く半透明の帯にまとめる(Apple の購入シートと同じく、いつでも押せる位置に)。 */}
+        <div className="glass-footer sticky bottom-0 z-10 -mx-4 mt-6 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3">
         {/* 価格(月額のみ) */}
-        <div className="mt-6 text-center">
+        <div className="text-center">
           <p className="tracking-[-0.02em]">
-            <span className="text-[32px] font-black tabular-nums text-fg">¥{price.toLocaleString()}</span>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={price}
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                transition={reduce ? FADE : SPRING_MOVE}
+                className="inline-block text-[32px] font-black tabular-nums text-fg"
+              >
+                ¥{price.toLocaleString()}
+              </motion.span>
+            </AnimatePresence>
             <span className="ml-1 text-[14px] font-bold text-fg-2">/ 月(税込)</span>
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-fg-3">
@@ -273,6 +301,8 @@ export default function PricingPage() {
             {submitting === selected ? <Loader size="sm" /> : confirmChange?.plan === selected ? "確定して変更する" : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
           </button>
         )}
+        </div>
+
         {canChange && (
           <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
             差額は日割りで、上げるときはその場で請求、下げるときは次回以降の請求から差し引きます。

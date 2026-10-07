@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useI18n } from "@/lib/i18n";
-import { SPRING_SNAPPY } from "@/lib/motion";
+import { FADE, SPRING_SNAPPY } from "@/lib/motion";
 import { useSubscriptionStatus } from "@/lib/subscription";
 
 /**
@@ -24,6 +24,7 @@ export function UpsellCard({ accessToken }: { accessToken: string | undefined })
   const { t } = useI18n();
   const { status, loading } = useSubscriptionStatus(accessToken);
   const [snoozed, setSnoozed] = useState(true);
+  const reduce = useReducedMotion();
   useEffect(() => {
     try {
       setSnoozed(Number(localStorage.getItem(SNOOZE_KEY) ?? 0) > Date.now());
@@ -46,9 +47,9 @@ export function UpsellCard({ accessToken }: { accessToken: string | undefined })
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...SPRING_SNAPPY, delay: 0.4 }}
+      transition={reduce ? FADE : { ...SPRING_SNAPPY, delay: 0.4 }}
       className="relative mt-3 rounded-2xl bg-accent/15 p-4 ring-1 ring-inset ring-accent"
     >
       <button

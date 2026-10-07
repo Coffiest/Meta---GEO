@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { CouponWallet } from "@/components/CouponWallet";
 import { Icon } from "../Icon";
-import { SPRING_SHEET } from "@/lib/motion";
+import { FADE, SPRING_SHEET } from "@/lib/motion";
 import { useSubscriptionStatus } from "@/lib/subscription";
 
 /**
@@ -68,13 +68,15 @@ export function ReviewPaywall({
   const trial = status?.trialEligible ?? false;
   const trialDays = status?.trialDays ?? 7;
   const countdown = nextFreeText(nextFreeAt);
+  // 視差の動きを減らす設定の人には、拡大・移動なしの短いフェードだけにする。
+  const reduce = useReducedMotion();
   const pricingHref = `/pricing?from=review&t=${encodeURIComponent(tournamentId)}`;
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.94, y: 12 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={SPRING_SHEET}
+      transition={reduce ? FADE : SPRING_SHEET}
       className="relative mx-auto w-full max-w-[380px] rounded-[24px] bg-surface-2 px-5 pb-5 pt-6 shadow-e4"
       role="dialog"
       aria-labelledby="review-paywall-title"
