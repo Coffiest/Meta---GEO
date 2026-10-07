@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "../src/client.js";
-import { GEO_ITM_REQUIRED, getGeoAccess, getItmCount } from "../src/geoAccess.js";
+import { getGeoAccess, getItmCount } from "../src/geoAccess.js";
 
 /**
- * GEO データベースの利用条件(実Postgres): インマネ(賞金が出て終えた)回数が 20 回以上。
+ * GEO データベースの利用条件(実Postgres): インマネ(賞金が出て終えた)回数が 10 回でプリフロップ、20 回でポストフロップ以降。
  * SNG と MTT の両方を数え、賞金なし・未終了のエントリーは数えない。
  */
 describe("geoAccess (integration, real Postgres)", () => {
@@ -24,19 +24,31 @@ describe("geoAccess (integration, real Postgres)", () => {
     await prisma.tournamentEntry.create({ data: { tournamentId: t.id, userId, seatIndex: 0, finishPosition, payout } });
   }
 
-  it("賞金が出て終えたエントリーだけを SNG・MTT 合わせて数え、20 回で解放する", async () => {
+  it("賞金が出て終えたエントリーだけを SNG・MTT 合わせて数え、10 回でプリフロップ、20 回でポストフロップ以降を解放する", async () => {
     const user = await prisma.user.create({ data: { displayName: "GeoAccessUser", isBot: false } });
     userIds.push(user.id);
 
-    for (let i = 0; i < 12; i++) await enter(user.id, "sng", 1, 4_000);
-    for (let i = 0; i < 7; i++) await enter(user.id, "mtt", 3, 1_500);
+    for (let i = 0; i < 5; i++) await enter(user.id, "sng", 1, 4_000);
+    for (let i = 0; i < 4; i++) await enter(user.id, "mtt", 3, 1_500);
     await enter(user.id, "sng", 4, 0); // 入賞なし
     await enter(user.id, "mtt", null, 0); // 未終了
 
-    expect(await getItmCount(user.id)).toBe(19);
-    expect(await getGeoAccess(user.id)).toEqual({ itmCount: 19, required: GEO_ITM_REQUIRED, unlocked: false });
+    expect(await getItmCount(user.id)).toBe(9);
+    expect(await getGeoAccess(user.id)).toMatchObject({ itmCount: 9, level: "none", unlocked: false, postflopUnlocked: false });
 
     await enter(user.id, "mtt", 2, 3_000);
-    expect(await getGeoAccess(user.id)).toEqual({ itmCount: 20, required: GEO_ITM_REQUIRED, unlocked: true });
+    expect(await getGeoAccess(user.id)).toMatchObject({ itmCount: 10, level: "preflop", unlocked: true, postflopUnlocked: false });
+
+    for (let i = 0; i < 9; i++) await enter(user.id, "sng", 2, 2_000);
+    expect(await getGeoAccess(user.id)).toMatchObject({ itmCount: 19, level: "preflop" });
+    await enter(user.id, "sng", 1, 4_000);
+    expect(await getGeoAccess(user.id)).toMatchObject({
+      itmCount: 20,
+      required: 10,
+      postflopRequired: 20,
+      level: "full",
+      unlocked: true,
+      postflopUnlocked: true,
+    });
   });
 });

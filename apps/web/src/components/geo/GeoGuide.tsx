@@ -13,7 +13,7 @@ import { bucketColor } from "./colors";
  * - 6枚。各スライドに「見て分かる」動く図を1つずつ置く(レンジ表が塗られていく / GTO と大衆の差 /
  *   ノードを辿る / 条件の絞り込み / 突き方 / 解放)。
  * - 左右のスワイプで送る(指の勢いを投射して判定。`motion.ts` の project)。ボタンでも送れる。
- * - 利用条件(インマネ20回)を満たしていない人にも見せる(`locked`)。最後は「Playへ」で遊びに戻す。
+ * - 利用条件(インマネ10回 / 20回)を満たしていない人にも見せる(`locked`)。最後は「Playへ」で遊びに戻す。
  * - 動きはスライドに入ったときに1回だけ。常時回り続けるアニメーションは置かない。
  * - 初回のみ自動表示(localStorage で既読管理)。以降はメニューの「使い方」から再表示できる。
  */
@@ -280,7 +280,7 @@ function ExploitCards({ reduce }: { reduce: boolean }) {
 
 /** 解放の条件。満たしていない人には進み具合のリング、満たしている人には「解放済み」。 */
 function UnlockRing({ reduce, locked }: { reduce: boolean; locked: { itmCount: number; required: number } | null }) {
-  const required = locked?.required ?? 20;
+  const required = locked?.required ?? 10;
   const count = locked ? Math.min(locked.itmCount, required) : required;
   const ratio = required > 0 ? count / required : 1;
   const R = 54;
@@ -398,11 +398,12 @@ const SLIDES: Slide[] = [
   {
     key: "unlock",
     eyebrow: "UNLOCK",
-    title: "インマネ20回で、解放。",
+    title: "インマネ10回で、解放。",
     body: (
       <>
-        GEO DATABASE は、トーナメントで<b className="text-fg">20回インマネした人</b>だけが使えます。
-        たくさん遊んだ人だけが手にできる、とっておきの武器です。
+        トーナメントで<b className="text-fg">10回インマネ</b>するとプリフロップ、<b className="text-fg">20回</b>で
+        ポストフロップ以降とデータ研究が使えます。GEO DATABASE は実際のプレイデータで成り立っているので、
+        たくさん遊んでデータを貯めた人だけが手にできる、とっておきの武器です。
       </>
     ),
     visual: ({ reduce, locked }) => <UnlockRing reduce={reduce} locked={locked} />,

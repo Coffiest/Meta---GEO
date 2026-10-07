@@ -36,8 +36,8 @@ import {
 export default function ResearchPage() {
   const { authAvailable, loading, accessToken } = useAuth();
   const router = useRouter();
-  // データ研究も GEO DATABASE と同じ利用条件(インマネ20回以上)。
-  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken });
+  // データ研究はポストフロップ以降と同じ段階(インマネ20回)で解放する。
+  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken, need: "full" });
 
   // 埋め込み表示ではセッションが無くトークンだけがあるので、トークンの有無で判定する。
   useEffect(() => {
@@ -98,7 +98,9 @@ export default function ResearchPage() {
     );
   }
   if (geoAccess.state.status === "locked") {
-    return <GeoLockScreen itmCount={geoAccess.state.itmCount} required={geoAccess.state.required} />;
+    return (
+      <GeoLockScreen itmCount={geoAccess.state.itmCount} required={geoAccess.state.required} stage={geoAccess.state.stage} />
+    );
   }
 
   return (
