@@ -8,6 +8,7 @@ import {
   getGeoDataCounts,
   getAdminGeoAccess,
   parseGeoOverride,
+  parsePlan,
   setGeoAccessOverride,
   getGeoPositionStats,
   listTrendItems,
@@ -233,7 +234,7 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
-    // 無料付与: { userId, unit: "week"|"month", amount: number }
+    // 無料付与: { userId, unit: "week"|"month", amount: number, plan?: "silver"|"gold"|"platinum" }
     if (url.pathname === "/api/admin/grant" && req.method === "POST") {
       const body = await readJsonBody(req);
       const userId = typeof body["userId"] === "string" ? body["userId"] : "";
@@ -243,7 +244,8 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 400, { error: "userId, unit(week|month), amount(>0) are required" });
         return true;
       }
-      const { currentPeriodEnd } = await grantCompSubscription({ userId, unit, amount });
+      const plan = parsePlan(body["plan"]) ?? "silver";
+      const { currentPeriodEnd } = await grantCompSubscription({ userId, unit, amount, plan });
       sendJson(res, 200, { ok: true, currentPeriodEnd: currentPeriodEnd.toISOString() });
       return true;
     }

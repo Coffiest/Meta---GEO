@@ -7,7 +7,16 @@ import {
   getStripeCustomerId,
   getSubscriptionStatusForUser,
   subscriptionNeedsReconcile,
+  claimTrialFingerprint,
+  isTrialEligible,
+  markTrialUsed,
+  parsePlan,
+  prisma,
+  PLAN_PRICE_JPY,
+  TRIAL_DAYS,
+  type PlanId,
 } from "@meta-geo/db";
+import { resolvePriceId } from "./stripePlans.js";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { readJsonBodyLimited, readRawBody as readRawBodyLimited } from "./httpBody.js";
 import { cancelForPaymentFailure, reconcileSubscription, syncSubscription } from "./subscriptionReconciler.js";
@@ -111,14 +120,22 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
           );
         }
       }
-      const [subscription, quota] = await Promise.all([
+      const [subscription, quota, trialEligible, row] = await Promise.all([
         getSubscriptionStatusForUser(user.id),
         getReviewQuotaRemaining(user.id),
+        isTrialEligible(user.id),
+        prisma.subscription.findUnique({ where: { userId: user.id }, select: { stripeSubscriptionId: true, status: true } }),
       ]);
       sendJson(res, 200, {
         active: subscription.active,
         status: subscription.status,
         currentPeriodEnd: subscription.currentPeriodEnd,
+        plan: subscription.plan,
+        // Stripe の契約が生きていれば、プランの変更は Checkout ではなく change-plan で行う。
+        canChangePlan: hasLiveStripeSubscription(row),
+        trialEligible,
+        trialDays: TRIAL_DAYS,
+        prices: PLAN_PRICE_JPY,
         reviewsRemaining: quota.remaining,
         reviewLimit: quota.limit,
         nextFreeAt: quota.nextFreeAt,
@@ -129,9 +146,10 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
     if (url.pathname === "/api/subscriptions/checkout" && req.method === "POST") {
       const body = await readJsonBody(req);
       const tournamentId = typeof body["tournamentId"] === "string" ? (body["tournamentId"] as string) : null;
+      // 省略時はシルバー(旧来の画面からの呼び出し)。
+      const plan: PlanId = parsePlan(body["plan"]) ?? "silver";
       const stripe = getStripeClient();
-      const priceId = process.env["STRIPE_PRICE_ID"];
-      if (!stripe || !priceId) {
+      if (!stripe) {
         sendJson(res, 503, { error: "subscriptions_unavailable" });
         return true;
       }
@@ -141,6 +159,25 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         return true;
       }
       const user = await resolveDbUser(verified);
+      const existing = await prisma.subscription.findUnique({
+        where: { userId: user.id },
+        select: { stripeSubscriptionId: true, status: true },
+      });
+      if (hasLiveStripeSubscription(existing)) {
+        // 二重契約を防ぐ。プランの変更は change-plan で。
+        sendJson(res, 409, { error: "already_subscribed" });
+        return true;
+      }
+      let priceId: string;
+      try {
+        priceId = await resolvePriceId(stripe, plan);
+      } catch (err) {
+        console.error("[subscriptionApi] price resolve failed:", err);
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      // 無料体験は全プランを通して1人1回(同じカードの2回目は Webhook で弾く)。
+      const trial = await isTrialEligible(user.id);
 
       let stripeCustomerId = await getStripeCustomerId(user.id);
       if (!stripeCustomerId) {
@@ -156,11 +193,63 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         mode: "subscription",
         customer: stripeCustomerId,
         line_items: [{ price: priceId, quantity: 1 }],
+        payment_method_collection: "always",
+        subscription_data: {
+          metadata: { userId: user.id, plan },
+          ...(trial ? { trial_period_days: TRIAL_DAYS } : {}),
+        },
         success_url: reviewLandingUrl(tournamentId, "success"),
         cancel_url: reviewLandingUrl(tournamentId, "cancelled"),
       });
 
       sendJson(res, 200, { url: session.url });
+      return true;
+    }
+
+    // プランの変更(ゴールド → プラチナなど)。差額は日割りで、その場で請求・返金する。
+    if (url.pathname === "/api/subscriptions/change-plan" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const plan = parsePlan(body["plan"]);
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      if (!plan) {
+        sendJson(res, 400, { error: "plan(silver|gold|platinum) is required" });
+        return true;
+      }
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const row = await prisma.subscription.findUnique({
+        where: { userId: user.id },
+        select: { stripeSubscriptionId: true, stripeCustomerId: true, status: true },
+      });
+      if (!row || !hasLiveStripeSubscription(row)) {
+        sendJson(res, 404, { error: "no_subscription" });
+        return true;
+      }
+      const current = await stripe.subscriptions.retrieve(row.stripeSubscriptionId!);
+      const item = current.items.data[0];
+      if (!item) {
+        sendJson(res, 409, { error: "no_subscription_item" });
+        return true;
+      }
+      const priceId = await resolvePriceId(stripe, plan);
+      const updated: Stripe.Subscription =
+        item.price.id === priceId
+          ? current
+          : await stripe.subscriptions.update(current.id, {
+              items: [{ id: item.id, price: priceId }],
+              proration_behavior: "always_invoice",
+              metadata: { ...current.metadata, plan },
+            });
+      await syncSubscription(row.stripeCustomerId, updated);
+      sendJson(res, 200, { ok: true, plan });
       return true;
     }
 
@@ -219,6 +308,28 @@ function subscriptionIdOfInvoice(invoice: Stripe.Invoice): string | null {
   return parent && typeof parent === "object" ? parent.id : null;
 }
 
+/** Stripe の契約が生きていて(解約・期限切れでない)、プランの変更ができる状態か。管理者の無料付与(comp)は含めない。 */
+function hasLiveStripeSubscription(row: { stripeSubscriptionId: string | null; status: string } | null): boolean {
+  if (!row?.stripeSubscriptionId) return false;
+  return ["active", "trialing", "past_due"].includes(row.status);
+}
+
+/**
+ * 無料体験で始まった契約の後始末: 体験を使ったと記録し、同じカードがすでに別の人の体験に使われていたら、
+ * その場で体験を終わらせて課金を始める(複数アカウントで体験を繰り返させない。オーナー確定)。
+ */
+async function settleTrial(stripe: Stripe, customerId: string, subscription: Stripe.Subscription): Promise<Stripe.Subscription> {
+  const row = await prisma.subscription.findUnique({ where: { stripeCustomerId: customerId }, select: { userId: true } });
+  if (!row) return subscription;
+  await markTrialUsed(row.userId);
+  const pm = subscription.default_payment_method;
+  const fingerprint = pm && typeof pm === "object" ? pm.card?.fingerprint ?? null : null;
+  if (!fingerprint) return subscription;
+  if (await claimTrialFingerprint(fingerprint, row.userId)) return subscription;
+  console.log(`[subscriptionApi] trial card reused -> ending trial ${subscription.id}`);
+  return stripe.subscriptions.update(subscription.id, { trial_end: "now", proration_behavior: "none" });
+}
+
 async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const stripe = getStripeClient();
   const webhookSecret = process.env["STRIPE_WEBHOOK_SECRET"];
@@ -255,7 +366,10 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       if (typeof session.customer === "string" && typeof session.subscription === "string") {
-        const subscription = await stripe.subscriptions.retrieve(session.subscription);
+        let subscription: Stripe.Subscription = await stripe.subscriptions.retrieve(session.subscription, {
+          expand: ["default_payment_method"],
+        });
+        if (subscription.status === "trialing") subscription = await settleTrial(stripe, session.customer, subscription);
         await syncSubscription(session.customer, subscription);
       }
     } else if (event.type === "invoice.payment_failed") {
