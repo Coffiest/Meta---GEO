@@ -9,6 +9,8 @@ import { useI18n } from "@/lib/i18n";
 import { APP_VERSION } from "@/lib/version";
 import { Header, HeaderLogo } from "./Header";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { PasscodeModal } from "./PasscodeModal";
+import { checkAdminSession, markAdminAfterLogin } from "@/lib/adminApi";
 
 function GoogleIcon() {
   return (
@@ -157,6 +159,9 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
   const router = useRouter();
   const reduce = useReducedMotion();
+  /** 管理者画面への入口(バージョン表記を押す)。パスコードを通したら、管理者のアカウントでのログインを待つ。 */
+  const [adminGate, setAdminGate] = useState(false);
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
   const { t } = useI18n();
 
   const resetFeedback = () => {
@@ -544,10 +549,41 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
           ))}
         </nav>
 
-        {/* バージョン表記。管理者画面への入口はログイン後(GEO タブ)だけに置く(管理者の操作はログイン中のアカウントでも確かめるため)。 */}
-        <div className="mt-8 flex justify-center">
-          <p className="text-[11px] font-medium tracking-wide text-fg-3">Poker ART v{APP_VERSION} ・ © 2026 Poker ART</p>
+        {/* バージョン表記。押すと管理者のパスコードを聞く(オーナー指示。GEO タブの最下部と並ぶもう1つの入口)。
+            見た目は普通の文字のまま。パスコードが合っていても、管理者のアカウントでログインするまでは入れない
+            (サーバーが「パスコード」かつ「管理者のアカウント」で確かめる)。ログインできたら管理者画面へ進む。 */}
+        <div className="mt-8 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAdminGate(true)}
+            className="text-[11px] font-medium tracking-wide text-fg-3"
+          >
+            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+          </button>
+          {adminNotice && <p className="text-center text-[11px] font-semibold text-accent">{adminNotice}</p>}
         </div>
+        <AnimatePresence>
+          {adminGate && (
+            <PasscodeModal
+              title="管理者パスコード"
+              verify={async (code) => {
+                // ログイン前なので「管理者のアカウントではない(未ログイン)」が返る。それはパスコードが合っている印。
+                const r = await checkAdminSession(code, auth.accessToken ?? null);
+                return r.status === "ok" || r.status === "notAdmin";
+              }}
+              onSuccess={(code) => {
+                setAdminGate(false);
+                markAdminAfterLogin(code);
+                if (auth.accessToken) {
+                  window.location.href = "/admin";
+                  return;
+                }
+                setAdminNotice("管理者のアカウントでログインすると、管理者画面が開きます。");
+              }}
+              onClose={() => setAdminGate(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
