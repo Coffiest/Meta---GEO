@@ -11,6 +11,7 @@ import {
   PCFSoftShadowMap,
   PMREMGenerator,
   RepeatWrapping,
+  DoubleSide,
   Shape,
   ShapeGeometry,
   SRGBColorSpace,
@@ -219,7 +220,9 @@ function Table({ shape }: { shape: TableShape }) {
       </mesh>
       {/* レール(黒い革) */}
       <mesh geometry={geos.railGeo} rotation-x={-Math.PI / 2} castShadow receiveShadow>
-        <meshPhysicalMaterial color="#070708" roughness={0.58} clearcoat={0.35} clearcoatRoughness={0.5} envMapIntensity={0.6} />
+        {/* 両面を描く。ExtrudeGeometry の穴の内壁は面の向きが裏返っていて、片面だと奥のレールの内壁が描かれず、
+            そこから背景が透けていた(オーナー指摘「卓の上部に隙間があって背景が見える」)。 */}
+        <meshPhysicalMaterial color="#070708" roughness={0.58} clearcoat={0.35} clearcoatRoughness={0.5} envMapIntensity={0.6} side={DoubleSide} />
       </mesh>
       {/* 脚台(卓の下の厚み。手前の縁で少し見える)。上面をフェルトと同じ高さにすると z-fighting で縞が出るので、少し下げる。 */}
       <mesh geometry={geos.apronGeo} rotation-x={-Math.PI / 2} position-y={-0.19} castShadow>
