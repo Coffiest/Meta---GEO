@@ -1,4 +1,5 @@
 import { prisma } from "./client.js";
+import { parsePlan, type PlanId } from "./plans.js";
 
 /**
  * 棋譜解析(トーナメント単位のGTO解析)の課金状態。
@@ -37,6 +38,8 @@ export interface SubscriptionStatus {
   active: boolean;
   status: string | null;
   currentPeriodEnd: Date | null;
+  /** いま使えるプラン。未加入・期限切れは null。招待特典のクーポンだけで有効な間はシルバー。 */
+  plan: PlanId | null;
 }
 
 /** ユーザーのサブスク状態を返す。未加入(レコード無し)ならactive=falseを返す。
@@ -55,8 +58,8 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
 
   if (!sub) {
     return couponActive
-      ? { active: true, status: REFERRAL_STATUS, currentPeriodEnd: coupon!.expiresAt }
-      : { active: false, status: null, currentPeriodEnd: null };
+      ? { active: true, status: REFERRAL_STATUS, currentPeriodEnd: coupon!.expiresAt, plan: "silver" }
+      : { active: false, status: null, currentPeriodEnd: null, plan: null };
   }
 
   const compActive = sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > now;
@@ -70,6 +73,8 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
     // 契約が生きていればその状態を優先し、特典だけで有効な場合は招待特典であることを示す。
     status: subActive ? sub.status : couponActive ? REFERRAL_STATUS : sub.status,
     currentPeriodEnd: ends.length > 0 ? new Date(Math.max(...ends.map((d) => d.getTime()))) : sub.currentPeriodEnd,
+    // 契約が生きていれば契約のプラン、特典だけならシルバー。
+    plan: subActive ? (parsePlan(sub.plan) ?? "silver") : couponActive ? "silver" : null,
   };
 }
 
@@ -144,6 +149,8 @@ export async function upsertSubscriptionFromStripeEvent(params: {
   stripeSubscriptionId: string;
   status: string;
   currentPeriodEnd: Date | null;
+  /** 契約の価格から決めたプラン。分からなければ省略(今の値のまま)。 */
+  plan?: PlanId | null;
 }): Promise<void> {
   await prisma.subscription.updateMany({
     where: { stripeCustomerId: params.stripeCustomerId },
@@ -151,6 +158,7 @@ export async function upsertSubscriptionFromStripeEvent(params: {
       stripeSubscriptionId: params.stripeSubscriptionId,
       status: params.status,
       currentPeriodEnd: params.currentPeriodEnd,
+      ...(params.plan ? { plan: params.plan } : {}),
     },
   });
 }
@@ -267,6 +275,8 @@ export async function grantCompSubscription(params: {
   userId: string;
   unit: CompDurationUnit;
   amount: number;
+  /** 付与するプラン(省略時はシルバー)。 */
+  plan?: PlanId;
 }): Promise<{ currentPeriodEnd: Date }> {
   if (!Number.isFinite(params.amount) || params.amount <= 0 || params.amount > 120) {
     throw new Error("amount must be between 1 and 120");
@@ -279,8 +289,9 @@ export async function grantCompSubscription(params: {
       stripeCustomerId: `comp_${params.userId}`,
       status: "comp",
       currentPeriodEnd: end,
+      plan: params.plan ?? "silver",
     },
-    update: { status: "comp", currentPeriodEnd: end },
+    update: { status: "comp", currentPeriodEnd: end, plan: params.plan ?? "silver" },
   });
   return { currentPeriodEnd: end };
 }
@@ -299,7 +310,7 @@ export interface AdminUserSearchResult {
   displayName: string;
   email: string | null;
   createdAt: Date;
-  subscription: { status: string; currentPeriodEnd: Date | null; active: boolean } | null;
+  subscription: { status: string; currentPeriodEnd: Date | null; active: boolean; plan: string } | null;
 }
 
 /** 管理者画面用: プレイヤー名・メールアドレス・ユーザーIDの部分一致で検索する(Bot除外・最大20件)。 */
@@ -325,7 +336,7 @@ export async function searchUsersForAdmin(query: string): Promise<AdminUserSearc
       displayName: true,
       email: true,
       createdAt: true,
-      subscription: { select: { status: true, currentPeriodEnd: true } },
+      subscription: { select: { status: true, currentPeriodEnd: true, plan: true } },
     },
   });
   const now = new Date();

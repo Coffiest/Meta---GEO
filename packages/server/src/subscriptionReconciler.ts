@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import { listSubscriptionsToReconcile, upsertSubscriptionFromStripeEvent } from "@meta-geo/db";
+import { planOfSubscription } from "./stripePlans.js";
 
 /**
  * 棋譜解析プラン(Stripe サブスク)の期限・更新・解約を、Stripe の実際の状態に合わせる。
@@ -40,6 +41,7 @@ export async function syncSubscription(stripeCustomerId: string, subscription: S
     stripeSubscriptionId: subscription.id,
     status: subscription.status,
     currentPeriodEnd: periodEndOf(subscription),
+    plan: planOfSubscription(subscription),
   });
 }
 
