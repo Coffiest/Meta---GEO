@@ -133,13 +133,14 @@ export function TournamentReviewModal({
 
   // 局後検討(詳細解析)。「局後検討」ボタンを押した時だけ取得を開始する(=課金ゲートが働くのは
   // この時点)。detailRequestedがfalseのままなら、無料の要約画面だけが表示され続ける。
-  const [detailRequested, setDetailRequested] = useState(false);
+  // 結果画面の「局後検討」から開いたら、間の「今回の結果」画面を挟まず、すぐ総括レポートを出す(オーナー指示)。
+  const [detailRequested, setDetailRequested] = useState(true);
   const [data, setData] = useState<TournamentReview | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // 無料枠超過(402)時のペイウォール情報。
   const [quota, setQuota] = useState<ReviewQuotaInfo | null>(null);
-  const [view, setView] = useState<"free" | "detail" | "replay">("free");
+  const [view, setView] = useState<"free" | "detail" | "replay">("detail");
   const [stepIndex, setStepIndex] = useState(0);
   const pollTries = useRef(0);
   const freePollTries = useRef(0);
@@ -494,7 +495,7 @@ export function TournamentReviewModal({
         <div className="mt-2 mb-4 flex items-start gap-2">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => setView("free")}
+            onClick={onClose}
             className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-n-9"
             aria-label="結果画面へ戻る"
           >

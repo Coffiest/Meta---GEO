@@ -161,6 +161,8 @@ export interface SeatViewProps {
   aside?: ReactNode;
   /** ショーダウンで手を見せずに捨てた(マックした)。手札の上に「Muck」を出す。 */
   mucked?: boolean;
+  /** トーナメントから飛んだ(スタックが0になった)。席ピルの上に「PLAYER OUT」を貼る。誰の席でも同じ条件・同じ見た目。 */
+  out?: boolean;
 }
 
 export function Seat({
@@ -191,6 +193,7 @@ export function Seat({
   onStackTap,
   aside = null,
   mucked = false,
+  out = false,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -357,6 +360,22 @@ export function Seat({
             </span>
           </span>
         )}
+
+        {/* 飛んだ席に貼る「PLAYER OUT」のスタンプ(オーナー指示。ピルの上から斜めに押す)。 */}
+        <AnimatePresence>
+          {out && (
+            <motion.span
+              aria-label="PLAYER OUT"
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.8, rotate: -14 }}
+              animate={{ opacity: 1, scale: 1, rotate: -8 }}
+              exit={{ opacity: 0 }}
+              transition={{ type: "spring", bounce: 0.35, duration: 0.35 }}
+              className="pointer-events-none absolute inset-x-[-6px] top-1/2 z-50 -mt-[11px] flex h-[22px] items-center justify-center whitespace-nowrap rounded-md border-2 border-crimson-300 bg-canvas/90 text-[11px] font-black uppercase tracking-[0.12em] text-crimson-300 shadow-e2"
+            >
+              Player Out
+            </motion.span>
+          )}
+        </AnimatePresence>
 
         {/* オールインマーカー(オーナー支給の画像)。オールインした席のピルの左上に置き、ハンドが終わるまで残す。
             誰の席でも同じ条件・同じ見た目。画像は scripts/table-markers.py で台紙を透過・縮小した版。 */}

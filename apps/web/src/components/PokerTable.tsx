@@ -342,6 +342,7 @@ export function PokerTable({
   heroAside,
   view3d = true,
   muckedSeats = null,
+  outSeats = null,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -375,6 +376,8 @@ export function PokerTable({
   view3d?: boolean;
   /** ショーダウンで手を見せずにマックした席。 */
   muckedSeats?: ReadonlySet<number> | null;
+  /** トーナメントから飛んだ席(「PLAYER OUT」を貼る)。 */
+  outSeats?: ReadonlySet<number> | null;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -627,6 +630,7 @@ export function PokerTable({
             handRankLabel={heroHandLabel}
             shown={shown}
             mucked={muckedSeats?.has(seatIndex) ?? false}
+            out={outSeats?.has(seatIndex) ?? false}
             heroShowArmed={isHero ? heroShowIntent : undefined}
             onCardTap={canToggleShow ? onToggleHeroShow : undefined}
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
