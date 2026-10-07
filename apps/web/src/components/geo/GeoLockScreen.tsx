@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useI18n } from "@/lib/i18n";
 import { SPRING_MOVE } from "@/lib/motion";
+import { bucketColor } from "./colors";
+import { demoBucket } from "./GeoGuide";
 
 /** 段階ごとの解放の回数(サーバーの `packages/db/src/geoAccess.ts` と同じ。表示用)。 */
 const PREFLOP_AT = 10;
@@ -83,18 +85,25 @@ function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: 
             </span>
           ))}
         </div>
-        <ul className="divide-y divide-line px-3">
-          {PREVIEW_ROWS.map((pos, i) => (
-            <li key={pos} className="flex items-center gap-3 py-3.5">
-              <span className="w-12 text-[15px] font-black text-fg">{pos}</span>
-              <span className="ml-auto flex items-center gap-1.5 blur-[5px]">
-                <span className="h-4 rounded-full bg-fg-3" style={{ width: 28 + ((i * 17) % 30) }} />
-                <span className="h-4 rounded-full bg-accent/60" style={{ width: 18 + ((i * 11) % 22) }} />
+        {/* ぼかしたレンジ表(実データではなく見本の配色。何が見られるかの雰囲気だけ伝える)。 */}
+        <div className="px-3 pb-3 pt-2">
+          <div className="mb-2 flex gap-1.5 text-[11px] font-black">
+            {PREVIEW_ROWS.map((pos, i) => (
+              <span key={pos} className={`rounded-full px-2.5 py-1 ${i === 3 ? "bg-accent/15 text-accent" : "text-fg-3"}`}>
+                {pos}
               </span>
-              <Icon name="chevron-right" className="h-4 w-4 text-fg-3" />
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+          <div className="grid gap-[2px] blur-[5px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+            {Array.from({ length: 169 }, (_, k) => (
+              <span
+                key={k}
+                className="aspect-square rounded-[2px]"
+                style={{ backgroundColor: bucketColor(demoBucket(Math.floor(k / 13), k % 13)) }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </motion.div>
   );
@@ -226,7 +235,16 @@ export function GeoLockScreen(props: {
   onShowGuide?: () => void;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-6 py-8">
+    <div className="relative flex min-h-screen items-center justify-center bg-canvas px-6 py-8">
+      {/* 錠の画面からも戻れるように(オーナー指摘)。 */}
+      <Link
+        href="/"
+        aria-label="ホームへ戻る"
+        className="pressable absolute left-4 top-[calc(env(safe-area-inset-top)+12px)] flex h-10 items-center gap-1 rounded-full bg-surface-2 pl-2.5 pr-3.5 text-[13px] font-bold text-fg"
+      >
+        <Icon name="chevron-left" className="h-4 w-4" />
+        戻る
+      </Link>
       <GeoLockCard {...props} />
     </div>
   );

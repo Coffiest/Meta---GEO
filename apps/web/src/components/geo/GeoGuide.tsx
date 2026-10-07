@@ -41,7 +41,7 @@ export function markGeoGuideSeen(): void {
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 
 /** 説明用の BTN のオープン(だいたいの形)。表の塗られ方を見せるためのもので、実データではない。 */
-function demoBucket(row: number, col: number): "raise2-5" | "call" | "fold" {
+export function demoBucket(row: number, col: number): "raise2-5" | "call" | "fold" {
   const hi = 14 - Math.min(row, col);
   const lo = 14 - Math.max(row, col);
   if (row === col) return "raise2-5";
