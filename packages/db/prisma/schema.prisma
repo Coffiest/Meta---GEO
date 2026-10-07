@@ -30,6 +30,8 @@ model User {
   /// GEO データベースの利用条件を管理者が個別に緩めたもの("preflop" | "full")。null = インマネの回数どおり。
   /// 回数で届く段階より低い値は効かない(回数で得た段階を取り上げない)。
   geoAccessOverride String?
+  /// 無料体験を使った時刻(全プランを通して1人1回。オーナー確定)。null = まだ使っていない。
+  trialUsedAt  DateTime?
   createdAt    DateTime  @default(now())
   /// アカウント削除(退会)した時刻。未削除はnull。
   ///
@@ -158,6 +160,9 @@ model Subscription {
   stripeSubscriptionId String?   @unique
   /// "active" | "trialing" | "past_due" | "canceled" | "incomplete"
   status               String
+  /// 契約しているプラン("silver" | "gold" | "platinum")。旧来の ¥980 の契約はシルバー(オーナー確定)。
+  /// Stripe の契約は Webhook で価格から決める。管理者の無料付与(comp)は付与時に選んだプラン。
+  plan                 String    @default("silver")
   currentPeriodEnd     DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -790,4 +795,12 @@ model AccountSnapshot {
   posts     Int?
 
   @@index([accountId, createdAt])
+}
+
+/// 無料体験に使ったカードの指紋(Stripe の card.fingerprint)。同じカードでの2回目の無料体験を弾く
+/// (別のアカウントを作っても同じカードなら体験は付かない。オーナー確定)。
+model TrialFingerprint {
+  fingerprint String   @id
+  userId      String
+  createdAt   DateTime @default(now())
 }
