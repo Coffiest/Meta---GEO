@@ -131,7 +131,9 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     const flopCall = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "call")!;
     // 棋譜解析では相手の手札は分からない前提(オーナー確定)。相手の実際の手札で格付けしない。
     expect(flopCall.gtoActions).toBeNull();
-    expect(flopCall.classification).toBeNull();
+    // GTO は対象外。格付けはオッズのルール(相手のレンジに対する推定勝率。相手の実際の手札は使わない)。
+    expect(flopCall.coach?.id).toBe("oddsCall");
+    expect(flopCall.classification).toBe(flopCall.coach?.grade);
     expect(flopCall.outOfScopeReason).toBe("vs-allin");
     // 相手の手札を差し替えても、結果は1文字も変わらない(相手の手札を読んでいない証拠)。
     const swapped = analyzeExtractedHand({ ...hand, seats: seats(20, 2, ["As", "Ah"], 0, ["2s", "2h"]) }, "u2")!;

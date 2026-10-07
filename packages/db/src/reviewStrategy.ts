@@ -11,6 +11,8 @@ import {
   matchArticleRule,
   judgePowerNumber,
   gradePowerNumber,
+  judgeCoach,
+  type CoachVerdict,
   PN_MAX_STACK_BB,
   ARTICLE_RULES,
   type ArticleRule,
@@ -75,6 +77,8 @@ export interface DecisionArticle {
  * パワーナンバーの判定(15bb 以下・誰も参加していない局面のオープン)。画面は表と一緒に解説する。
  * `pn` は表の数字。∞ は "inf"、空欄(有効M が 3 未満のときだけオールイン)は "-"(JSON で Infinity を運べないため)。
  */
+export type DecisionCoach = CoachVerdict;
+
 export interface DecisionPowerNumber {
   handClass: string;
   pn: number | "inf" | "-";
@@ -225,6 +229,31 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
   }
   attachArticles(hand, decisions);
   attachPowerNumbers(hand, decisions);
+  attachCoach(hand, decisions);
+}
+
+/**
+ * コーチのルール(オーナー指示。ポットコミット・オッズ・BMCB・ポラライズ・シンバリュー・ブロックベット・
+ * リバーの MDF / ブロッカー / ブラフレイズ)を載せる。判定は `@meta-geo/engine` の `judgeCoach`。
+ * 使うのは手順・ボードと、その決定をした席の手札だけ(他の席の手札は見ない)。
+ */
+export function attachCoach(hand: ExtractHand, decisions: ReviewedDecision[]): void {
+  const input = {
+    buttonFixedPos: hand.buttonFixedPos,
+    seatCount: SEAT_COUNT,
+    bigBlind: hand.levelBigBlind,
+    board: hand.board,
+    seats: hand.seats.map((s) => ({ seatIndex: s.seatIndex, startingStack: s.startingStack, holeCards: s.holeCards })),
+    actions: hand.actions,
+  };
+  for (const d of decisions) {
+    try {
+      d.coach = judgeCoach(input, d.sequenceNumber);
+    } catch (err) {
+      console.error("[review] coach rule failed:", err);
+      d.coach = null;
+    }
+  }
 }
 
 /**
@@ -237,6 +266,11 @@ export function attachStrategies(hand: ExtractHand, decisions: ReviewedDecision[
  */
 export function applyNotionGrades(decisions: ReviewedDecision[]): void {
   for (const d of decisions) {
+    // コーチのルール(ポットコミットは無条件で大悪手 など)。どの評価よりも優先する(オーナー指示)。
+    if (d.coach?.grade) {
+      d.classification = d.coach.grade;
+      continue;
+    }
     // 15bb 以下のオープンは、パワーナンバーで格付けする(オーナー指示。GTO の表・記事より優先)。
     if (d.powerNumber) {
       d.classification = d.powerNumber.grade;

@@ -85,6 +85,38 @@ export interface ReviewedDecision {
     followed: boolean;
     grade: Classification;
   } | null;
+  /**
+   * コーチのルール(ポットコミット・オッズ・BMCB・ポラライズ・シンバリュー・ブロックベット・リバーの MDF/ブロッカー/ブラフレイズ)。
+   * grade があれば格付けはこれで決まっている。文章は `lib/coachComment.ts` が id から組み立てる。古い解析には無い。
+   */
+  coach?: {
+    id:
+      | "commit"
+      | "oddsCall"
+      | "bmcb"
+      | "bmcbCheck"
+      | "polarize"
+      | "thinValue"
+      | "blockBet"
+      | "blockBetMissed"
+      | "riverCatch"
+      | "riverRaise"
+      | "riverRaiseMissed"
+      | "riverMdf";
+    grade: Classification | null;
+    street: string;
+    requiredEquity?: number;
+    equity?: number;
+    mdf?: number;
+    sizePct?: number;
+    callBb?: number;
+    potBb?: number;
+    remainingBb?: number;
+    nutExamples?: { key: string; made: string; cards: string[]; ranks: number[] }[];
+    blocked?: string[];
+    handLabel?: string;
+    checkRaiseOk?: boolean;
+  } | null;
 }
 
 export interface ReviewResult {
