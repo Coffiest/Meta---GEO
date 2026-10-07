@@ -27,7 +27,8 @@ export interface RRRatingPopulationStats {
  */
 export async function computeRRRatingPopulationStats(): Promise<RRRatingPopulationStats> {
   const entries = await prisma.tournamentEntry.findMany({
-    where: { finishPosition: { not: null }, user: { isBot: false } },
+    // 退会したユーザーはランキング・偏差値の母集団から外す(表に一切出さない。オーナー指示)。
+    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null } },
     select: { payout: true, tournament: { select: { buyIn: true } }, userId: true },
   });
 

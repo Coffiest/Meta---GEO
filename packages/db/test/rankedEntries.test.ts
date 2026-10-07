@@ -62,4 +62,22 @@ describe("ranked entries shared cache (integration, real Postgres)", () => {
     const rows = await getRankedEntries();
     expect(rows.some((r) => r.userId === bot.id)).toBe(false);
   });
+
+  it("excludes deleted accounts (they vanish from every ranking)", async () => {
+    const gone = await prisma.user.create({
+      data: { displayName: `RankedCacheGone-${Date.now()}`, deletedAt: new Date() },
+    });
+    createdUserIds.push(gone.id);
+    const tournament = await prisma.tournament.create({
+      data: { seatCount: 6, startingStack: 20000, buyIn: 500, gameType: "sng", status: "finished" },
+    });
+    createdTournamentIds.push(tournament.id);
+    await prisma.tournamentEntry.create({
+      data: { tournamentId: tournament.id, userId: gone.id, seatIndex: 2, finishPosition: 1, payout: 4000 },
+    });
+
+    invalidateRankedEntries();
+    const rows = await getRankedEntries();
+    expect(rows.some((r) => r.userId === gone.id)).toBe(false);
+  });
 });

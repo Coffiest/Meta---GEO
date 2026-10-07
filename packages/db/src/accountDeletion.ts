@@ -25,8 +25,12 @@ import { prisma } from "./client.js";
  *        Tournament / TournamentEntry / BankrollTransaction(対戦記録の整合性)。
  */
 
-/** 退会後の表示名。卓の履歴などで参照されたときに出る。 */
-export const DELETED_USER_DISPLAY_NAME = "削除されたユーザー";
+/**
+ * 退会後の表示名。過去のハンドの記録など、どうしても名前が出る場所で使う。
+ * 「削除された」と分かる名前にしない(退会した人は表舞台から完全に消し、他の人に気付かれないようにする。オーナー指示)。
+ * ランキング・偏差値・全国順位の母集団からは deletedAt で外している(rankedEntries.ts / rrRating.ts / bankroll.ts)。
+ */
+export const DELETED_USER_DISPLAY_NAME = "Player";
 
 export interface DeleteAccountResult {
   /** 実際に匿名化した User.id。 */
