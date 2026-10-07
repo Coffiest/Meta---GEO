@@ -13,7 +13,8 @@ import { isAdminIdentity } from "./adminAuth.js";
  * - プリフロップまでの人がポストフロップ以降を開いた → 403 { code: "GEO_POSTFLOP_LOCKED", itmCount, required }
  * - 認証そのものが設定されていない開発環境では通す(ローカルで GEO を確認できるように)
  *
- * 解放の段階を短くキャッシュする(回数は減らないので、解放は取り消されない)。
+ * 解放の段階を短くキャッシュする。管理者がプレイヤーごとに緩めた段階(User.geoAccessOverride)も含む。
+ * 個別設定を変えたら clearGeoAccessCache() で捨てる。
  */
 const LEVEL_TTL_MS = 60_000;
 const levelCache = new Map<string, { level: GeoAccessLevel; until: number }>();
@@ -31,6 +32,11 @@ function send(res: ServerResponse, status: number, body: unknown): void {
     "cache-control": "no-store",
   });
   res.end(JSON.stringify(body));
+}
+
+/** 管理者が個別設定を変えたときに呼ぶ(次の要求から新しい段階で判定する。取り上げる方向の変更もすぐ効かせる)。 */
+export function clearGeoAccessCache(): void {
+  levelCache.clear();
 }
 
 /** ログイン中の人の GEO の利用条件(管理者のアカウントは全部使える)。 */
