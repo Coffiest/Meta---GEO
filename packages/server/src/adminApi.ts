@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { presenceSnapshot } from "./presence.js";
 import {
   backfillDecisionFacts,
   backfillGeoDecisions,
@@ -145,6 +146,17 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     // 管理者として通るかだけを確かめる(画面のパスコード入力の答え合わせ。照合はサーバーだけで行う)。
     if (url.pathname === "/api/admin/session" && req.method === "GET") {
       sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // いまアクティブなユーザー(最後に見えてから5分以内か、卓で遊んでいる人)と人数。
+    if (url.pathname === "/api/admin/active-users" && req.method === "GET") {
+      const { prisma } = await import("@meta-geo/db");
+      const snapshot = await presenceSnapshot(async (ids) => {
+        const rows = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } });
+        return new Map(rows.map((r) => [r.id, r.displayName]));
+      });
+      sendJson(res, 200, snapshot);
       return true;
     }
 

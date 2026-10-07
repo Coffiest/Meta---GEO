@@ -37,6 +37,7 @@ import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { isAdminIdentity } from "./adminAuth.js";
 import { activeGames } from "./activeGames.js";
+import { touchPresence } from "./presence.js";
 import { liveStatus } from "./liveStatus.js";
 import {
   deletePushSubscription,
@@ -107,7 +108,10 @@ const EMPTY_STATS = {
 
 async function resolveDbUser(verified: VerifiedUser) {
   const fallbackName = verified.email?.split("@")[0] ?? "Player";
-  return getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
+  const user = await getOrCreateUserByAuthId({ authId: verified.authId, email: verified.email, displayName: fallbackName });
+  // 管理者画面の「いまアクティブなユーザー」のため、最後に見えた時刻を残す(メモリだけ)。
+  touchPresence(user.id, user.displayName);
+  return user;
 }
 
 /**

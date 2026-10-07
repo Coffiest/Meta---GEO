@@ -6,6 +6,7 @@ import type { GameSession, HumanPlayer } from "./gameServer.js";
 import { SngMatchmaker } from "./sngMatchmaker.js";
 import { MttScheduler } from "./mttScheduler.js";
 import { activeGames } from "./activeGames.js";
+import { touchPresence } from "./presence.js";
 import { isValidUnlockCode } from "./adminAuth.js";
 
 /** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。 */
@@ -164,6 +165,7 @@ export class Lobby {
       return;
     }
     socket.data["userId"] = resolved.userId;
+    touchPresence(resolved.userId, resolved.displayName);
 
     const existing = this.activeSessions.get(resolved.userId);
     if (existing && !existing.isFinished() && !existing.isUserDone(resolved.userId)) {
@@ -222,6 +224,7 @@ export class Lobby {
       return;
     }
     socket.data["userId"] = resolved.userId;
+    touchPresence(resolved.userId, resolved.displayName);
 
     const existing = this.activeSessions.get(resolved.userId);
     if (existing && !existing.isFinished() && !existing.isUserDone(resolved.userId)) {

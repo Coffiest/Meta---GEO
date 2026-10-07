@@ -32,6 +32,11 @@ class ActiveGameRegistry {
     return this.active.get(userId) ?? null;
   }
 
+  /** いま進行中のゲームがある人(管理者画面のアクティブユーザー用)。 */
+  activeUserIds(): string[] {
+    return [...this.active.keys()];
+  }
+
   /** ゲーム終了時に呼ぶ。進行中フラグを消し、未表示結果として保存する。 */
   recordResult(userId: string, result: ActiveGameResult): void {
     this.active.delete(userId);
