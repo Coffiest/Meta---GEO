@@ -21,7 +21,23 @@ const POSTFLOP_AT = 20;
 /** preflop / postflop = インマネ回数の錠。gold / platinum = そのプランが要る(プランの錠)。 */
 export type GeoLockStage = "preflop" | "postflop" | "gold" | "platinum";
 
-/** プランが足りないときの錠。料金ページへ案内する。 */
+/** アップグレードの印(ダイヤ。SVG)。 */
+function GemMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
+      <path d="M6 3h12l4 6-10 12L2 9z" fill="currentColor" />
+      <path d="M2 9h20M9 3l3 6 3-6M12 9v12" stroke="#26c2a3" strokeWidth="1.2" fill="none" opacity="0.55" />
+    </svg>
+  );
+}
+
+/** ぼかした見本の行(実データは出さない。何が見られるかの雰囲気だけ伝える)。 */
+const PREVIEW_ROWS = ["UTG", "HJ", "CO", "BTN", "SB"];
+
+/**
+ * プランが足りないときの錠(オーナー指示: chess.com の「高度な統計情報をゲット」のポップアップにならう)。
+ * 見出し・説明・アップグレードボタン(→ プラン選択)と、その下にぼかした見本を置く。
+ */
 function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: () => void }) {
   const { t } = useI18n();
   return (
@@ -29,30 +45,57 @@ function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: 
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_MOVE}
-      className="w-full max-w-[360px] rounded-2xl bg-surface-2 p-6 shadow-e4"
+      className="relative w-full max-w-[380px] overflow-hidden rounded-[22px] bg-surface-2 p-1.5 shadow-e4 ring-1 ring-inset ring-line"
+      role="dialog"
+      aria-labelledby="geo-plan-lock-title"
     >
-      <div className="flex items-center gap-2">
-        <Icon name="lock" className="h-4 w-4 shrink-0 text-fg-2" />
-        <p className="text-[11px] font-black tracking-[0.08em] text-fg-2">{t("geo.lock.title")}</p>
-      </div>
-      <h1 className="mt-1 text-[20px] font-black leading-snug tracking-tight text-fg">{t(`geo.lock.plan.${plan}`)}</h1>
-      <p className="mt-3 text-[13px] leading-relaxed text-fg-2">{t(`geo.lock.planBody.${plan}`)}</p>
-      <Link
-        href="/pricing"
-        className="pressable mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-[14px] font-black text-on-accent shadow-glow"
-      >
-        {t("geo.lock.planCta")}
-        <Icon name="arrow-right" className="h-4 w-4" />
-      </Link>
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
+      <div className="px-4 pb-4 pt-5">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("common.close")}
+            className="pressable absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-fg-3"
+          >
+            <Icon name="close" className="h-4 w-4" />
+          </button>
+        )}
+        <h1 id="geo-plan-lock-title" className="pr-8 text-[24px] font-black leading-tight tracking-tight text-fg">
+          {t(`geo.lock.plan.${plan}`)}
+        </h1>
+        <p className="mt-2 text-[13px] leading-relaxed text-fg-2">{t(`geo.lock.planBody.${plan}`)}</p>
+        <Link
+          href="/pricing?from=geo"
+          className="pressable mt-4 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-accent text-[18px] font-black text-on-accent shadow-glow"
         >
-          {t("common.close")}
-        </button>
-      )}
+          <GemMark />
+          {t("geo.lock.planCta")}
+        </Link>
+      </div>
+
+      {/* ぼかした見本 */}
+      <div className="rounded-[18px] bg-canvas" aria-hidden>
+        <div className="flex border-b border-line px-3 text-[13px] font-black">
+          {["プリフロップ", "フロップ", "ターン", "リバー"].map((tab, i) => (
+            <span key={tab} className={`relative flex-1 py-3 text-center ${i === 0 ? "text-fg" : "text-fg-3"}`}>
+              {tab}
+              {i === 0 && <span className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-accent" />}
+            </span>
+          ))}
+        </div>
+        <ul className="divide-y divide-line px-3">
+          {PREVIEW_ROWS.map((pos, i) => (
+            <li key={pos} className="flex items-center gap-3 py-3.5">
+              <span className="w-12 text-[15px] font-black text-fg">{pos}</span>
+              <span className="ml-auto flex items-center gap-1.5 blur-[5px]">
+                <span className="h-4 rounded-full bg-fg-3" style={{ width: 28 + ((i * 17) % 30) }} />
+                <span className="h-4 rounded-full bg-accent/60" style={{ width: 18 + ((i * 11) % 22) }} />
+              </span>
+              <Icon name="chevron-right" className="h-4 w-4 text-fg-3" />
+            </li>
+          ))}
+        </ul>
+      </div>
     </motion.div>
   );
 }
