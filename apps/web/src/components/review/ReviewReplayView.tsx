@@ -296,14 +296,16 @@ export function ReviewReplayView({
         </p>
       </header>
 
-      {/* 上: 評価カード(chess.com と同じく、解説は画面の上) */}
+      {/* 上: 評価カード(chess.com と同じく、解説は画面の上)。
+          高さは場面によらず一定にする(中身はカードの中でスクロール)。中身に合わせて伸び縮みさせると、
+          そのたびに卓の空き領域が変わって卓の大きさが変わり、場面を切り替えるたびに卓がちらついていた(オーナー指摘)。 */}
       <div className="shrink-0 px-3 pt-2">
         <motion.div
           key={stepIndex}
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING_MOVE}
-          className="max-h-[42vh] overflow-y-auto rounded-[20px] bg-surface px-3.5 py-3 shadow-e2"
+          className="h-[min(38vh,320px)] overflow-y-auto rounded-[20px] bg-surface px-3.5 py-3 shadow-e2"
           style={{ border: `0.5px solid ${HAIRLINE}` }}
         >
           {step.type === "handStart" ? (
