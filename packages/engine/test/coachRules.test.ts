@@ -136,6 +136,24 @@ describe("コーチのルール", () => {
     expect(v.blocked).toContain("Ah");
   });
 
+  it("5-3b. リバーでナッツ級を1つも抑えずにコール → MDF とブロッカーの解説(オッズではない)", () => {
+    const board = ["Kh", "9h", "5c", "2h", "Qd"];
+    const b = srp({ 2: ["7c", "7d"] }, board);
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("turn");
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("river");
+    b.act(2, "check", null);
+    b.act(0, "bet", 400);
+    const seq = b.act(2, "call", 400);
+    const v = judgeCoach(b.hand, seq)!;
+    expect(v.id).toBe("riverCallNoBlock");
+    expect(v.blocked).toEqual([]);
+    expect(v.nutExamples!.length).toBeGreaterThan(0);
+  });
+
   it("5-4. ナッツ級をブロックした A ハイで降りる → 緩手 / レイズ → 絶妙手", () => {
     const board = ["Kh", "9h", "5c", "2h", "Qd"];
     for (const [kind, id, grade] of [

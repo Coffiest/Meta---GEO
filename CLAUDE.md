@@ -121,7 +121,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 - **15bb 以下・誰も参加していない局面のオープンは、パワーナンバーで格付けする(オーナー指示)。** 表と判定は `packages/engine/src/review/powerNumber.ts`(出典: poker-nyuumon.com/power-number)。有効M =(開始時のスタック ÷ その時点のポット[SB+BB+アンティ])× 後ろに控えている人数。有効M が表の数字より小さければオールイン、∞ はいつでも、空欄は有効M が 3 未満のときだけ。`attachPowerNumbers` が決定に載せ、`applyNotionGrades` が GTO・記事より優先して格付けを置き換える。画面は解説の「詳しく見る」に同じ数字・同じ色の表(`PowerNumberTable`。画像は使わず部品で描く)を出す。
 - **コーチのルール(オーナー指示。該当する局面では必ずこの解説とバッジ。どの格付けよりも優先)** は `packages/engine/src/review/coachRules.ts` の `judgeCoach`(db の `attachCoach` が載せ、`applyNotionGrades` が最優先で格付けを置き換える)。文章は `apps/web/src/lib/coachComment.ts`、記事の要点は `knowledge/coach-rules.md`。
   - プリフロップ・フロップのポットコミット(ベット後に相手のオールインへのコールの必要勝率が 25% 以下 = SPR 0.5。分かりやすいコミットだけ)→ 大悪手。
-  - ベットへのコール → 必要勝率と、相手のアクションから見積もったレンジに対する推定勝率(相手の実際の手札は使わない)。
+  - ベットへのコール(フロップ・ターン)→ 必要勝率と、相手のアクションから見積もったレンジに対する推定勝率(相手の実際の手札は使わない)。**リバーはオッズではなく MDF とブロッカー**(相手のナッツ級の代表3つを抑えていればコール側、抑えていなければフォールド側。オーナー指示)。
   - BMCB / IP のバレル 40% 以下(大悪手・ポラライズ)/ IP のシンバリュー / OOP のブロックベット(SRP)/ リバーの MDF・ナッツ級のブロッカーでのコール(絶妙手)・ブラフレイズ(絶妙手)・その候補で降りる(緩手)。
 - 棋譜解析のポジションは `reviewPositions`(実際のブラインドの席から数える。画面は卓と同じ名前、GTO の表は 6-max の言葉)。アクションは `normalizeCallLikeAggression` を通してから読む(額を上げていないオールイン/レイズはコール)。
 

@@ -218,6 +218,47 @@ export function coachComment(c: CoachData): CoachNote {
           MDF_BODY,
         sourceUrl: SRC.riverRaise,
       };
+    case "riverCallNoBlock":
+      return {
+        title: "リバーの MDF とブロッカー",
+        summary: `このベットに対する MDF は ${pct(c.mdf)}。レンジの ${pct(c.mdf)} くらいはコールで守る必要があるけど、守るのはブロッカーが優秀な手から。相手のナッツ級は ${nutList(c)} で、きみの手はどれも抑えていないから、ここは降りる側の手だったよ。`,
+        points: [
+          { label: "MDF", text: `レンジの ${pct(c.mdf)} くらいはコールかレイズで守る` },
+          { label: "相手のナッツ級", text: nutList(c) },
+          { label: "ブロック", text: "どれも抑えていない → 守る順番は後ろ(フォールド候補)" },
+        ],
+        body:
+          MDF_BODY +
+          "\n\nどの手で守るかは「ブロッカー」で選ぶ。相手のナッツ級に使われるカードを自分が持っていれば、相手がその手を持っている組み合わせが減り、相手のレンジの中でブラフの割合が上がる。\n" +
+          "同じくらいの強さなら、ナッツ級を抑えている手からコールし、抑えていない手から降りる。",
+        sourceUrl: SRC.mdf,
+      };
+    case "riverFoldBlocker":
+      return {
+        title: "リバーの MDF とブロッカー",
+        summary: `このベットに対する MDF は ${pct(c.mdf)}。相手のナッツ級は ${nutList(c)} で、きみは ${blockedList(c)} を抑えているんだ。ブロッカーが優秀な手はコールで守る側だから、ここはコールしたかったね。`,
+        points: [
+          { label: "MDF", text: `レンジの ${pct(c.mdf)} くらいはコールかレイズで守る` },
+          { label: "相手のナッツ級", text: nutList(c) },
+          { label: "ブロックしている", text: blockedList(c) },
+        ],
+        body:
+          MDF_BODY +
+          "\n\nナッツ級を抑えている手は、相手のバリューを減らしてブラフの割合を上げる。守る手を選ぶときは、まずこういう手からコールする。",
+        sourceUrl: SRC.mdf,
+      };
+    case "riverFoldOk":
+      return {
+        title: "リバーの MDF とブロッカー",
+        summary: `このベットに対する MDF は ${pct(c.mdf)}。相手のナッツ級は ${nutList(c)} で、きみはどれも抑えていないから、守る順番は後ろ。ここは降りてOKだよ。`,
+        points: [
+          { label: "MDF", text: `レンジの ${pct(c.mdf)} くらいはコールかレイズで守る` },
+          { label: "相手のナッツ級", text: nutList(c) },
+          { label: "ブロック", text: "どれも抑えていない → フォールドでよい" },
+        ],
+        body: MDF_BODY + "\n\n守る手はブロッカーが優秀なものから選ぶ。抑えていない手は降りる側に回す。",
+        sourceUrl: SRC.mdf,
+      };
     case "riverMdf":
       return {
         title: "リバーの MDF",
