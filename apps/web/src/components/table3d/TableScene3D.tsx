@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import {
   CanvasTexture,
@@ -191,6 +191,14 @@ function Table({ shape }: { shape: TableShape }) {
   }, [shape, railWidth, railHeight]);
   const felt = useMemo(() => makeFeltTexture(shape), [shape]);
 
+  // 形が変わったら(枠の高さが変わったとき)、影を焼き直して1回だけ描き直す。Canvas は作り直さない。
+  const gl = useThree((st) => st.gl);
+  const invalidate = useThree((st) => st.invalidate);
+  useEffect(() => {
+    gl.shadowMap.needsUpdate = true;
+    invalidate();
+  }, [geos, felt, gl, invalidate]);
+
   useEffect(
     () => () => {
       Object.values(geos).forEach((g) => g.dispose());
@@ -227,26 +235,39 @@ function Table({ shape }: { shape: TableShape }) {
 }
 
 /**
- * @param height 設計枠の高さ(`designHeightFor`)。変わったら卓の形・カメラ・影を作り直す(Canvas ごと)。
+ * 枠の高さが変わったときに、カメラだけを差し替える(Canvas は作り直さない)。
+ * 以前は `<Canvas key={height}>` で高さが変わるたびに WebGL ごと作り直しており、棋譜解析で場面を
+ * 切り替えるたびに(解説カードの高さが変わって卓の枠の高さが変わり)卓が一瞬消えてまた現れていた(オーナー指摘)。
+ */
+function CameraRig({ spec }: { spec: TableSpec }) {
+  const set = useThree((st) => st.set);
+  const invalidate = useThree((st) => st.invalidate);
+  useLayoutEffect(() => {
+    set({ camera: Object.assign(makeTableCamera(spec), { manual: true }) });
+    invalidate();
+  }, [spec, set, invalidate]);
+  return null;
+}
+
+/**
+ * @param height 設計枠の高さ(`designHeightFor`)。変わったら卓の形・カメラ・影を作り直す(Canvas はそのまま)。
  */
 export default function TableScene3D({ height }: { height: number }) {
   const spec = useMemo(() => tableSpec(height), [height]);
-  const camera = useMemo(() => {
-    const c = makeTableCamera(spec);
-    return Object.assign(c, { manual: true });
-  }, [spec]);
+  // 最初の1枚から正しいカメラで描く(以降の差し替えは CameraRig)。
+  const [initialCamera] = useState(() => Object.assign(makeTableCamera(spec), { manual: true }));
   // 卓が長くなるほど、スポットライトの照らす範囲も広げる(縁が暗く沈みすぎないように)。
   const spotAngle = Math.min(0.95, 0.62 * Math.pow(spec.shape.halfDepth / 1.62, 0.6));
   return (
     <Canvas
-      key={height}
-      camera={camera}
+      camera={initialCamera}
       frameloop="demand"
       dpr={[1, 2]}
       shadows={{ type: PCFSoftShadowMap }}
       gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
       style={{ pointerEvents: "none" }}
     >
+      <CameraRig spec={spec} />
       <SceneSetup />
       <hemisphereLight args={["#d7e6e2", "#050506", 0.32]} />
       <spotLight
