@@ -43,15 +43,15 @@ function builder(stacks: number[], hole: Record<number, string[]>, board: string
 }
 
 describe("コーチのルール", () => {
-  it("2. 10bb で 2.25bb のオープン(残りでオールインにコールするしかない)はコミット → 大悪手", () => {
-    const b = builder([4000, 4000, 4000, 4000, 4000, 1000], { 5: ["Kh", "Td"] }, [], 100, 100);
+  it("2. 5bb で 2.25bb のオープン(残りでオールインにコールするしかない)はコミット → 大悪手", () => {
+    const b = builder([4000, 4000, 4000, 4000, 4000, 500], { 5: ["Kh", "Td"] }, [], 100, 100);
     b.act(3, "fold", null);
     b.act(4, "fold", null);
     const seq = b.act(5, "raise", 225);
     const v = judgeCoach(b.hand, seq)!;
     expect(v.id).toBe("commit");
     expect(v.grade).toBe("blunder");
-    expect(v.requiredEquity!).toBeLessThan(0.37);
+    expect(v.requiredEquity!).toBeLessThanOrEqual(0.25);
   });
 
   it("2. 40bb の普通のオープンはコミットではない", () => {
@@ -134,6 +134,24 @@ describe("コーチのルール", () => {
     expect(v.grade).toBe("artistic");
     expect(v.mdf!).toBeCloseTo(550 / 950, 3);
     expect(v.blocked).toContain("Ah");
+  });
+
+  it("5-3b. リバーでナッツ級を1つも抑えずにコール → MDF とブロッカーの解説(オッズではない)", () => {
+    const board = ["Kh", "9h", "5c", "2h", "Qd"];
+    const b = srp({ 2: ["7c", "7d"] }, board);
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("turn");
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("river");
+    b.act(2, "check", null);
+    b.act(0, "bet", 400);
+    const seq = b.act(2, "call", 400);
+    const v = judgeCoach(b.hand, seq)!;
+    expect(v.id).toBe("riverCallNoBlock");
+    expect(v.blocked).toEqual([]);
+    expect(v.nutExamples!.length).toBeGreaterThan(0);
   });
 
   it("5-4. ナッツ級をブロックした A ハイで降りる → 緩手 / レイズ → 絶妙手", () => {

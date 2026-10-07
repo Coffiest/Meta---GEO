@@ -121,7 +121,7 @@ export default function ReviewHandPage() {
   );
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 pt-5 pb-28">
         <button onClick={() => router.back()} className="pressable text-[12px] font-bold text-fg-2 mb-3">
           ← 戻る

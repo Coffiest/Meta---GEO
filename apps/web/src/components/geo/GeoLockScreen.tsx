@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useI18n } from "@/lib/i18n";
-import { SPRING_MOVE } from "@/lib/motion";
+import { FADE, SPRING_MOVE } from "@/lib/motion";
 import { bucketColor } from "./colors";
 import { demoBucket } from "./GeoGuide";
 
@@ -42,11 +42,12 @@ const PREVIEW_ROWS = ["UTG", "HJ", "CO", "BTN", "SB"];
  */
 function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: () => void }) {
   const { t } = useI18n();
+  const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={SPRING_MOVE}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={reduce ? FADE : SPRING_MOVE}
       className="relative w-full max-w-[380px] overflow-hidden rounded-[22px] bg-surface-2 p-1.5 shadow-e4 ring-1 ring-inset ring-line"
       role="dialog"
       aria-labelledby="geo-plan-lock-title"

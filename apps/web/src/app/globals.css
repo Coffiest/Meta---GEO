@@ -13,10 +13,10 @@
 :root {
   --n-0: 4 4 5; /* #040405 沈み面・スクリムの下地 */
   --n-1: 10 10 11; /* #0A0A0B アプリ背景(canvas) */
-  --n-2: 16 16 18; /* #101012 極薄フィル */
-  --n-3: 24 24 26; /* #18181A カード面 L1(surface) */
-  --n-4: 36 36 38; /* #242426 カード面 L2 / ヘアライン */
-  --n-5: 50 50 53; /* #323235 カード面 L3 / 強めの罫 */
+  --n-2: 16 16 19; /* #101013 極薄フィル */
+  --n-3: 24 24 28; /* #18181C カード面 L1(surface)。Apple のダークの灰色と同じく、ごくわずかに青みへ寄せる */
+  --n-4: 36 36 41; /* #242429 カード面 L2 / ヘアライン */
+  --n-5: 50 50 56; /* #323238 カード面 L3 / 強めの罫 */
   --n-6: 110 110 115; /* #6E6E73 マイクロラベル */
   --n-7: 142 142 147; /* #8E8E93 補助テキスト */
   --n-8: 174 174 178; /* #AEAEB2 副次テキスト */
@@ -29,6 +29,12 @@
   --accent: 38 194 163; /* #26C2A3 テーマカラー。#0A0A0B 上で 8.79:1 */
   --accent-lo: 30 168 140; /* #1EA88C */
   --on-accent: 4 33 27; /* #04211B アクセント面に乗せる文字。白(2.25:1)は使えない */
+
+  /* 環境光の差し色(Apple のシステムカラー: Indigo #5E5CE6 / Purple #BF5AF2)。
+     黒とテーマカラーだけだと空間がのっぺりするため、オーラにだけごく薄く混ぜる。
+     UI のアクセントには使わない(アクセントは --accent の1色のまま)。 */
+  --ambient-indigo: 94 92 230;
+  --ambient-purple: 191 90 242;
 
   /* アイコンの資格者枠(High Roller = 銀 / Super High Roller = 金)。オーナー指定の装飾で、UIのアクセントではない
      (ゴールドをアクセントに使わない、のきまりの対象外)。ここ以外で使わない。 */
@@ -49,8 +55,13 @@
 html,
 body {
   height: 100%;
-  background: rgb(var(--n-1));
   color: rgb(var(--n-11));
+}
+
+/* 地の色は html だけに持たせる。body にも塗ると、body が不透明な面になって
+   z-index:-1 の環境光(.aura)を覆い隠し、画面が黒一色ののっぺりした平面になる(実際に起きた)。 */
+html {
+  background: rgb(var(--n-1));
 }
 
 body {
@@ -78,10 +89,14 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* Apple Music のように、主役の色(ティール)の周りに隣り合う色相(藍・紫)を薄く滲ませて、
+     黒一色の平面ではなく「光の当たった空間」に見せる。どれも静止。 */
   background:
     radial-gradient(60rem 40rem at 12% -8%, rgb(var(--accent) / 0.16), transparent 70%),
-    radial-gradient(48rem 34rem at 96% 4%, rgb(var(--accent-hi) / 0.09), transparent 72%),
-    radial-gradient(70rem 50rem at 50% 108%, rgb(var(--accent-lo) / 0.10), transparent 74%);
+    radial-gradient(46rem 32rem at 100% 0%, rgb(var(--ambient-indigo) / 0.13), transparent 70%),
+    radial-gradient(40rem 30rem at 85% 55%, rgb(var(--ambient-purple) / 0.06), transparent 72%),
+    radial-gradient(70rem 50rem at 50% 108%, rgb(var(--accent-lo) / 0.10), transparent 74%),
+    linear-gradient(180deg, rgb(var(--ambient-indigo) / 0.03), transparent 40%);
 }
 
 /* 常時アニメーションが走る卓画面ではオーラを薄くする(GPU負荷と発熱の抑制)。 */

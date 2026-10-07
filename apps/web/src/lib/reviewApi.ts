@@ -102,6 +102,9 @@ export interface ReviewedDecision {
       | "riverCatch"
       | "riverRaise"
       | "riverRaiseMissed"
+      | "riverCallNoBlock"
+      | "riverFoldBlocker"
+      | "riverFoldOk"
       | "riverMdf";
     grade: Classification | null;
     street: string;

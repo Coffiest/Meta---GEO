@@ -130,6 +130,12 @@ export interface KnowledgeWhen {
   /** 直前のストリートから盤面のどこが変わったか(ドンクの理由に使う)。 */
   boardChange?: BoardChange[];
 
+  // ── 自分の立場(オーナー指示: オリジナルレイザーでないのに C ベットの解説が出ていた)──
+  /** 自分がプリフロップの最後のレイザー(オリジナルレイザー/3ベッター)か。 */
+  heroPfr?: boolean;
+  /** フロップ以降、自分が最後に動く(インポジション)か。 */
+  heroIp?: boolean;
+
   // ── ポットの形(`potShape.ts`)──
   potType?: PotType[];
   /** ブラインド同士か(ノートの「BvB」)。 */
@@ -150,6 +156,10 @@ export interface KnowledgeFacts {
   texture: BoardTexture | null;
   hand: HandStrength | null;
   pot: PotShape;
+  /** プリフロップの最後のレイザーの席(リンプポットなどは null)。 */
+  preflopAggressor?: number | null;
+  /** フロップに残った席を、フロップ以降に動く順(SB → … → BTN)に並べたもの。 */
+  postflopOrder?: number[];
 }
 
 /** そのストリートの時点で開いていたボードの枚数。 */
@@ -170,7 +180,19 @@ export function boardUpTo(street: string, board: readonly string[]): string[] {
 /** 1つの決定について、条件判定に使う読み取り結果を作る。 */
 export function factsForDecision(street: string, ctx: KnowledgeContext): KnowledgeFacts {
   const board = boardUpTo(street, ctx.board);
+  const norm = normalizeCallLikeAggression(ctx.actions.map((a) => ({ ...a, toAmount: a.toAmount ?? null })));
+  const preflop = norm.filter((a) => a.street === "preflop");
+  let preflopAggressor: number | null = null;
+  for (const a of preflop) if (a.kind === "raise" || a.kind === "bet" || a.kind === "allIn") preflopAggressor = a.seatIndex;
+  const folded = new Set(preflop.filter((a) => a.kind === "fold").map((a) => a.seatIndex));
+  const inHand = [...new Set(preflop.map((a) => a.seatIndex))].filter((seat) => !folded.has(seat));
+  const n = Math.max(ctx.seatCount, 1);
+  // ボタンの次(SB)を 0、ボタンを n-1 として並べる。
+  const order = (seat: number) => (seat - ctx.buttonFixedPos - 1 + n * 2) % n;
+  const postflopOrder = inHand.sort((a, b) => order(a) - order(b));
   return {
+    preflopAggressor,
+    postflopOrder,
     texture: readBoardTexture(board),
     hand: readHandStrength(ctx.heroHoleCards, board),
     // オールインへのコールなど「中身はコール」の手はコールとして数える(3betポットと誤読しない)。
@@ -307,6 +329,17 @@ function matches(entry: KnowledgeEntry, d: ReviewedDecision, facts: KnowledgeFac
     if (!inSet(st.tag, w.strategyTag)) return false;
     if (!inSet(st.reason, w.strategyReason)) return false;
     if (!inSet(st.boardChange, w.boardChange)) return false;
+  }
+
+  // 自分の立場(プリフロップのレイザーか・インポジションか)。分からない決定には、書いてあれば当たらない。
+  if (w.heroPfr !== undefined) {
+    if (facts.preflopAggressor === undefined) return false;
+    if ((facts.preflopAggressor === d.seatIndex) !== w.heroPfr) return false;
+  }
+  if (w.heroIp !== undefined) {
+    const ord = facts.postflopOrder;
+    if (!ord || ord.length < 2 || !ord.includes(d.seatIndex)) return false;
+    if ((ord[ord.length - 1] === d.seatIndex) !== w.heroIp) return false;
   }
 
   if (!inSet(facts.pot.type, w.potType)) return false;

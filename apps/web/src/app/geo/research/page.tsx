@@ -92,7 +92,7 @@ export default function ResearchPage() {
 
   if (loading || geoAccess.state.status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas">
+      <div className="flex min-h-screen items-center justify-center">
         <Loader size="lg" />
       </div>
     );
@@ -104,7 +104,7 @@ export default function ResearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas pb-16">
+    <div className="min-h-screen pb-16">
       <header className="glass-header sticky top-0 z-20 flex items-center gap-2.5 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)]">
         <Link
           href="/geo"

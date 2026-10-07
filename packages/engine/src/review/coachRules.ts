@@ -37,7 +37,10 @@ export type CoachId =
   | "riverCatch"
   | "riverRaise"
   | "riverRaiseMissed"
-  | "riverMdf";
+  | "riverMdf"
+  | "riverCallNoBlock"
+  | "riverFoldBlocker"
+  | "riverFoldOk";
 
 export interface CoachVerdict {
   id: CoachId;
@@ -95,8 +98,12 @@ export interface CoachHand {
   actions: readonly CoachAction[];
 }
 
-/** ベット後に、相手のオールインへのコールに必要な勝率がこれ以下ならコミット(木原の例 35.7%〜36.3% を含む)。 */
-export const COMMIT_MAX_REQUIRED_EQUITY = 0.37;
+/**
+ * ベット後に、相手のオールインへのコールに必要な勝率がこれ以下ならコミット(大悪手)。
+ * 分かりやすくコミットしているときだけ言う(オーナー指示: 37%・34% では「すぐコミットと言われて不快」)。
+ * 25% = 残りのスタックがポットの半分(SPR 0.5)。ここまで来ると降りるのは明らかに損(出典: cardplayer.com の SPR 解説)。
+ */
+export const COMMIT_MAX_REQUIRED_EQUITY = 0.25;
 /** ポラライズしていない(安すぎる)バレルの上限。 */
 export const POLARIZE_MAX_PCT = 0.4;
 /** ブロックベットのサイズ(33〜50%。端数の揺れを少し許す)。 */
@@ -568,10 +575,16 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
     const blocked = blockedExamples(hero.holeCards, examples);
     const candidate = (made.aceHigh || made.boardPair) && blocked.length > 0;
     const base = { street, mdf, nutExamples: examples, blocked, handLabel: made.label };
+    // リバーはオッズではなく MDF とブロッカーで考える(オーナー指示)。
     if (kind === "call" && blocked.length > 0) return { id: "riverCatch", grade: "artistic", ...base };
+    // ナッツ級を1つも抑えていないコールは、守る順番が後ろの手 → 降りる候補(緩手)。
+    if (kind === "call") return { id: "riverCallNoBlock", grade: "inaccuracy", ...base };
     if ((kind === "raise" || kind === "allIn") && candidate) return { id: "riverRaise", grade: "artistic", ...base };
     if (kind === "fold" && candidate) return { id: "riverRaiseMissed", grade: "inaccuracy", ...base };
-    if (kind !== "call") return { id: "riverMdf", grade: null, ...base };
+    // ナッツ級を抑えているのに降りた → コールで守る候補だった(緩手)。抑えていなければ降りてよい。
+    if (kind === "fold" && blocked.length > 0) return { id: "riverFoldBlocker", grade: "inaccuracy", ...base };
+    if (kind === "fold") return { id: "riverFoldOk", grade: null, ...base };
+    return { id: "riverMdf", grade: null, ...base };
   }
 
   // 3. ベットへのコール: オッズの式と推定勝率。
