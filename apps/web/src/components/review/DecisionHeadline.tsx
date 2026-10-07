@@ -14,6 +14,7 @@ import { handCategory, handLabel } from "@/lib/handCategory";
 import { preflopComment } from "@/lib/preflopComment";
 import { barrelComment } from "@/lib/barrelComment";
 import { spotComment } from "@/lib/spotComment";
+import { coachComment } from "@/lib/coachComment";
 import { EMPTY_FACTS, factsForDecision, matchKnowledge, type KnowledgeContext } from "@/lib/reviewKnowledge";
 import { Loader } from "@/components/ui/Loader";
 import { CLASSIFICATION_META, outOfScopeLabel, type Classification } from "@/lib/classification";
@@ -107,10 +108,15 @@ export function DecisionHeadline({
   //  バレル/スポットの表 → 記事のルール → プリフロップの GTO の一般論 → Notion の知識 → 局面の既定の解説(spots.md)
   const note = ((): Note | undefined => {
     if (solving) return undefined;
+    // コーチのルール(ポットコミット・オッズ・ポラライズ・ブロックベット・リバーの MDF など)。バッジの付く判定は
+    // どの解説よりも先に出す(格付けもこれで決まっている)。解説だけの判定は、表の解説が無いときに出す。
+    const coach = decision.coach ? coachComment(decision.coach) : undefined;
+    if (coach && decision.coach?.grade) return coach;
     // 15bb 以下のオープンは、パワーナンバーの判定(格付けもこれ)。表を一緒に見せる。
     if (decision.powerNumber) return powerNumberComment(decision.powerNumber);
     if (c && barrel) return barrelComment(barrel, context?.board);
     if (c && spot) return spotComment(spot, context?.board);
+    if (coach) return coach;
     if (articleNote && !isFallbackRule(article)) return articleNote;
     // プリフロップは、その手とレンジを名指しする GTO の一般論を、Notion の一般的な一言より先に出す。
     const preflop = preflopComment(decision, vars);

@@ -30,6 +30,7 @@ import {
   attachStrategies,
   type DecisionArticle,
   type DecisionPowerNumber,
+  type DecisionCoach,
   type DecisionStrategy,
 } from "./reviewStrategy.js";
 
@@ -227,6 +228,11 @@ export interface ReviewedDecision {
    * 古い保存結果には無いことがある(読む側は undefined も null と同じに扱う)。
    */
   powerNumber?: DecisionPowerNumber | null;
+  /**
+   * コーチのルール(ポットコミット・オッズ・BMCB・ポラライズ・ブロックベット・リバーの MDF/ブロッカー/ブラフレイズ)。
+   * `grade` があれば、どの評価よりも優先して格付けを置き換える。文章は画面が id から組み立てる。
+   */
+  coach?: DecisionCoach | null;
 }
 
 export interface ReviewResult {
@@ -346,6 +352,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       strategy: null,
       article: null,
       powerNumber: null,
+      coach: null,
     };
   });
 }

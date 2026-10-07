@@ -238,10 +238,12 @@ describe("プローブ・ドンク・チェックレイズの場面", () => {
     expect(check.strategy?.spot).toMatchObject({ kind: "donk", situation: "checkOkNoReason" });
     expect(check.classification).toBe("best");
     expect(call.strategy?.spot).toMatchObject({ kind: "checkRaise", board: "dryKQ", situation: "callRaiseHand" });
-    expect(call.classification).toBe("good");
+    // ベットへのコールの格付けは、オッズ(必要勝率と推定勝率)のルールが Notion の表より優先する(オーナー指示)。
+    expect(call.coach?.id).toBe("oddsCall");
+    expect(call.classification).toBe(call.coach?.grade);
   });
 
-  it("表に無い手のコールは、GTOの格付けがあれば残し、無ければ定石手にする", () => {
+  it("ベットへのコールは、GTOの格付けや Notion の表があっても、オッズのルールで格付けする", () => {
     const { hand, facingSeq } = flopCheckThenFacing(["Ah", "Qc"], "call", ["Kd", "7c", "2h", "5s", "9d"]);
     const withGto = flopDecision(facingSeq, "call", { classification: "inaccuracy" });
     const noGto = flopDecision(facingSeq, "call", { classification: null, evLossBb: null });
@@ -249,8 +251,9 @@ describe("プローブ・ドンク・チェックレイズの場面", () => {
     attachStrategies(hand, [noGto]);
     applyNotionGrades([withGto, noGto]);
     expect(withGto.strategy?.keepGto).toBe(true);
-    expect(withGto.classification).toBe("inaccuracy");
-    expect(noGto.classification).toBe("book");
+    expect(withGto.coach?.id).toBe("oddsCall");
+    expect(withGto.classification).toBe(withGto.coach?.grade);
+    expect(noGto.classification).toBe(noGto.coach?.grade);
   });
 });
 
