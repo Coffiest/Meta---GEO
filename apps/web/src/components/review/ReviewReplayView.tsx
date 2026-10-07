@@ -10,6 +10,7 @@ import { DecisionHeadline } from "@/components/review/DecisionHeadline";
 import { actionLabel, decisionInfo, STREET_EN } from "@/lib/actionNotation";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
+import { FitBox } from "@/components/review/FitBox";
 import { PlayingCard } from "@/components/PlayingCard";
 import { playersFromTimeline, revealedFromTimeline, type ReplayStep, type TournamentReplay } from "@/lib/replay";
 import { OPEN_RAISE_BUCKET, OPEN_RAISE_SOURCE_BUCKETS, PREFLOP_DISPLAY_BUCKET_LABELS, POSTFLOP_BUCKET_LABELS } from "@/lib/geoApi";
@@ -297,17 +298,20 @@ export function ReviewReplayView({
       </header>
 
       {/* 上: 評価カード(chess.com と同じく、解説は画面の上)。
-          高さは場面によらず一定にする(中身はカードの中でスクロール)。中身に合わせて伸び縮みさせると、
-          そのたびに卓の空き領域が変わって卓の大きさが変わり、場面を切り替えるたびに卓がちらついていた(オーナー指摘)。 */}
+          高さは場面によらず一定にする。中身に合わせて伸び縮みさせると、そのたびに卓の空き領域が変わって
+          卓の大きさが変わり、場面を切り替えるたびに卓がちらついていた(オーナー指摘)。
+          高さは標準的な解説(見出し + バリィの3行 + 情報の行)がちょうど入る量に詰め、入りきらない解説は
+          FitBox が文字ごと縮めて収める(下に何も無い空白を作らない。オーナー指摘)。 */}
       <div className="shrink-0 px-3 pt-2">
         <motion.div
           key={stepIndex}
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING_MOVE}
-          className="h-[min(38vh,320px)] overflow-y-auto rounded-[20px] bg-surface px-3.5 py-3 shadow-e2"
+          className="rounded-[20px] bg-surface shadow-e2"
           style={{ border: `0.5px solid ${HAIRLINE}` }}
         >
+          <FitBox className="h-[176px] px-3.5 py-3" contentKey={stepIndex}>
           {step.type === "handStart" ? (
             <div className="flex items-center gap-3">
               <div>
@@ -341,6 +345,7 @@ export function ReviewReplayView({
               {stepNotation(step, currentHand.timeline)}
             </p>
           )}
+          </FitBox>
         </motion.div>
       </div>
 
