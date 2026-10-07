@@ -1030,3 +1030,30 @@ export async function getSavedReviewDecisions(
   }
   return map;
 }
+
+/**
+ * プラチナ限定: 棋譜解析で、相手がマックした(見せなかった)手札も見せる(オーナー確定)。
+ * 通常の解析は本人以外の手札を返さないので、ここで全員分を埋める。誰の席でも同じ扱い(相手の種別で分けない)。
+ */
+export async function revealAllHoleCards(review: TournamentReview): Promise<TournamentReview> {
+  const handIds = review.hands.map((h) => h.handId);
+  if (handIds.length === 0) return review;
+  const seats = await prisma.handSeat.findMany({
+    where: { handId: { in: handIds } },
+    select: { handId: true, seatIndex: true, holeCards: true },
+  });
+  const cardsOf = new Map(seats.map((s) => [`${s.handId}:${s.seatIndex}`, s.holeCards]));
+  return {
+    ...review,
+    hands: review.hands.map((h) => ({
+      ...h,
+      timeline: {
+        ...h.timeline,
+        seats: h.timeline.seats.map((s) => ({
+          ...s,
+          holeCards: s.holeCards.length > 0 ? s.holeCards : (cardsOf.get(`${h.handId}:${s.seatIndex}`) ?? []),
+        })),
+      },
+    })),
+  };
+}

@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 /** これより小さくは縮めない(読めなくなる)。それでも収まらなければ箱の中でスクロールする。 */
-const MIN_ZOOM = 0.72;
+const MIN_ZOOM = 0.66;
 
 /**
  * 高さの決まった箱に中身を収める。中身が箱より高ければ、文字も余白も一緒に縮める(`zoom`)。
@@ -19,41 +19,51 @@ export function FitBox({ className, children, contentKey }: { className?: string
   const zoomRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
 
+  // 縮めるのは CSS の zoom ではなく transform: scale で行う。zoom は iOS Safari と Chromium で
+  // 測った高さの扱いが違い、iPhone で下の行(情報の行)が見切れていた(オーナー指摘)。
+  // offsetHeight は transform の影響を受けないレイアウトの高さなので、どのエンジンでも同じ値で計算できる。
   useLayoutEffect(() => {
     const box = boxRef.current;
-    const zoomEl = zoomRef.current;
+    const scaler = zoomRef.current;
     const inner = innerRef.current;
-    if (!box || !zoomEl || !inner) return;
+    if (!box || !scaler || !inner) return;
     const fit = () => {
       const style = getComputedStyle(box);
       const available = box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
       const width = box.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
       if (available <= 0 || width <= 0) return;
-      let z = 1;
-      for (let i = 0; i < 4; i++) {
-        zoomEl.style.zoom = String(z);
-        // 幅は px で与える(px は zoom で縮むが、% は縮まないエンジンがある)。縮んだ後にちょうど箱の幅になる。
-        zoomEl.style.width = `${width / z}px`;
-        // 画面上の高さ(縮んだ後)÷ 倍率 = 縮める前の高さ。
-        const natural = inner.getBoundingClientRect().height / z;
-        const next = Math.max(MIN_ZOOM, Math.min(1, available / natural));
-        if (Math.abs(next - z) < 0.01) break;
-        z = next;
+      let s = 1;
+      for (let i = 0; i < 5; i++) {
+        // 縮めた後にちょうど箱の幅になるよう、中身の幅を 1/s 倍に広げてから高さを測る。
+        inner.style.width = `${width / s}px`;
+        const natural = inner.offsetHeight;
+        // 端数で1pxはみ出さないよう、わずかに余裕を持たせる。
+        const next = Math.max(MIN_ZOOM, Math.min(1, (available - 1) / natural));
+        if (Math.abs(next - s) < 0.005) {
+          s = next;
+          break;
+        }
+        s = next;
       }
-      zoomEl.style.zoom = String(z);
-      zoomEl.style.width = `${width / z}px`;
+      inner.style.width = `${width / s}px`;
+      inner.style.transform = `scale(${s})`;
+      // transform は場所を取る大きさを変えないので、外側の高さを縮んだ後の高さに合わせる(下に空白・はみ出しを作らない)。
+      scaler.style.height = `${inner.offsetHeight * s}px`;
     };
     fit();
-    const ro = new ResizeObserver(fit);
+    const ro = new ResizeObserver(() => fit());
     ro.observe(box);
+    // 「詳しく見る」を開いたときなど、中身があとから変わったときも測り直す。
     ro.observe(inner);
     return () => ro.disconnect();
   }, [contentKey]);
 
   return (
     <div ref={boxRef} className={`overflow-y-auto overflow-x-hidden ${className ?? ""}`}>
-      <div ref={zoomRef} style={{ transformOrigin: "0 0" }}>
-        <div ref={innerRef}>{children}</div>
+      <div ref={zoomRef} className="overflow-hidden">
+        <div ref={innerRef} style={{ transformOrigin: "0 0" }}>
+          {children}
+        </div>
       </div>
     </div>
   );

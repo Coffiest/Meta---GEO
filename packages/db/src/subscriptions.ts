@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
-import { parsePlan, type PlanId } from "./plans.js";
+import { parsePlan, planAtLeast, type PlanId } from "./plans.js";
 
 /**
  * 棋譜解析(トーナメント単位のGTO解析)の課金状態。
@@ -50,6 +50,34 @@ export interface SubscriptionStatus {
  *  - 招待特典のクーポン(PremiumCoupon)。招待1件につき1ヶ月ぶん積み上がる期限付き
  * 期限は「より遅い方」を返す(契約と特典が併存しうるため)。 */
 export async function getSubscriptionStatusForUser(userId: string): Promise<SubscriptionStatus> {
+  const [base, user] = await Promise.all([
+    baseSubscriptionStatus(userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { adminPlan: true, adminPlanUntil: true } }),
+  ]);
+  return withAdminPlan(base, user);
+}
+
+/** 管理者の付与(adminPlan)を重ねる。付与の方が高いプランなら付与のプランにし、未加入なら有効にする。 */
+export function withAdminPlan(
+  base: SubscriptionStatus,
+  user: { adminPlan: string | null; adminPlanUntil: Date | null } | null,
+  now = new Date()
+): SubscriptionStatus {
+  const plan = parsePlan(user?.adminPlan);
+  if (!plan || !user?.adminPlanUntil || user.adminPlanUntil <= now) return base;
+  if (base.active && planAtLeast(base.plan, plan)) return base;
+  return {
+    active: true,
+    status: base.active ? base.status : ADMIN_STATUS,
+    currentPeriodEnd: base.active ? base.currentPeriodEnd : user.adminPlanUntil,
+    plan,
+  };
+}
+
+/** 管理者の付与で有効になっている状態。 */
+export const ADMIN_STATUS = "admin";
+
+async function baseSubscriptionStatus(userId: string): Promise<SubscriptionStatus> {
   const [sub, coupon] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId } }),
     prisma.premiumCoupon.findUnique({ where: { userId } }),
@@ -286,28 +314,28 @@ export async function grantCompSubscription(params: {
   if (!Number.isFinite(params.amount) || params.amount < 1 || params.amount > COMP_MAX[params.unit]) {
     throw new Error(`amount must be between 1 and ${COMP_MAX[params.unit]}`);
   }
+  // Stripe の契約(Subscription 行)には触れず、User の adminPlan に持つ(支払い中の人にも付与できる)。
   const end = compPeriodEnd(params.unit, Math.floor(params.amount));
-  await prisma.subscription.upsert({
-    where: { userId: params.userId },
-    create: {
-      userId: params.userId,
-      stripeCustomerId: `comp_${params.userId}`,
-      status: "comp",
-      currentPeriodEnd: end,
-      plan: params.plan ?? "silver",
-    },
-    update: { status: "comp", currentPeriodEnd: end, plan: params.plan ?? "silver" },
+  await prisma.user.update({
+    where: { id: params.userId },
+    data: { adminPlan: params.plan ?? "silver", adminPlanUntil: end },
   });
   return { currentPeriodEnd: end };
 }
 
 /** 管理者による無料付与(comp)の取り消し。Stripe由来のサブスクには触れない。 */
 export async function revokeCompSubscription(userId: string): Promise<boolean> {
-  const result = await prisma.subscription.updateMany({
-    where: { userId, status: "comp" },
-    data: { status: "canceled", currentPeriodEnd: new Date() },
-  });
-  return result.count > 0;
+  const [legacy, admin] = await Promise.all([
+    prisma.subscription.updateMany({
+      where: { userId, status: "comp" },
+      data: { status: "canceled", currentPeriodEnd: new Date() },
+    }),
+    prisma.user.updateMany({
+      where: { id: userId, adminPlan: { not: null } },
+      data: { adminPlan: null, adminPlanUntil: null },
+    }),
+  ]);
+  return legacy.count + admin.count > 0;
 }
 
 export interface AdminUserSearchResult {
@@ -322,6 +350,11 @@ export interface AdminUserSearchResult {
     plan: string;
     /** Stripe で支払っている契約か(管理者の無料付与ではない)。 */
     viaStripe: boolean;
+    /** Stripe の契約が生きているか(剥奪=即時解約の対象)。 */
+    stripeActive: boolean;
+    /** 管理者が付与したプランと期限(期限切れなら null)。 */
+    adminPlan: string | null;
+    adminPlanUntil: Date | null;
   } | null;
 }
 
@@ -355,26 +388,45 @@ export async function searchUsersForAdmin(
       displayName: true,
       email: true,
       createdAt: true,
+      adminPlan: true,
+      adminPlanUntil: true,
       subscription: { select: { status: true, currentPeriodEnd: true, plan: true, stripeSubscriptionId: true } },
     },
   }), prisma.user.count({ where })]);
   const now = new Date();
-  return { total, users: users.map((u) => ({
-    ...u,
-    subscription: u.subscription
-      ? {
-          status: u.subscription.status,
-          currentPeriodEnd: u.subscription.currentPeriodEnd,
-          plan: u.subscription.plan,
-          viaStripe: u.subscription.status !== "comp" && u.subscription.stripeSubscriptionId != null,
-          active:
-            isStripeSubscriptionActive(u.subscription, now) ||
-            (u.subscription.status === "comp" &&
-              u.subscription.currentPeriodEnd != null &&
-              u.subscription.currentPeriodEnd > now),
-        }
-      : null,
-  })) };
+  return {
+    total,
+    users: users.map((u) => {
+      const sub = u.subscription;
+      const stripeActive = sub != null && sub.status !== "comp" && sub.stripeSubscriptionId != null && isStripeSubscriptionActive(sub, now);
+      const compActive = sub != null && sub.status === "comp" && sub.currentPeriodEnd != null && sub.currentPeriodEnd > now;
+      const base: SubscriptionStatus =
+        sub && (stripeActive || compActive)
+          ? { active: true, status: sub.status, currentPeriodEnd: sub.currentPeriodEnd, plan: parsePlan(sub.plan) ?? "silver" }
+          : { active: false, status: sub?.status ?? null, currentPeriodEnd: sub?.currentPeriodEnd ?? null, plan: null };
+      const adminActive = u.adminPlan != null && u.adminPlanUntil != null && u.adminPlanUntil > now;
+      const eff = withAdminPlan(base, u, now);
+      const hasAnything = sub != null || adminActive;
+      return {
+        id: u.id,
+        displayName: u.displayName,
+        email: u.email,
+        createdAt: u.createdAt,
+        subscription: hasAnything
+          ? {
+              status: eff.status ?? "none",
+              currentPeriodEnd: eff.currentPeriodEnd,
+              active: eff.active,
+              plan: eff.plan ?? "silver",
+              viaStripe: stripeActive,
+              stripeActive,
+              adminPlan: adminActive ? u.adminPlan : null,
+              adminPlanUntil: adminActive ? u.adminPlanUntil : null,
+            }
+          : null,
+      };
+    }),
+  };
 }
 
 /** 消費せずに残り無料枠を確認する(ステータス表示用)。 */

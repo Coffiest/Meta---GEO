@@ -26,7 +26,7 @@ const FEATURES: { text: string; icon: IconName; plans: PlanId[]; soon?: boolean 
   { text: "GEO DATABASE ポストフロップ以降", icon: "layers", plans: ["gold", "platinum"] },
   { text: "GEO をインマネ回数の条件なしで", icon: "lock", plans: ["platinum"] },
   { text: "データ研究", icon: "stats", plans: ["platinum"] },
-  { text: "相手がマックした手札を見る", icon: "cards", plans: ["platinum"], soon: true },
+  { text: "相手がマックした手札を見る", icon: "cards", plans: ["platinum"] },
 ];
 
 /** タブの並び(上位から。chess.com と同じ)。 */

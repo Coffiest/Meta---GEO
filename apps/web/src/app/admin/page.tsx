@@ -23,6 +23,11 @@ interface AdminUser {
     plan?: string;
     /** Stripe で支払い中の契約か(無料付与ではない)。 */
     viaStripe?: boolean;
+    /** Stripe の契約が生きているか(剥奪の対象)。 */
+    stripeActive?: boolean;
+    /** 管理者が付与したプランと期限。 */
+    adminPlan?: string | null;
+    adminPlanUntil?: string | null;
   } | null;
   /** GEO戦略DBに入っているこのプレイヤーのハンド数(総数/除外済み)。 */
   geo: { totalHands: number; excludedHands: number };
@@ -58,9 +63,10 @@ function planName(plan: string | undefined): string {
 }
 
 /** プランの絞り込み(画面側で読み込んだ一覧に掛ける)。 */
-type PlanFilter = "all" | "none" | PlanKey | "comp";
+type PlanFilter = "all" | "paid" | "none" | PlanKey | "comp";
 const PLAN_FILTERS: { value: PlanFilter; label: string }[] = [
   { value: "all", label: "全員" },
+  { value: "paid", label: "有料プラン" },
   { value: "none", label: "無料" },
   { value: "silver", label: "シルバー" },
   { value: "gold", label: "ゴールド" },
@@ -72,13 +78,17 @@ function matchesPlan(u: AdminUser, f: PlanFilter): boolean {
   const active = sub?.active ?? false;
   if (f === "all") return true;
   if (f === "none") return !active;
-  if (f === "comp") return active && sub?.status === "comp";
+  if (f === "paid") return active;
+  if (f === "comp") return active && (sub?.status === "comp" || sub?.adminPlan != null);
   return active && (sub?.plan ?? "silver") === f;
 }
 
 function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active" | "comp" | "none" } {
   if (!sub || !sub.active) return { text: "無料", tone: "none" };
   const name = planName(sub.plan);
+  // 管理者の付与が効いている(付与の方が高いプラン、または付与だけで有効)。
+  if (sub.adminPlan && sub.plan === sub.adminPlan)
+    return { text: `${name}・付与(〜${fmtDate(sub.adminPlanUntil ?? null)})${sub.stripeActive ? "・支払い中" : ""}`, tone: "comp" };
   if (sub.status === "comp") return { text: `${name}・付与(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "comp" };
   if (sub.status === "trialing") return { text: `${name}・無料体験(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "active" };
   if (sub.status === "referral") return { text: `${name}・クーポン(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "active" };
@@ -497,10 +507,33 @@ export default function AdminPage() {
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      setNotice("無料付与を取り消しました");
+      setNotice("付与したプランを取り消しました");
       await search(query, passcode);
     } catch {
       setError("取り消しに失敗しました。");
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  /** プランの剥奪: Stripe の契約をその場で解約する(取り消せない)。 */
+  async function cancelStripe(userId: string, name: string) {
+    if (!passcode) return;
+    if (!window.confirm(`${name} さんの Stripe の契約を今すぐ解約します。日割り返金はされません。よろしいですか?`)) return;
+    setBusyUserId(userId);
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/cancel-stripe`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setNotice("Stripe の契約を解約しました");
+      await search(query, passcode);
+    } catch {
+      setError("解約に失敗しました。");
     } finally {
       setBusyUserId(null);
     }
@@ -978,13 +1011,22 @@ export default function AdminPage() {
                         >
                           期間を指定
                         </button>
-                        {u.subscription?.status === "comp" && u.subscription.active && (
+                        {(u.subscription?.adminPlan || (u.subscription?.status === "comp" && u.subscription.active)) && (
                           <button
                             onClick={() => void revoke(u.id)}
                             disabled={busy}
                             className="pressable rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
                             付与を取り消す
+                          </button>
+                        )}
+                        {u.subscription?.stripeActive && (
+                          <button
+                            onClick={() => void cancelStripe(u.id, u.displayName)}
+                            disabled={busy}
+                            className="pressable rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
+                          >
+                            Stripe契約を解約(剥奪)
                           </button>
                         )}
                         {busy && <Loader size="sm" />}

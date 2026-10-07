@@ -10,6 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { AdminVersionFooter } from "./AdminVersionFooter";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
 import { TopNav, type SideNavItem } from "./SideNav";
@@ -1641,6 +1642,10 @@ export function Lobby({
                 );
               })()}
             </SectionCard>
+            {/* バージョン表記 → パスコード → 管理者画面(オーナー指示)。下のタブバーに隠れないよう余白を取る。 */}
+            <div className="pb-24">
+              <AdminVersionFooter />
+            </div>
           </motion.div>
         )}
 

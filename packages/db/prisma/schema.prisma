@@ -32,6 +32,10 @@ model User {
   geoAccessOverride String?
   /// 無料体験を使った時刻(全プランを通して1人1回。オーナー確定)。null = まだ使っていない。
   trialUsedAt  DateTime?
+  /// 管理者が付与したプラン("silver" | "gold" | "platinum")と期限。Stripe の契約とは別に持ち、高い方が効く
+  /// (支払い中の人にも上位プランを付与できるように。オーナー指示)。期限切れ・null は無し。
+  adminPlan      String?
+  adminPlanUntil DateTime?
   createdAt    DateTime  @default(now())
   /// アカウント削除(退会)した時刻。未削除はnull。
   ///

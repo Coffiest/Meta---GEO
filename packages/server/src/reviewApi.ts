@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   analyzeHand,
   analyzeTournamentForHero,
+  revealAllHoleCards,
+  getSubscriptionStatusForUser,
   applySavedSolverResults,
   createOrRefreshReview,
   enrichAndSaveReview,
@@ -127,7 +129,10 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         });
         return true;
       }
-      const review = await analyzeTournamentForHero(tournamentId, user.id);
+      const analyzed = await analyzeTournamentForHero(tournamentId, user.id);
+      // プラチナ(管理者の付与を含む)は、相手がマックした手札も見られる(オーナー確定)。
+      const { plan } = await getSubscriptionStatusForUser(user.id);
+      const review = plan === "platinum" ? await revealAllHoleCards(analyzed) : analyzed;
       // ソルバー未完了が残っていればバックグラウンドで事前計算を起動(クライアントはポーリング)。
       if (review.solving) {
         const key = `tourney:${tournamentId}|${user.id}`;
