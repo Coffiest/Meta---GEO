@@ -38,6 +38,8 @@ import {
 import { hasXCredentials, draftReply } from "@meta-geo/marketing";
 import { checkAdminAccess } from "./adminAuth.js";
 import { clearGeoAccessCache } from "./geoAccess.js";
+import { getStripeClient } from "./subscriptionApi.js";
+import { syncSubscription } from "./subscriptionReconciler.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -253,15 +255,6 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const plan = parsePlan(body["plan"]) ?? "silver";
-      // Stripe で支払い中の人に上書きすると、請求とアプリのプランが食い違う。先に解約してもらう。
-      const current = await prisma.subscription.findUnique({
-        where: { userId },
-        select: { status: true, stripeSubscriptionId: true },
-      });
-      if (current?.stripeSubscriptionId && ["active", "trialing", "past_due"].includes(current.status)) {
-        sendJson(res, 409, { error: "stripe_active" });
-        return true;
-      }
       if (amount > ({ day: 3650, week: 520, month: 120 } as const)[unit]) {
         sendJson(res, 400, { error: "amount too large" });
         return true;
@@ -281,7 +274,31 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const revoked = await revokeCompSubscription(userId);
+      clearGeoAccessCache();
       sendJson(res, 200, { ok: true, revoked });
+      return true;
+    }
+
+    // プランの剥奪(Stripe の契約をその場で解約する): { userId }。日割り返金はしない(特商法の表記どおり)。
+    if (url.pathname === "/api/admin/cancel-stripe" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const userId = typeof body["userId"] === "string" ? body["userId"] : "";
+      const row = userId
+        ? await prisma.subscription.findUnique({ where: { userId }, select: { stripeSubscriptionId: true, stripeCustomerId: true } })
+        : null;
+      const stripe = getStripeClient();
+      if (!row?.stripeSubscriptionId) {
+        sendJson(res, 404, { error: "no_stripe_subscription" });
+        return true;
+      }
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      const canceled = await stripe.subscriptions.cancel(row.stripeSubscriptionId);
+      await syncSubscription(row.stripeCustomerId, canceled);
+      clearGeoAccessCache();
+      sendJson(res, 200, { ok: true });
       return true;
     }
 
