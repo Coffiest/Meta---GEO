@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { SPRING_SNAPPY } from "@/lib/motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
@@ -73,22 +73,23 @@ function MetricCard({
   delay: number;
 }) {
   const v = useCountUp(from, to, 1200, delay);
+  const reduce = useReducedMotion();
   const toneClass = deltaTone === "up" ? "text-mint-400 bg-mint-500/10" : deltaTone === "down" ? "text-crimson-300 bg-crimson-500/10" : "text-fg-2 bg-n-2";
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: delay / 1000, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-2xl bg-canvas px-3.5 py-3"
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 22, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={reduce ? FADE : { ...SPRING_MOVE, delay: delay / 1000 }}
+      className="rounded-[20px] bg-canvas/80 px-3.5 py-3 shadow-e1"
     >
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-fg-3">{label}</p>
       <div className="mt-1 flex items-baseline justify-between gap-2">
-        <span className="text-[18px] font-black tabular-nums text-fg">{format(v)}</span>
+        <span className="text-[22px] font-black tabular-nums tracking-[-0.03em] text-fg">{format(v)}</span>
         {delta && (
           <motion.span
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: delay / 1000 + 1.1, type: "spring", stiffness: 520, damping: 20 }}
+            transition={reduce ? FADE : { ...SPRING_SNAPPY, delay: delay / 1000 + 1.1 }}
             className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${toneClass}`}
           >
             {deltaText}
@@ -182,18 +183,20 @@ function ItmCard({
   displayName?: string;
 }) {
   const suffix = ordinal(pos).replace(String(pos), "");
+  const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16, rotate: -2, scale: 0.94 }}
+      // 記念カードは「手渡される」ように、傾いた状態から回って正面に収まる(回転なのでわずかに行き過ぎてよい)。
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 60, rotate: -9, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
-      transition={SPRING_SNAPPY}
+      transition={reduce ? FADE : { type: "spring", bounce: 0.2, duration: 0.6, delay: 0.1 }}
       className="relative flex overflow-hidden rounded-2xl bg-white text-n-1 shadow-e4"
     >
       <div aria-hidden className="w-3.5 shrink-0 bg-accent" />
       <div className="min-w-0 flex-1 px-5 pb-4 pt-4">
         <p className="text-[10px] font-black uppercase tracking-[0.32em] text-n-6">In The Money</p>
         <p className="mt-1 flex items-start font-black leading-[0.82] tracking-[-0.05em]">
-          <span className="text-[92px] tabular-nums">{pos}</span>
+          <span className="text-[104px] tabular-nums">{pos}</span>
           <span className="mt-1.5 text-[40px]">{suffix}</span>
         </p>
         <div className="mt-3 space-y-0.5">
@@ -357,19 +360,31 @@ export function TournamentResultScreen({
 
   const counts = review.data?.classificationCounts;
   const showReEntry = Boolean(canReEntry && onReEntry);
+  const reduce = useReducedMotion();
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-[3px]"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl"
     >
+      {/* カードの背後の発光(静止)。結果の瞬間を「舞台の照明」で強調する。 */}
+      <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-[min(160vw,900px)] w-[min(160vw,900px)] -translate-x-1/2 -translate-y-1/2">
+        <motion.div
+          initial={{ opacity: 0, scale: reduce ? 1 : 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={reduce ? FADE : { ...SPRING_MOVE, duration: 0.9 }}
+          className="h-full w-full rounded-full"
+          style={{ background: `radial-gradient(closest-side, rgb(var(--accent) / ${itm ? 0.6 : 0.4}), rgb(var(--accent) / 0.08) 55%, transparent 72%)` }}
+        />
+      </div>
       <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={SPRING_SNAPPY}
-        className="relative max-h-full w-full max-w-[380px] overflow-y-auto rounded-[28px] border border-line bg-surface p-4 shadow-e4"
+        // ガラスが「現れる」: ぼかしと拡大を同時にほどく(ただのフェードにしない)。
+        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 48, scale: 0.86, filter: "blur(14px)" }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        transition={reduce ? FADE : SPRING_MOVE}
+        className="glass-sheet relative max-h-full w-full max-w-[380px] overflow-y-auto rounded-[32px] p-4"
       >
         {/* 上端: シェア(左)/ 閉じる(右) */}
         <div className="flex items-center justify-between">
@@ -404,20 +419,20 @@ export function TournamentResultScreen({
           </div>
         ) : (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={SPRING_SNAPPY}
-            className="pb-1 pt-1 text-center"
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.5, filter: "blur(18px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            transition={reduce ? FADE : { ...SPRING_MOVE, duration: 0.6, delay: 0.12 }}
+            className="pb-2 pt-3 text-center"
           >
-            <p className="text-[10px] font-black uppercase tracking-[0.34em] text-fg-3">Tournament Result</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.42em] text-accent">Tournament Result</p>
             <p
-              className={`mt-1 flex items-center justify-center font-black leading-[0.9] tracking-[-0.035em] text-fg ${
-                useRatio ? "text-[56px]" : "text-[80px]"
+              className={`mt-2 flex items-center justify-center bg-gradient-to-b from-fg via-fg to-accent bg-clip-text font-black leading-[0.86] tracking-[-0.06em] text-transparent ${
+                useRatio ? "text-[68px]" : "text-[112px]"
               }`}
             >
               <span className="tabular-nums">{rankPlain}</span>
             </p>
-            {eventName && <p className="mt-1 text-[12px] font-bold text-fg-2">{eventName}</p>}
+            {eventName && <p className="mt-2 text-[13px] font-black tracking-[0.04em] text-fg-2">{eventName}</p>}
           </motion.div>
         )}
 
@@ -427,15 +442,15 @@ export function TournamentResultScreen({
             {pickResultBadges(counts).map((c, i) => (
               <motion.div
                 key={c}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...SPRING_SNAPPY, delay: 0.15 + i * 0.04 }}
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.6 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={reduce ? FADE : { ...SPRING_MOVE, delay: 0.35 + i * 0.08 }}
                 className="flex flex-col items-center gap-1.5"
               >
                 <span className="flex items-center gap-2">
-                  <ClassificationBadge classification={c} size={34} />
+                  <ClassificationBadge classification={c} size={38} />
                   {counts ? (
-                    <span className="text-[24px] font-black tabular-nums text-fg">{counts[c] ?? 0}</span>
+                    <span className="text-[28px] font-black tabular-nums tracking-[-0.04em] text-fg">{counts[c] ?? 0}</span>
                   ) : (
                     <span className="h-[26px] w-5 animate-pulse rounded bg-surface-2" />
                   )}
@@ -452,7 +467,7 @@ export function TournamentResultScreen({
         {tournamentId && (
           <button
             onClick={() => setReviewOpen(true)}
-            className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-accent py-4 text-[16px] font-black text-on-accent shadow-glow pressable"
+            className="pressable-lg mt-5 flex w-full items-center justify-center gap-2.5 rounded-[20px] bg-accent py-[18px] text-[17px] font-black tracking-[-0.01em] text-on-accent shadow-glow"
           >
             <Icon name="graph-up" className="h-5 w-5" />
             {t("result.postGame")}
@@ -559,7 +574,7 @@ export function TournamentResultScreen({
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
+              transition={reduce ? FADE : { ...SPRING_MOVE, delay: 0.7 }}
               className="mt-3 flex items-center gap-3 rounded-2xl bg-accent/10 p-3 ring-1 ring-accent/40"
             >
               <Icon name="medal" className="h-8 w-8 shrink-0 text-accent" />
