@@ -64,14 +64,47 @@ export async function startCheckout(accessToken: string, tournamentId?: string, 
   window.location.href = url;
 }
 
-/** 加入中のプランを変える(差額は日割りで、その場で請求・返金される)。 */
-export async function changePlan(accessToken: string, plan: PlanId): Promise<void> {
-  const res = await fetch(`${SERVER_URL}/api/subscriptions/change-plan`, {
+export interface ChangePlanPreview {
+  /** 今すぐ請求される額(日割りの差額。下げるときは0)。 */
+  amountDue: number;
+  /** 変更後の月額。 */
+  monthly: number;
+  /** 無料体験中(今は請求されない)。 */
+  trialing?: boolean;
+  /** 日割りの基準時刻(確定のときに同じ値を送る)。 */
+  prorationDate?: number;
+  same?: boolean;
+}
+
+/** プラン変更の請求額を確かめる(特商法の最終確認画面に出す)。 */
+export async function previewChangePlan(accessToken: string, plan: PlanId): Promise<ChangePlanPreview> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/change-plan/preview`, {
     method: "POST",
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
     body: JSON.stringify({ plan }),
   });
   if (res.status === 503) throw new SubscriptionUnavailableError();
+  if (!res.ok) throw new Error("請求額を確認できませんでした");
+  return (await res.json()) as ChangePlanPreview;
+}
+
+/** 支払いが通らずプランを変えられなかった。 */
+export class PaymentFailedError extends Error {
+  constructor() {
+    super("payment_failed");
+    this.name = "PaymentFailedError";
+  }
+}
+
+/** 加入中のプランを変える(差額は日割りで、その場で請求・返金される)。支払いが通らなければ変えない。 */
+export async function changePlan(accessToken: string, plan: PlanId, prorationDate?: number): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/change-plan`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ plan, prorationDate }),
+  });
+  if (res.status === 503) throw new SubscriptionUnavailableError();
+  if (res.status === 402) throw new PaymentFailedError();
   if (!res.ok) throw new Error("プランを変更できませんでした");
 }
 

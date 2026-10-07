@@ -295,7 +295,14 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 503, { error: "subscriptions_unavailable" });
         return true;
       }
-      const canceled = await stripe.subscriptions.cancel(row.stripeSubscriptionId);
+      let canceled;
+      try {
+        canceled = await stripe.subscriptions.cancel(row.stripeSubscriptionId);
+      } catch (err) {
+        console.error("[adminApi] cancel-stripe failed:", err);
+        sendJson(res, 502, { error: `stripe: ${err instanceof Error ? err.message : "unknown"}`.slice(0, 200) });
+        return true;
+      }
       await syncSubscription(row.stripeCustomerId, canceled);
       clearGeoAccessCache();
       sendJson(res, 200, { ok: true });

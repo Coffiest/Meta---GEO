@@ -207,7 +207,11 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
     }
 
     // プランの変更(ゴールド → プラチナなど)。差額は日割りで、その場で請求・返金する。
-    if (url.pathname === "/api/subscriptions/change-plan" && req.method === "POST") {
+    // /change-plan/preview で請求額を見せてから(特商法の最終確認画面)、/change-plan で確定する。
+    // 支払いが通らなければ変更しない(payment_behavior: error_if_incomplete)。以前は確認なしで変更し、
+    // 「お金を払っていないのに上位プランになった」ように見えていた(オーナー指摘)。
+    if ((url.pathname === "/api/subscriptions/change-plan" || url.pathname === "/api/subscriptions/change-plan/preview") && req.method === "POST") {
+      const preview = url.pathname.endsWith("/preview");
       const body = await readJsonBody(req);
       const plan = parsePlan(body["plan"]);
       const stripe = getStripeClient();
@@ -240,14 +244,46 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         return true;
       }
       const priceId = await resolvePriceId(stripe, plan);
-      const updated: Stripe.Subscription =
-        item.price.id === priceId
-          ? current
-          : await stripe.subscriptions.update(current.id, {
-              items: [{ id: item.id, price: priceId }],
-              proration_behavior: "always_invoice",
-              metadata: { ...current.metadata, plan },
-            });
+      if (item.price.id === priceId) {
+        sendJson(res, 200, preview ? { amountDue: 0, monthly: PLAN_PRICE_JPY[plan], same: true } : { ok: true, plan });
+        return true;
+      }
+      // 確認画面で見せた額と、確定の請求額を揃えるため、日割りの基準時刻をクライアントから受け取る。
+      const prorationDate =
+        typeof body["prorationDate"] === "number" ? Math.floor(body["prorationDate"] as number) : Math.floor(Date.now() / 1000);
+      if (preview) {
+        const inv = await stripe.invoices.createPreview({
+          customer: row.stripeCustomerId,
+          subscription: current.id,
+          subscription_details: {
+            items: [{ id: item.id, price: priceId }],
+            proration_behavior: "always_invoice",
+            proration_date: prorationDate,
+          },
+        });
+        // 試用期間中は請求が発生しない(体験の終了日に新しいプランの額で請求される)。
+        sendJson(res, 200, {
+          amountDue: Math.max(0, inv.amount_due),
+          monthly: PLAN_PRICE_JPY[plan],
+          trialing: current.status === "trialing",
+          prorationDate,
+        });
+        return true;
+      }
+      let updated: Stripe.Subscription;
+      try {
+        updated = await stripe.subscriptions.update(current.id, {
+          items: [{ id: item.id, price: priceId }],
+          proration_behavior: "always_invoice",
+          proration_date: prorationDate,
+          payment_behavior: "error_if_incomplete",
+          metadata: { ...current.metadata, plan },
+        });
+      } catch (err) {
+        console.error("[subscriptionApi] change-plan payment failed:", err);
+        sendJson(res, 402, { error: "payment_failed" });
+        return true;
+      }
       await syncSubscription(row.stripeCustomerId, updated);
       sendJson(res, 200, { ok: true, plan });
       return true;
