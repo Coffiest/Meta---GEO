@@ -32,7 +32,7 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "@/components/Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
@@ -699,9 +699,12 @@ function GeoDatabase({
           left={<HeaderLogo />}
           center={<TopNav items={SIDE_NAV_ITEMS} activeKey="database" />}
           right={
-            <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
-              <HamburgerIcon />
-            </HeaderIconButton>
+            <>
+              <PremiumHeaderButton />
+              <HeaderIconButton onClick={() => router.push("/")} ariaLabel="ホームへ戻る">
+                <HamburgerIcon />
+              </HeaderIconButton>
+            </>
           }
         />
       </div>

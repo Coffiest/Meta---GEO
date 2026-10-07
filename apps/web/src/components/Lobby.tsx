@@ -10,7 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, TermPrompt, termTypeMs } from "./Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
 import { TopNav, type SideNavItem } from "./SideNav";
 import { Icon } from "./Icon";
@@ -1295,11 +1295,14 @@ export function Lobby({
         widthClass="max-w-3xl lg:max-w-none"
         center={<TopNav activeKey={tab === "tournaments" ? "history" : tab} items={navItems} />}
         right={
+          <>
+          <PremiumHeaderButton />
           <span data-tour="menu" className="inline-flex rounded-full">
           <HeaderIconButton onClick={() => setMenuOpen(true)} ariaLabel={t("lobby.menuOpen")}>
             <HamburgerIcon open={menuOpen} />
           </HeaderIconButton>
           </span>
+          </>
         }
       />
 
