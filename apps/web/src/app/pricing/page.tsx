@@ -7,9 +7,7 @@ import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import { useAuth } from "@/lib/useAuth";
 import {
   changePlan,
-  PaymentFailedError,
-  previewChangePlan,
-  type ChangePlanPreview,
+  PortalUpdateDisabledError,
   DEFAULT_PRICES,
   openBillingPortal,
   PLAN_LABEL,
@@ -63,8 +61,6 @@ export default function PricingPage() {
   const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // プラン変更の最終確認(請求額を見せてから確定する。特商法の最終確認画面)。
-  const [confirmChange, setConfirmChange] = useState<{ plan: PlanId; preview: ChangePlanPreview } | null>(null);
   // 選んでいるタブ。既定はおすすめのゴールド(加入中なら今のプラン)。
   const [selected, setSelected] = useState<PlanId>("gold");
   // 局後検討のポップアップから来たときは見出しを合わせる。
@@ -88,24 +84,15 @@ export default function PricingPage() {
     setError(null);
     try {
       if (status?.canChangePlan) {
-        if (!confirmChange || confirmChange.plan !== plan) {
-          const preview = await previewChangePlan(accessToken, plan);
-          setConfirmChange({ plan, preview });
-          setSubmitting(null);
-          return;
-        }
-        await changePlan(accessToken, plan, confirmChange.preview.prorationDate);
-        setConfirmChange(null);
-        setSubmitting(null);
-        await reload();
+        // 請求額の確認と支払いは Stripe の確認ページで行う。
+        await changePlan(accessToken, plan);
         return;
       }
       await startCheckout(accessToken, undefined, plan);
     } catch (e) {
       setSubmitting(null);
-      if (e instanceof PaymentFailedError) {
-        setConfirmChange(null);
-        setError("お支払いが完了しなかったため、プランは変更していません。カードをご確認ください(契約を管理する から変更できます)。");
+      if (e instanceof PortalUpdateDisabledError) {
+        setError("いまはプランの変更を受け付けていません。時間をおいて再度お試しください。");
       } else if (e instanceof SubscriptionUnavailableError) {
         setError("決済は現在準備中です。まもなくご利用いただけます。");
       } else {
@@ -265,27 +252,6 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* プラン変更の最終確認(請求額) */}
-        {confirmChange && confirmChange.plan === selected && (
-          <div className="mt-4 rounded-2xl bg-surface-2 p-4 ring-1 ring-inset ring-line">
-            <p className="text-[13px] font-black text-fg">{PLAN_LABEL[selected]}に変更します</p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-fg-2">
-              {confirmChange.preview.trialing
-                ? `無料体験中のため、今は請求されません。体験の終了日から月額¥${confirmChange.preview.monthly.toLocaleString()}(税込)になります。`
-                : confirmChange.preview.amountDue > 0
-                  ? `登録済みのカードに、今すぐ ¥${confirmChange.preview.amountDue.toLocaleString()}(日割りの差額・税込)を請求します。次回から月額¥${confirmChange.preview.monthly.toLocaleString()}(税込)です。`
-                  : `今回の請求はありません(差額は次回以降の請求から差し引きます)。次回から月額¥${confirmChange.preview.monthly.toLocaleString()}(税込)です。`}
-            </p>
-            <button
-              type="button"
-              onClick={() => setConfirmChange(null)}
-              className="pressable mt-2 text-[12px] font-bold text-fg-3 underline underline-offset-2"
-            >
-              やめる
-            </button>
-          </div>
-        )}
-
         {/* 決定ボタン */}
         {isCurrent ? (
           <div className="mt-4 flex h-14 items-center justify-center gap-1.5 rounded-2xl bg-accent/15 text-[15px] font-black text-accent">
@@ -298,7 +264,7 @@ export default function PricingPage() {
             disabled={submitting != null || (active && !byCoupon && !canChange)}
             className="pressable mt-4 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow disabled:opacity-60"
           >
-            {submitting === selected ? <Loader size="sm" /> : confirmChange?.plan === selected ? "確定して変更する" : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
+            {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
           </button>
         )}
         </div>

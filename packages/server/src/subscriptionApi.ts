@@ -270,22 +270,27 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         });
         return true;
       }
-      let updated: Stripe.Subscription;
+      // 確定は Stripe の確認ページ(Customer Portal の subscription_update_confirm)に任せる(オーナー指示)。
+      // 請求額・支払い方法・規約の表示と支払いは Stripe が行い、結果は webhook(customer.subscription.updated)で同期する。
+      // ポータルの設定で「サブスクリプションの更新」が無効だと Stripe がエラーを返す。
       try {
-        updated = await stripe.subscriptions.update(current.id, {
-          items: [{ id: item.id, price: priceId }],
-          proration_behavior: "always_invoice",
-          proration_date: prorationDate,
-          payment_behavior: "error_if_incomplete",
-          metadata: { ...current.metadata, plan },
+        const session = await stripe.billingPortal.sessions.create({
+          customer: row.stripeCustomerId,
+          return_url: `${webOrigin()}/pricing?changed=${plan}`,
+          flow_data: {
+            type: "subscription_update_confirm",
+            subscription_update_confirm: {
+              subscription: current.id,
+              items: [{ id: item.id, price: priceId, quantity: 1 }],
+            },
+            after_completion: { type: "redirect", redirect: { return_url: `${webOrigin()}/pricing?changed=${plan}` } },
+          },
         });
+        sendJson(res, 200, { url: session.url });
       } catch (err) {
-        console.error("[subscriptionApi] change-plan payment failed:", err);
-        sendJson(res, 402, { error: "payment_failed" });
-        return true;
+        console.error("[subscriptionApi] change-plan portal failed:", err);
+        sendJson(res, 409, { error: "portal_update_disabled" });
       }
-      await syncSubscription(row.stripeCustomerId, updated);
-      sendJson(res, 200, { ok: true, plan });
       return true;
     }
 

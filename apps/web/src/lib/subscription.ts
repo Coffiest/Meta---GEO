@@ -88,24 +88,26 @@ export async function previewChangePlan(accessToken: string, plan: PlanId): Prom
   return (await res.json()) as ChangePlanPreview;
 }
 
-/** 支払いが通らずプランを変えられなかった。 */
-export class PaymentFailedError extends Error {
+/** Stripe のポータルでプランの変更が許可されていない。 */
+export class PortalUpdateDisabledError extends Error {
   constructor() {
-    super("payment_failed");
-    this.name = "PaymentFailedError";
+    super("portal_update_disabled");
+    this.name = "PortalUpdateDisabledError";
   }
 }
 
-/** 加入中のプランを変える(差額は日割りで、その場で請求・返金される)。支払いが通らなければ変えない。 */
-export async function changePlan(accessToken: string, plan: PlanId, prorationDate?: number): Promise<void> {
+/** 加入中のプランを変える。請求額の確認と支払いは Stripe の確認ページで行い、そこへ遷移する。 */
+export async function changePlan(accessToken: string, plan: PlanId): Promise<void> {
   const res = await fetch(`${SERVER_URL}/api/subscriptions/change-plan`, {
     method: "POST",
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-    body: JSON.stringify({ plan, prorationDate }),
+    body: JSON.stringify({ plan }),
   });
   if (res.status === 503) throw new SubscriptionUnavailableError();
-  if (res.status === 402) throw new PaymentFailedError();
+  if (res.status === 409) throw new PortalUpdateDisabledError();
   if (!res.ok) throw new Error("プランを変更できませんでした");
+  const { url } = (await res.json()) as { url: string };
+  window.location.href = url;
 }
 
 /** StripeホステッドのCustomer Portal(解約・支払い方法変更)へ遷移する。 */
