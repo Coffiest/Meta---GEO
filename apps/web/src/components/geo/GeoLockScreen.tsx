@@ -18,7 +18,57 @@ const POSTFLOP_AT = 20;
  *
  * stage = "preflop": まだ何も使えない(全画面) / "postflop": プリフロップまでの人がポストフロップ以降を開いた。
  */
-export function GeoLockCard({
+/** preflop / postflop = インマネ回数の錠。gold / platinum = そのプランが要る(プランの錠)。 */
+export type GeoLockStage = "preflop" | "postflop" | "gold" | "platinum";
+
+/** プランが足りないときの錠。料金ページへ案内する。 */
+function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={SPRING_MOVE}
+      className="w-full max-w-[360px] rounded-2xl bg-surface-2 p-6 shadow-e4"
+    >
+      <div className="flex items-center gap-2">
+        <Icon name="lock" className="h-4 w-4 shrink-0 text-fg-2" />
+        <p className="text-[11px] font-black tracking-[0.08em] text-fg-2">{t("geo.lock.title")}</p>
+      </div>
+      <h1 className="mt-1 text-[20px] font-black leading-snug tracking-tight text-fg">{t(`geo.lock.plan.${plan}`)}</h1>
+      <p className="mt-3 text-[13px] leading-relaxed text-fg-2">{t(`geo.lock.planBody.${plan}`)}</p>
+      <Link
+        href="/pricing"
+        className="pressable mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-[14px] font-black text-on-accent shadow-glow"
+      >
+        {t("geo.lock.planCta")}
+        <Icon name="arrow-right" className="h-4 w-4" />
+      </Link>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="pressable mt-2.5 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2"
+        >
+          {t("common.close")}
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+export function GeoLockCard(props: {
+  itmCount: number;
+  required: number;
+  stage?: GeoLockStage;
+  onShowGuide?: () => void;
+  onClose?: () => void;
+}) {
+  if (props.stage === "gold" || props.stage === "platinum") return <PlanLockCard plan={props.stage} onClose={props.onClose} />;
+  return <ItmLockCard {...props} stage={props.stage} />;
+}
+
+function ItmLockCard({
   itmCount,
   required,
   stage = "preflop",
@@ -129,7 +179,7 @@ export function GeoLockCard({
 export function GeoLockScreen(props: {
   itmCount: number;
   required: number;
-  stage?: "preflop" | "postflop";
+  stage?: GeoLockStage;
   onShowGuide?: () => void;
 }) {
   return (

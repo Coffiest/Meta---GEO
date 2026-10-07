@@ -104,7 +104,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 
 ## GEO データベースの利用条件(オーナー確定)
 
-- データベースタブは、**トーナメントでインマネ(賞金が出て終えた)した回数で段階的に解放**する(オーナー確定)。**10回でプリフロップまで、20回でポストフロップ以降とデータ研究**。有料プランでも同じ条件。SNG(High Roller 等を含む)と MTT をすべて数える(`packages/db/src/geoAccess.ts`。段階は `none` / `preflop` / `full`)。
+- データベースタブは、**トーナメントでインマネ(賞金が出て終えた)した回数で段階的に解放**する(オーナー確定)。**10回でプリフロップまで、20回でポストフロップ以降**。これにプランの上限をかける(オーナー確定): **無料・シルバーは使えない / ゴールド(¥1,380)は回数どおり / プラチナ(¥1,890)は条件なしで全部**。**データ研究はプラチナだけ**。管理者の個別設定(`geoAccessOverride`、「全部」ならデータ研究も)と管理者のアカウントはプランに関係なく上乗せする。プランが足りないとサーバーは 403 `GEO_PLAN_REQUIRED`(`plan` に必要なプラン)を返し、画面はプランの錠(料金ページへ案内)を出す。SNG(High Roller 等を含む)と MTT をすべて数える(`packages/db/src/geoAccess.ts`。段階は `none` / `preflop` / `full`)。
 - **管理者はプレイヤーごとに条件を緩められる**(管理者画面のプレイヤーの「GEOの利用」: 回数どおり / プリフロップまで / 全部。`User.geoAccessOverride`、`/api/admin/geo-override`)。緩める方向にだけ効き、回数で届いた段階は取り上げない。変えたらサーバーの段階のキャッシュを捨てる(`clearGeoAccessCache`)。
 - 理由(画面にも出す): GEO データベースは実際のプレイデータを貯めて成り立っている。たくさん遊んでもらわないと役に立つデータベースにならないので、遊んでもらうための条件にしている。
 - 条件はサーバーで確かめる(`packages/server/src/geoAccess.ts` の `requireGeoAccess(req, res, need)`)。`/api/geo-tree/postflop-node`・`gto-postflop*` と `/api/research/*` は `full`、それ以外の `/api/geo-tree/*` は `preflop`。足りなければ 403 `GEO_LOCKED`(何も使えない)/ `GEO_POSTFLOP_LOCKED`(プリフロップまで)。画面は `GeoLockScreen` / `GeoLockCard`(ポストフロップへ進もうとしたときはボードを選ぶ代わりに錠)を出す。web だけで隠しても API は叩けるので、新しい GEO 系の API を足したら必ず同じ関門を通すこと(ポストフロップ以降の情報なら `full`)。

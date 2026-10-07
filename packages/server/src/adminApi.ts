@@ -246,6 +246,7 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       }
       const plan = parsePlan(body["plan"]) ?? "silver";
       const { currentPeriodEnd } = await grantCompSubscription({ userId, unit, amount, plan });
+      clearGeoAccessCache();
       sendJson(res, 200, { ok: true, currentPeriodEnd: currentPeriodEnd.toISOString() });
       return true;
     }
