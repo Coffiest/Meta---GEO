@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
+import { takeAdminAfterLogin } from "@/lib/adminApi";
 import { useAuth } from "@/lib/useAuth";
 import { useProfile, saveProfile } from "@/lib/profile";
 import { capturePendingReferralCode, redeemReferral, takePendingReferralCode } from "@/lib/referral";
@@ -1256,6 +1257,10 @@ export default function Page() {
   const { t } = useI18n();
   const auth = useAuth();
   const accessToken = auth.accessToken ?? undefined;
+  // ログイン画面のバージョン表記から管理者のパスコードを通していたら、ログインできた時点で管理者画面へ進む。
+  useEffect(() => {
+    if (accessToken && takeAdminAfterLogin()) window.location.href = "/admin";
+  }, [accessToken]);
   const { profile, loading: profileLoading, error: profileError, reload } = useProfile(accessToken);
   const [editingProfile, setEditingProfile] = useState(false);
   const [gameKey, setGameKey] = useState<GameKey | null>(null);
