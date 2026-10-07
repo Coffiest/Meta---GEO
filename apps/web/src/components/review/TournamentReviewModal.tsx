@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, PresenceContext, useIsPresent, useReducedMotion } from "framer-motion";
-import { SPRING_SHEET } from "@/lib/motion";
+import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
 import {
   fetchTournamentReview,
   fetchTournamentReviewSummary,
@@ -42,9 +42,11 @@ const STREET_LABEL = STREET_EN;
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 /** 各セクションのライズイン。 */
 const riseIn = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, damping: 26, stiffness: 340 } },
+  hidden: { opacity: 0, y: 32, scale: 0.96 },
+  show: { opacity: 1, y: 0, scale: 1, transition: SPRING_MOVE },
 };
+/** 比率バーの伸び(行き過ぎない、Apple 標準の移動スプリング)。 */
+const barSpring = (i: number) => ({ ...SPRING_MOVE, duration: 0.8, delay: 0.35 + i * 0.06 });
 
 /** GTOスコアのリングゲージ(カウントアップ+ゴールドのアーク)。 */
 function ScoreRing({ score }: { score: number | null }) {
@@ -55,9 +57,15 @@ function ScoreRing({ score }: { score: number | null }) {
   const C = 2 * Math.PI * R;
   const frac = (score ?? 0) / 100;
   return (
-    <div className="relative h-[132px] w-[132px] shrink-0">
+    <div className="relative h-[156px] w-[156px] shrink-0">
+      {/* リングの背後の発光(静止)。スコアが高いほど強く光る。 */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-6 rounded-full"
+        style={{ background: `radial-gradient(closest-side, rgb(var(--accent) / ${0.12 + frac * 0.3}), transparent 75%)` }}
+      />
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" stroke="#242426" strokeWidth="9" />
+        <circle cx="60" cy="60" r={R} fill="none" stroke="#242426" strokeWidth="11" />
         {score !== null && (
           <motion.circle
             cx="60"
@@ -65,12 +73,12 @@ function ScoreRing({ score }: { score: number | null }) {
             r={R}
             fill="none"
             stroke="url(#gto-ring-grad)"
-            strokeWidth="9"
+            strokeWidth="11"
             strokeLinecap="round"
             strokeDasharray={C}
             initial={{ strokeDashoffset: C }}
             animate={{ strokeDashoffset: C * (1 - frac) }}
-            transition={reduced ? { duration: 0 } : { duration: 1.1, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            transition={reduced ? { duration: 0 } : { ...SPRING_MOVE, duration: 1.3, delay: 0.3 }}
           />
         )}
         <defs>
@@ -81,10 +89,10 @@ function ScoreRing({ score }: { score: number | null }) {
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[36px] font-bold leading-none tracking-tight text-fg tabular-nums">
+        <span className="text-[48px] font-black leading-none tracking-[-0.05em] text-fg tabular-nums">
           {shown === null ? "—" : shown}
         </span>
-        <span className="mt-1 text-[11px] font-semibold text-fg-2">GTOスコア</span>
+        <span className="mt-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-accent">GTOスコア</span>
       </div>
     </div>
   );
@@ -354,7 +362,7 @@ export function TournamentReviewModal({
         exit={{ opacity: 0 }}
         onClick={onClose}
         style={backdropStyle}
-        className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
+        className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-xl"
       >
         <motion.div
           initial={{ y: "100%" }}
@@ -362,7 +370,7 @@ export function TournamentReviewModal({
           exit={{ y: "100%" }}
           transition={SPRING_SHEET}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
+          className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-[36px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
           style={{ background: SHEET_BG }}
         >
           <div className="sticky top-0 z-10 -mx-4 px-4 pt-2.5 pb-1" style={{ background: SHEET_BG }}>
@@ -371,7 +379,7 @@ export function TournamentReviewModal({
 
           <div className="mt-2 mb-4 flex items-start gap-2">
             <div className="min-w-0">
-              <h2 className="text-[28px] font-bold leading-tight tracking-tight text-fg">棋譜解析</h2>
+              <h2 className="text-[34px] font-black leading-[1.05] tracking-[-0.04em] text-fg">棋譜解析</h2>
               <p className="mt-1 text-[13px] font-medium text-fg-2">今回の結果</p>
             </div>
             <motion.button
@@ -406,13 +414,13 @@ export function TournamentReviewModal({
                       <span className="w-[74px] shrink-0 text-[13px] font-semibold" style={{ color: CLASSIFICATION_META[c].color }}>
                         {CLASSIFICATION_META[c].label}
                       </span>
-                      <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                      <div className="h-[8px] flex-1 overflow-hidden rounded-full bg-white/[0.06]">
                         <motion.div
                           className="h-full rounded-full"
                           style={{ background: CLASSIFICATION_META[c].color, originX: 0 }}
                           initial={{ scaleX: 0 }}
                           animate={{ scaleX: n / freeMax }}
-                          transition={{ duration: 0.7, delay: 0.35 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                          transition={barSpring(i)}
                         />
                       </div>
                       <span className="w-7 shrink-0 text-right text-[15px] font-bold text-fg tabular-nums">{n}</span>
@@ -440,7 +448,7 @@ export function TournamentReviewModal({
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={openReview}
-                  className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] bg-accent text-[17px] font-semibold text-on-accent shadow-glow"
+                  className="pressable-lg flex h-[58px] w-full items-center justify-center gap-2 rounded-[20px] bg-accent text-[17px] font-black text-on-accent shadow-glow"
                 >
                   <Icon name="refresh" className="h-4 w-4" />
                   局後検討
@@ -475,7 +483,7 @@ export function TournamentReviewModal({
       exit={{ opacity: 0 }}
       onClick={onClose}
       style={backdropStyle}
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 backdrop-blur-xl"
     >
       <motion.div
         initial={{ y: "100%" }}
@@ -483,7 +491,7 @@ export function TournamentReviewModal({
         exit={{ y: "100%" }}
         transition={SPRING_SHEET}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
+        className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-[36px] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
         style={{ background: SHEET_BG }}
       >
         {/* グラバー */}
@@ -502,7 +510,7 @@ export function TournamentReviewModal({
             <Icon name="chevron-left" className="h-4 w-4" />
           </motion.button>
           <div className="min-w-0">
-            <h2 className="text-[28px] font-bold leading-tight tracking-tight text-fg">局後検討</h2>
+            <h2 className="text-[34px] font-black leading-[1.05] tracking-[-0.04em] text-fg">局後検討</h2>
             <div className="mt-1 flex items-center gap-1.5">
               <p className="text-[13px] font-medium text-fg-2">総括レポート</p>
               {subStatus?.active ? (
@@ -553,14 +561,14 @@ export function TournamentReviewModal({
             {/* ヒーローカード: リングゲージ + メトリクス */}
             <motion.div
               variants={riseIn}
-              className="mb-3 glass-panel rounded-[24px] p-5 shadow-e2"
+              className="mb-3 glass-panel relative overflow-hidden rounded-[28px] p-5 shadow-e3"
             >
               <div className="flex items-center gap-5">
                 <ScoreRing score={data.gtoAccuracy} />
                 <div className="min-w-0 flex-1">
                   <div className="pb-3" style={{ borderBottom: `0.5px solid ${HAIRLINE}` }}>
                     <p className="text-[11px] font-semibold text-fg-2">総ロスEV</p>
-                    <p className="text-[24px] font-bold leading-tight tracking-tight text-crimson-300 tabular-nums">
+                    <p className="text-[30px] font-black leading-tight tracking-[-0.04em] text-crimson-300 tabular-nums">
                       −{summary.totalEvLoss.toFixed(1)}
                       <span className="ml-0.5 text-[13px] font-semibold">bb</span>
                     </p>
@@ -602,13 +610,13 @@ export function TournamentReviewModal({
                     <span className="w-[74px] shrink-0 text-[13px] font-semibold" style={{ color: CLASSIFICATION_META[c].color }}>
                       {CLASSIFICATION_META[c].label}
                     </span>
-                    <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                    <div className="h-[8px] flex-1 overflow-hidden rounded-full bg-white/[0.06]">
                       <motion.div
                         className="h-full rounded-full"
                         style={{ background: CLASSIFICATION_META[c].color, originX: 0 }}
                         initial={{ scaleX: 0 }}
                         animate={{ scaleX: n / maxClassCount }}
-                        transition={{ duration: 0.7, delay: 0.35 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                        transition={barSpring(i)}
                       />
                     </div>
                     <span className="w-7 shrink-0 text-right text-[15px] font-bold text-fg tabular-nums">{n}</span>
