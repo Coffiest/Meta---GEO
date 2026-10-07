@@ -3,42 +3,68 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/useAuth";
-import { startCheckout, SubscriptionUnavailableError, useSubscriptionStatus, openBillingPortal } from "@/lib/subscription";
+import {
+  changePlan,
+  DEFAULT_PRICES,
+  openBillingPortal,
+  PLAN_LABEL,
+  startCheckout,
+  SubscriptionUnavailableError,
+  useSubscriptionStatus,
+  type PlanId,
+} from "@/lib/subscription";
 import { CouponWallet } from "@/components/CouponWallet";
 
-const FEATURES = [
-  "棋譜解析を24時間の待ち時間なしで無制限に実行",
-  "全アクションをGTO基準で採点するGTO精度スコア",
-  "失ったEV(EVロス)の可視化とワースト・ベストのハイライト",
-  "全ハンドを1手ずつ通し再生できるリプレイ",
-];
+/** プランごとにできること。soon = まだ提供していない(準備中と表示する)。 */
+const PLAN_FEATURES: Record<PlanId, { text: string; soon?: boolean }[]> = {
+  silver: [
+    { text: "棋譜解析を待ち時間なしで無制限に(解説付き)" },
+    { text: "広告なし", soon: true },
+  ],
+  gold: [
+    { text: "シルバーの内容すべて" },
+    { text: "GEOデータベース(インマネ10回でプリフロップ、20回でポストフロップ)" },
+  ],
+  platinum: [
+    { text: "ゴールドの内容すべて" },
+    { text: "GEOデータベースを条件なしですべて" },
+    { text: "データ研究" },
+    { text: "棋譜解析で相手がマックした手札を見る", soon: true },
+  ],
+};
+
+const PLAN_ORDER: PlanId[] = ["silver", "gold", "platinum"];
 
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { Icon, HeroIcon } from "@/components/Icon";
-import { GlareHover } from "@/components/effects/GlareHover";
-import { DigitRoll } from "@/components/effects/DigitRoll";
 import { Loader } from "@/components/ui/Loader";
 
 export default function PricingPage() {
   const { accessToken: accessTokenFromAuth } = useAuth();
   const accessToken = accessTokenFromAuth ?? undefined;
   const { status, reload } = useSubscriptionStatus(accessToken);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
   // App Store配布のiOSアプリ内かどうか(サーバーサイドレンダー時はfalse扱いのまま、
   // マウント後にUAを見て確定させる)。trueなら課金ボタン自体を出さずウェブへ誘導する。
 
-  async function handleSubscribe() {
+  async function handleSubscribe(plan: PlanId) {
     if (!accessToken) {
       setError("ご登録にはログインが必要です。");
       return;
     }
-    setSubmitting(true);
+    setSubmitting(plan);
     setError(null);
     try {
-      await startCheckout(accessToken);
+      if (status?.canChangePlan) {
+        await changePlan(accessToken, plan);
+        setSubmitting(null);
+        await reload();
+        return;
+      }
+      await startCheckout(accessToken, undefined, plan);
     } catch (e) {
-      setSubmitting(false);
+      setSubmitting(null);
       if (e instanceof SubscriptionUnavailableError) {
         setError("決済は現在準備中です。まもなくご利用いただけます。");
       } else {
@@ -62,6 +88,19 @@ export default function PricingPage() {
   const byCoupon = active && status?.status === "referral";
   const couponUntil =
     byCoupon && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
+  const currentPlan = status?.plan ?? null;
+  const canChange = status?.canChangePlan ?? false;
+  const trialEligible = status?.trialEligible ?? false;
+  const trialDays = status?.trialDays ?? 7;
+  const prices = status?.prices ?? DEFAULT_PRICES;
+
+  function buttonLabel(plan: PlanId): string {
+    if (canChange && currentPlan) {
+      return PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(currentPlan) ? "このプランに上げる" : "このプランに下げる";
+    }
+    if (trialEligible) return `${trialDays}日間 無料で試す`;
+    return byCoupon ? "期間終了後も続けて使う" : "このプランに登録";
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -77,108 +116,91 @@ export default function PricingPage() {
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-n-4 text-accent">
           <HeroIcon name="graph-up" size={30} />
         </span>
-        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-accent">Subscription</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-accent">Plans</p>
         <h1 className="mt-1 text-[26px] font-black leading-tight tracking-tight text-fg">
-          棋譜解析 使い放題プラン<span className="text-accent">.</span>
+          プランを選ぶ<span className="text-accent">.</span>
         </h1>
         <p className="mt-2 text-[13px] leading-relaxed text-n-9">
-          無料プランは24時間に1回まで。加入すると、トーナメントの棋譜解析を待ち時間なく無制限に実行できます。
+          無料プランの棋譜解析は24時間に1回まで。月額のみ・いつでも解約できます。
         </p>
+        {trialEligible && !active && (
+          <p className="mt-3 rounded-xl bg-accent/10 px-3 py-2 text-[12px] font-bold text-accent">
+            はじめての方は、どのプランでも{trialDays}日間無料で試せます(お1人様1回)。
+          </p>
+        )}
+        {byCoupon && (
+          <p className="mt-3 text-[12px] leading-relaxed text-n-9">
+            クーポンで無料期間中{couponUntil ? `(${couponUntil} まで)` : ""}。クーポンを追加すると期間が延びます。
+          </p>
+        )}
 
-        <GlareHover
-          borderRadius="16px"
-          borderColor="rgb(38 194 163)"
-          background="rgb(24 24 26)"
-          className="mt-5 !border-2 shadow-glow"
-        >
-          <div className="w-full p-5">
-          <div className="flex items-baseline gap-1 tracking-[-0.025em]">
-            {/* 桁ごとにオドメーターめくりで登場する価格。0→980円を一度だけ数え上げる。 */}
-            <span className="text-[40px] font-black text-fg leading-none">¥</span>
-            <DigitRoll
-              value={980}
-              fontSize={40}
-              fontWeight={900}
-              textColor="rgb(245 245 247)"
-              places={[100, 10, 1]}
-              // このカードの地は surface(#18181A)で、DigitRollの既定フェード色は canvas(#0A0A0B)
-              // なので、この場所だけ地の色に合わせて上書きする(合わせないと継ぎ目が見える)。
-              gradientFrom="#18181A"
-              gradientTo="rgba(24, 24, 26, 0)"
-            />
-            <span className="text-[13px] font-bold text-fg-2">/ 月(税込)</span>
-          </div>
-          <p className="mt-1 text-[11px] text-fg-2">いつでも解約可能・日割り返金はありません。</p>
-
-          <ul className="mt-5 space-y-3">
-            {FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-2.5 text-[13px] font-medium text-n-10">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent">
-                  <Icon name="check" className="h-3 w-3" />
-                </span>
-                {f}
-              </li>
-            ))}
-          </ul>
-
-          {active ? (
-            <div className="mt-5">
-              <div className="flex items-center justify-center gap-1.5 rounded-full bg-accent/10 py-2.5 text-[13px] font-black text-accent">
-                <Icon name="check" className="h-4 w-4" />
-                {byCoupon ? "クーポンで無料期間中" : "使い放題プランに加入中"}
-              </div>
-              {byCoupon ? (
-                <>
-                  {couponUntil && (
-                    <p className="mt-2 text-center text-[12px] font-bold text-n-9 tabular-nums">
-                      {couponUntil} まで無料でご利用いただけます
-                    </p>
-                  )}
-                  <p className="mt-1 text-center text-[11px] leading-relaxed text-fg-2">
-                    クーポンを追加で適用すると、この無料期間がクーポンの日数ぶん延びます。
+        <div className="mt-5 space-y-3">
+          {PLAN_ORDER.map((plan) => {
+            const current = active && !byCoupon && currentPlan === plan;
+            const price = prices[plan];
+            return (
+              <div
+                key={plan}
+                className={`rounded-2xl p-5 ${current ? "border-2 border-accent bg-n-2 shadow-glow" : "border border-line bg-n-2"}`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-[17px] font-black text-fg">{PLAN_LABEL[plan]}</h2>
+                  <p className="tracking-[-0.025em]">
+                    <span className="text-[26px] font-black text-fg tabular-nums">¥{price.toLocaleString()}</span>
+                    <span className="ml-1 text-[11px] font-bold text-fg-2">/ 月(税込)</span>
                   </p>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {PLAN_FEATURES[plan].map((f) => (
+                    <li key={f.text} className="flex items-start gap-2.5 text-[13px] font-medium text-n-10">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent">
+                        <Icon name="check" className="h-3 w-3" />
+                      </span>
+                      <span>
+                        {f.text}
+                        {f.soon && <span className="ml-1.5 text-[10px] font-bold text-fg-2">準備中</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {current ? (
+                  <div className="mt-4 flex items-center justify-center gap-1.5 rounded-full bg-accent/10 py-2.5 text-[13px] font-black text-accent">
+                    <Icon name="check" className="h-4 w-4" />
+                    加入中
+                  </div>
+                ) : (
                   <button
-                    onClick={handleSubscribe}
-                    disabled={submitting}
-                    className="mt-3 flex h-12 w-full items-center justify-center gap-1.5 rounded-full border border-line-strong text-[13px] font-bold text-fg pressable disabled:opacity-60"
+                    onClick={() => void handleSubscribe(plan)}
+                    disabled={submitting != null || (active && !byCoupon && !canChange)}
+                    className="mt-4 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable transition disabled:opacity-60"
                   >
-                    {submitting ? (
-                      <Loader size="sm" />
-                    ) : (
-                      "期間終了後も続けて使う(月額に登録)"
-                    )}
+                    {submitting === plan ? <Loader size="sm" /> : buttonLabel(plan)}
                   </button>
-                </>
-              ) : (
-                <button
-                  onClick={handleManage}
-                  className="mt-2 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg pressable"
-                >
-                  契約を管理する
-                </button>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={handleSubscribe}
-              disabled={submitting}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-accent text-[14px] font-black text-on-accent pressable transition disabled:opacity-60"
-            >
-              {submitting ? (
-                <Loader size="sm" />
-              ) : (
-                "使い放題プランに登録"
-              )}
-            </button>
-          )}
-          {error && (
-            <div className="mt-2 text-center">
-              <p className="text-[11px] font-bold text-crimson-300">{error}</p>
-              <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {canChange && (
+          <p className="mt-3 text-[11px] leading-relaxed text-fg-2">
+            加入中にプランを変えると、差額は日割りでその場で請求(下げる場合は次回以降の請求から差し引き)されます。
+          </p>
+        )}
+        {active && !byCoupon && (
+          <button
+            onClick={handleManage}
+            className="mt-3 w-full rounded-full border border-line-strong py-3 text-[13px] font-bold text-fg pressable"
+          >
+            契約を管理する(解約・支払い方法)
+          </button>
+        )}
+        {error && (
+          <div className="mt-2 text-center">
+            <p className="text-[11px] font-bold text-crimson-300">{error}</p>
+            <ReportErrorButton scope="pricing" message={error} className="mt-1.5 justify-center" />
           </div>
-        </GlareHover>
+        )}
 
         {/* 課金せずに使う手段。招待で貰ったクーポンをここでも確認・コピー・適用できる。 */}
         <div className="mt-4">

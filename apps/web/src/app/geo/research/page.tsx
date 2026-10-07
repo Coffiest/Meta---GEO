@@ -37,7 +37,7 @@ export default function ResearchPage() {
   const { authAvailable, loading, accessToken } = useAuth();
   const router = useRouter();
   // データ研究はポストフロップ以降と同じ段階(インマネ20回)で解放する。
-  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken, need: "full" });
+  const geoAccess = useGeoAccess({ authAvailable, loading, accessToken, need: "research" });
 
   // 埋め込み表示ではセッションが無くトークンだけがあるので、トークンの有無で判定する。
   useEffect(() => {

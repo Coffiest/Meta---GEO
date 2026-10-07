@@ -16,7 +16,14 @@ interface AdminUser {
   displayName: string;
   email: string | null;
   createdAt: string;
-  subscription: { status: string; currentPeriodEnd: string | null; active: boolean } | null;
+  subscription: {
+    status: string;
+    currentPeriodEnd: string | null;
+    active: boolean;
+    plan?: string;
+    /** Stripe で支払い中の契約か(無料付与ではない)。 */
+    viaStripe?: boolean;
+  } | null;
   /** GEO戦略DBに入っているこのプレイヤーのハンド数(総数/除外済み)。 */
   geo: { totalHands: number; excludedHands: number };
   /** GEO データベースの利用条件: インマネの回数・管理者の個別設定・実際に使える段階。 */
@@ -44,11 +51,38 @@ function fmtDate(iso: string | null): string {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
+type PlanKey = "silver" | "gold" | "platinum";
+const PLAN_NAME: Record<PlanKey, string> = { silver: "シルバー", gold: "ゴールド", platinum: "プラチナ" };
+function planName(plan: string | undefined): string {
+  return PLAN_NAME[(plan ?? "silver") as PlanKey] ?? "シルバー";
+}
+
+/** プランの絞り込み(画面側で読み込んだ一覧に掛ける)。 */
+type PlanFilter = "all" | "none" | PlanKey | "comp";
+const PLAN_FILTERS: { value: PlanFilter; label: string }[] = [
+  { value: "all", label: "全員" },
+  { value: "none", label: "無料" },
+  { value: "silver", label: "シルバー" },
+  { value: "gold", label: "ゴールド" },
+  { value: "platinum", label: "プラチナ" },
+  { value: "comp", label: "付与中" },
+];
+function matchesPlan(u: AdminUser, f: PlanFilter): boolean {
+  const sub = u.subscription;
+  const active = sub?.active ?? false;
+  if (f === "all") return true;
+  if (f === "none") return !active;
+  if (f === "comp") return active && sub?.status === "comp";
+  return active && (sub?.plan ?? "silver") === f;
+}
+
 function subLabel(sub: AdminUser["subscription"]): { text: string; tone: "active" | "comp" | "none" } {
-  if (!sub) return { text: "未加入", tone: "none" };
-  if (sub.status === "comp" && sub.active) return { text: `無料付与中(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "comp" };
-  if (sub.active) return { text: `加入中(${sub.status})`, tone: "active" };
-  return { text: `未加入(${sub.status})`, tone: "none" };
+  if (!sub || !sub.active) return { text: "無料", tone: "none" };
+  const name = planName(sub.plan);
+  if (sub.status === "comp") return { text: `${name}・付与(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "comp" };
+  if (sub.status === "trialing") return { text: `${name}・無料体験(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "active" };
+  if (sub.status === "referral") return { text: `${name}・クーポン(〜${fmtDate(sub.currentPeriodEnd)})`, tone: "active" };
+  return { text: `${name}・支払い中(次回 ${fmtDate(sub.currentPeriodEnd)})`, tone: "active" };
 }
 
 /**
@@ -153,7 +187,13 @@ export default function AdminPage() {
   /** 任意期間入力の対象ユーザーID(開いているカスタム入力行)。 */
   const [customFor, setCustomFor] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState("2");
-  const [customUnit, setCustomUnit] = useState<"week" | "month">("week");
+  const [customUnit, setCustomUnit] = useState<"day" | "week" | "month">("week");
+  /** プレイヤーごとの、付与するプラン(既定はシルバー)。 */
+  const [grantPlans, setGrantPlans] = useState<Record<string, PlanKey>>({});
+  /** 一覧の読み込み件数(「さらに表示」で増やす)と、全体の人数。 */
+  const [limit, setLimit] = useState(200);
+  const [total, setTotal] = useState(0);
+  const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   /** GEOデータの期間指定削除フォームを開いているユーザーID。 */
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
@@ -199,7 +239,7 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${SERVER_URL}/api/admin/users?q=${encodeURIComponent(q)}`, {
+        const res = await fetch(`${SERVER_URL}/api/admin/users?q=${encodeURIComponent(q)}&limit=${limit}`, {
           headers: adminHeaders(code, tokenRef.current),
         });
         if (res.status === 401) {
@@ -211,15 +251,16 @@ export default function AdminPage() {
           return;
         }
         if (!res.ok) throw new Error(String(res.status));
-        const data = (await res.json()) as { users: AdminUser[] };
+        const data = (await res.json()) as { users: AdminUser[]; total?: number };
         setUsers(data.users);
+        setTotal(data.total ?? data.users.length);
       } catch {
         setError("サーバーに接続できませんでした。時間をおいて再度お試しください。");
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [limit],
   );
 
   /** 再構築の状況を取得する(実行中は定期的に呼び直す)。 */
@@ -290,7 +331,7 @@ export default function AdminPage() {
     return () => clearInterval(timer);
   }, [passcode, geoBackfill?.running, loadGeoBackfill]);
 
-  async function grant(userId: string, unit: "week" | "month", amount: number) {
+  async function grant(userId: string, unit: "day" | "week" | "month", amount: number) {
     if (!passcode) return;
     setBusyUserId(userId);
     setNotice(null);
@@ -299,11 +340,15 @@ export default function AdminPage() {
       const res = await fetch(`${SERVER_URL}/api/admin/grant`, {
         method: "POST",
         headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
-        body: JSON.stringify({ userId, unit, amount }),
+        body: JSON.stringify({ userId, unit, amount, plan: grantPlans[userId] ?? "silver" }),
       });
+      if (res.status === 409) {
+        setError("この人は Stripe で支払い中です。付与する前に、契約を解約してもらってください。");
+        return;
+      }
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { currentPeriodEnd: string };
-      setNotice(`無料付与しました(〜${fmtDate(data.currentPeriodEnd)})`);
+      setNotice(`${planName(grantPlans[userId])}を付与しました(〜${fmtDate(data.currentPeriodEnd)})`);
       setCustomFor(null);
       await search(query, passcode);
     } catch {
@@ -838,6 +883,29 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* プランで絞り込む(読み込んだ一覧に掛ける) */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {PLAN_FILTERS.map((f) => {
+                const n = users.filter((u) => matchesPlan(u, f.value)).length;
+                const on = planFilter === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    onClick={() => setPlanFilter(f.value)}
+                    aria-pressed={on}
+                    className={`pressable rounded-full px-3 py-1.5 text-[11px] font-black tabular-nums ${
+                      on ? "bg-n-4 text-white" : "border border-line text-fg-2"
+                    }`}
+                  >
+                    {f.label} {n}
+                  </button>
+                );
+              })}
+              <span className="ml-auto text-[11px] text-fg-3 tabular-nums">
+                {users.length} / {total}人を表示
+              </span>
+            </div>
+
             {/* 結果リスト */}
             <div className="mt-4 space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {loading && users.length === 0 ? (
@@ -849,7 +917,7 @@ export default function AdminPage() {
                   該当するプレイヤーがいません。
                 </p>
               ) : (
-                users.map((u) => {
+                users.filter((u) => matchesPlan(u, planFilter)).map((u) => {
                   const label = subLabel(u.subscription);
                   const busy = busyUserId === u.id;
                   return (
@@ -876,6 +944,17 @@ export default function AdminPage() {
 
                       {/* 付与アクション */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <select
+                          value={grantPlans[u.id] ?? "silver"}
+                          onChange={(e) => setGrantPlans((prev) => ({ ...prev, [u.id]: e.target.value as PlanKey }))}
+                          disabled={busy}
+                          aria-label="付与するプラン"
+                          className="rounded-full border border-line-strong bg-canvas px-3 py-1.5 text-[11px] font-black text-fg disabled:opacity-40"
+                        >
+                          <option value="silver">シルバー</option>
+                          <option value="gold">ゴールド</option>
+                          <option value="platinum">プラチナ</option>
+                        </select>
                         <button
                           onClick={() => void grant(u.id, "week", 1)}
                           disabled={busy}
@@ -928,13 +1007,13 @@ export default function AdminPage() {
                                 className="w-16 rounded-lg border border-line px-2.5 py-2 text-center text-sm font-bold text-fg focus:border-line-strong focus:outline-none"
                               />
                               <div className="flex overflow-hidden rounded-lg border border-line text-[11px] font-black">
-                                {(["week", "month"] as const).map((unitKey) => (
+                                {(["day", "week", "month"] as const).map((unitKey) => (
                                   <button
                                     key={unitKey}
                                     onClick={() => setCustomUnit(unitKey)}
                                     className={`pressable px-3 py-2 ${customUnit === unitKey ? "bg-n-4 text-white" : "bg-surface text-fg-2"}`}
                                   >
-                                    {unitKey === "week" ? "週間" : "ヶ月"}
+                                    {unitKey === "day" ? "日" : unitKey === "week" ? "週間" : "ヶ月"}
                                   </button>
                                 ))}
                               </div>
@@ -1072,6 +1151,15 @@ export default function AdminPage() {
                 })
               )}
             </div>
+            {users.length < total && (
+              <button
+                onClick={() => setLimit((n) => n + 200)}
+                disabled={loading}
+                className="pressable mt-3 w-full rounded-full border border-line py-2.5 text-[12px] font-bold text-fg-2 disabled:opacity-40"
+              >
+                さらに表示(残り {total - users.length}人)
+              </button>
+            )}
           </>
         )}
       </div>

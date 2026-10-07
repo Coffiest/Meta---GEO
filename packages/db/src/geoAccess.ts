@@ -1,10 +1,13 @@
 import { prisma } from "./client.js";
+import type { PlanId } from "./plans.js";
+import { getSubscriptionStatusForUser } from "./subscriptions.js";
 
 /**
  * GEO データベース(データベースタブ)の利用条件(オーナー確定)。トーナメントでインマネ(賞金圏で終える)した回数で段階的に解放する。
  *  - GEO_PREFLOP_ITM_REQUIRED 回: プリフロップまで
  *  - GEO_POSTFLOP_ITM_REQUIRED 回: ポストフロップ以降(とデータ研究)も
- * 有料プランかどうかに関係なく全員に同じ条件。SNG(通常・High Roller・Super High Roller)と MTT のすべてを数える。
+ * これに有料プランの上限をかける(オーナー確定): 無料・シルバーは使えない / ゴールドは回数どおり / プラチナは条件なしで全部。
+ * データ研究はプラチナだけ。管理者の個別設定(geoAccessOverride)はプランに関係なく上乗せする。SNG(通常・High Roller・Super High Roller)と MTT のすべてを数える。
  * MTT のリエントリーは1回ずつ数える。
  *
  * なぜ縛るか: GEO データベースは実際のプレイデータを貯めて成り立っている。たくさん遊んでもらってデータが貯まらないと
@@ -48,10 +51,21 @@ export interface GeoAccess {
   unlocked: boolean;
   /** ポストフロップ以降も使えるか(level が full)。 */
   postflopUnlocked: boolean;
+  /** いま使えるプラン(未加入は null)。 */
+  plan: PlanId | null;
+  /** データ研究を使えるか(プラチナ・管理者が「全部」に緩めた人)。 */
+  researchUnlocked: boolean;
 }
 
-export function geoAccessOf(itmCount: number, level: GeoAccessLevel): GeoAccess {
+export function geoAccessOf(
+  itmCount: number,
+  level: GeoAccessLevel,
+  plan: PlanId | null = null,
+  researchUnlocked = false
+): GeoAccess {
   return {
+    plan,
+    researchUnlocked,
     itmCount,
     required: GEO_PREFLOP_ITM_REQUIRED,
     postflopRequired: GEO_POSTFLOP_ITM_REQUIRED,
@@ -73,18 +87,33 @@ export function parseGeoOverride(value: unknown): GeoAccessOverride | null {
   return value === "preflop" || value === "full" ? value : null;
 }
 
-/** インマネの回数と管理者の個別設定から、使える段階を決める(個別設定は緩める方向にだけ効く)。 */
-export function effectiveGeoLevel(itmCount: number, override: GeoAccessOverride | null): GeoAccessLevel {
-  const byItm = geoLevelForItm(itmCount);
-  return override ? maxGeoLevel(byItm, override) : byItm;
+/** プランだけで決まる段階: 無料・シルバーは none、ゴールドは回数どおり、プラチナは full。 */
+export function geoLevelForPlan(itmCount: number, plan: PlanId | null): GeoAccessLevel {
+  if (plan === "platinum") return "full";
+  if (plan === "gold") return geoLevelForItm(itmCount);
+  return "none";
+}
+
+/** プラン・インマネの回数・管理者の個別設定から、使える段階を決める(個別設定は緩める方向にだけ効く)。 */
+export function effectiveGeoLevel(itmCount: number, override: GeoAccessOverride | null, plan: PlanId | null): GeoAccessLevel {
+  const byPlan = geoLevelForPlan(itmCount, plan);
+  return override ? maxGeoLevel(byPlan, override) : byPlan;
 }
 
 export async function getGeoAccess(userId: string): Promise<GeoAccess> {
-  const [itmCount, user] = await Promise.all([
+  const [itmCount, user, subscription] = await Promise.all([
     getItmCount(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { geoAccessOverride: true } }),
+    getSubscriptionStatusForUser(userId),
   ]);
-  return geoAccessOf(itmCount, effectiveGeoLevel(itmCount, parseGeoOverride(user?.geoAccessOverride)));
+  const override = parseGeoOverride(user?.geoAccessOverride);
+  const plan = subscription.plan;
+  return geoAccessOf(
+    itmCount,
+    effectiveGeoLevel(itmCount, override, plan),
+    plan,
+    plan === "platinum" || override === "full"
+  );
 }
 
 /** 管理者画面: プレイヤーごとの GEO の利用条件の個別設定(null で回数どおりに戻す)。 */
@@ -114,7 +143,9 @@ export async function getAdminGeoAccess(userIds: readonly string[]): Promise<Map
   for (const u of users) {
     const itmCount = countOf.get(u.id) ?? 0;
     const override = parseGeoOverride(u.geoAccessOverride);
-    result.set(u.id, { itmCount, override, level: effectiveGeoLevel(itmCount, override) });
+    // 一覧は件数が少ない(検索結果)ので、プランは1人ずつ引く(期限切れ・クーポンの扱いを1か所に揃えるため)。
+    const { plan } = await getSubscriptionStatusForUser(u.id);
+    result.set(u.id, { itmCount, override, level: effectiveGeoLevel(itmCount, override, plan) });
   }
   return result;
 }

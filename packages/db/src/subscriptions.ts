@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
 import { parsePlan, type PlanId } from "./plans.js";
 
@@ -257,11 +258,15 @@ export async function checkAndConsumeReviewQuota(userId: string, tournamentId: s
 
 // ---- 管理者用: 無料付与(comp)とユーザー検索 ----
 
-export type CompDurationUnit = "week" | "month";
+export type CompDurationUnit = "day" | "week" | "month";
+
+/** 単位ごとの上限(どれもおよそ10年)。 */
+const COMP_MAX: Record<CompDurationUnit, number> = { day: 3650, week: 520, month: 120 };
 
 function compPeriodEnd(unit: CompDurationUnit, amount: number, from = new Date()): Date {
   const end = new Date(from);
-  if (unit === "week") end.setDate(end.getDate() + amount * 7);
+  if (unit === "day") end.setDate(end.getDate() + amount);
+  else if (unit === "week") end.setDate(end.getDate() + amount * 7);
   else end.setMonth(end.getMonth() + amount);
   return end;
 }
@@ -278,8 +283,8 @@ export async function grantCompSubscription(params: {
   /** 付与するプラン(省略時はシルバー)。 */
   plan?: PlanId;
 }): Promise<{ currentPeriodEnd: Date }> {
-  if (!Number.isFinite(params.amount) || params.amount <= 0 || params.amount > 120) {
-    throw new Error("amount must be between 1 and 120");
+  if (!Number.isFinite(params.amount) || params.amount < 1 || params.amount > COMP_MAX[params.unit]) {
+    throw new Error(`amount must be between 1 and ${COMP_MAX[params.unit]}`);
   }
   const end = compPeriodEnd(params.unit, Math.floor(params.amount));
   await prisma.subscription.upsert({
@@ -310,41 +315,58 @@ export interface AdminUserSearchResult {
   displayName: string;
   email: string | null;
   createdAt: Date;
-  subscription: { status: string; currentPeriodEnd: Date | null; active: boolean; plan: string } | null;
+  subscription: {
+    status: string;
+    currentPeriodEnd: Date | null;
+    active: boolean;
+    plan: string;
+    /** Stripe で支払っている契約か(管理者の無料付与ではない)。 */
+    viaStripe: boolean;
+  } | null;
 }
 
 /** 管理者画面用: プレイヤー名・メールアドレス・ユーザーIDの部分一致で検索する(Bot除外・最大20件)。 */
-export async function searchUsersForAdmin(query: string): Promise<AdminUserSearchResult[]> {
+export async function searchUsersForAdmin(
+  query: string,
+  opts: { limit?: number; offset?: number } = {}
+): Promise<{ users: AdminUserSearchResult[]; total: number }> {
   const q = query.trim();
-  const users = await prisma.user.findMany({
-    where: {
+  const limit = Math.min(Math.max(Math.floor(opts.limit ?? 20), 1), 500);
+  const offset = Math.max(Math.floor(opts.offset ?? 0), 0);
+  const where: Prisma.UserWhereInput = {
       isBot: false,
       ...(q
         ? {
             OR: [
-              { displayName: { contains: q, mode: "insensitive" } },
-              { email: { contains: q, mode: "insensitive" } },
-              { id: { contains: q, mode: "insensitive" } },
+              { displayName: { contains: q, mode: "insensitive" as const } },
+              { email: { contains: q, mode: "insensitive" as const } },
+              { id: { contains: q, mode: "insensitive" as const } },
             ],
           }
         : {}),
-    },
+  };
+  const [users, total] = await Promise.all([prisma.user.findMany({
+    where,
     orderBy: { createdAt: "desc" },
-    take: 20,
+    skip: offset,
+    take: limit,
     select: {
       id: true,
       displayName: true,
       email: true,
       createdAt: true,
-      subscription: { select: { status: true, currentPeriodEnd: true, plan: true } },
+      subscription: { select: { status: true, currentPeriodEnd: true, plan: true, stripeSubscriptionId: true } },
     },
-  });
+  }), prisma.user.count({ where })]);
   const now = new Date();
-  return users.map((u) => ({
+  return { total, users: users.map((u) => ({
     ...u,
     subscription: u.subscription
       ? {
-          ...u.subscription,
+          status: u.subscription.status,
+          currentPeriodEnd: u.subscription.currentPeriodEnd,
+          plan: u.subscription.plan,
+          viaStripe: u.subscription.status !== "comp" && u.subscription.stripeSubscriptionId != null,
           active:
             isStripeSubscriptionActive(u.subscription, now) ||
             (u.subscription.status === "comp" &&
@@ -352,7 +374,7 @@ export async function searchUsersForAdmin(query: string): Promise<AdminUserSearc
               u.subscription.currentPeriodEnd > now),
         }
       : null,
-  }));
+  })) };
 }
 
 /** 消費せずに残り無料枠を確認する(ステータス表示用)。 */

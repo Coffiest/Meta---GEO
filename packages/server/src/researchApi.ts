@@ -72,7 +72,7 @@ export async function handleResearchApiRequest(req: IncomingMessage, res: Server
   });
   // データ研究も Database タブの機能なので、GEO と同じ利用条件(インマネ20回以上)。
   // データ研究はポストフロップ以降と同じ段階(インマネ20回)で解放する。
-  if (!(await requireGeoAccess(req, res, "full"))) return true;
+  if (!(await requireGeoAccess(req, res, "research"))) return true;
 
   if (url.pathname === "/api/research/summary" && req.method === "GET") {
     const scope: ResearchScope = url.searchParams.get("scope") === "me" ? "me" : "all";

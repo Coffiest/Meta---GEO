@@ -424,6 +424,10 @@ function GeoDatabase({
         const detail =
           err instanceof GeoApiError ? err.detailLine() : err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         // 利用条件を満たしていない(サーバーが 403 GEO_LOCKED)。再試行せず、ロック画面にする。
+        if (err instanceof GeoApiError && err.kind === "planRequired") {
+          onLocked({ itmCount: 0, required: 10, stage: err.requiredPlan ?? "gold" });
+          return;
+        }
         if (err instanceof GeoApiError && err.kind === "locked") {
           onLocked({ itmCount: err.itmCount ?? 0, required: err.required ?? 10, stage: "preflop" });
           return;

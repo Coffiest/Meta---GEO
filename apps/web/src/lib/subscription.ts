@@ -11,7 +11,22 @@ export interface SubscriptionStatus {
   reviewLimit: number;
   /** 無料枠を使い切っている場合、次に無料解析できる時刻(ISO)。加入者/残枠ありならnull。 */
   nextFreeAt: string | null;
+  /** いま使えるプラン。未加入は null。 */
+  plan?: PlanId | null;
+  /** Stripe の契約が生きていて、プランの上げ下げ(change-plan)ができるか。 */
+  canChangePlan?: boolean;
+  /** 無料体験(全プランを通して1人1回)がまだ使えるか。 */
+  trialEligible?: boolean;
+  trialDays?: number;
+  prices?: Record<PlanId, number>;
 }
+
+export type PlanId = "silver" | "gold" | "platinum";
+
+export const PLAN_LABEL: Record<PlanId, string> = { silver: "シルバー", gold: "ゴールド", platinum: "プラチナ" };
+
+/** サーバーから価格が取れないときの表示用(サーバーの PLAN_PRICE_JPY と同じ値)。 */
+export const DEFAULT_PRICES: Record<PlanId, number> = { silver: 980, gold: 1380, platinum: 1890 };
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -37,16 +52,27 @@ export async function fetchSubscriptionStatus(accessToken: string): Promise<Subs
  * tournamentIdを渡すと、加入後にその棋譜解析画面へ戻る。
  * Stripe未設定(503)時は SubscriptionUnavailableError を投げる。
  */
-export async function startCheckout(accessToken: string, tournamentId?: string): Promise<void> {
+export async function startCheckout(accessToken: string, tournamentId?: string, plan: PlanId = "silver"): Promise<void> {
   const res = await fetch(`${SERVER_URL}/api/subscriptions/checkout`, {
     method: "POST",
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-    body: JSON.stringify(tournamentId ? { tournamentId } : {}),
+    body: JSON.stringify(tournamentId ? { tournamentId, plan } : { plan }),
   });
   if (res.status === 503) throw new SubscriptionUnavailableError();
   if (!res.ok) throw new Error("チェックアウトの開始に失敗しました");
   const { url } = (await res.json()) as { url: string };
   window.location.href = url;
+}
+
+/** 加入中のプランを変える(差額は日割りで、その場で請求・返金される)。 */
+export async function changePlan(accessToken: string, plan: PlanId): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/change-plan`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (res.status === 503) throw new SubscriptionUnavailableError();
+  if (!res.ok) throw new Error("プランを変更できませんでした");
 }
 
 /** StripeホステッドのCustomer Portal(解約・支払い方法変更)へ遷移する。 */

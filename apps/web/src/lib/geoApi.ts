@@ -236,7 +236,9 @@ export type GeoApiErrorKind =
   /** 利用条件(インマネ回数)を満たしていない(403 GEO_LOCKED)。再試行しない。 */
   | "locked"
   /** プリフロップまでの人がポストフロップ以降を開いた(403 GEO_POSTFLOP_LOCKED)。再試行しない。 */
-  | "postflopLocked";
+  | "postflopLocked"
+  /** プランが足りない(403 GEO_PLAN_REQUIRED)。requiredPlan に必要なプラン。再試行しない。 */
+  | "planRequired";
 
 export class GeoApiError extends Error {
   readonly kind: GeoApiErrorKind;
@@ -248,6 +250,8 @@ export class GeoApiError extends Error {
   /** locked のときの、今のインマネ回数と必要な回数。 */
   readonly itmCount: number | null;
   readonly required: number | null;
+  /** planRequired のときの、必要なプラン。 */
+  readonly requiredPlan: "gold" | "platinum" | null;
 
   constructor(params: {
     kind: GeoApiErrorKind;
@@ -258,6 +262,7 @@ export class GeoApiError extends Error {
     message: string;
     itmCount?: number | null;
     required?: number | null;
+    requiredPlan?: "gold" | "platinum" | null;
   }) {
     super(params.message);
     this.name = "GeoApiError";
@@ -268,6 +273,7 @@ export class GeoApiError extends Error {
     this.elapsedMs = params.elapsedMs;
     this.itmCount = params.itmCount ?? null;
     this.required = params.required ?? null;
+    this.requiredPlan = params.requiredPlan ?? null;
   }
 
   /** 画面にそのまま出せる日本語の一文(原因が読んで分かる粒度)。 */
@@ -288,6 +294,8 @@ export class GeoApiError extends Error {
         return `GEO DATABASE はインマネ${this.required ?? 10}回で使えるようになります(今 ${this.itmCount ?? 0}回)。`;
       case "postflopLocked":
         return `ポストフロップ以降はインマネ${this.required ?? 20}回で使えるようになります(今 ${this.itmCount ?? 0}回)。`;
+      case "planRequired":
+        return this.requiredPlan === "platinum" ? "プラチナプランで使えます。" : "ゴールド以上のプランで使えます。";
     }
   }
 
@@ -325,6 +333,10 @@ export interface GeoAccessStatus {
   postflopRequired?: number;
   /** ポストフロップ以降も使えるか。古いサーバーには無い(そのときは unlocked と同じに扱う)。 */
   postflopUnlocked?: boolean;
+  /** いま使えるプラン(未加入は null)。古いサーバーには無い。 */
+  plan?: "silver" | "gold" | "platinum" | null;
+  /** データ研究を使えるか。古いサーバーには無い。 */
+  researchUnlocked?: boolean;
 }
 
 /** GEO の利用条件(インマネ回数)を取得する。 */
@@ -380,20 +392,40 @@ async function postJson<T>(path: string, body: unknown, timeoutMs = REQUEST_TIME
     let serverMessage: string | null = null;
     let locked: { itmCount: number; required: number } | null = null;
     let postflopLocked = false;
+    let requiredPlan: "gold" | "platinum" | null = null;
     try {
       const text = (await res.text()).slice(0, 200);
       try {
-        const parsed = JSON.parse(text) as { error?: unknown; code?: unknown; itmCount?: unknown; required?: unknown };
+        const parsed = JSON.parse(text) as {
+          error?: unknown;
+          code?: unknown;
+          itmCount?: unknown;
+          required?: unknown;
+          plan?: unknown;
+        };
         serverMessage = typeof parsed.error === "string" ? parsed.error : text || null;
         if (res.status === 403 && (parsed.code === "GEO_LOCKED" || parsed.code === "GEO_POSTFLOP_LOCKED")) {
           postflopLocked = parsed.code === "GEO_POSTFLOP_LOCKED";
           locked = { itmCount: Number(parsed.itmCount) || 0, required: Number(parsed.required) || (postflopLocked ? 20 : 10) };
+        }
+        if (res.status === 403 && parsed.code === "GEO_PLAN_REQUIRED") {
+          requiredPlan = parsed.plan === "platinum" ? "platinum" : "gold";
         }
       } catch {
         serverMessage = text || null;
       }
     } catch {
       /* 本文が読めなくてもステータスだけで十分な情報になる */
+    }
+    if (requiredPlan) {
+      throw new GeoApiError({
+        kind: "planRequired",
+        path,
+        status: 403,
+        elapsedMs: elapsed(),
+        message: "GEO_PLAN_REQUIRED",
+        requiredPlan,
+      });
     }
     if (locked) {
       throw new GeoApiError({
