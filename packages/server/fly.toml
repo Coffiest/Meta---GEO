@@ -16,6 +16,11 @@ primary_region = "nrt" # 東京
   # 既存ハンドの展開は管理画面「GEO集計テーブルの再構築」で実施済み。
   # 問題が出たらこの1行を消して再デプロイすれば即座に旧経路へ戻せる。
   GEO_USE_DECISION_TABLE = "1"
+  # 有料プランの Stripe の価格 ID(本番。秘密ではない)。シルバーは secrets の STRIPE_PRICE_ID(従来の ¥980)。
+  # Stripe の管理画面で作った「Poker ART ゴールド」¥1,380/月・「Poker ART プラチナ」¥1,890/月。
+  # 金額を変えるときは Stripe で新しい価格を作り、ここを差し替える。
+  STRIPE_PRICE_ID_GOLD = "price_1UNoxEBVLJcFh0G2nZaGLTYy"
+  STRIPE_PRICE_ID_PLATINUM = "price_1UNoyEBVLJcFh0G25RElcGSJ"
 
 # 重要: このサーバーはマッチング待合・進行中の卓(Socket.IOルーム)を「インメモリ」で保持する。
 # 複数マシンに分散すると、別マシンに接続したプレイヤー同士が同じ待合/卓に入れず、必ずBOT卓に
