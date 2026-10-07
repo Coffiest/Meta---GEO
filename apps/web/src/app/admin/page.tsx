@@ -205,6 +205,10 @@ export default function AdminPage() {
   const [total, setTotal] = useState(0);
   const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  /** 操作の結果を、そのプレイヤーのカードの中に出す(画面上部だけだと、下の方のカードで押したとき見えず「何も起きない」ように見えた)。 */
+  const [cardMsg, setCardMsg] = useState<{ userId: string; text: string; ok: boolean } | null>(null);
+  /** 剥奪は1回目のタップで確認の状態にし、2回目で実行する(ホーム画面アプリでは window.confirm が出ないことがあるため)。 */
+  const [confirmCancelFor, setConfirmCancelFor] = useState<string | null>(null);
   /** GEOデータの期間指定削除フォームを開いているユーザーID。 */
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
   const [geoBackfill, setGeoBackfill] = useState<GeoBackfillStatus | null>(null);
@@ -359,10 +363,12 @@ export default function AdminPage() {
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { currentPeriodEnd: string };
       setNotice(`${planName(grantPlans[userId])}を付与しました(〜${fmtDate(data.currentPeriodEnd)})`);
+      setCardMsg({ userId, text: `${planName(grantPlans[userId])}を付与しました(〜${fmtDate(data.currentPeriodEnd)})`, ok: true });
       setCustomFor(null);
       await search(query, passcode);
     } catch {
       setError("付与に失敗しました。");
+      setCardMsg({ userId, text: "付与に失敗しました。", ok: false });
     } finally {
       setBusyUserId(null);
     }
@@ -508,18 +514,25 @@ export default function AdminPage() {
       });
       if (!res.ok) throw new Error(String(res.status));
       setNotice("付与したプランを取り消しました");
+      setCardMsg({ userId, text: "付与したプランを取り消しました。", ok: true });
       await search(query, passcode);
     } catch {
       setError("取り消しに失敗しました。");
+      setCardMsg({ userId, text: "取り消しに失敗しました。", ok: false });
     } finally {
       setBusyUserId(null);
     }
   }
 
   /** プランの剥奪: Stripe の契約をその場で解約する(取り消せない)。 */
-  async function cancelStripe(userId: string, name: string) {
+  async function cancelStripe(userId: string) {
     if (!passcode) return;
-    if (!window.confirm(`${name} さんの Stripe の契約を今すぐ解約します。日割り返金はされません。よろしいですか?`)) return;
+    if (confirmCancelFor !== userId) {
+      setConfirmCancelFor(userId);
+      setCardMsg({ userId, text: "もう一度押すと、Stripe の契約を今すぐ解約します(日割り返金なし)。", ok: false });
+      return;
+    }
+    setConfirmCancelFor(null);
     setBusyUserId(userId);
     setNotice(null);
     setError(null);
@@ -529,11 +542,14 @@ export default function AdminPage() {
         headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
         body: JSON.stringify({ userId }),
       });
-      if (!res.ok) throw new Error(String(res.status));
-      setNotice("Stripe の契約を解約しました");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(`${res.status} ${body.error ?? ""}`.trim());
+      }
+      setCardMsg({ userId, text: "Stripe の契約を解約しました。", ok: true });
       await search(query, passcode);
-    } catch {
-      setError("解約に失敗しました。");
+    } catch (e) {
+      setCardMsg({ userId, text: `解約に失敗しました(${e instanceof Error ? e.message : "不明"})。`, ok: false });
     } finally {
       setBusyUserId(null);
     }
@@ -1022,15 +1038,18 @@ export default function AdminPage() {
                         )}
                         {u.subscription?.stripeActive && (
                           <button
-                            onClick={() => void cancelStripe(u.id, u.displayName)}
+                            onClick={() => void cancelStripe(u.id)}
                             disabled={busy}
                             className="pressable rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 transition-colors active:bg-crimson-500/5 disabled:opacity-40"
                           >
-                            Stripe契約を解約(剥奪)
+                            {confirmCancelFor === u.id ? "本当に解約する" : "Stripe契約を解約(剥奪)"}
                           </button>
                         )}
                         {busy && <Loader size="sm" />}
                       </div>
+                      {cardMsg?.userId === u.id && (
+                        <p className={`mt-2 text-[12px] font-bold ${cardMsg.ok ? "text-accent" : "text-crimson-300"}`}>{cardMsg.text}</p>
+                      )}
 
                       {/* 任意期間の入力(N週間/Nヶ月) */}
                       <AnimatePresence>
