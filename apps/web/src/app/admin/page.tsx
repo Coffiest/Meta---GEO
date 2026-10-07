@@ -154,6 +154,8 @@ export default function AdminPage() {
   const [customFor, setCustomFor] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState("2");
   const [customUnit, setCustomUnit] = useState<"week" | "month">("week");
+  // 無料付与するプラン(既定はシルバー)。
+  const [grantPlan, setGrantPlan] = useState<"silver" | "gold" | "platinum">("silver");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   /** GEOデータの期間指定削除フォームを開いているユーザーID。 */
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
@@ -299,7 +301,7 @@ export default function AdminPage() {
       const res = await fetch(`${SERVER_URL}/api/admin/grant`, {
         method: "POST",
         headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
-        body: JSON.stringify({ userId, unit, amount }),
+        body: JSON.stringify({ userId, unit, amount, plan: grantPlan }),
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { currentPeriodEnd: string };
@@ -876,6 +878,17 @@ export default function AdminPage() {
 
                       {/* 付与アクション */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <select
+                          value={grantPlan}
+                          onChange={(e) => setGrantPlan(e.target.value as "silver" | "gold" | "platinum")}
+                          disabled={busy}
+                          aria-label="付与するプラン"
+                          className="rounded-full border border-line-strong bg-canvas px-3 py-1.5 text-[11px] font-black text-fg disabled:opacity-40"
+                        >
+                          <option value="silver">シルバー</option>
+                          <option value="gold">ゴールド</option>
+                          <option value="platinum">プラチナ</option>
+                        </select>
                         <button
                           onClick={() => void grant(u.id, "week", 1)}
                           disabled={busy}
