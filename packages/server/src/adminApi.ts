@@ -21,6 +21,7 @@ import {
   grantCompSubscription,
   restoreGeoData,
   revokeCompSubscription,
+  prisma,
   searchUsersForAdmin,
   listErrorReports,
   listFeedback,
@@ -168,10 +169,14 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     // プレイヤー検索(名前/メール/ID部分一致)。GEOデータ件数(総ハンド/除外済み)も添える。
     if (url.pathname === "/api/admin/users" && req.method === "GET") {
       const q = url.searchParams.get("q") ?? "";
-      const users = await searchUsersForAdmin(q);
+      const { users, total } = await searchUsersForAdmin(q, {
+        limit: Number(url.searchParams.get("limit") ?? 20) || 20,
+        offset: Number(url.searchParams.get("offset") ?? 0) || 0,
+      });
       const ids = users.map((u) => u.id);
       const [geoCounts, geoAccess] = await Promise.all([getGeoDataCounts(ids), getAdminGeoAccess(ids)]);
       sendJson(res, 200, {
+        total,
         users: users.map((u) => ({
           ...u,
           geo: geoCounts.get(u.id) ?? { totalHands: 0, excludedHands: 0 },
@@ -238,13 +243,29 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     if (url.pathname === "/api/admin/grant" && req.method === "POST") {
       const body = await readJsonBody(req);
       const userId = typeof body["userId"] === "string" ? body["userId"] : "";
-      const unit = body["unit"] === "week" || body["unit"] === "month" ? (body["unit"] as CompDurationUnit) : null;
+      const unit =
+        body["unit"] === "day" || body["unit"] === "week" || body["unit"] === "month"
+          ? (body["unit"] as CompDurationUnit)
+          : null;
       const amount = typeof body["amount"] === "number" ? body["amount"] : NaN;
       if (!userId || !unit || !Number.isFinite(amount) || amount <= 0) {
-        sendJson(res, 400, { error: "userId, unit(week|month), amount(>0) are required" });
+        sendJson(res, 400, { error: "userId, unit(day|week|month), amount(>0) are required" });
         return true;
       }
       const plan = parsePlan(body["plan"]) ?? "silver";
+      // Stripe で支払い中の人に上書きすると、請求とアプリのプランが食い違う。先に解約してもらう。
+      const current = await prisma.subscription.findUnique({
+        where: { userId },
+        select: { status: true, stripeSubscriptionId: true },
+      });
+      if (current?.stripeSubscriptionId && ["active", "trialing", "past_due"].includes(current.status)) {
+        sendJson(res, 409, { error: "stripe_active" });
+        return true;
+      }
+      if (amount > ({ day: 3650, week: 520, month: 120 } as const)[unit]) {
+        sendJson(res, 400, { error: "amount too large" });
+        return true;
+      }
       const { currentPeriodEnd } = await grantCompSubscription({ userId, unit, amount, plan });
       clearGeoAccessCache();
       sendJson(res, 200, { ok: true, currentPeriodEnd: currentPeriodEnd.toISOString() });
