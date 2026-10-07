@@ -809,7 +809,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "フラッシュやストレートがまだ完成していないがドローが多いボードでは、75%くらいのベット。\n" +
       "フラッシュやストレートが完成しうるボードでは、安くベット。",
     priority: -2,
-    when: { street: ["flop"], potType: ["srp"], actionBucket: BET_BUCKETS },
+    when: { heroPfr: true, street: ["flop"], potType: ["srp"], actionBucket: BET_BUCKETS },
   },
   {
     id: "cb-a-l-l",
@@ -820,7 +820,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "Aハイでほかの2枚がローのボードは、チェック多め。打つなら33%。\n" +
       "A53のような並びはBB側にストレートが多いのが理由。\n" +
       "OOPからは20%くらいの頻度でレンジを混ぜたドンクもある。",
-    when: { street: ["flop"], boardShape: ["H-L-L"], boardHighBand: ["H"] },
+    when: { heroPfr: true, street: ["flop"], boardShape: ["H-L-L"], boardHighBand: ["H"] },
   },
   {
     id: "cb-a-m-l",
@@ -830,7 +830,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     body:
       "Aハイ・ミドル・ローの並びでは、セカンドペアを広く(頻度6割)33%でCベット。\n" +
       "セカンドペアを広くプロテクションする価値が跳ね上がるボード。",
-    when: { street: ["flop"], boardShape: ["H-M-L"], made: ["middlePair"] },
+    when: { heroPfr: true, street: ["flop"], boardShape: ["H-M-L"], made: ["middlePair"] },
   },
   {
     id: "cb-a-h-x",
@@ -840,7 +840,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     body:
       "Aハイでもう1枚もブロードウェイのボードは、125%のオーバーベットかチェックの二極。\n" +
       "ドローが多いほどサイズが上がり、ドライなほど安くなる傾向。",
-    when: { street: ["flop"], boardHighBand: ["H"], boardBroadwayCount: { min: 2 } },
+    when: { heroPfr: true, street: ["flop"], boardHighBand: ["H"], boardBroadwayCount: { min: 2 } },
   },
   {
     id: "cb-hmnsd",
@@ -852,7 +852,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "基本は広く33%の安ベット。ただしハイと2番目のランク差が小さくなるほど、サイズはだんだん大きくする。\n\n" +
       "A・Kハイボードは単一サイズでよいが、Q・Jハイボードは簡易戦略として50%を使うのがいい\n" +
       "(本来は4サイズ混合になるため)。",
-    when: { street: ["flop"], boardHighBand: ["H"], boardDraws: ["dry"], boardBroadwayCount: { max: 2 } },
+    when: { heroPfr: true, street: ["flop"], boardHighBand: ["H"], boardDraws: ["dry"], boardBroadwayCount: { max: 2 } },
   },
   {
     id: "cb-paired-board",
@@ -862,7 +862,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     body:
       "ペアになっている数字がロー(6以下)なら、チェック頻度が増える(A66など)。\n" +
       "OOPからはほぼチェックになり、ベットサイズは1/3か150%を使う。",
-    when: { street: ["flop"], boardPaired: true },
+    when: { heroPfr: true, street: ["flop"], boardPaired: true },
   },
   {
     id: "cb-middle-paired",
@@ -873,7 +873,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "ロー(2〜4)かハイ(T〜A)がペアのボードは、レンジで33%。\n" +
       "ミドル(5〜9)がペアのボードは、トリップス以上で33%、それ以外はレンジの7割を33%・3割チェック。\n" +
       "特にAxxは顕著にチェックが増える。",
-    when: { street: ["flop"], boardPaired: true, boardPairBand: ["M"] },
+    when: { heroPfr: true, street: ["flop"], boardPaired: true, boardPairBand: ["M"] },
   },
   {
     id: "cb-dry-jt",
@@ -884,7 +884,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "チェックか、350%の大きなオールインの二極。\n\n" +
       "バリュー: トップペア・トップキッカー、オーバーペア、ツーペア。セットはチェックレイズに回す。\n" +
       "ブラフ: 全てのストレートドロー。フラッシュドローは全てチェックレイズ。",
-    when: { street: ["flop"], boardHighBand: ["H"], boardDraws: ["dry"], boardBroadwayCount: { min: 2, max: 3 } },
+    when: { heroPfr: true, street: ["flop"], boardHighBand: ["H"], boardDraws: ["dry"], boardBroadwayCount: { min: 2, max: 3 } },
   },
   {
     id: "cb-low-board",
@@ -894,7 +894,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     body:
       "オールイン: バリューは99〜JJのミドルオーバーペア。ブラフはナッツフラッシュドローとAK。\n" +
       "75%Cベット: バリューはAA〜QQと88〜66。ブラフは2オーバーのフラッシュドロー、バックドアフラッシュドロー。",
-    when: { street: ["flop"], boardHighBand: ["M", "L"] },
+    when: { heroPfr: true, street: ["flop"], boardHighBand: ["M", "L"] },
   },
   {
     id: "cb-akq",
@@ -905,7 +905,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "125%・75%・33%の混合。AKハイボードなので125%か33%、コネクトボードなので75%。\n\n" +
       "フロップからポラーレンジを使うときのブラフの優先順位は、\n" +
       "ボトムペア → ストレートドロー → 弱いポケットペア → フラッシュドロー の順。",
-    when: { street: ["flop"], boardBroadwayCount: { min: 3 }, boardHmGap: { max: 2 } },
+    when: { heroPfr: true, street: ["flop"], boardBroadwayCount: { min: 3 }, boardHmGap: { max: 2 } },
   },
   {
     id: "cb-size-mix",
@@ -917,7 +917,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "ベット頻度が超低い: トップハイ、ポケットペア、キッカーの弱いトップペア、セカンドペア。\n" +
       "それ以外はレンジ全体の頻度に準拠させる。",
     priority: -2,
-    when: { street: ["flop"], potType: ["srp"] },
+    when: { heroPfr: true, street: ["flop"], potType: ["srp"] },
   },
 
   // ═════════════════════════ ダブルバレル ═════════════════════════
@@ -1004,6 +1004,30 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     when: { street: ["flop"], made: ["overPair"], effStackBb: { max: 25 } },
   },
 
+  // ═════════════════════════ プリフロップのレイザーではないとき(オーナー指示) ═════════════════════════
+  {
+    id: "nonpfr-oop-donk",
+    title: "レイザーではないOOPは、ドンクするかどうかを考える",
+    summary:
+      "プリフロップでレイズしたのは相手だよ。OOPのきみは基本チェックで相手に任せて、ドンクはボードがきみの側に有利に変わったときだけにしようね。",
+    body: DONK_BODY,
+    priority: 1,
+    when: { street: ["flop", "turn", "river"], heroPfr: false, heroIp: false },
+  },
+  {
+    id: "nonpfr-ip-bmcb",
+    title: "レイザーではないIPは、相手のチェックにBMCB",
+    summary:
+      "プリフロップでレイズしたのは相手だよ。相手がCベットを打たずにチェックしてきたら、IPのきみはBMCB(相手が打たなかったCベットの代わりに打つベット)を広く小さく打つチャンスなんだ。",
+    body:
+      "BMCB(Bet vs Missed C-Bet)= プリフロップのレイザーがCベットを打たずにチェックしたときに、IPのコーラーが打つベット。\n" +
+      "レイザーがチェックした時点で、相手のレンジは強い手が抜けて弱くなっている。\n" +
+      "Tハイ以下のボードでは安く広く(33〜75%)、Aハイのボードでは狭く大きく(オーバーかチェック)が目安。\n" +
+      "相手がベットしてきたら、Cベットへの対応(コール・レイズ・フォールド)を考える。",
+    priority: 1,
+    when: { street: ["flop"], heroPfr: false, heroIp: true },
+  },
+
   // ═════════════════════════ BMCB ═════════════════════════
   {
     id: "bmcb-exploit",
@@ -1011,7 +1035,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     summary:
       "Jハイ以下のボードでレンジチェックができていない相手は、チェックレイズが弱めなんだ。レンジベットが効くよ。",
     body: "Jハイ以下のボードでレンジチェックができていないプレイヤーは、チェックレイズが弱い。それを読んでレンジでBMCBを打つ。",
-    when: { street: ["flop"], actionBucket: BET_BUCKETS, boardHighBand: ["M", "L"] },
+    when: { street: ["flop"], heroPfr: false, heroIp: true, actionBucket: BET_BUCKETS, boardHighBand: ["M", "L"] },
   },
   {
     id: "bmcb-bvb",
