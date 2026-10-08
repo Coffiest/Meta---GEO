@@ -272,5 +272,117 @@ export function coachComment(c: CoachData): CoachNote {
           "\n\nどの手で守るかは、ナッツ級をブロックしている手を優先しよう。ブロックしていれば相手のバリューが減り、ブラフの割合が上がるよ。",
         sourceUrl: SRC.mdf,
       };
+    case "flopCb":
+      return flopCbComment(c);
   }
+}
+
+// ───────────── フロップの CB(オリジナル・IP)。出典: Amu「Flop CBの基礎 (BTN vs BB)」 ─────────────
+
+type FlopCbData = NonNullable<CoachData["flopCb"]>;
+
+const CB_CLASS_NAME: Record<number, string> = {
+  1: "Class1 モノトーン",
+  2: "Class2 トリップス",
+  3: "Class3 ペア",
+  4: "Class4 A〜Jハイ HMSD",
+  5: "Class5 A〜Jハイ HMnSD",
+  6: "Class6 T・9ハイ",
+  7: "Class7 8ハイ以下",
+};
+
+/** ボードの分類ごとの、レンジ全体の打ち方(記事の Step1 を自分の言葉で)。 */
+function cbClassText(f: FlopCbData): string {
+  switch (f.cls) {
+    case 1:
+      return "モノトーンのボードは「低い頻度で安く打つ」。レンジの 25% くらいを 33%、5% くらいを 50% で打ち、残りはチェック。";
+    case 2:
+      return "トリップスのボードはオリジナルレイザーの有利がとても大きいので、レンジ全体で打ってよい(CB 率ほぼ 100%)。サイズは 999 以上なら 33% か 50%、888 以下なら 50% か 75%。";
+    case 3:
+      return "ペアのボードは安いサイズでたくさん打つ。目安は 50% の頻度で 33%、15% の頻度で 50%。迷ったら 70% くらいを 33% で打つ、で大きく外さない。";
+    case 4:
+      return f.hmTier === "strong"
+        ? "A〜Jハイで、ハイとミドルの2枚でストレートドローができるボード(HMSD)。AK・AQ のように上の2枚がとても強いボードは、打つなら 125%(ポットオーバー)だけのポラーな戦略になる。頻度は 50% くらい。"
+        : f.hmTier === "weak"
+          ? "A〜Jハイの HMSD のボード。上の2枚の幅が広い(Q8・J7 のような)ボードは 125% をあまり使わず、33・50・75% を混ぜる(15:15:15、125% は 5%)。"
+          : "A〜Jハイの HMSD のボード。KJ・Q9 のような平均的なボードは全サイズを混ぜる(33:50:75:125 = 15:10:10:15)。";
+    case 5:
+      return "A〜Jハイで、ハイとミドルでストレートドローができないボード(HMnSD)。K ハイのボードと同じく「安く打つ」。目安は 33% を 35%、50% を 20% くらい。";
+    case 6:
+      return f.connected
+        ? "T・9ハイのボード。コネクトしている(何らかの2枚でストレートが完成しうる)ので、125% を外して安いサイズを多めに使う。"
+        : "T・9ハイのボード。125% まで含めて全サイズを混ぜる(33:50:75:125 = 15:10:10:15)。";
+    case 7:
+      return f.connected
+        ? "8ハイ以下でコネクトしているボード。125% は使わず、33% を 30%、50% を 15% くらいで打つ。"
+        : "8ハイ以下のボード。33・50・75% を同じくらい混ぜる(15:15:15)。";
+    default:
+      return "";
+  }
+}
+
+/** 手の振り分け(記事の Step2 を自分の言葉で)。 */
+function cbGroupText(f: FlopCbData, hand: string): string {
+  switch (f.group) {
+    case "all":
+      return `${hand}も含めて、このボードではどの手も打ってよい。`;
+    case "high":
+      return `${hand}は、このボードで打つ頻度が高い手。`;
+    case "mid":
+      return `${hand}は、レンジの平均くらいの頻度で打つ手。打ってもチェックしてもよい。`;
+    case "low":
+      return `${hand}は、打つ頻度がとても低い手。ショーダウンで勝てる見込みはあるが、打ってもバリューにならないのでチェックに回す。`;
+    case "typeB":
+      return `${hand}は「B type」= 最大サイズを中心に、高い頻度で打つ手(セット・オーバーペア・トップペアのグッドキッカー・ストレートドロー・当たっていないハイ+ロー)。`;
+    case "typeA":
+      return `${hand}は「A type」= レンジの頻度どおりに、全サイズを混ぜて打つ手。`;
+    case "typeC":
+      return `${hand}は「C type」= 安いベットかチェックの手(セカンドペア・ポケットペア・トップペアのウィークキッカー・トップのハイカード+ミドルのキッカー)。`;
+    case "value":
+      return `${hand}は、このポラーなボードのバリュー(トップペア・グッドキッカー以上)。125% で打つ。`;
+    case "bluff":
+      return `${hand}は、このポラーなボードのブラフ側(ボトムペア・ストレートドロー・弱いポケット・フラッシュドロー・ミドルより下の2枚・バックドア)。思ったより多くの手をブラフに入れるのがコツ。`;
+    case "check":
+      return `${hand}は、このポラーなボードでは打たない中くらいの手。チェックに回す。`;
+    default:
+      return "";
+  }
+}
+
+const CB_SIZE_LABEL: Record<string, string> = { "33": "33%", "50": "50%", "75": "75%", "125": "125%" };
+
+function flopCbComment(c: CoachData): CoachNote {
+  const f = c.flopCb!;
+  const hand = c.handLabel ?? "この手";
+  const sizes = (["33", "50", "75", "125"] as const)
+    .filter((k) => (f.freq[k] ?? 0) > 0)
+    .map((k) => `${CB_SIZE_LABEL[k]}(${Math.round((f.freq[k] ?? 0) * 100)}%)`)
+    .join(" / ");
+  const did = f.action === "check" ? "チェック" : `${CB_SIZE_LABEL[f.action]} のベット`;
+  const verdict =
+    c.grade === "best"
+      ? "ソリューションどおりの選択だよ。ナイス！"
+      : c.grade === "excellent" || c.grade === "good"
+        ? "悪くない選択。頻度の範囲に入っているよ。"
+        : f.action !== "check" && !(f.freq[f.action] ?? 0)
+          ? "このボードでは使わないサイズだね。"
+          : f.action === "check"
+            ? "ここは打っていきたい手だったね。"
+            : "ここはチェックに回したい手だったね。";
+  return {
+    title: `フロップの CB(${CB_CLASS_NAME[f.cls] ?? ""})`,
+    summary: `${CB_CLASS_NAME[f.cls]}${f.connected && f.cls !== 2 && f.cls !== 3 ? "・コネクト" : ""}のボード。${hand}で${did}。${verdict}`,
+    points: [
+      { label: "ボードの分類", text: `${CB_CLASS_NAME[f.cls]}${f.connected ? "(コネクト)" : ""}` },
+      { label: "使うサイズ(レンジ全体の頻度)", text: sizes || "-" },
+      { label: "この手", text: cbGroupText(f, hand) },
+    ],
+    body:
+      "フロップの CB は、手札を見る前にまず「ボードから決まるレンジ全体の打ち方」を考え、そのあとで手札を振り分ける。\n" +
+      "1. ボードを7つに分ける: モノトーン / トリップス / ペア / A〜Jハイでハイとミドルにストレートドローがある(HMSD)/ ない(HMnSD)/ T・9ハイ / 8ハイ以下。何らかの2枚でストレートが完成しうるボード(コネクト)では、125% を外して安いサイズを多めに使う。\n" +
+      `2. このボードの打ち方: ${cbClassText(f)}\n` +
+      `3. この手の振り分け: ${cbGroupText(f, hand)}\n` +
+      "サイズの候補は 33 / 50 / 75 / 125% の4つ。安いサイズが中心のボードはレンジの頻度を全部の手に配ってから上げ下げし、全サイズを混ぜるボードは A type(全サイズ混合)/ B type(最大サイズ中心)/ C type(安いベットかチェック)に分けて組み立てる。\n" +
+      "出典: Amu「Flop CBの基礎 (BTN vs BB)」(note)。GTO Wizard 100bb のソリューションを覚えやすく整理したもの。BTN vs BB 以外でも、オリジナルレイザーが IP のシングルレイズドポットに当てはめている。",
+  };
 }

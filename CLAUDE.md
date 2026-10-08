@@ -125,6 +125,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 - **コーチのルール(オーナー指示。該当する局面では必ずこの解説とバッジ。どの格付けよりも優先)** は `packages/engine/src/review/coachRules.ts` の `judgeCoach`(db の `attachCoach` が載せ、`applyNotionGrades` が最優先で格付けを置き換える)。文章は `apps/web/src/lib/coachComment.ts`、記事の要点は `knowledge/coach-rules.md`。
   - プリフロップ・フロップのポットコミット(ベット後に相手のオールインへのコールの必要勝率が 25% 以下 = SPR 0.5。分かりやすいコミットだけ)→ 大悪手。
   - ベットへのコール(フロップ・ターン)→ 必要勝率と、相手のアクションから見積もったレンジに対する推定勝率(相手の実際の手札は使わない)。**リバーはオッズではなく MDF とブロッカー**(相手のナッツ級の代表3つを抑えていればコール側、抑えていなければフォールド側。オーナー指示)。
+  - **フロップの CB(オリジナルレイザー・IP・SRP・相手のチェックを受けて)** は Amu「Flop CBの基礎 (BTN vs BB)」のソリューションどおりに判定する(オーナー指示。BTN vs BB に限らない)。判定は `packages/engine/src/review/flopCb.ts`(ボードの7分類は GEO と同じ `geo/boardClass.ts`)、文章は `coachComment.ts` の `flopCbComment`、要点は `knowledge/flop-cb.md`。有料記事なので文章はそのまま写さず、自分の言葉で要約する。
   - BMCB / IP のバレル 40% 以下(大悪手・ポラライズ)/ IP のシンバリュー / OOP のブロックベット(SRP)/ リバーの MDF・ナッツ級のブロッカーでのコール(絶妙手)・ブラフレイズ(絶妙手)・その候補で降りる(緩手)。
 - 棋譜解析のポジションは `reviewPositions`(実際のブラインドの席から数える。画面は卓と同じ名前、GTO の表は 6-max の言葉)。アクションは `normalizeCallLikeAggression` を通してから読む(額を上げていないオールイン/レイズはコール)。
 

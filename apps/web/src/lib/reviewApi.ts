@@ -105,6 +105,7 @@ export interface ReviewedDecision {
       | "riverCallNoBlock"
       | "riverFoldBlocker"
       | "riverFoldOk"
+      | "flopCb"
       | "riverMdf";
     grade: Classification | null;
     street: string;
@@ -119,6 +120,14 @@ export interface ReviewedDecision {
     blocked?: string[];
     handLabel?: string;
     checkRaiseOk?: boolean;
+    flopCb?: {
+      cls: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+      connected: boolean;
+      hmTier?: "strong" | "mid" | "weak";
+      freq: Partial<Record<"33" | "50" | "75" | "125", number>>;
+      group: "high" | "mid" | "low" | "all" | "typeA" | "typeB" | "typeC" | "value" | "bluff" | "check";
+      action: "check" | "33" | "50" | "75" | "125";
+    };
   } | null;
 }
 
