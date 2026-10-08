@@ -131,7 +131,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
   const accent = win ? ACCENT_HI : lose ? CRIMSON : FG_MUTED;
 
   // フォントサブセットに必要な全文字を集める(表示名 + 固定ラベル + 数字 + ランク)。
-  const glyphs = `${name}${bbText}このハンド全員フォールドで決着プリフロップ無料ポーカー強くなれる実力が数字に出る0123456789+-±.,/AKQJshdcbBOARDYUHNPokerART `;
+  const glyphs = `${name}${bbText}このハンド全員フォールドで決着プリフロップ無料ポーカー強くなれる実力が数字に出る純粋なトナメを競う競技0123456789+-±.,/AKQJshdcbBOARDYUHNPokerART `;
   const [regular, bold] = await Promise.all([
     loadGoogleFont(JP_FONT, 500, glyphs),
     loadGoogleFont(JP_FONT, 700, glyphs),
@@ -217,7 +217,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
         {/* フッター: キャッチ + アプリ名/URL */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
-          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>実力が数字に出る無料ポーカー</span>
+          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>純粋なトナメの実力を競う競技ポーカー</span>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <span style={{ fontSize: "32px", fontWeight: 700, color: FG }}>Poker ART</span>
             <span style={{ fontSize: "21px", fontWeight: 500, color: ACCENT_HI }}>meta-geo-poker.vercel.app</span>

@@ -39,7 +39,7 @@ export function generateMetadata({ searchParams }: { searchParams: SP }): Metada
   const name = first(searchParams["name"]);
   const who = name ? `${name} さん` : "プレイヤー";
   const title = `${who}の${summarize(searchParams)} — Poker ART`;
-  const description = "課金なしで実力が数値に出る無料オンラインポーカー。Sit & Go・MTTを今すぐプレイ。";
+  const description = "ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリ。エクスプロイト版のGTO、それが「GEO」。";
   const ogImage = `${SITE_URL}/api/og/hand${qs ? `?${qs}` : ""}`;
   return {
     title,
@@ -90,7 +90,7 @@ export default function ShareHandPage({ searchParams }: { searchParams: SP }) {
           style={{ width: "100%", height: "auto", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 60px -24px rgba(0,0,0,0.75)" }}
         />
         <p style={{ fontSize: "17px", fontWeight: 700, textAlign: "center", color: "#aeaeb2", lineHeight: 1.6, margin: 0 }}>
-          Poker ART（ポーカーアート）は、課金なしで実力が数値に出る無料オンラインポーカー。
+          Poker ART（ポーカーアート）は、ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリ。
           <br />
           あなたの神ハンドも、ワンタップでシェアできます。
         </p>

@@ -197,11 +197,11 @@ export const es: Record<string, string> = {
   "login.info.reset": "Enviamos un enlace para restablecer la contraseña a {email}.",
   "login.whatYouCanDo": "Qué puedes hacer",
   "login.feat1.title": "Torneos",
-  "login.feat1.body": "Torneos de No-Limit Hold'em SNG y MTT con fichas virtuales. Sin dinero real.",
+  "login.feat1.body": "Una app de póker competitivo que mide tu nivel real en torneos por ROI y % de ITM.",
   "login.feat2.title": "Análisis de estrategia GEO",
-  "login.feat2.body": "Análisis de rangos al estilo de GTO Wizard. Domina la estrategia GEO, que va más allá del GTO.",
+  "login.feat2.body": "La versión explotativa del GTO: eso es «GEO».",
   "login.feat3.title": "Estadísticas detalladas",
-  "login.feat3.body": "VPIP, PFR, 3bet y ROI se registran automáticamente. Mira tu juego en números.",
+  "login.feat3.body": "Repasa tu juego con el análisis de manos.",
 
   "onb.step": "Último paso",
   "onb.profile": "Perfil",
@@ -226,7 +226,7 @@ export const es: Record<string, string> = {
   "onb.next1": "Torneos",
   "onb.next2": "Análisis GEO",
   "onb.next3": "Estadísticas detalladas",
-  "onb.footer": "Poker ART · Solo fichas virtuales",
+  "onb.footer": "Poker ART · Póker de torneos competitivo",
 
   "lobby.menuOpen": "Abrir menú",
   "lobby.game.sngDetail": "6-max · una mesa",

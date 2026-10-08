@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Poker ART",
     short_name: "Poker ART",
-    description: "GTO戦略のバーチャルチップ専用ポーカートーナメント",
+    description: "ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリ",
     start_url: "/",
     scope: "/",
     display: "standalone",

@@ -73,7 +73,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
   // 長い見出しは字を詰める(「初トーナメント」など)。
   const headlineSize = headline.length >= 7 ? "108px" : headline.length >= 5 ? "140px" : "180px";
 
-  const glyphs = `${name}${headline}${caption}${suffix}マイルストーン到達実力が数字に出る無料ポーカー全国位人中通算トーナメント参加数初デビューPokerARTMILESTONE0123456789 ,./`;
+  const glyphs = `${name}${headline}${caption}${suffix}マイルストーン到達純粋なトナメの実力を競う競技ポーカー全国位人中通算トーナメント参加数初デビューPokerARTMILESTONE0123456789 ,./`;
   const [regular, bold] = await Promise.all([
     loadGoogleFont(JP_FONT, 500, glyphs),
     loadGoogleFont(JP_FONT, 700, glyphs),
@@ -135,7 +135,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
 
         {/* フッター: キャッチ + アプリ名/URL */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", width: "100%" }}>
-          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>実力が数字に出る無料ポーカー</span>
+          <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED }}>純粋なトナメの実力を競う競技ポーカー</span>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <span style={{ fontSize: "32px", fontWeight: 700, color: FG }}>Poker ART</span>
             <span style={{ fontSize: "21px", fontWeight: 500, color: ACCENT_HI }}>meta-geo-poker.vercel.app</span>

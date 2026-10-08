@@ -57,8 +57,9 @@ export default function ContentLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto max-w-2xl px-5 py-10">
           <div className="text-[11px] font-black uppercase tracking-[0.22em] text-accent">Poker ART（ポーカーアート）</div>
           <p className="mt-2 max-w-lg text-[12px] leading-relaxed text-fg-2">
-            課金なしのバーチャルチップ専用オンラインポーカー。Sit &amp; Go・MTTのNLHトーナメントを無料でプレイでき、
-            ハンド履歴とレンジ分析(GEO戦略データベース)で戦略を磨けます。実際の金銭の賭けや換金は一切ありません。
+            ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリ。エクスプロイト版のGTO、それが「GEO」。棋譜解析で自分のプレイを振り返ろう。
+            <br />
+            実際の金銭の賭けや換金は一切ありません。
           </p>
           <nav className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
             {FOOTER_LINKS.map((l) => (

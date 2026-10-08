@@ -197,11 +197,11 @@ export const zhHant: Record<string, string> = {
   "login.info.reset": "已將密碼重設連結寄至 {email}。",
   "login.whatYouCanDo": "你可以做什麼",
   "login.feat1.title": "錦標賽對戰",
-  "login.feat1.body": "用虛擬籌碼暢玩 SNG 與 MTT 無限注德州撲克錦標賽，完全不需真錢。",
+  "login.feat1.body": "以 ROI 與入圈率比拚純粹錦標賽實力的競技撲克 App。",
   "login.feat2.title": "GEO 策略分析",
-  "login.feat2.body": "GTO Wizard 風格的範圍分析。掌握「超越 GTO」的 GEO 策略。",
+  "login.feat2.body": "剝削版 GTO，那就是「GEO」。",
   "login.feat3.title": "詳細數據",
-  "login.feat3.body": "自動記錄 VPIP、PFR、3bet 與 ROI，用數字看清自己的打法。",
+  "login.feat3.body": "用覆盤分析回顧自己的打法。",
 
   "onb.step": "最後一步",
   "onb.profile": "個人檔案",
@@ -226,7 +226,7 @@ export const zhHant: Record<string, string> = {
   "onb.next1": "錦標賽",
   "onb.next2": "GEO 策略分析",
   "onb.next3": "詳細數據",
-  "onb.footer": "Poker ART · 僅限虛擬籌碼",
+  "onb.footer": "Poker ART · 競技錦標賽撲克",
 
   "lobby.menuOpen": "開啟選單",
   "lobby.game.sngDetail": "6人桌 · 單桌",

@@ -37,14 +37,14 @@ const JP_FONT_CSS =
 
 const SITE_URL = "https://meta-geo-poker.vercel.app";
 const SITE_DESCRIPTION =
-  "Poker ART（ポーカーアート／POKERART）は、課金なしのバーチャルチップ専用オンラインポーカー。Sit & Go・MTTのNLHトーナメントを無料でプレイでき、ハンド履歴とレンジ分析で戦略を磨けます。";
+  "Poker ART（ポーカーアート／POKERART）は、ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリ。エクスプロイト版のGTO、それが「GEO」。棋譜解析で自分のプレイを振り返ろう。";
 
 export const metadata: Metadata = {
   // 本番URLを基準に相対パス(manifest/OGP等)を絶対URL化する。
   metadataBase: new URL(SITE_URL),
   // ブランド名「Poker ART / ポーカーアート / POKERART」で検索されたときに確実に一致させる。
   title: {
-    default: "Poker ART（ポーカーアート）| 無料バーチャルチップ・ポーカートーナメント",
+    default: "Poker ART（ポーカーアート）| 純粋なトナメの実力を競う競技ポーカーアプリ",
     template: "%s | Poker ART（ポーカーアート）",
   },
   description: SITE_DESCRIPTION,
@@ -96,13 +96,13 @@ export const metadata: Metadata = {
     locale: "ja_JP",
     url: SITE_URL,
     siteName: "Poker ART（ポーカーアート）",
-    title: "Poker ART（ポーカーアート）| 無料バーチャルチップ・ポーカートーナメント",
+    title: "Poker ART（ポーカーアート）| 純粋なトナメの実力を競う競技ポーカーアプリ",
     description: SITE_DESCRIPTION,
     images: [{ url: "/logos/Logo_s.png", width: 2000, height: 2000, alt: "Poker ART（ポーカーアート）" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Poker ART（ポーカーアート）| 無料バーチャルポーカー",
+    title: "Poker ART（ポーカーアート）| 競技ポーカーアプリ",
     description: SITE_DESCRIPTION,
     images: ["/logos/Logo_s.png"],
   },
@@ -194,7 +194,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* クローラー向けのブランド見出し。アプリ本体はクライアント描画でサーバーHTMLに本文が
             乗らないため、ブランド名(カナ・英字・大文字)と概要をサーバー描画のテキストとして必ず含める。
             視覚的には隠す(sr-only)がDOMには存在し、実体を正確に説明する正当なテキスト。 */}
-        <h1 className="sr-only">Poker ART（ポーカーアート／POKERART）— 無料バーチャルチップ・ポーカートーナメント</h1>
+        <h1 className="sr-only">Poker ART（ポーカーアート／POKERART）— 純粋なトナメの実力を競う競技ポーカーアプリ</h1>
         <p className="sr-only">{SITE_DESCRIPTION}</p>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         {/* AdSenseの広告スクリプト。所有権確認のスニペットを兼ねるので**常に**出す

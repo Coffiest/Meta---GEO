@@ -75,7 +75,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
   const rankBig = pos == null ? "結果" : useRatio ? `${pos} / ${entrants}` : ordinal(pos);
 
   // フォントサブセットに必要な全文字を集める(表示名 + 固定ラベル + 数字)。
-  const glyphs = `${name}${rankBig}トーナメント結果獲得全国位無料ポーカーで対戦強くなる実力が数字に出る${payout}${rank ?? ""}0123456789 ,./+PokerART`;
+  const glyphs = `${name}${rankBig}トーナメント結果獲得全国位無料ポーカーで対戦強くなる実力が数字に出る純粋なトナメの実力を競う競技ポーカー${payout}${rank ?? ""}0123456789 ,./+PokerART`;
   const [regular, bold] = await Promise.all([
     loadGoogleFont(JP_FONT, 500, glyphs),
     loadGoogleFont(JP_FONT, 700, glyphs),
@@ -155,7 +155,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
                 <span style={{ fontSize: "24px", fontWeight: 500, color: FG_MUTED, marginLeft: "6px" }}>位</span>
               </div>
             ) : (
-              <span style={{ fontSize: "26px", fontWeight: 500, color: FG_MUTED }}>強くなれる無料ポーカー</span>
+              <span style={{ fontSize: "26px", fontWeight: 500, color: FG_MUTED }}>純粋なトナメの実力を競う競技ポーカー</span>
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
