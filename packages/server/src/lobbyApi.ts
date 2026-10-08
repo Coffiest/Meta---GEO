@@ -30,6 +30,7 @@ import {
   reportPlayer,
   getEliteFrames,
   getEliteStats,
+  randomAnimalKey,
 } from "@meta-geo/db";
 import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
@@ -206,8 +207,9 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       if (req.method === "POST") {
         const body = await readJsonBody(req);
         const displayName = typeof body["displayName"] === "string" ? body["displayName"].trim().slice(0, 16) : "";
-        // アイコン画像は任意(カメラロールから選んだdata URIまたはnull)。名前だけが必須。
-        const avatarKey = typeof body["avatarKey"] === "string" && body["avatarKey"].length > 0 ? body["avatarKey"] : null;
+        // アイコンは写真(data URI)か動物の絵(animal:<id>)。画面で必ず選ばせるが、無ければ絵をランダムに付ける。
+        const avatarKey =
+          typeof body["avatarKey"] === "string" && body["avatarKey"].length > 0 ? body["avatarKey"] : randomAnimalKey();
         if (!displayName) {
           sendJson(res, 400, { error: "表示名は必須です" });
           return true;

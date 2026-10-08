@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Icon } from "./Icon";
+import { animalFromSeed, animalOf, animalSrc } from "@/lib/animalAvatars";
 
 /** リングの再描画間隔(ms)。10fpsあれば秒読みのリングとして十分滑らかに見える。 */
 const RING_PAINT_INTERVAL_MS = 100;
@@ -88,12 +88,9 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
   );
 }
 
-/** アイコン未設定のプレイヤー用の人型シルエット。頭文字や個体別のキャラは使わず、
- * 全員この共通アイコンにする(誰であるかを見た目で推測させないため)。
- * 円形コンテナ(overflow-hidden)で肩の両端が自然にトリミングされ、胸像風のアバターになる。 */
 /**
- * ユーザーのアイコン表示。カメラロールから選んだ画像(data URI)が設定されていればそれを、
- * 未設定(BOT含む)なら共通のモノクロ人型シルエットを表示する(頭文字・BOTキャラアバターは廃止)。
+ * ユーザーのアイコン表示。写真(data URI)か、動物の絵10枚のどれか(animal:<id>)。
+ * 人型の共通アイコンは廃止(オーナー指示)。全員を同じ規則・同じ意匠で描く。
  */
 export function Avatar({
   avatarKey,
@@ -114,6 +111,7 @@ export function Avatar({
   frame?: "silver" | "gold" | null;
 }) {
   const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
+  const animal = animalOf(avatarKey) ?? animalFromSeed(displayName ?? "");
   // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
   // width/heightがコンテナいっぱいのまま縮まらず(right/bottomのinsetが無視される)リングと
   // 中心がズレる原因になっていたため、top/left/width/heightをすべてpx値で明示する。
@@ -143,16 +141,13 @@ export function Avatar({
           style={innerBoxStyle}
         />
       ) : (
+        // 動物の絵(選んだもの。未設定は名前から決まる1枚で、誰でも同じ規則)。地は絵ごとの暗い色。
         <div
-          className="absolute rounded-full bg-surface flex items-end justify-center select-none ring-[1.5px] ring-line-strong text-fg overflow-hidden"
-          style={innerBoxStyle}
+          className="absolute flex items-center justify-center overflow-hidden rounded-full select-none ring-1 ring-white/10"
+          style={{ ...innerBoxStyle, background: animal.bg }}
         >
-          <Icon
-            name="user"
-            filled
-            className=""
-            style={{ width: size - pad * 2, height: size - pad * 2 }}
-          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={animalSrc(animal.id)} alt="" draggable={false} className="h-[72%] w-[72%] object-contain" />
         </div>
       )}
       {/* タイマー表示中はアイコンを少し暗くして、中央の残り秒数(色付き数字)を見やすくする。
