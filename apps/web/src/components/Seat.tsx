@@ -334,14 +334,14 @@ export function Seat({
             : folded
               ? "bg-surface/80 border border-line-strong/30"
               : "glass-panel"
-        } ${isActingSeat ? "ring-2 ring-line-strong" : ""}`}
+        } ${isActingSeat ? "z-10 scale-[1.06] ring-2 ring-accent shadow-glow-sm" : ""}`}
       >
         {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
             CSSキーフレームで動かす(コンポジタで完結し、端末の発熱を抑える)。 */}
         {isActingSeat && (
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-line-strong"
+            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-accent"
           />
         )}
 

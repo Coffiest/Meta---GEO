@@ -62,6 +62,9 @@ async function main() {
             solverVersion: GTO_POSTFLOP_SOLVER_VERSION,
           },
           update: { solution: e.solution as object, solverVersion: GTO_POSTFLOP_SOLVER_VERSION },
+          // 書き込んだ行(約49MBの解 JSON)を読み戻さない。読み戻すと毎デプロイで DB からの転送量(egress)を
+          // 使い切り、Supabase の無料枠の上限で全サービスが止まった(2026-10-08)。
+          select: { spotKey: true },
         }),
       ),
     );
