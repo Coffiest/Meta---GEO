@@ -14,6 +14,8 @@ import { AdminVersionFooter } from "./AdminVersionFooter";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
 import { TopNav, type SideNavItem } from "./SideNav";
+import { ReviewStarButton } from "./ReviewStarButton";
+import { SwipeFavoriteRow } from "./SwipeFavoriteRow";
 import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
@@ -325,16 +327,13 @@ function TournamentResultsSection({
   // 一覧の上の集計(エントリー数/インマネ回数/インマネ率)はここでは不要なため表示しない。
   return (
     <>
-      <div className="space-y-2.5">
-        {[...tournamentHistory].reverse().map((p, i) => (
-          <TournamentHistoryCard
-            key={p.tournamentId}
-            point={p}
-            delay={Math.min(i * 0.03, 0.4)}
-            onOpenReview={setReviewTournamentId}
-          />
-        ))}
-      </div>
+      <SectionCard>
+        <div className="-mx-4 -my-2">
+          {[...tournamentHistory].reverse().map((p) => (
+            <TournamentHistoryRow key={p.tournamentId} point={p} onOpenReview={setReviewTournamentId} />
+          ))}
+        </div>
+      </SectionCard>
 
       <AnimatePresence>
         {reviewTournamentId && (
@@ -349,138 +348,35 @@ function TournamentResultsSection({
   );
 }
 
-function TournamentHistoryCard({
+/** トーナメントの1行(Apple Music と同じ細い線の区切り。棋譜解析は星のボタンから。オーナー指示)。 */
+function TournamentHistoryRow({
   point,
-  delay = 0,
   onOpenReview,
 }: {
   point: TournamentHistoryPoint;
-  delay?: number;
-  onOpenReview?: (tournamentId: string) => void;
+  onOpenReview: (tournamentId: string) => void;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
   const date = new Date(point.finishedAt);
   const pnlClass = point.pnl > 0 ? "text-mint-400" : point.pnl < 0 ? "text-crimson-300" : "text-n-9";
-
   return (
-    <>
-      <motion.button
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay }}
-        whileTap={{ scale: 0.985 }}
-        // ワンタップでそのトーナメントの棋譜解析を開く(オーナー指示)。解析を開けない記録だけ詳細シートを出す。
-        onClick={() => (onOpenReview && point.tournamentId ? onOpenReview(point.tournamentId) : setOpen(true))}
-        className="w-full text-left rounded-[18px] glass-panel shadow-e1 p-3.5"
-      >
-        <div className="flex items-start justify-between mb-2.5">
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold text-fg">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
-            <p className="text-[10px] text-n-9 mt-0.5">
-              {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
-            </p>
-          </div>
+    <div className="list-row flex items-center gap-3 px-4 py-3" style={{ ["--row-inset" as string]: "16px" }}>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-bold text-fg">
+          {GAME_TYPE_LABEL[point.gameType] ?? point.gameType}
           {point.finishPosition != null && (
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-accent-hi to-accent-lo flex items-center justify-center shrink-0">
-              <span className="text-[11px] font-black text-white">{t("result.place", { n: point.finishPosition })}</span>
-            </div>
+            <span className="ml-2 text-[13px] font-black text-accent">{t("result.place", { n: point.finishPosition })}</span>
           )}
-        </div>
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="rounded-xl glass-panel p-2 text-center">
-            <p className="text-[9px] text-n-9 mb-0.5">{t("play.buyIn")}</p>
-            <p className="text-[12px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
-          </div>
-          <div className="rounded-xl glass-panel p-2 text-center">
-            <p className="text-[9px] text-n-9 mb-0.5">{t("lobby.payout")}</p>
-            <p className="text-[12px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
-          </div>
-          <div className="rounded-xl glass-panel p-2 text-center">
-            <p className="text-[9px] text-n-9 mb-0.5">{t("result.m.profit")}</p>
-            <p className={`text-[12px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
-          </div>
-        </div>
-        <div className="flex items-center justify-end gap-1 text-[11px] font-bold text-accent">
-          <span>{t("lobby.tapReview")}</span>
-          <Icon name="chevron-right" className="h-3.5 w-3.5" />
-        </div>
-      </motion.button>
-
-      <AnimatePresence>
-        {open && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setOpen(false)}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/70"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={SPRING_SHEET}
-              className="relative w-full max-w-sm glass-sheet rounded-t-sheet pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 px-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-[16px] font-bold text-fg">{GAME_TYPE_LABEL[point.gameType] ?? point.gameType}</p>
-                <button onClick={() => setOpen(false)} className="pressable text-[13px] text-fg-2">
-                  {t("common.close")}
-                </button>
-              </div>
-              <p className="text-[12px] text-n-9 mb-4">
-                {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })}
-                {point.finishPosition != null && ` ・ ${t("result.place", { n: point.finishPosition })}`}
-              </p>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl glass-panel p-3 text-center">
-                  <p className="text-[10px] text-n-9 mb-1">{t("play.buyIn")}</p>
-                  <p className="text-[14px] font-bold text-fg tabular-nums">{point.buyIn.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl glass-panel p-3 text-center">
-                  <p className="text-[10px] text-n-9 mb-1">{t("lobby.payout")}</p>
-                  <p className="text-[14px] font-bold text-fg tabular-nums">{point.payout.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl glass-panel p-3 text-center">
-                  <p className="text-[10px] text-n-9 mb-1">{t("result.m.profit")}</p>
-                  <p className={`text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-accent bg-surface px-3.5 py-3">
-                <span className="text-[12px] font-semibold text-accent">{t("lobby.metric.rrRating")}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[16px] font-black text-accent tabular-nums">{displayRating(point.rrRatingAfter)}</span>
-                  {point.rrRatingDelta != null && Math.abs(point.rrRatingDelta) >= 0.01 && (
-                    <span
-                      className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 tabular-nums ${
-                        point.rrRatingDelta >= 0 ? "text-mint-400 bg-mint-500/10" : "text-crimson-300 bg-crimson-500/10"
-                      }`}
-                    >
-                      {point.rrRatingDelta >= 0 ? "+" : ""}
-                      {point.rrRatingDelta.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {/* 過去トナメの棋譜解析(局後検討)への導線。モーダルで開く。 */}
-              {onOpenReview && point.tournamentId && (
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    onOpenReview(point.tournamentId);
-                  }}
-                  className="pressable mt-3 block w-full rounded-xl bg-accent py-3 text-center text-[13px] font-bold text-on-accent shadow-glow"
-                >
-                  {t("result.reviewCta")}
-                </button>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </>
+        </p>
+        <p className="mt-0.5 truncate text-[12px] text-fg-2 tabular-nums">
+          {date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" })} ・ {t("lobby.seats", { n: point.seatCount })} ・ {t("play.buyIn")} {point.buyIn.toLocaleString()}
+        </p>
+      </div>
+      <div className={`shrink-0 text-[14px] font-bold tabular-nums ${pnlClass}`}>{formatSigned(point.pnl)}</div>
+      {point.tournamentId && (
+        <ReviewStarButton label={t("result.reviewCta")} onClick={() => onOpenReview(point.tournamentId)} />
+      )}
+    </div>
   );
 }
 
@@ -1708,100 +1604,52 @@ export function Lobby({
                         />
                       );
                     }
-                    const groups: { tournamentId: string; tournamentLabel: string; rows: HistoryRow[] }[] = [];
-                    for (const h of rows) {
-                      const last = groups[groups.length - 1];
-                      if (last && last.tournamentId === h.tournamentId) last.rows.push(h);
-                      else groups.push({ tournamentId: h.tournamentId, tournamentLabel: h.tournamentLabel, rows: [h] });
-                    }
+                    // トナメごとには区切らない。1手=1行、全行を細い線で区切る(Apple Music と同じ。オーナー指示)。
                     return (
-                      <div className="space-y-4">
-                        {groups.map((group) => (
-                          <div key={group.tournamentId}>
-                            <div className="flex items-center justify-between gap-2 mb-1 px-0.5">
-                              <p className="min-w-0 flex-1 truncate text-[17px] font-black tracking-tight text-fg">{group.tournamentLabel}</p>
-                              {/* 卓(大会)単位の棋譜解析。Apple Music の小見出しの「すべて表示」と同じ、文字だけのリンク。 */}
-                              <button
-                                onClick={() => {
-                                  setReviewHandId(null);
-                                  setReviewTournamentId(group.tournamentId);
-                                }}
-                                className="pressable flex shrink-0 items-center gap-1 text-[13px] font-bold text-accent"
-                              >
-                                <ReviewGlyph className="h-3.5 w-3.5" />
-                                {t("lobby.reviewHand")}
-                              </button>
-                            </div>
-                            <div className="-mx-1">
-                              {group.rows.map((h, i) => {
-                                const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
-                                const rounded = Math.round(deltaBb * 10) / 10;
-                                const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
-                                // ハンド行そのものをタップで棋譜解析へ(トナメ単位の解析に一本化済み)。
-                                // お気に入り★だけは行タップと分離するため stopPropagation する。
-                                // 行から開いたときは、そのハンドの頭から再生を始める。
-                                const openReview = () => {
-                                  setReviewHandId(h.handId);
-                                  setReviewTournamentId(group.tournamentId);
-                                };
-                                return (
-                                  <motion.div
-                                    key={h.handId}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.3) }}
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={openReview}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        openReview();
-                                      }
-                                    }}
-                                    aria-label={`${group.tournamentLabel} ${t("lobby.reviewRowHint")}`}
-                                    className="list-row group cursor-pointer rounded-lg px-3 py-2.5 [--row-inset:12px] focus-visible:bg-white/[0.06]"
-                                  >
-                                    <div className="flex items-center gap-2 text-[11px] text-n-9 mb-1.5">
-                                      <span className="tabular-nums">
-                                        {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                                      </span>
-                                      <span className="rounded glass-panel px-1.5 py-[1px] text-[11px] text-fg font-semibold">{h.position}</span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleFavorite(h.handId, !h.isFavorite);
-                                        }}
-                                        aria-label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
-                                        className="pressable ml-auto -my-1.5 grid h-9 w-9 place-items-center rounded-full text-accent transition-colors hover:bg-accent/10"
-                                      >
-                                        <Icon name="star" className="h-4 w-4" filled={h.isFavorite} />
-                                      </button>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-1">
-                                        {h.holeCards.map((c, i) => (
-                                          <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
-                                        ))}
-                                        <span className="w-1.5" />
-                                        {h.board.map((c, i) => (
-                                          <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
-                                        ))}
-                                      </div>
-                                      <div className={`text-sm font-bold tabular-nums shrink-0 ${signedClass(h.deltaChips)}`}>{label}</div>
-                                    </div>
-                                    {/* 行がタップ可能=棋譜解析へ、を明示するヒント。 */}
-                                    <div className="mt-1.5 flex items-center justify-end gap-1 text-[11px] font-semibold text-accent">
-                                      <ReviewGlyph className="h-3 w-3" />
-                                      <span>{t("lobby.reviewRowHint")}</span>
-                                      <Icon name="chevron-right" className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                                    </div>
-                                  </motion.div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="-mx-4">
+                        {rows.map((h) => {
+                          const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
+                          const rounded = Math.round(deltaBb * 10) / 10;
+                          const label = rounded === 0 ? "±0bb" : `${rounded > 0 ? "+" : ""}${rounded}bb`;
+                          return (
+                            <SwipeFavoriteRow
+                              key={h.handId}
+                              favorite={h.isFavorite}
+                              onToggle={() => toggleFavorite(h.handId, !h.isFavorite)}
+                              label={h.isFavorite ? t("lobby.unfavorite") : t("lobby.favorite")}
+                              style={{ ["--row-inset" as string]: "16px" }}
+                            >
+                              <div className="flex items-center gap-3 px-4 py-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="mb-1.5 flex items-center gap-2 text-[11px] text-n-9">
+                                    <span className="tabular-nums">
+                                      {new Date(h.playedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                    <span className="rounded bg-white/[0.08] px-1.5 py-[1px] text-[11px] font-semibold text-fg">{h.position}</span>
+                                    {h.isFavorite && <Icon name="star" filled className="h-3 w-3 text-accent" />}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {h.holeCards.map((c, i) => (
+                                      <PlayingCard key={i} card={c} size="sm" dealDelay={0} />
+                                    ))}
+                                    <span className="w-1.5" />
+                                    {h.board.map((c, i) => (
+                                      <PlayingCard key={`b-${i}`} card={c} size="sm" dealDelay={0} />
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className={`shrink-0 text-sm font-bold tabular-nums ${signedClass(h.deltaChips)}`}>{label}</div>
+                                <ReviewStarButton
+                                  label={t("lobby.reviewRowHint")}
+                                  onClick={() => {
+                                    setReviewHandId(h.handId);
+                                    setReviewTournamentId(h.tournamentId);
+                                  }}
+                                />
+                              </div>
+                            </SwipeFavoriteRow>
+                          );
+                        })}
                       </div>
                     );
                   })()}
