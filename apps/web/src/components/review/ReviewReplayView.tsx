@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { SPRING_MOVE } from "@/lib/motion";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { FADE, SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
+import { RafuVoice } from "@/lib/speakerContext";
+import { RAFU_SPEAKER } from "@/data/reviewSpeaker";
+import { PricingPanel } from "@/components/PricingPanel";
 import type { ReviewedDecision, ReviewHandTimeline, TournamentReviewHand } from "@/lib/reviewApi";
 import { CLASSIFICATION_META, type Classification } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
@@ -156,12 +160,15 @@ function ReplayMoveStrip({
   handId,
   timeline,
   goTo,
+  oppBySeq,
 }: {
   steps: ReplayStep[];
   stepIndex: number;
   handId: string;
   timeline: ReviewHandTimeline;
   goTo: (idx: number) => void;
+  /** 相手の決定の評価(プラチナだけ)。相手の手にもバッジを付ける。 */
+  oppBySeq: Map<number, ReviewedDecision>;
 }) {
   const reduced = useReducedMotion();
   const refs = useRef(new Map<number, HTMLButtonElement>());
@@ -205,7 +212,7 @@ function ReplayMoveStrip({
         }
         const divider = s.street !== lastStreet ? (STREET_EN[s.street] ?? s.street) : null;
         lastStreet = s.street;
-        const c = s.actorIsHero ? (s.decision?.classification ?? null) : null;
+        const c = s.actorIsHero ? (s.decision?.classification ?? null) : (oppBySeq.get(s.sequenceNumber)?.classification ?? null);
         return (
           <span key={idx} className="flex shrink-0 items-center gap-1">
             {divider && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-fg-3">{divider}</span>}
@@ -252,6 +259,13 @@ export function ReviewReplayView({
   const heroSeat = currentHand?.timeline.seats.find((s) => s.userId === heroUserId);
   const heroSeatIndex = heroSeat?.seatIndex ?? null;
   const heroCards = useMemo(() => heroSeat?.holeCards ?? [], [heroSeat]);
+  // 相手の決定(プラチナ)と、ぼかしの位置(プラチナ以外)。
+  const oppBySeq = useMemo(
+    () => new Map((currentHand?.opponentDecisions ?? []).map((d) => [d.sequenceNumber, d] as const)),
+    [currentHand]
+  );
+  const lockedSeqs = useMemo(() => new Set((currentHand?.opponentLocked ?? []).map((l) => l.sequenceNumber)), [currentHand]);
+  const [pricingOpen, setPricingOpen] = useState(false);
   // 解説の引き当てに使う文脈。ハンドが切り替わるたびに作り直す。
   const knowledgeContext = useMemo<KnowledgeContext | undefined>(
     () =>
@@ -338,9 +352,29 @@ export function ReviewReplayView({
               info={decisionInfo(step.decision.street, step.decision.effStackBb, step.decision.potBb)}
               context={knowledgeContext}
             />
+          ) : step.type === "action" && !step.actorIsHero && oppBySeq.has(step.sequenceNumber) ? (
+            // 相手の決定(プラチナ): ラフくんが同じ中身を関西弁で解説する。
+            <RafuVoice>
+              <DecisionPanel
+                d={oppBySeq.get(step.sequenceNumber)!}
+                notation={stepNotation(step, currentHand.timeline)}
+                info={decisionInfo(
+                  oppBySeq.get(step.sequenceNumber)!.street,
+                  oppBySeq.get(step.sequenceNumber)!.effStackBb,
+                  oppBySeq.get(step.sequenceNumber)!.potBb
+                )}
+                context={
+                  knowledgeContext && {
+                    ...knowledgeContext,
+                    heroHoleCards: currentHand.timeline.seats.find((s) => s.seatIndex === step.actorSeat)?.holeCards ?? [],
+                  }
+                }
+              />
+            </RafuVoice>
+          ) : step.type === "action" && !step.actorIsHero && lockedSeqs.has(step.sequenceNumber) ? (
+            <LockedRafu notation={stepNotation(step, currentHand.timeline)} onUnlock={() => setPricingOpen(true)} />
           ) : (
-            // 評価の付かない手(相手の手・自分の定型の手)は表記だけ。相手の手札は分からない
-            // 前提なので、相手のアクションには評価を付けない(オーナー確定)。
+            // 評価の付かない手(解説の無い相手の手・自分の定型の手)は表記だけ。
             <p className={`text-[14px] font-black tracking-[-0.01em] ${step.actorIsHero ? "text-fg" : "text-fg-3"}`}>
               {stepNotation(step, currentHand.timeline)}
             </p>
@@ -415,6 +449,7 @@ export function ReviewReplayView({
             handId={step.handId}
             timeline={currentHand.timeline}
             goTo={goTo}
+            oppBySeq={oppBySeq}
           />
           <button
             onClick={() => goTo(stepIndex + 1)}
@@ -426,6 +461,81 @@ export function ReviewReplayView({
           </button>
         </div>
       </div>
+      <PricingSheet open={pricingOpen} onClose={() => setPricingOpen(false)} />
     </motion.div>
+  );
+}
+
+/** 読めない(ぼかした)ラフくんの台詞の見本。中身ではなく、ぼかしの下の文字の形だけ。 */
+const LOCKED_SAMPLE = "この場面はな、相手のレンジを考えたらここはこう打つのがええねん。サイズもちゃんと見とかなあかんで。";
+
+/**
+ * プラチナ以外: 相手の手の解説を、ぼかしたラフくんの吹き出しで見せ、プラチナへ誘導する(課金のフック)。
+ * 解説の中身はサーバーから届いていない(ぼかしの下は見本の文字)。タップでプランのシートを開く。
+ */
+function LockedRafu({ notation, onUnlock }: { notation: string; onUnlock: () => void }) {
+  return (
+    <button type="button" onClick={onUnlock} className="pressable block w-full text-left">
+      <p className="mb-2 text-[14px] font-black tracking-[-0.01em] text-fg-3">{notation}</p>
+      <div className="relative flex items-start gap-2.5">
+        {/* eslint-disable-next-line @next/next/no-img-element -- 小さな立ち絵 */}
+        <img
+          src={RAFU_SPEAKER.avatarSrc}
+          alt={RAFU_SPEAKER.name}
+          draggable={false}
+          className="h-14 w-auto shrink-0 select-none"
+          style={{ aspectRatio: "318 / 420" }}
+        />
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-line bg-surface-2 px-3 py-2">
+          <span className="mb-0.5 block text-[10px] font-black text-accent">{RAFU_SPEAKER.name}</span>
+          <span aria-hidden className="block select-none text-[12px] font-semibold leading-[1.6] text-fg blur-[5px]">
+            {LOCKED_SAMPLE}
+          </span>
+          <span className="absolute inset-0 flex items-center justify-center bg-surface-2/40">
+            <span className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[11px] font-black text-on-accent shadow-glow-sm">
+              <Icon name="lock" className="h-3.5 w-3.5" />
+              相手プレイヤーの解説はプラチナプランで
+            </span>
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/** 料金のシート(下から出る)。最初からプラチナを選んだ状態で開く。棋譜解析は閉じない。 */
+function PricingSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="pricing-sheet"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={FADE}
+          onClick={onClose}
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 backdrop-blur-xl"
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="プランを選ぶ"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={SPRING_SHEET}
+            onClick={(e) => e.stopPropagation()}
+            className="h-[94dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[32px] bg-canvas shadow-e4"
+          >
+            <PricingPanel initialPlan="platinum" onClose={onClose} />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

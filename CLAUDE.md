@@ -128,6 +128,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
   - **OOP のオリジナルレイザーは、フロップが J ハイ以下・モノトーンなら必ずチェック(オーナー指示)。** チェックしたら「!」(素晴らしい = 唯一の好手)、打ったら大悪手(`coachRules.ts` の `oopFlopCheck`)。
   - **フロップの CB(オリジナルレイザー・IP・SRP・相手のチェックを受けて)** は Amu「Flop CBの基礎 (BTN vs BB)」のソリューションどおりに判定する(オーナー指示。BTN vs BB に限らない)。判定は `packages/engine/src/review/flopCb.ts`(ボードの7分類は GEO と同じ `geo/boardClass.ts`)、文章は `coachComment.ts` の `flopCbComment`、要点は `knowledge/flop-cb.md`。有料記事なので文章はそのまま写さず、自分の言葉で要約する。
   - BMCB / IP のバレル 40% 以下(大悪手・ポラライズ)/ IP のシンバリュー / OOP のブロックベット(SRP)/ リバーの MDF・ナッツ級のブロッカーでのコール(絶妙手)・ブラフレイズ(絶妙手)・その候補で降りる(緩手)。
+- **相手の決定の解説(プラチナ限定・オーナー確定)。** 自分以外の全席(人間も自動の席も同じ扱い)の全決定を、自分と同じ解析・同じバッジで評価し、解説役「ラフくん」(`rafu_v1.png`。`scripts/character-rafu.py` で書き出し)が**同じ中身を関西弁で**話す(`lib/kansai.ts` の規則で口調だけ置き換え。`lib/speakerContext.tsx` の `RafuVoice`)。サーバーは `analyzeTournamentForHero(..., { opponents: true })` で解析し、プラチナ以外には `lockOpponentDecisions` で中身を落として位置だけ返す。画面はぼかしたラフくんの吹き出しと「相手プレイヤーの解説はプラチナプランで」を出し、タップで料金のシート(`PricingPanel`、プラチナを選んだ状態)を開く。総括レポートは自分の決定だけ。
 - 棋譜解析のポジションは `reviewPositions`(実際のブラインドの席から数える。画面は卓と同じ名前、GTO の表は 6-max の言葉)。アクションは `normalizeCallLikeAggression` を通してから読む(額を上げていないオールイン/レイズはコール)。
 
 ## 自動の席の意思決定(`packages/server/src/botStrategy/`)

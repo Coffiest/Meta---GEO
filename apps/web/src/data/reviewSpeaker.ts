@@ -18,3 +18,12 @@ export const REVIEW_SPEAKER: ReviewSpeaker | null = {
   // オーナー支給の `bally_source.jpg` から `scripts/character-alpha.py` で書き出したもの。
   avatarSrc: "/characters/bally_v1.png",
 };
+
+/**
+ * 相手(自分以外の全席)の決定を解説するキャラクター。中身はバリィと同じで、関西弁で話す(オーナー確定)。
+ * 画像はオーナー支給の `rafu_source.jpg` から `scripts/character-rafu.py` で書き出したもの(318×420)。
+ */
+export const RAFU_SPEAKER: ReviewSpeaker = {
+  name: "ラフくん",
+  avatarSrc: "/characters/rafu_v1.png",
+};
