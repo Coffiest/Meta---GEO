@@ -17,7 +17,7 @@ import {
 import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries, animalKeyFromSeed } from "@meta-geo/db";
 import { lastAggressorSeat } from "./bot.js";
 import { decideStrongBotAction } from "./botStrategy/index.js";
-import { computeRevealedSeats } from "./showdown.js";
+import { computeRevealedSeats, SHOWDOWN_REVEAL_STEP_MS, showdownOrder } from "./showdown.js";
 import { HandActionClock } from "./actionClock.js";
 import { activeGames } from "./activeGames.js";
 import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
@@ -380,6 +380,8 @@ export interface GameSession {
 export class TableSession implements GameSession {
   private tournament: Tournament | null = null;
   private hand: HandEngine | null = null;
+  /** 直前のショーダウンで手をめくる演出の長さ(次のハンドをその分だけ遅らせる)。 */
+  private showdownExtraMs = 0;
   /** 研究用: 今のハンドの各アクションの時刻(思考時間・時間切れ・タイムバンク)。 */
   private clock: HandActionClock | null = null;
   private dbTournamentId: string | null = null;
@@ -1103,8 +1105,10 @@ export class TableSession implements GameSession {
       return;
     }
 
-    this.phase("nextHandScheduled", { delayMs: NEXT_HAND_DELAY_MS });
-    setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+    const nextDelay = NEXT_HAND_DELAY_MS + this.showdownExtraMs;
+    this.showdownExtraMs = 0;
+    this.phase("nextHandScheduled", { delayMs: nextDelay });
+    setTimeout(() => this.beginNextHand(), nextDelay);
   }
 
   /** ハンド履歴の保存を直列キューへ積む(進行はこの完了を待たない)。 */
@@ -1194,9 +1198,13 @@ export class TableSession implements GameSession {
 
     tournament.settleFinishedHand();
     this.phase("settled");
+    // 手を開く順番(画面はこの順に1人ずつめくる。オーナー指示)。演出の分だけ次のハンドを遅らせる。
+    const showOrder = showdownOrder(hand);
+    this.showdownExtraMs = showOrder.length * SHOWDOWN_REVEAL_STEP_MS;
     this.io.to(this.roomId).emit("handEnded", {
       result: this.serializeResult(hand),
       holeCards: revealedHoleCards,
+      showOrder,
     });
     this.phase("handEndedEmitted");
     this.maybeBotHandEndChat(hand);

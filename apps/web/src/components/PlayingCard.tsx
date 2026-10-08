@@ -132,17 +132,20 @@ export function PlayingCard({
   size = "md",
   faceDown = false,
   dealDelay = 0,
+  highlight = false,
 }: {
   card?: string;
   size?: "xs" | "sm" | "md" | "lg" | "xl" | "board";
   faceDown?: boolean;
   dealDelay?: number;
+  /** いまの役を作っている5枚の1枚。細いオレンジ(#FF9F0A・1.5px)の枠で囲む(オーナー指示)。 */
+  highlight?: boolean;
 }) {
   const dims = dimsFor(size);
 
   return (
     <motion.div
-      className={size === "board" ? "w-full" : "shrink-0"}
+      className={`${size === "board" ? "w-full" : "shrink-0"} ${highlight && !faceDown && card ? "rounded-md outline outline-[1.5px] outline-[#FF9F0A]" : ""}`}
       initial={{ opacity: 0, y: -8, scale: 0.85 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: dealDelay, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}

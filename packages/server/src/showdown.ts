@@ -1,4 +1,4 @@
-import type { HandEngine } from "@meta-geo/engine";
+import { compareHandRank, evaluateBest, type HandEngine, type HandRank } from "@meta-geo/engine";
 
 /**
  * ショーダウンで「公開義務があるプレイヤー」の席集合を返す。
@@ -8,49 +8,67 @@ import type { HandEngine } from "@meta-geo/engine";
  *  - 通常のショーダウンは「リバーの最終アグレッサー(いなければボタン左の最初の残存者)」が
  *    先に公開し、ポットを獲得したプレイヤーも公開する。それ以外はマック
  */
+/** ショーダウンで1人の手をめくる間隔(画面の演出と同じ 0.6 秒)。 */
+export const SHOWDOWN_REVEAL_STEP_MS = 600;
+
 export function computeRevealedSeats(hand: HandEngine): Set<number> {
   const result = hand.getResult();
-  const revealed = new Set<number>();
-  if (result.wonByFold) return revealed;
-
+  if (result.wonByFold) return new Set();
   const state = hand.getPublicState();
   const contenders = state.seats.filter((s) => s.status !== "folded");
-  if (contenders.length < 2) return revealed;
-
+  if (contenders.length < 2) return new Set();
   // 誰かがオールインしている(=それ以上のベッティングが無かった)ショーダウンは全員公開
-  if (contenders.some((s) => s.status === "allIn")) {
-    for (const s of contenders) revealed.add(s.seatIndex);
-    return revealed;
-  }
+  if (contenders.some((s) => s.status === "allIn")) return new Set(contenders.map((s) => s.seatIndex));
+  return new Set(showdownOrder(hand));
+}
 
-  // リバーの最終アグレッサー
+/**
+ * 通常のショーダウン(オールインでないもの)で手を開く順番と、開く席(TDA の Showdown Order。オーナー指示)。
+ *  - リバーにベットがあれば最後に攻撃した人から、無ければボタンの左の最初の残存者から、時計回り。
+ *  - 2人目以降は、それまでに開いた最も強い手と同じか強いときだけ開く(弱ければ伏せたまま = マック)。
+ *  - ポットを取る人は必ず開く(サイドポットの勝者を含む)。
+ * オールインで決着したショーダウンと、フォールドで決着したハンドは空(順番の演出をしない)。
+ */
+export function showdownOrder(hand: HandEngine): number[] {
+  const result = hand.getResult();
+  if (result.wonByFold) return [];
+  const state = hand.getPublicState();
+  const contenders = state.seats.filter((s) => s.status !== "folded");
+  if (contenders.length < 2 || contenders.some((s) => s.status === "allIn")) return [];
+
   let firstShower: number | null = null;
   for (const e of hand.getEvents()) {
     if ((e.type === "bet" || e.type === "raise" || e.type === "allIn") && e["street"] === "river") {
       firstShower = e["seatIndex"] as number;
     }
   }
-  // リバーにアグレッションが無ければ、ボタンの左隣から最初の残存者
-  if (firstShower === null) {
-    const seatCount = Math.max(...state.seats.map((s) => s.seatIndex)) + 1;
-    for (let offset = 1; offset <= seatCount; offset++) {
-      const seat = (state.buttonFixedPos + offset) % seatCount;
-      if (contenders.some((s) => s.seatIndex === seat)) {
-        firstShower = seat;
-        break;
-      }
-    }
+  const seatCount = Math.max(...state.seats.map((s) => s.seatIndex)) + 1;
+  const start = firstShower ?? (state.buttonFixedPos + 1) % seatCount;
+  const ordered: number[] = [];
+  for (let offset = 0; offset < seatCount; offset++) {
+    const seat = (start + offset) % seatCount;
+    if (contenders.some((s) => s.seatIndex === seat)) ordered.push(seat);
   }
-  if (firstShower !== null) revealed.add(firstShower);
 
-  // ポット獲得者は公開して初めてポットを獲得できる
+  const winners = new Set<number>();
   for (const [playerId, amount] of result.payouts) {
     if (amount <= 0) continue;
     const seat = contenders.find((s) => s.playerId === playerId);
-    if (seat) revealed.add(seat.seatIndex);
+    if (seat) winners.add(seat.seatIndex);
   }
-
-  return revealed;
+  const hole = hand.getAllHoleCards();
+  const board = state.board;
+  const out: number[] = [];
+  let best: HandRank | null = null;
+  for (const seat of ordered) {
+    const cards = hole.get(seat);
+    const rank = cards ? evaluateBest([...cards, ...board]) : null;
+    const show = out.length === 0 || winners.has(seat) || (rank && best && compareHandRank(rank, best) >= 0);
+    if (!show) continue;
+    out.push(seat);
+    if (rank && (!best || compareHandRank(rank, best) > 0)) best = rank;
+  }
+  return out;
 }
 
 /**

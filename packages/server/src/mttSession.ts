@@ -38,7 +38,7 @@ import {
   type ChatMessage,
   type ActionResultCode,
 } from "./gameServer.js";
-import { computeRevealedSeats } from "./showdown.js";
+import { computeRevealedSeats, SHOWDOWN_REVEAL_STEP_MS, showdownOrder } from "./showdown.js";
 import { HandActionClock } from "./actionClock.js";
 import { forgetPhaseScope, recordPhase, type ProgressPhase } from "./diagnostics.js";
 import { activeGames } from "./activeGames.js";
@@ -188,6 +188,8 @@ export class MttSession implements GameSession {
   private bustedOrder: string[] = [];
   /** バストしたハンドの番号(TournamentEntry.bustedAtHandNumber に書く)。 */
   private bustHandByUser = new Map<string, number>();
+  /** 卓ごとの、直前のショーダウンで手をめくる演出の長さ(次のハンドをその分だけ遅らせる)。 */
+  private showdownExtraMs = new Map<number, number>();
   /** 進行中のハンドがある卓から離脱した人間: そのハンドの精算直後に強制敗退させる対象。 */
   private readonly pendingForcedEliminations = new Set<string>();
   /** リエントリ処理中のユーザー。連打による二重課金・二重着席・entryCount多重加算を防ぐ(H4)。 */
@@ -1253,7 +1255,9 @@ export class MttSession implements GameSession {
 
     // この卓の次ハンドを予約しつつ、リバランスで人が入った他の待機卓も起動する。
     // 人間不在の卓(=同期的に一気消化される卓)は、人間卓と同じテンポまで意図的に落とす。
-    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS : this.botTableHandIntervalMs();
+    const showdownExtra = this.showdownExtraMs.get(tableId) ?? 0;
+    this.showdownExtraMs.delete(tableId);
+    const delay = tableHadHuman ? NEXT_HAND_DELAY_MS + showdownExtra : this.botTableHandIntervalMs();
     if (this.mtt?.getTableIds().includes(tableId)) {
       rt.pumpScheduled = true;
       this.phase(tableId, "nextHandScheduled", { delayMs: delay, tableHadHuman });
@@ -1365,10 +1369,14 @@ export class MttSession implements GameSession {
       const revealedHoleCards = Object.fromEntries(
         [...hand.getAllHoleCards()].filter(([seat]) => revealedSeats.has(seat)).map(([seat, cards]) => [seat, cards.map(cardToString)]),
       );
+      const showOrder = showdownOrder(hand);
+      // 手を開く順番の演出の長さ(次のハンドをその分だけ遅らせる)。
+      this.showdownExtraMs.set(tableId, showOrder.length * SHOWDOWN_REVEAL_STEP_MS);
       this.io.to(this.tableRoom(tableId)).emit("handEnded", {
         result: this.serializeResult(hand),
         holeCards: revealedHoleCards,
         remainingPlayers: mtt.totalRemainingPlayers(),
+        showOrder,
       });
       this.phase(tableId, "handEndedEmitted");
     }

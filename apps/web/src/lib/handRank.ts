@@ -1,5 +1,5 @@
 import { parseCard, type Card } from "@meta-geo/engine/src/types/card.js";
-import { evaluateBest, HAND_CATEGORY, type HandCategory } from "@meta-geo/engine/src/handEvaluator.js";
+import { compareHandRank, evaluate5, evaluateBest, HAND_CATEGORY, type HandCategory, type HandRank } from "@meta-geo/engine/src/handEvaluator.js";
 
 // 役名は i18n キーを返す(表示側の component で t() する。多言語対応)。
 const CATEGORY_KEY: Record<HandCategory, string> = {
@@ -47,4 +47,31 @@ export function describeMadeHand(holeCards: (string | null)[], board: string[]):
     return "hand.royalFlush";
   }
   return CATEGORY_KEY[rank.category];
+}
+
+/**
+ * いまの役を作っている5枚(キッカー込み)を、渡したカード文字列のまま返す(オレンジ枠を付ける対象)。
+ * 5枚未満(プリフロップ)は手札だけを返す。同じ強さの組が複数あれば手札を多く使う組を選ぶ。
+ */
+export function bestFiveCards(holeCards: (string | null)[], board: string[]): string[] {
+  const hole = holeCards.filter((c): c is string => !!c);
+  const all = [...hole, ...board];
+  const parsed = all.map((s) => ({ s, c: parseCard(s) })).filter((x): x is { s: string; c: Card } => !!x.c);
+  if (parsed.length < 5) return hole;
+  let best: { rank: HandRank; picks: string[]; holeUsed: number } | null = null;
+  const n = parsed.length;
+  for (let a = 0; a < n; a++)
+    for (let b = a + 1; b < n; b++)
+      for (let c = b + 1; c < n; c++)
+        for (let d = c + 1; d < n; d++)
+          for (let e = d + 1; e < n; e++) {
+            const pick = [parsed[a]!, parsed[b]!, parsed[c]!, parsed[d]!, parsed[e]!];
+            const rank = evaluate5(pick.map((x) => x.c));
+            const holeUsed = pick.filter((x) => hole.includes(x.s)).length;
+            const cmp = best ? compareHandRank(rank, best.rank) : 1;
+            if (!best || cmp > 0 || (cmp === 0 && holeUsed > best.holeUsed)) {
+              best = { rank, picks: pick.map((x) => x.s), holeUsed };
+            }
+          }
+  return best ? best.picks : hole;
 }

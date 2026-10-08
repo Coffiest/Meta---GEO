@@ -1117,3 +1117,22 @@ textarea:focus-visible,
   );
   box-shadow: 0 0 8px rgb(var(--frame-gold-hi) / 0.35);
 }
+
+/* 読み込みのトランプの輪(components/ui/Loader.tsx の CardRing。出典: uiverse.io by ilkhoeri)。 */
+.card-ring {
+  transform-style: preserve-3d;
+  animation: card-ring-rotate 8s linear infinite;
+}
+@keyframes card-ring-rotate {
+  from {
+    transform: perspective(1000px) rotateX(-15deg) rotateY(0);
+  }
+  to {
+    transform: perspective(1000px) rotateX(-15deg) rotateY(1turn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-ring {
+    animation-duration: 40s;
+  }
+}
