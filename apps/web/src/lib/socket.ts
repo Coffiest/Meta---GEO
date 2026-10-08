@@ -16,6 +16,8 @@ export interface HandEndedPayload {
   holeCards: Record<number, (string | null)[]>;
   /** MTTのとき: トーナメント全体の残り人数 */
   remainingPlayers?: number;
+  /** 通常のショーダウンで手を開く順番(TDA)。画面はこの順に 0.6 秒ずつめくる。オールイン/フォールド決着は空。 */
+  showOrder?: number[];
 }
 
 export interface LevelInfo {

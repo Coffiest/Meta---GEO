@@ -71,10 +71,10 @@ function ChipIcon({ size }: { size: number }) {
  * 3Dの Y軸回転で、伏せた裏面(前面)→表面(背面)へ半回転して表を見せる。
  * reduced-motion 時やカード未確定時は演出せず、そのまま表示する。
  */
-function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl"; delay: number }) {
+function FlipRevealCard({ card, size, delay, highlight = false }: { card?: string; size: "sm" | "xl"; delay: number; highlight?: boolean }) {
   const reduced = useReducedMotion();
   if (reduced || !card) {
-    return <PlayingCard card={card} faceDown={!card} size={size} />;
+    return <PlayingCard card={card} faceDown={!card} size={size} highlight={highlight} />;
   }
   return (
     <div style={{ perspective: 700 }}>
@@ -94,7 +94,7 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
           className="absolute inset-0"
           style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
-          <PlayingCard card={card} size={size} />
+          <PlayingCard card={card} size={size} highlight={highlight} />
         </div>
       </motion.div>
     </div>
@@ -149,6 +149,10 @@ export interface SeatViewProps {
   handRankLabel?: string | null;
   /** いまの役を作っているカード(オレンジ枠を付ける)。 */
   highlightCards?: ReadonlySet<string> | null;
+  /** ショーダウンでこの席の手をめくり始めるまでの秒数(TDA の順番。0.6 秒ずつ)。 */
+  revealDelay?: number;
+  /** 勝ちの「Win !」を出すまでの秒数(全員がめくり終わってから)。 */
+  winDelay?: number;
   /** ハンドショウで公開された席。フォールド済みでも手札を表示し、相手席なら裏返る演出を再生する。 */
   shown?: boolean;
   /** 自席のハンドショウ意思。カードごとに独立してON/OFFできる(index 0/1に対応)。 */
@@ -189,6 +193,8 @@ export function Seat({
   onChatClick,
   handRankLabel = null,
   highlightCards = null,
+  revealDelay = 0,
+  winDelay = 0,
   shown = false,
   heroShowArmed,
   onCardTap,
@@ -249,7 +255,7 @@ export function Seat({
               holeCards.map((c, i) => {
                 if (shown && !isHero) {
                   // 相手席のハンドショウ/ショウダウン公開: 裏面→表面の「ペラッ」フリップ。
-                  return <FlipRevealCard key={i} card={c ?? undefined} size={cardSize} delay={i * 0.09} />;
+                  return <FlipRevealCard key={i} card={c ?? undefined} size={cardSize} delay={revealDelay + i * 0.05} highlight={!!c && !!highlightCards?.has(c)} />;
                 }
                 if (isHero && onCardTap) {
                   // 自席はカード1枚ずつ個別にタップしてハンドショウをトグルできる(2枚同時ではなく、
@@ -322,7 +328,7 @@ export function Seat({
           key={handRankLabel}
           initial={{ opacity: 0, y: -3, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={SPRING_SNAPPY}
+          transition={{ ...SPRING_SNAPPY, delay: isHero ? 0 : revealDelay + 0.5 }}
           className="z-30 -mt-0.5 rounded-full bg-n-4 px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-e1"
         >
           {handRankLabel}
@@ -493,7 +499,7 @@ export function Seat({
               initial={reducedMotion ? { opacity: 0 } : badge.tone === "win" ? { opacity: 0, scale: 0.4, y: 10 } : { opacity: 0, scale: 0.5, y: -4 }}
               animate={{ opacity: 1, scale: badge.tone === "win" ? 1.08 : 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.5 }}
-              transition={badge.tone === "win" ? SPRING_MOVE : SPRING_SNAPPY}
+              transition={badge.tone === "win" ? { ...SPRING_MOVE, delay: winDelay } : SPRING_SNAPPY}
               className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full py-1 text-[12px] font-bold tabular-nums ring-2 ${badge.chips ? "pl-1 pr-3" : "px-3"} ${BADGE_TONE_CLASS[badge.tone]}`}
             >
               {badge.chips && <ChipIcon size={18} />}
