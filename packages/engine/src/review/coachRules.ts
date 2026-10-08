@@ -1,3 +1,5 @@
+import type { FlopClassId } from "../geo/boardClass.js";
+import { judgeFlopCb, type CbGroup, type HmTier, type SizeKey } from "./flopCb.js";
 import type { Card, Rank } from "../types/card.js";
 import { RANKS, SUITS, parseCard } from "../types/card.js";
 import { HAND_CATEGORY, compareHandRank, evaluateBest, type HandRank } from "../handEvaluator.js";
@@ -40,7 +42,9 @@ export type CoachId =
   | "riverMdf"
   | "riverCallNoBlock"
   | "riverFoldBlocker"
-  | "riverFoldOk";
+  | "riverFoldOk"
+  | "flopCb"
+  | "oopFlopCheck";
 
 export interface CoachVerdict {
   id: CoachId;
@@ -68,6 +72,17 @@ export interface CoachVerdict {
   handLabel?: string | undefined;
   /** チェックレイズでもよい場面か(コールの解説に添える)。 */
   checkRaiseOk?: boolean | undefined;
+  /** フロップの CB(オリジナル・IP)。ボードの分類とレンジのサイズ配分、手の振り分け。 */
+  flopCb?:
+    | {
+        cls: FlopClassId;
+        connected: boolean;
+        hmTier?: HmTier | undefined;
+        freq: Partial<Record<SizeKey, number>>;
+        group: CbGroup;
+        action: "check" | SizeKey;
+      }
+    | undefined;
 }
 
 export interface NutExample {
@@ -559,6 +574,52 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
   const made = madeInfo(hero.holeCards, board);
   const streetActs = r.byStreet[street] ?? [];
   const firstToAct = streetActs.length === 0;
+
+  // 7. OOP のオリジナルレイザーは、J ハイ以下とモノトーンのフロップでは必ずチェック(オーナー指示)。
+  //    チェックできたら「!」(素晴らしい = 唯一の好手)、打ったら大悪手。
+  if (street === "flop" && !ip && r.preflopRaiser === r.hero && firstToAct && (kind === "check" || kind === "bet")) {
+    const fb = board.slice(0, 3);
+    const rk = (c: string) => ({ A: 14, K: 13, Q: 12, J: 11, T: 10 } as Record<string, number>)[c[0]!.toUpperCase()] ?? Number(c[0]);
+    const high = Math.max(...fb.map(rk));
+    const monotone = new Set(fb.map((c) => c.slice(-1).toLowerCase())).size === 1;
+    if (fb.length === 3 && (high <= 11 || monotone)) {
+      return {
+        id: "oopFlopCheck",
+        grade: kind === "check" ? "great" : "blunder",
+        street,
+        sizePct: kind === "bet" ? sizePct : undefined,
+        handLabel: monotone ? "モノトーン" : "Jハイ以下",
+      };
+    }
+  }
+
+  // 6. フロップの CB(オリジナルレイザー・IP・シングルレイズドポット・相手のチェックを受けて)。
+  //    出典: Amu「Flop CBの基礎 (BTN vs BB)」。オーナー指示で BTN vs BB に限らず当てはめる。
+  {
+    const pfRaises = (r.byStreet["preflop"] ?? []).filter((a) => a.kind === "raise" || a.kind === "allIn").length;
+    if (
+      street === "flop" &&
+      ip &&
+      r.preflopRaiser === r.hero &&
+      pfRaises === 1 &&
+      streetActs.length === 1 &&
+      streetActs[0]!.seat === opp.seat &&
+      streetActs[0]!.kind === "check" &&
+      (kind === "bet" || kind === "check")
+    ) {
+      const j = judgeFlopCb({ hole: hero.holeCards, board, kind, sizePct });
+      if (j) {
+        return {
+          id: "flopCb",
+          grade: j.grade,
+          street,
+          sizePct: kind === "bet" ? sizePct : undefined,
+          handLabel: j.handLabel,
+          flopCb: { cls: j.cls, connected: j.connected, hmTier: j.hmTier, freq: j.freq, group: j.group, action: j.action },
+        };
+      }
+    }
+  }
 
   // 4-2. IP のダブル/トリプルバレルが 40% 以下 → 大悪手(ポラライズ)。
   if (ip && kind === "bet" && sizePct > 0 && sizePct <= POLARIZE_MAX_PCT) {
