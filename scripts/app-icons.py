@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """アプリアイコン一式を、オーナー支給の1枚の原画から作り直す。
 
-原画は `apps/web/public/logos/Logo_club.png`(クラブのスプラッター、正方形、黒地)。
+原画は `apps/web/public/logos/bally_rafu_source.jpg`(バリィとラフくんが手をつなぐ絵、正方形、白地。オーナー支給)。
+旧原画は `Logo_club.png`(クラブのスプラッター)。
 **原画のファイルそのものには手を入れない**。色も絵も足さず引かず、やるのは
 「リサイズ」「出る大きさに合わせた切り取り」「マスカブル用の余白付け」「減色」の4つだけ。
 
 作るもの:
 
-  apps/web/public/logos/Logo_club_1024.png      PWAマニフェストの purpose:"any"
-  apps/web/public/logos/Logo_club_mask_1024.png PWAマニフェストの purpose:"maskable"
-  apps/web/public/logos/Logo_club_mark_256.png  アプリ内ヘッダー(44pxで描画)
+  apps/web/public/logos/app_icon_v2_1024.png      PWAマニフェストの purpose:"any"
+  apps/web/public/logos/app_icon_v2_mask_1024.png PWAマニフェストの purpose:"maskable"
+  apps/web/public/logos/app_icon_v2_mark_256.png  アプリ内ヘッダー(44pxで描画)
   apps/web/src/app/icon.png                     favicon(Next.jsの規約ファイル。512×512)
   apps/web/src/app/apple-icon.png               ホーム画面アイコン(180×180)
   apps/web/src/app/favicon.ico                  /favicon.ico(16/32/48の多重ICO)
@@ -64,7 +65,8 @@ import pathlib
 from PIL import Image, ImageChops, ImageStat
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "apps/web/public/logos/Logo_club.png"
+# 2026-10-08 オーナー指示で、バリィとラフくんが手をつないだ絵に差し替え(支給 269×269 の JPEG。拡大して使う)。
+SOURCE = ROOT / "apps/web/public/logos/bally_rafu_source.jpg"
 LOGOS = ROOT / "apps/web/public/logos"
 APP = ROOT / "apps/web/src/app"
 
@@ -137,9 +139,9 @@ def main() -> None:
     print(f"source {SOURCE.relative_to(ROOT)} {src.size} bg={background_color(src)}")
 
     outputs: list[tuple[pathlib.Path, Image.Image]] = [
-        (LOGOS / "Logo_club_1024.png", square(src, 1024)),
-        (LOGOS / "Logo_club_mask_1024.png", maskable(src, 1024)),
-        (LOGOS / "Logo_club_mark_256.png", mark(src, 256)),
+        (LOGOS / "app_icon_v2_1024.png", square(src, 1024)),
+        (LOGOS / "app_icon_v2_mask_1024.png", maskable(src, 1024)),
+        (LOGOS / "app_icon_v2_mark_256.png", mark(src, 256)),
         (APP / "icon.png", mark(src, 512)),
         (APP / "apple-icon.png", square(src, 180)),
     ]

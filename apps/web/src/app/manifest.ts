@@ -23,8 +23,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // 同じ絵を両方に渡すと外周のスプラッターが欠ける。
     // なお iOS はPWAでもここではなく apple-touch-icon(src/app/apple-icon.png)を使う。
     icons: [
-      { src: "/logos/Logo_club_1024.png", sizes: "1024x1024", type: "image/png", purpose: "any" },
-      { src: "/logos/Logo_club_mask_1024.png", sizes: "1024x1024", type: "image/png", purpose: "maskable" },
+      { src: "/logos/app_icon_v2_1024.png", sizes: "1024x1024", type: "image/png", purpose: "any" },
+      { src: "/logos/app_icon_v2_mask_1024.png", sizes: "1024x1024", type: "image/png", purpose: "maskable" },
     ],
   };
 }
