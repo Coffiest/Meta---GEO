@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { SPRING_SNAPPY, SPRING_THROW } from "@/lib/motion";
+import { SPRING_MOVE, SPRING_SNAPPY, SPRING_THROW } from "@/lib/motion";
 
 /** オールインマーカーの画像。原画 public/table/allin_marker_source.png から scripts/table-markers.py で書き出した版。 */
 const ALLIN_MARKER_SRC = "/table/allin_marker_v1.png";
@@ -111,7 +111,7 @@ function FlipRevealCard({ card, size, delay }: { card?: string; size: "sm" | "xl
  *  - フォールドは輪郭も文字も落として静かに引く
  */
 const BADGE_TONE_CLASS: Record<SeatBadgeTone, string> = {
-  win: "bg-accent text-on-accent ring-line-strong",
+  win: "bg-accent text-on-accent ring-accent/30 shadow-glow",
   // 塗りの濃さは「暗地でバッジ自体が3:1以上」かつ「その上の白文字が4.5:1以上」を
   // 同時に満たす段を選んである(明るくすると文字が、暗くするとバッジが読めなくなる)。
   raise: "bg-crimson-600 text-white ring-line-strong",
@@ -484,12 +484,12 @@ export function Seat({
           {badge && !isEmpty ? (
             <motion.div
               key={`badge-${badge.tone}-${badge.text}`}
-              initial={{ opacity: 0, scale: 0.5, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              // ポット獲得は「結果」なので、アクションより一段大きく、下から浮き上がって収まる。
+              initial={reducedMotion ? { opacity: 0 } : badge.tone === "win" ? { opacity: 0, scale: 0.4, y: 10 } : { opacity: 0, scale: 0.5, y: -4 }}
+              animate={{ opacity: 1, scale: badge.tone === "win" ? 1.08 : 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.5 }}
-              transition={SPRING_SNAPPY}
+              transition={badge.tone === "win" ? SPRING_MOVE : SPRING_SNAPPY}
               className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full py-1 text-[12px] font-bold tabular-nums ring-2 ${badge.chips ? "pl-1 pr-3" : "px-3"} ${BADGE_TONE_CLASS[badge.tone]}`}
-              style={badge.tone === "win" ? { boxShadow: "0 0 0 4px rgba(242,169,0,0.22)" } : undefined}
             >
               {badge.chips && <ChipIcon size={18} />}
               {badge.text}
