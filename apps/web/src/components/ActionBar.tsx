@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { PlayerAction } from "@meta-geo/engine";
 import { formatAmount, type AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -192,6 +193,7 @@ export function ActionBar({
   displayMode?: AmountDisplayMode;
 }) {
   const { t } = useI18n();
+  const reduce = useReducedMotion();
   const [raiseTo, setRaiseTo] = useState(minRaiseToAmount);
   // ベット額入力欄の「編集中の生文字列」。null=非編集中(raiseToから導出した値を表示)。
   // 以前はonChangeのたびに即クランプしていたため「12」の1文字目で最小額へ丸められ
@@ -265,8 +267,17 @@ export function ActionBar({
   // 待機中はガラスの面を出さない(オーナー指示)。高さは変えないので卓は動かない。
   return (
     <div className="safe-area-bottom px-3 pb-2 pt-1">
-      <div
-        className={`relative mx-auto flex h-[132px] max-w-md flex-col justify-between gap-[5px] rounded-[24px] px-3 py-2 ${
+      {/* 外枠の高さ(132px)は手番中も待機中も同じ。中身だけが入れ替わるので卓は動かない。 */}
+      <div className="relative mx-auto h-[132px] max-w-md">
+      <AnimatePresence initial={false} mode="popLayout">
+      <motion.div
+        key={isYourTurn ? "turn" : "wait"}
+        // 手番が来たら、操作の面が下からせり上がって「手元に差し出される」。ぼかしと拡大を同時にほどく。
+        initial={reduce ? { opacity: 0 } : isYourTurn ? { opacity: 0, y: 28, scale: 0.94, filter: "blur(8px)" } : { opacity: 0 }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        exit={reduce ? { opacity: 0 } : isYourTurn ? { opacity: 0, y: 20, scale: 0.97 } : { opacity: 0 }}
+        transition={reduce ? FADE : SPRING_MOVE}
+        className={`absolute inset-0 flex flex-col justify-between gap-[5px] rounded-[24px] px-3 py-2 ${
           isYourTurn ? "glass-bar" : ""
         }`}
       >
@@ -284,13 +295,19 @@ export function ActionBar({
                         setRaiseInput(null);
                         setRaiseTo(preset.toAmount);
                       }}
-                      className={`pressable shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums transition-colors ${
-                        active
-                          ? "bg-accent text-on-accent shadow-glow-sm"
-                          : "bg-white/[0.08] text-fg-2 ring-1 ring-inset ring-white/10"
+                      className={`pressable relative shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums transition-colors ${
+                        active ? "text-on-accent" : "bg-white/[0.08] text-fg-2 ring-1 ring-inset ring-white/10"
                       }`}
                     >
-                      {preset.label}
+                      {/* 選んだサイズの塗りは、前の選択から滑って移る(iOS のセグメントと同じ)。 */}
+                      {active && (
+                        <motion.span
+                          layoutId="bet-preset-active"
+                          transition={reduce ? FADE : SPRING_SNAPPY}
+                          className="absolute inset-0 rounded-full bg-accent shadow-glow-sm"
+                        />
+                      )}
+                      <span className="relative">{preset.label}</span>
                     </button>
                   );
                 })}
@@ -394,7 +411,7 @@ export function ActionBar({
                   <motion.span
                     key={i}
                     className="h-1.5 w-1.5 rounded-full bg-accent"
-                    animate={{ opacity: [0.25, 1, 0.25] }}
+                    animate={reduce ? { opacity: 0.6 } : { opacity: [0.25, 1, 0.25] }}
                     transition={{ duration: 1.3, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
                   />
                 ))}
@@ -403,6 +420,8 @@ export function ActionBar({
             </div>
           </>
         )}
+      </motion.div>
+      </AnimatePresence>
       </div>
     </div>
   );
