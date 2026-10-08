@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "./Icon";
+import { usePricingSheet } from "./PricingSheet";
 
 /**
  * アプリ全体で共有するヘッダー。sticky + ガラス(背景ぼかし+彩度強調)のバーで、下の
@@ -86,8 +87,9 @@ export function HeaderIconButton({
  * ダイヤの印(SVG)をアクセント色で描く。
  */
 export function PremiumHeaderButton() {
+  const { openPricing } = usePricingSheet();
   return (
-    <HeaderIconButton href="/pricing" ariaLabel="プレミアム会員のプランを見る">
+    <HeaderIconButton onClick={() => openPricing()} ariaLabel="プレミアム会員のプランを見る">
       <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-accent" aria-hidden>
         <path d="M6 3h12l4 6-10 12L2 9z" fill="currentColor" />
         <path d="M2 9h20M9 3l3 6 3-6M12 9v12" stroke="#04211B" strokeWidth="1.2" fill="none" opacity="0.5" />
