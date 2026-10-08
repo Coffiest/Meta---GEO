@@ -271,7 +271,8 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         ) : (
           <button
             onClick={() => void handleSubscribe(selected)}
-            disabled={submitting != null || (active && !byCoupon && !canChange)}
+            // Stripe の契約が無い加入(管理者の付与など)は Checkout で新しく契約できる(サーバーも許す)。
+            disabled={submitting != null}
             className="pressable mt-4 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow disabled:opacity-60"
           >
             {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
