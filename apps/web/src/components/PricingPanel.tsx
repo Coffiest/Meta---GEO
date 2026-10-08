@@ -271,9 +271,17 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
             onClick={() => void handleSubscribe(selected)}
             // Stripe の契約が無い加入(管理者の付与など)は Checkout で新しく契約できる(サーバーも許す)。
             disabled={submitting != null}
-            className="pressable mt-4 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow disabled:opacity-60"
+            className="premium-btn pressable mt-4 h-14 w-full disabled:opacity-60"
           >
-            {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
+            {/* 星が流れる背景と、下のピンク/紫の光(出典: uiverse.io by StealthWorm。オーナー指示) */}
+            <span aria-hidden className="premium-btn-stars"><span className="premium-btn-stars-inner" /></span>
+            <span aria-hidden className="premium-btn-glow">
+              <span className="premium-btn-circle" />
+              <span className="premium-btn-circle" />
+            </span>
+            <strong className="relative z-[2] text-[16px] font-black tracking-[0.06em] text-white">
+              {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
+            </strong>
           </button>
         )}
         </div>
