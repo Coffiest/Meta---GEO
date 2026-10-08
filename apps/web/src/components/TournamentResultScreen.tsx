@@ -208,7 +208,7 @@ function ItmCard({
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-n-10 pt-3">
           <span className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element -- 小さい静的ロゴ */}
-            <img src="/logos/Logo_club_mark_256.png" alt="" className="h-7 w-7 rounded-md" />
+            <img src="/logos/app_icon_v2_mark_256.png" alt="" className="h-7 w-7 rounded-md" />
             <span className="text-[13px] font-black tracking-tight">Poker ART</span>
           </span>
           <span className="text-[9.5px] font-bold text-n-6">Powered by Poker ART</span>

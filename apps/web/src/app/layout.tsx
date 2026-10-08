@@ -98,13 +98,13 @@ export const metadata: Metadata = {
     siteName: "Poker ART（ポーカーアート）",
     title: "Poker ART（ポーカーアート）| 純粋なトナメの実力を競う競技ポーカーアプリ",
     description: SITE_DESCRIPTION,
-    images: [{ url: "/logos/Logo_s.png", width: 2000, height: 2000, alt: "Poker ART（ポーカーアート）" }],
+    images: [{ url: "/logos/app_icon_v2_1024.png", width: 1024, height: 1024, alt: "Poker ART（ポーカーアート）" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Poker ART（ポーカーアート）| 競技ポーカーアプリ",
     description: SITE_DESCRIPTION,
-    images: ["/logos/Logo_s.png"],
+    images: ["/logos/app_icon_v2_1024.png"],
   },
 };
 
