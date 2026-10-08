@@ -90,6 +90,7 @@
 - **モーション**: `apps/web/src/lib/motion.ts` のプリセット(`SPRING_MOVE` / `SPRING_SNAPPY` / `SPRING_SHEET` / `SPRING_THROW` / `FADE`)を使う。
   ジェスチャで触れるものは必ずスプリングで動かす。キーフレームや固定時間のトランジションは途中で目標を変えられず、
   動いている最中に掴んで引き戻せないため使わない。慣性の投射 `project()` / 境界の抵抗 `rubberband()` / 速度の受け渡し `handoff()` も同ファイル。
+- **一覧の行**: Apple Music と同じく、行ごとの箱を使わず `.list-row`(左の絵の右端 `--row-inset` から始まる 0.5px の線で区切り、押すと行全体がうっすら明るくなる)。自分の行は枠ではなく `bg-accent/10`。グループには太字の小見出し+文字だけのリンク(オーナー指示)。
 - **押下フィードバック**: `.pressable`(大きい面は `.pressable-lg`)。**指を離した瞬間ではなく触れた瞬間**に出す。
   独自の `active:scale-[...]` を書かない。
 - **アクセントの3段運用**: 強(`bg-accent text-on-accent shadow-glow`、**1画面に最大1つ**)/ 中(`ring-accent` + `bg-accent/15`)/ 弱(`text-accent`)。
