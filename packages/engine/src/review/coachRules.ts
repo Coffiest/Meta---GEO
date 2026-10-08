@@ -43,7 +43,8 @@ export type CoachId =
   | "riverCallNoBlock"
   | "riverFoldBlocker"
   | "riverFoldOk"
-  | "flopCb";
+  | "flopCb"
+  | "oopFlopCheck";
 
 export interface CoachVerdict {
   id: CoachId;
@@ -573,6 +574,24 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
   const made = madeInfo(hero.holeCards, board);
   const streetActs = r.byStreet[street] ?? [];
   const firstToAct = streetActs.length === 0;
+
+  // 7. OOP のオリジナルレイザーは、J ハイ以下とモノトーンのフロップでは必ずチェック(オーナー指示)。
+  //    チェックできたら「!」(素晴らしい = 唯一の好手)、打ったら大悪手。
+  if (street === "flop" && !ip && r.preflopRaiser === r.hero && firstToAct && (kind === "check" || kind === "bet")) {
+    const fb = board.slice(0, 3);
+    const rk = (c: string) => ({ A: 14, K: 13, Q: 12, J: 11, T: 10 } as Record<string, number>)[c[0]!.toUpperCase()] ?? Number(c[0]);
+    const high = Math.max(...fb.map(rk));
+    const monotone = new Set(fb.map((c) => c.slice(-1).toLowerCase())).size === 1;
+    if (fb.length === 3 && (high <= 11 || monotone)) {
+      return {
+        id: "oopFlopCheck",
+        grade: kind === "check" ? "great" : "blunder",
+        street,
+        sizePct: kind === "bet" ? sizePct : undefined,
+        handLabel: monotone ? "モノトーン" : "Jハイ以下",
+      };
+    }
+  }
 
   // 6. フロップの CB(オリジナルレイザー・IP・シングルレイズドポット・相手のチェックを受けて)。
   //    出典: Amu「Flop CBの基礎 (BTN vs BB)」。オーナー指示で BTN vs BB に限らず当てはめる。

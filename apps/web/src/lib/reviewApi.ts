@@ -106,6 +106,7 @@ export interface ReviewedDecision {
       | "riverFoldBlocker"
       | "riverFoldOk"
       | "flopCb"
+      | "oopFlopCheck"
       | "riverMdf";
     grade: Classification | null;
     street: string;

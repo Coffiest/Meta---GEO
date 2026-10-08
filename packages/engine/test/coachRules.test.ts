@@ -267,4 +267,28 @@ describe("コーチのルール", () => {
       expect(judgeCoach(b.hand, b.act(0, "bet", 220))!.id).toBe("bmcb");
     });
   });
+
+  describe("7. OOP のオリジナルは Jハイ以下・モノトーンのフロップでチェック", () => {
+    /** BB(席2)の 3ベットを BTN(席0)がコール → BB がオリジナルで OOP。 */
+    function oop(board: string[], kind: "bet" | "check") {
+      const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 2: ["Ah", "Kd"] }, board);
+      b.act(3, "fold", null);
+      b.act(4, "fold", null);
+      b.act(5, "fold", null);
+      b.act(0, "raise", 250);
+      b.act(1, "fold", null);
+      b.act(2, "raise", 900);
+      b.act(0, "call", 900);
+      b.street("flop");
+      return judgeCoach(b.hand, b.act(2, kind, kind === "bet" ? 600 : null))!;
+    }
+    it("J ハイ以下でチェック → 素晴らしい(!)、ベット → 大悪手", () => {
+      expect(oop(["Jc", "7d", "2s", "3c", "4d"], "check")).toMatchObject({ id: "oopFlopCheck", grade: "great" });
+      expect(oop(["Jc", "7d", "2s", "3c", "4d"], "bet")).toMatchObject({ id: "oopFlopCheck", grade: "blunder" });
+    });
+    it("モノトーンも同じ。Q ハイのレインボーは当たらない", () => {
+      expect(oop(["Kh", "7h", "2h", "3c", "4d"], "bet").grade).toBe("blunder");
+      expect(oop(["Qc", "7d", "2s", "3c", "4d"], "bet")?.id).not.toBe("oopFlopCheck");
+    });
+  });
 });
