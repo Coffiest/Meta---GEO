@@ -1,3 +1,4 @@
+import { PricingSheetProvider } from "@/components/PricingSheet";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -216,7 +217,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* 起動画面。アプリ本体(/)を開いたときだけ、最初の描画から出る。 */}
         <LaunchSplash />
         <LocaleProvider>
-          {children}
+          <PricingSheetProvider>{children}</PricingSheetProvider>
           {/* 端末の言語と国の言語が食い違うときだけ「◯◯語で表示しますか?」と提案する。 */}
           <LocaleSuggestion />
         </LocaleProvider>

@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { CouponWallet } from "@/components/CouponWallet";
 import { Icon } from "../Icon";
 import { FADE, SPRING_SHEET } from "@/lib/motion";
 import { useSubscriptionStatus } from "@/lib/subscription";
+import { usePricingSheet } from "@/components/PricingSheet";
 
 /**
  * 棋譜解析の無料枠(24時間に1回)を使い切った人が、2回目の局後検討を開こうとしたときのポップアップ
@@ -70,7 +70,7 @@ export function ReviewPaywall({
   const countdown = nextFreeText(nextFreeAt);
   // 視差の動きを減らす設定の人には、拡大・移動なしの短いフェードだけにする。
   const reduce = useReducedMotion();
-  const pricingHref = `/pricing?from=review&t=${encodeURIComponent(tournamentId)}`;
+  const { openPricing } = usePricingSheet();
 
   return (
     <motion.div
@@ -106,13 +106,14 @@ export function ReviewPaywall({
         プレミアム会員なら、どのトーナメントも待たずに何度でも解析。全ハンドを GTO 基準で採点し、解説付きで振り返れます。
       </p>
 
-      <Link
-        href={pricingHref}
+      <button
+          type="button"
+        onClick={() => openPricing()}
         className="pressable mt-5 flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[17px] font-black text-on-accent shadow-glow"
       >
         さあプレミアム会員に
         <Icon name="chevron-right" className="h-5 w-5" />
-      </Link>
+      </button>
       <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
         {trial ? `シルバー・ゴールド・プラチナから選べます。はじめての方は${trialDays}日間無料。` : "シルバー・ゴールド・プラチナから選べます。"}
       </p>

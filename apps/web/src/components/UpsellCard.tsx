@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
 import { useI18n } from "@/lib/i18n";
 import { FADE, SPRING_SNAPPY } from "@/lib/motion";
 import { useSubscriptionStatus } from "@/lib/subscription";
+import { usePricingSheet } from "@/components/PricingSheet";
 
 /**
  * 無料の人にだけ出す、プランの案内カード(押し付けない「中」の強さ。1画面に1つまでの強いアクセントは使わない)。
@@ -23,6 +23,7 @@ const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000;
 export function UpsellCard({ accessToken }: { accessToken: string | undefined }) {
   const { t } = useI18n();
   const { status, loading } = useSubscriptionStatus(accessToken);
+  const { openPricing } = usePricingSheet();
   const [snoozed, setSnoozed] = useState(true);
   const reduce = useReducedMotion();
   useEffect(() => {
@@ -62,13 +63,14 @@ export function UpsellCard({ accessToken }: { accessToken: string | undefined })
       </button>
       <p className="pr-6 text-[14px] font-black leading-snug text-fg">{t("upsell.title")}</p>
       <p className="mt-1 text-[12px] leading-relaxed text-fg-2">{t("upsell.body")}</p>
-      <Link
-        href="/pricing"
+      <button
+          type="button"
+        onClick={() => openPricing()}
         className="pressable mt-3 flex items-center justify-center gap-1.5 rounded-full border border-accent py-2.5 text-[13px] font-black text-accent"
       >
         {trial ? t("upsell.ctaTrial", { n: days }) : t("upsell.cta")}
         <Icon name="chevron-right" className="h-4 w-4" />
-      </Link>
+      </button>
       {trial && <p className="mt-1.5 text-center text-[10px] text-fg-3">{t("upsell.trialNote")}</p>}
     </motion.div>
   );

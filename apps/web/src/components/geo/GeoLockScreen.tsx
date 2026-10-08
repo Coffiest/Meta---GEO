@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/Icon";
+import { usePricingSheet } from "@/components/PricingSheet";
 import { useI18n } from "@/lib/i18n";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
 import { bucketColor } from "./colors";
@@ -41,6 +42,7 @@ const PREVIEW_ROWS = ["UTG", "HJ", "CO", "BTN", "SB"];
  * 見出し・説明・アップグレードボタン(→ プラン選択)と、その下にぼかした見本を置く。
  */
 function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: () => void }) {
+  const { openPricing } = usePricingSheet();
   const { t } = useI18n();
   const reduce = useReducedMotion();
   return (
@@ -67,13 +69,14 @@ function PlanLockCard({ plan, onClose }: { plan: "gold" | "platinum"; onClose?: 
           {t(`geo.lock.plan.${plan}`)}
         </h1>
         <p className="mt-2 text-[13px] leading-relaxed text-fg-2">{t(`geo.lock.planBody.${plan}`)}</p>
-        <Link
-          href="/pricing?from=geo"
+        <button
+          type="button"
+          onClick={() => openPricing(plan)}
           className="pressable mt-4 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-accent text-[18px] font-black text-on-accent shadow-glow"
         >
           <GemMark />
           {t("geo.lock.planCta")}
-        </Link>
+        </button>
       </div>
 
       {/* ぼかした見本 */}
