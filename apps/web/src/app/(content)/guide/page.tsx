@@ -15,7 +15,7 @@ export default function GuidePage() {
     <Article
       eyebrow="How to Play"
       title="ポーカーの遊び方"
-      lead="Poker ART は、実際の金銭を賭けないバーチャルチップ専用のノーリミット・テキサスホールデム(NLH)トーナメントです。ポーカーがまったく初めての方でも、この1ページで「1ハンドの流れ」と「トーナメントの仕組み」が分かるように、順を追って説明します。"
+      lead="Poker ART は、ROIとインマネ率を使った純粋なトナメの実力を競う、競技ポーカーアプリです。エクスプロイト版のGTO、それが「GEO」。棋譜解析で自分のプレイを振り返ろう。ポーカーがまったく初めての方でも、この1ページで「1ハンドの流れ」と「トーナメントの仕組み」が分かるように、順を追って説明します。"
       updated="2026年7月"
     >
       <p>
@@ -120,7 +120,7 @@ export default function GuidePage() {
           <Link href="/glossary" className="font-semibold text-accent underline underline-offset-2">用語集</Link>を開く、
           という進め方が上達の近道です。準備ができたら
           <Link href="/" className="font-semibold text-accent underline underline-offset-2">トップページからログインしてトーナメントに参加</Link>してみましょう。
-          バーチャルチップなので、何度でも気軽に挑戦できます。
+          何度でも気軽に挑戦して、棋譜解析で自分のプレイを振り返りましょう。
         </p>
       </Section>
     </Article>
