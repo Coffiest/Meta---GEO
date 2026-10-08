@@ -72,6 +72,8 @@ async function main() {
           solverVersion: `preflop-nash-bbante-${data.samples}`,
         },
         update: { solution, solverVersion: `preflop-nash-bbante-${data.samples}` },
+        // 書き込んだ行(解の JSON ごと)を読み戻さない。読み戻すと DB からの転送量(egress)を食う。
+        select: { spotKey: true },
       });
       count++;
     }

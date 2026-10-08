@@ -92,14 +92,31 @@ jobs:
       - run: pnpm --filter @meta-geo/db exec prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # 事前計算の解(packages/db/src/data/)が前回の push から変わっていなければ、投入しない。
+      # 毎デプロイで約49MBを書き込み・読み戻していたため、Supabase の転送量(egress)の上限を超え、
+      # ログインを含む全サービスが止まった(2026-10-08)。判定できないとき(手動実行など)は投入する側に倒す。
+      - name: Did the solution bundles change?
+        id: bundles
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git fetch --depth=1 origin "$BEFORE" 2>/dev/null \
+            && git diff --quiet "$BEFORE" HEAD -- packages/db/src/data/ packages/db/scripts/seedGtoSolutions.ts packages/db/scripts/seedGtoPostflopSolutions.ts; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "解のバンドルに変更なし。投入を飛ばす。"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       # プリコンピュートした6-maxプリフロップNash(BBアンティ)を GtoSolution へ冪等投入する。
       - name: Seed GTO solutions
+        if: steps.bundles.outputs.changed == 'true'
         run: pnpm --filter @meta-geo/db exec tsx scripts/seedGtoSolutions.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       # 事前計算したSRPポストフロップ解(src/data/postflopSolutions.json)を GtoSolution へ冪等投入する。
       # バンドルはリポジトリ同梱(genPostflopSolutions.tsで生成)。未同梱ならスキップされる。
       - name: Seed GTO postflop solutions
+        if: steps.bundles.outputs.changed == 'true'
         run: pnpm --filter @meta-geo/db exec tsx scripts/seedGtoPostflopSolutions.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
