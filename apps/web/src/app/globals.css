@@ -1136,3 +1136,109 @@ textarea:focus-visible,
     animation-duration: 40s;
   }
 }
+
+/* 加入ボタン(出典: uiverse.io by StealthWorm。虹色の二重枠・流れる星・下の光。オーナー確定でアクセントの例外)。
+   幅は画面いっぱい。押した瞬間はアプリ共通の押し込み(.pressable)、ホバーの拡大はしない。
+   動きを減らす設定では止める。 */
+.premium-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 5rem;
+  border: double 4px transparent;
+  background-image: linear-gradient(#212121, #212121),
+    linear-gradient(137.48deg, #ffdb3b 10%, #fe53bb 45%, #8f51ea 67%, #0044ff 87%);
+  background-origin: border-box;
+  background-clip: content-box, border-box;
+  background-size: 300% 300%;
+  animation: premium-gradient 5s ease infinite;
+}
+.premium-btn:active {
+  border: double 4px #fe53bb;
+  animation: none;
+}
+.premium-btn-stars {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 5rem;
+}
+.premium-btn-stars-inner {
+  position: relative;
+  display: block;
+  width: 200rem;
+  height: 200rem;
+}
+.premium-btn-stars-inner::before,
+.premium-btn-stars-inner::after {
+  content: "";
+  position: absolute;
+  background-image: radial-gradient(#ffffff 1px, transparent 1%);
+  background-size: 50px 50px;
+}
+.premium-btn-stars-inner::after {
+  top: -10rem;
+  left: -100rem;
+  width: 100%;
+  height: 100%;
+  animation: premium-star-rotate 90s linear infinite;
+}
+.premium-btn-stars-inner::before {
+  top: 0;
+  left: -50%;
+  width: 170%;
+  height: 500%;
+  opacity: 0.5;
+  animation: premium-star 60s linear infinite;
+}
+.premium-btn-glow {
+  position: absolute;
+  display: flex;
+  width: 90%;
+  z-index: 1;
+  pointer-events: none;
+}
+.premium-btn-circle {
+  width: 100%;
+  height: 30px;
+  filter: blur(2rem);
+  animation: premium-pulse 4s infinite;
+}
+.premium-btn-circle:nth-of-type(1) {
+  background: rgba(254, 83, 186, 0.636);
+}
+.premium-btn-circle:nth-of-type(2) {
+  background: rgba(142, 81, 234, 0.704);
+}
+.premium-btn:active .premium-btn-circle {
+  background: #fe53bb;
+}
+@keyframes premium-star {
+  from { transform: translateY(0); }
+  to { transform: translateY(-135rem); }
+}
+@keyframes premium-star-rotate {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0); }
+}
+@keyframes premium-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes premium-pulse {
+  0% { transform: scale(0.75); }
+  70% { transform: scale(1); }
+  100% { transform: scale(0.75); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-btn,
+  .premium-btn-stars-inner::before,
+  .premium-btn-stars-inner::after,
+  .premium-btn-circle {
+    animation: none;
+  }
+}
