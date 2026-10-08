@@ -199,7 +199,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         </div>
 
         {/* 機能の一覧 */}
-        <ul className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+        <ul className="mt-5 list-rows rounded-2xl border border-line bg-surface p-1 [--row-inset:44px]">
           {FEATURES.map((f) => {
             const has = f.plans.includes(selected);
             return (

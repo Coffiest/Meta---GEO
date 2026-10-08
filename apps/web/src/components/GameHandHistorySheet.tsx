@@ -341,7 +341,7 @@ export function GameHandHistorySheet({
         )}
 
         {rows.length > 0 && (
-          <ul className="space-y-2">
+          <ul className="list-rows -mx-1">
             {rows.map((row, i) => {
               const win = row.delta > 0;
               const lose = row.delta < 0;
@@ -353,7 +353,7 @@ export function GameHandHistorySheet({
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                  className="rounded-xl border border-line px-3 py-2.5"
+                  className="px-3 py-2.5"
                 >
                   <div
                     role={expandable ? "button" : undefined}

@@ -300,6 +300,27 @@ body {
 .list-row:active {
   background-color: rgb(255 255 255 / 0.06);
 }
+/* 子をそのまま行として並べる箱(メニューなど)。子それぞれに .list-row と同じ線と押下を付ける。 */
+.list-rows > * {
+  position: relative;
+}
+.list-rows > *::after {
+  content: "";
+  position: absolute;
+  left: var(--row-inset, 12px);
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: rgb(255 255 255 / 0.12);
+  pointer-events: none;
+}
+.list-rows > *:last-child::after {
+  display: none;
+}
+.list-rows > button:active,
+.list-rows > a:active {
+  background-color: rgb(255 255 255 / 0.06);
+}
 
 /* ============================================================================
    フォーカス・スクロールバー

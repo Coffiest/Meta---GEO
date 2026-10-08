@@ -607,7 +607,7 @@ function StatInfoModal({ info, onClose }: { info: StatInfoDef; onClose: () => vo
         <p className="text-sm text-n-10 mb-4">{info.description}</p>
 
         {info.breakdown && (
-          <div className="rounded-xl bg-n-5/70 divide-y divide-line mb-3">
+          <div className="rounded-xl bg-n-5/70 list-rows mb-3">
             <div className="px-3 py-2.5">
               <div className="text-[11px] text-mint-400 font-semibold">{info.breakdown.execLabel}</div>
               <div className="text-xs text-n-10 mt-0.5">{info.breakdown.execDesc}</div>
@@ -920,7 +920,7 @@ function HamburgerMenu({
             )}
           </div>
         </div>
-        <div className="px-2 mt-2 divide-y divide-line">
+        <div className="list-rows px-2 mt-2">
           <button onClick={onEditProfile} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg">
             {t("menu.editProfile")} <span className="text-n-9">›</span>
           </button>
