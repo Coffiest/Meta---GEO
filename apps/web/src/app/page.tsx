@@ -1,5 +1,6 @@
 "use client";
 
+import { BlindLevelBanner } from "@/components/BlindLevelBanner";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -772,6 +773,8 @@ function GameScreen({
           />
         )}
       </header>
+      {/* ブラインドが上がったら、新しい額の最初のハンドでヘッダーの下にカプセルを出す(オーナー指示)。 */}
+      <BlindLevelBanner handBigBlind={state?.bigBlind} level={level} top="calc(env(safe-area-inset-top) + 46px)" />
 
       <main className="flex-1 min-h-0 overflow-hidden px-2">
         {spectating ? (
@@ -791,6 +794,7 @@ function GameScreen({
             bigBlind={bigBlind}
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
+            showOrder={lastHandEnded?.showOrder ?? null}
             turnTimer={turnTimer}
             onPlayerTap={(info) => setTappedPlayer(info)}
             markingBySeat={markingBySeat}
