@@ -3,6 +3,7 @@ import {
   analyzeHand,
   analyzeTournamentForHero,
   revealAllHoleCards,
+  lockOpponentDecisions,
   getSubscriptionStatusForUser,
   applySavedSolverResults,
   createOrRefreshReview,
@@ -129,10 +130,11 @@ export async function handleReviewApiRequest(req: IncomingMessage, res: ServerRe
         });
         return true;
       }
-      const analyzed = await analyzeTournamentForHero(tournamentId, user.id);
-      // プラチナ(管理者の付与を含む)は、相手がマックした手札も見られる(オーナー確定)。
+      const analyzed = await analyzeTournamentForHero(tournamentId, user.id, { opponents: true });
+      // プラチナ(管理者の付与を含む)は、相手の手札(マックした手も)と相手の解説が見られる(オーナー確定)。
+      // それ以外には相手の解説の中身を返さず、位置だけ返す(画面はぼかしてプラチナへ誘導する)。
       const { plan } = await getSubscriptionStatusForUser(user.id);
-      const review = plan === "platinum" ? await revealAllHoleCards(analyzed) : analyzed;
+      const review = plan === "platinum" ? await revealAllHoleCards(analyzed) : lockOpponentDecisions(analyzed);
       // ソルバー未完了が残っていればバックグラウンドで事前計算を起動(クライアントはポーリング)。
       if (review.solving) {
         const key = `tourney:${tournamentId}|${user.id}`;

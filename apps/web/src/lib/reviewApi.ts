@@ -165,6 +165,10 @@ export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
   /** 通し再生用のタイムライン。本人以外の手札は空で届く(サーバーが伏せる)。 */
   timeline: ReviewHandTimeline;
+  /** 相手の決定の解析(プラチナだけ届く)。ラフくんが関西弁で解説する。 */
+  opponentDecisions?: ReviewedDecision[];
+  /** プラチナ以外: 相手の解説がある手の位置だけ(中身は届かない)。ぼかしてプラチナへ誘導する。 */
+  opponentLocked?: { sequenceNumber: number; seatIndex: number }[];
 }
 
 export interface TournamentReview {

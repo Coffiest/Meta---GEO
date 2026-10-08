@@ -558,6 +558,12 @@ export interface ReviewHandTimeline {
 export interface TournamentReviewHand extends ReviewResult {
   handNumber: number;
   /**
+   * 相手(自分以外の全席)の決定の解析。プラチナ限定(オーナー確定)。誰の席でも同じ扱い(相手の種別で分けない)。
+   * プラチナでなければ中身は返さず、`opponentLocked` に「解説がある手」の位置だけを返す(ぼかしの誘導用)。
+   */
+  opponentDecisions?: ReviewedDecision[];
+  opponentLocked?: { sequenceNumber: number; seatIndex: number }[];
+  /**
    * 通し再生用のタイムライン。**本人以外の手札は空**(棋譜解析で見られるのは自分の手札だけ。
    * ショウダウンで公開された手も含めて伏せる。オーナー確定)。
    */
@@ -609,6 +615,38 @@ export async function applySavedSolverResults(
   return solving;
 }
 
+/**
+ * 1ハンドの、自分以外の全席の決定を解析する(自分の解析と同じ関数・同じ規則)。
+ * 席ごとに一意の仮の ID を振ってから解析するので、同じユーザーが複数の席にいても取り違えない。
+ * ソルバーは相手の決定には回さない(解析中のまま残ると画面が待ち続けるので、対象外の扱いにする)。
+ */
+function analyzeOpponents(hand: ExtractHand, heroUserId: string): ReviewedDecision[] {
+  const out: ReviewedDecision[] = [];
+  const keyed: ExtractHand = { ...hand, seats: hand.seats.map((s) => ({ ...s, userId: `seat:${s.seatIndex}` })) };
+  for (const seat of hand.seats) {
+    if (seat.userId === heroUserId) continue;
+    if (seat.holeCards.length < 2) continue;
+    const a = analyzeExtractedHand(keyed, `seat:${seat.seatIndex}`);
+    if (!a) continue;
+    for (const d of a.decisions) {
+      if (d.outOfScopeReason === "solving") d.outOfScopeReason = "out-of-range";
+      out.push(d);
+    }
+  }
+  return out;
+}
+
+/** プラチナでない人に返す形: 相手の解説の中身は落とし、位置(手番)だけ残す。 */
+export function lockOpponentDecisions(review: TournamentReview): TournamentReview {
+  return {
+    ...review,
+    hands: review.hands.map(({ opponentDecisions, ...h }) => ({
+      ...h,
+      opponentLocked: (opponentDecisions ?? []).map((d) => ({ sequenceNumber: d.sequenceNumber, seatIndex: d.seatIndex })),
+    })),
+  };
+}
+
 /** heroが着席していないハンド(敵vs敵)か。分類前の安価な除外に使う。 */
 function heroNotSeated(seats: { userId: string }[], heroUserId: string): boolean {
   return !seats.some((s) => s.userId === heroUserId);
@@ -641,7 +679,11 @@ function isNonReviewableHand(decisions: ReviewedDecision[]): boolean {
  * 各ハンドに再生用タイムラインを含み、保存済みソルバー結果をマージして返す。
  * 敵vs敵のハンドと「正しい定型フォールドだけ」のハンドは対象外。ただし降りて損したフォールドは含める。
  */
-export async function analyzeTournamentForHero(tournamentId: string, heroUserId: string): Promise<TournamentReview> {
+export async function analyzeTournamentForHero(
+  tournamentId: string,
+  heroUserId: string,
+  opts: { opponents?: boolean } = {},
+): Promise<TournamentReview> {
   const hands = await prisma.hand.findMany({
     where: { tournamentId, seats: { some: { userId: heroUserId } } },
     orderBy: { handNumber: "asc" },
@@ -706,6 +748,7 @@ export async function analyzeTournamentForHero(tournamentId: string, heroUserId:
       handId: h.id,
       heroUserId,
       decisions: analyzed.decisions,
+      ...(opts.opponents ? { opponentDecisions: analyzeOpponents(extractHand, heroUserId) } : {}),
       ...summary,
       handNumber: h.handNumber,
       timeline: {

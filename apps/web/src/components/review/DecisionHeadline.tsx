@@ -8,7 +8,7 @@ import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionInfoRow } from "@/components/review/DecisionInfoRow";
 import { PowerNumberTable } from "@/components/review/PowerNumberTable";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
-import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
+import { useSpeaker } from "@/lib/speakerContext";
 import { articleRuleById, fillTemplate, isFallbackRule, type TemplateVars } from "@/lib/articleRules";
 import { handCategory, handLabel } from "@/lib/handCategory";
 import { preflopComment } from "@/lib/preflopComment";
@@ -314,7 +314,9 @@ function KnowledgeBody({
   sourceUrl?: string | undefined;
 }) {
   const [open, setOpen] = useState(false);
-  const speaker = REVIEW_SPEAKER;
+  const voice = useSpeaker();
+  const speaker = voice.speaker;
+  summary = voice.say(summary);
   const hasPoints = !!points && points.length > 0;
   const hasBody = !!(title && body);
   const expandable = hasPoints || hasBody || !!extra;
@@ -327,7 +329,7 @@ function KnowledgeBody({
           alt={speaker.name}
           draggable={false}
           className="h-14 w-auto shrink-0 select-none"
-          style={{ aspectRatio: "331 / 419" }}
+          style={{ aspectRatio: voice.aspect }}
         />
       )}
       <div className="relative min-w-0 flex-1">
@@ -397,8 +399,10 @@ function KnowledgeSheet({
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const voice = useSpeaker();
   if (!mounted) return null;
-  const speaker = REVIEW_SPEAKER;
+  const speaker = voice.speaker;
+  const say = voice.say;
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -429,7 +433,7 @@ function KnowledgeSheet({
                   alt=""
                   draggable={false}
                   className="h-10 w-auto shrink-0 select-none"
-                  style={{ aspectRatio: "331 / 419" }}
+                  style={{ aspectRatio: voice.aspect }}
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -447,7 +451,7 @@ function KnowledgeSheet({
                   {points.map((p) => (
                     <div key={p.label} className="flex gap-3 text-[14px] leading-[1.7]">
                       <span className="w-[5em] shrink-0 font-black text-fg-3">{p.label}</span>
-                      <span className="min-w-0 flex-1 text-fg-2">{p.text}</span>
+                      <span className="min-w-0 flex-1 text-fg-2">{say(p.text)}</span>
                     </div>
                   ))}
                 </div>
@@ -455,7 +459,7 @@ function KnowledgeSheet({
               {extra && <div className="mt-4">{extra}</div>}
               {body && (
                 // オーナーの文章は改行も含めてそのまま出す(整形しない)。
-                <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2">{body}</p>
+                <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2">{say(body)}</p>
               )}
               {sourceUrl && (
                 <a
