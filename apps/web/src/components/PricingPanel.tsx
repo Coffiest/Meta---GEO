@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
+import { FADE, SPRING_MOVE } from "@/lib/motion";
+import { PlanToggle } from "@/components/PlanToggle";
 import { useAuth } from "@/lib/useAuth";
 import {
   changePlan,
@@ -168,7 +169,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         )}
 
         {/* プランのタブ(上位から) */}
-        <div role="tablist" aria-label="プラン" className="mt-6 grid grid-cols-3 border-b border-line">
+        <div role="tablist" aria-label="プラン" className="mt-6 grid grid-cols-3">
           {TAB_ORDER.map((plan) => {
             const on = selected === plan;
             return (
@@ -187,17 +188,14 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
                 <PlanMark plan={plan} active={on} />
                 <span className={`text-[14px] font-black ${on ? "text-fg" : "text-fg-3"}`}>{PLAN_LABEL[plan]}</span>
                 {active && !byCoupon && currentPlan === plan && <span className="text-[10px] font-bold text-accent">加入中</span>}
-                {/* 選択の下線はタブの間を滑って移る(同じ部品が動く = どこからどこへ移ったかが分かる)。 */}
-                {on && (
-                  <motion.span
-                    layoutId="plan-tab-underline"
-                    transition={reduce ? FADE : SPRING_SNAPPY}
-                    className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-accent"
-                  />
-                )}
               </button>
             );
           })}
+        </div>
+
+        {/* プランを選ぶトグル(絵のタブの下。オーナー指示) */}
+        <div className="mt-4">
+          <PlanToggle plans={TAB_ORDER} labels={PLAN_LABEL} value={selected} onChange={setSelected} />
         </div>
 
         {/* 機能の一覧 */}
