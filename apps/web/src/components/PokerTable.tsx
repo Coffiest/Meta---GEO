@@ -8,7 +8,7 @@ import type { PublicHandState } from "@meta-geo/engine";
 // deck.ts(node:crypto に依存)を含むバレル経由だとブラウザバンドルが壊れるため、
 // cardToString は依存の少ないサブモジュールから直接インポートする。
 import { cardToString } from "@meta-geo/engine/src/types/card.js";
-import { describeMadeHand } from "@/lib/handRank";
+import { bestFiveCards, describeMadeHand } from "@/lib/handRank";
 import { useI18n } from "@/lib/i18n";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge } from "./Seat";
@@ -385,6 +385,13 @@ export function PokerTable({
 
   // 自分の席が常に画面下(スロット0)に来るよう、実席番号→表示スロットへ回転させる。
   // MTTでは卓移動により自分の席番号が変わるため、この回転が必須になる。
+  // いまの自分の役を作っている5枚(プリフロップは手札2枚)。オレンジ枠で囲む(オーナー指示)。降りたら出さない。
+  const heroStatus = yourSeatIndex !== null ? state?.seats?.find((s) => s.seatIndex === yourSeatIndex)?.status : undefined;
+  const heroBestFive = new Set(
+    yourSeatIndex !== null && yourCards.length >= 2 && heroStatus !== "folded" && heroStatus !== undefined
+      ? bestFiveCards(yourCards, (state?.board ?? []).map(cardToString))
+      : [],
+  );
   const heroSeat = yourSeatIndex ?? 0;
   const displaySlotOf = (seatIndex: number) => (((seatIndex - heroSeat) % seatCount) + seatCount) % seatCount;
 
@@ -571,7 +578,7 @@ export function PokerTable({
           return (
             <div key={i} className={BOARD_CELL_CLASS} data-table-obstacle={card ? true : undefined}>
               {card ? (
-                <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} />
+                <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} highlight={heroBestFive.has(cardToString(card))} />
               ) : (
                 layout3d && <div aria-hidden className="aspect-[744/1039] w-full rounded-[6px] border border-dashed border-white/[0.16]" />
               )}
@@ -628,6 +635,7 @@ export function PokerTable({
         const seatNode = (
           <Seat
             handRankLabel={heroHandLabel}
+            highlightCards={heroHandLabel ? heroBestFive : null}
             shown={shown}
             mucked={muckedSeats?.has(seatIndex) ?? false}
             out={outSeats?.has(seatIndex) ?? false}

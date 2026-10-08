@@ -147,6 +147,8 @@ export interface SeatViewProps {
   onChatClick?: () => void;
   /** 自分の席のとき、現在成立している役(例: 「ツーペア」)を手札の直下に表示する。 */
   handRankLabel?: string | null;
+  /** いまの役を作っているカード(オレンジ枠を付ける)。 */
+  highlightCards?: ReadonlySet<string> | null;
   /** ハンドショウで公開された席。フォールド済みでも手札を表示し、相手席なら裏返る演出を再生する。 */
   shown?: boolean;
   /** 自席のハンドショウ意思。カードごとに独立してON/OFFできる(index 0/1に対応)。 */
@@ -186,6 +188,7 @@ export function Seat({
   chatBubble = null,
   onChatClick,
   handRankLabel = null,
+  highlightCards = null,
   shown = false,
   heroShowArmed,
   onCardTap,
@@ -270,6 +273,7 @@ export function Seat({
                         faceDown={!revealCards}
                         size={cardSize}
                         dealDelay={i * 0.05}
+                        highlight={!!c && !!highlightCards?.has(c)}
                       />
                     </button>
                   );
@@ -281,6 +285,7 @@ export function Seat({
                     faceDown={!revealCards}
                     size={cardSize}
                     dealDelay={i * 0.05}
+                    highlight={!!c && !!highlightCards?.has(c)}
                   />
                 );
               })}
