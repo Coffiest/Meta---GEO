@@ -37,7 +37,7 @@ export default function TokushohoPage() {
 
         <h1 className="text-xl font-bold text-fg mb-4">特定商取引法に基づく表記</h1>
 
-        <div className="rounded-2xl bg-n-2 ring-1 ring-line divide-y divide-line">
+        <div className="rounded-2xl bg-n-2 ring-1 ring-line list-rows">
           {ROWS.map((row) => (
             <div key={row.label} className="px-4 py-3">
               <div className="text-[11px] text-n-9 mb-1">{row.label}</div>

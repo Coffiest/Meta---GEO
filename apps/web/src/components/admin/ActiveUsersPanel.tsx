@@ -91,7 +91,7 @@ export function ActiveUsersPanel({ passcode, accessToken }: { passcode: string; 
           </div>
           {error && <p className="mt-2 text-[11px] text-crimson-300">読み込めませんでした。</p>}
           {data && data.users.length === 0 && <p className="py-3 text-center text-[11px] text-fg-3">いまアクティブな人はいません。</p>}
-          <ul className="mt-2 divide-y divide-line">
+          <ul className="mt-2 list-rows">
             {data?.users.map((u) => (
               <li key={u.userId} className="flex items-center gap-2 py-2">
                 <span

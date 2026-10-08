@@ -15,7 +15,7 @@ type Term = { term: string; desc: string };
 function Glossary({ title, terms }: { title: string; terms: Term[] }) {
   return (
     <Section title={title}>
-      <dl className="divide-y divide-line rounded-2xl bg-canvas ring-1 ring-line">
+      <dl className="list-rows rounded-2xl bg-canvas ring-1 ring-line">
         {terms.map((t) => (
           <div key={t.term} className="px-4 py-3">
             <dt className="text-[14px] font-extrabold text-fg">{t.term}</dt>

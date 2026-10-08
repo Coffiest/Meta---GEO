@@ -228,9 +228,9 @@ export function BlindStructureSheet({
                     SNG_PAYOUTS(1位4000/2位2000)を送っているのに画面は
                     「プライズ情報がありません。」のままだった(ユーザー報告)。 */}
                 {tournamentInfo && (tournamentInfo.registrationClosed ?? true) && tournamentInfo.prizePool.length > 0 ? (
-                  <ul className="space-y-1.5">
+                  <ul className="list-rows">
                     {tournamentInfo.prizePool.map((p) => (
-                      <li key={p.place} className="flex items-center justify-between rounded-xl border border-line px-3 py-2">
+                      <li key={p.place} className="flex items-center justify-between px-3 py-2.5">
                         <span className="text-[13px] font-black text-fg">{p.place}位</span>
                         <span className="text-[14px] font-black tabular-nums text-accent">{p.amount.toLocaleString()}</span>
                       </li>
