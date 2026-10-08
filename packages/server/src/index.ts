@@ -12,7 +12,7 @@ import { handleFeedbackApiRequest } from "./feedbackApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
 import { checkAdminAccess, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
-import { pruneResolvedErrorReports } from "@meta-geo/db";
+import { pruneResolvedErrorReports, assignMissingAvatars } from "@meta-geo/db";
 import {
   getDiagnostics,
   recordError,
@@ -183,6 +183,11 @@ startSubscriptionReconciler(getStripeClient);
   setTimeout(prune, 60_000).unref();
   setInterval(prune, 24 * 60 * 60 * 1000).unref();
 }
+
+// アイコン未設定のプレイヤーに、動物の絵10枚からランダムに1枚を割り当てて固定する(オーナー指示。一度だけ効く)。
+assignMissingAvatars()
+  .then((n) => n > 0 && console.log(`[avatars] assigned ${n} missing avatar(s)`))
+  .catch((err) => console.error("[avatars] assign failed:", err));
 
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);

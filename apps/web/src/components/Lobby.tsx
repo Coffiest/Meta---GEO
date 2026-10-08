@@ -1599,7 +1599,7 @@ export function Lobby({
                   );
                 }
                 return (
-                  <div className="space-y-2">
+                  <div className="-mx-1">
                     {rows.map((row, i) => {
                       const isYou = userId != null && row.userId === userId;
                       const primary = formatLbMetric(row, lbMetric);
@@ -1615,8 +1615,9 @@ export function Lobby({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.45) }}
-                          className={`flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left pressable ${
-                            isYou ? "border-[1.5px] border-accent" : "border border-line"
+                          style={{ ["--row-inset" as string]: "78px" }}
+                          className={`list-row flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ${
+                            isYou ? "bg-accent/10" : ""
                           }`}
                         >
                           <div className="w-6 text-center text-sm font-bold tabular-nums text-n-10">{i + 1}</div>
@@ -1717,23 +1718,21 @@ export function Lobby({
                       <div className="space-y-4">
                         {groups.map((group) => (
                           <div key={group.tournamentId}>
-                            <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
-                              <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-n-9">{group.tournamentLabel}</p>
-                              {/* 卓(大会)単位の棋譜解析。行タップと同じ導線を、まとめ入口としても明示する。
-                                  出典: uiverse.io by reshades(縁取り→塗りつぶしボタン。詳細はglobals.cssの
-                                  .line-fill-btnコメント参照)。 */}
+                            <div className="flex items-center justify-between gap-2 mb-1 px-0.5">
+                              <p className="min-w-0 flex-1 truncate text-[17px] font-black tracking-tight text-fg">{group.tournamentLabel}</p>
+                              {/* 卓(大会)単位の棋譜解析。Apple Music の小見出しの「すべて表示」と同じ、文字だけのリンク。 */}
                               <button
                                 onClick={() => {
                                   setReviewHandId(null);
                                   setReviewTournamentId(group.tournamentId);
                                 }}
-                                className="line-fill-btn flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3 text-[11px] font-bold"
+                                className="pressable flex shrink-0 items-center gap-1 text-[13px] font-bold text-accent"
                               >
                                 <ReviewGlyph className="h-3.5 w-3.5" />
                                 {t("lobby.reviewHand")}
                               </button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="-mx-1">
                               {group.rows.map((h, i) => {
                                 const deltaBb = h.bigBlind > 0 ? h.deltaChips / h.bigBlind : 0;
                                 const rounded = Math.round(deltaBb * 10) / 10;
@@ -1761,7 +1760,7 @@ export function Lobby({
                                       }
                                     }}
                                     aria-label={`${group.tournamentLabel} ${t("lobby.reviewRowHint")}`}
-                                    className="group cursor-pointer rounded-xl glass-panel px-3 py-2.5 transition-colors hover:border-line hover:bg-canvas active:bg-n-2 focus-visible:border-line-strong"
+                                    className="list-row group cursor-pointer rounded-lg px-3 py-2.5 [--row-inset:12px] focus-visible:bg-white/[0.06]"
                                   >
                                     <div className="flex items-center gap-2 text-[11px] text-n-9 mb-1.5">
                                       <span className="tabular-nums">

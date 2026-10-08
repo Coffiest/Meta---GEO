@@ -73,6 +73,7 @@
 
 - **画像アセット(`apps/web/public/cards/`、`public/table/`、`public/logos/`)は勝手に変更・差し替えしないこと。** 差し替えはオーナーから新しい画像を受け取ったときのみ行う。CSSフィルタで見た目を変えるのも同様に勝手にやらない。
 - **アプリアイコン(favicon / ホーム画面アイコン / PWAマニフェスト / アプリ内ヘッダーのロゴ)は、オーナー支給の原画 `apps/web/public/logos/bally_rafu_source.jpg`(バリィとラフくんが手をつなぐ絵。2026-10-08 に `Logo_club.png` から差し替え)1枚から `scripts/app-icons.py` で書き出す(出力は `app_icon_v2_*`。OGP 画像も同じ)。** 個別に作らず、原画を差し替えたらこのスクリプトを再実行する。書き出し先と、maskable(Androidの切り抜き対策)・ヘッダー用の切り出し・減色の理由はスクリプトの冒頭に書いてある。なお **iOSはPWAでもマニフェストではなく `apple-touch-icon`(`apps/web/src/app/apple-icon.png`)を使う**ので、ホーム画面のアイコンを直すときはそこを見ること。
+- **プレイヤーのアイコンは写真か動物の絵10枚(オーナー支給。原画 `public/avatars/source/`、`scripts/animal-avatars.py` で `animal_<id>_v1.png` を書き出す)。** 人型の共通アイコンは廃止。新規登録で必ず選ばせ、未設定の人にはサーバー起動時に10枚からランダムに1枚を割り当てて保存する(`assignMissingAvatars`)。自動の席は名前から決まる1枚(人間と同じ10枚・同じ意匠)。一覧は `apps/web/src/lib/animalAvatars.ts` と `packages/db/src/avatars.ts` で揃える。
 - **GEO分析の配色は GTO Wizard のロジック(アクション=色相、サイズ=濃淡)に一致させる。シアンは使わない。** ダーク地で沈まないよう、各段のコントラスト比を確保すること。GTO Wizardは白地なのでサイズが上がるほど**暗く**するが、暗い地で同じ「サイズが上がるほど背景から強く立ち上がる」関係を保つには**明るく**する必要がある。順序と色相の意味は変えず、進む向きだけを地に合わせる。
 
 ## 実装のきまり(色・素材・モーションの置き場所)
@@ -89,6 +90,7 @@
 - **モーション**: `apps/web/src/lib/motion.ts` のプリセット(`SPRING_MOVE` / `SPRING_SNAPPY` / `SPRING_SHEET` / `SPRING_THROW` / `FADE`)を使う。
   ジェスチャで触れるものは必ずスプリングで動かす。キーフレームや固定時間のトランジションは途中で目標を変えられず、
   動いている最中に掴んで引き戻せないため使わない。慣性の投射 `project()` / 境界の抵抗 `rubberband()` / 速度の受け渡し `handoff()` も同ファイル。
+- **一覧の行**: Apple Music と同じく、行ごとの箱を使わず `.list-row`(左の絵の右端 `--row-inset` から始まる 0.5px の線で区切り、押すと行全体がうっすら明るくなる)。自分の行は枠ではなく `bg-accent/10`。グループには太字の小見出し+文字だけのリンク(オーナー指示)。
 - **押下フィードバック**: `.pressable`(大きい面は `.pressable-lg`)。**指を離した瞬間ではなく触れた瞬間**に出す。
   独自の `active:scale-[...]` を書かない。
 - **アクセントの3段運用**: 強(`bg-accent text-on-accent shadow-glow`、**1画面に最大1つ**)/ 中(`ring-accent` + `bg-accent/15`)/ 弱(`text-accent`)。

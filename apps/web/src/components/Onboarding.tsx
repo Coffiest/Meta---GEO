@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { useI18n } from "@/lib/i18n";
+import { ANIMAL_AVATARS, animalKey } from "@/lib/animalAvatars";
 import { Avatar } from "./Avatar";
 
 const MAX_AVATAR_DIMENSION = 256;
@@ -86,7 +87,8 @@ export function Onboarding({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reduce = useReducedMotion();
   const { t } = useI18n();
-  const canSubmit = name.trim().length > 0 && !saving && !processing;
+  // アイコン(絵か写真)は必須(オーナー指示。人型の共通アイコンは廃止)。
+  const canSubmit = name.trim().length > 0 && !!avatarKey && !saving && !processing;
   // onCancelが無い = 初回オンボーディング。ここだけ高揚感のあるコピー/演出にする。
   const isFirstTime = !onCancel;
 
@@ -187,19 +189,32 @@ export function Onboarding({
               className="hidden"
               onChange={(e) => void handlePickFile(e.target.files?.[0])}
             />
-            <div className="flex items-center gap-3 text-[12px]">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="pressable font-semibold text-fg underline decoration-dashed underline-offset-2"
-              >
-                {processing ? t("onb.processing") : avatarKey ? t("onb.changePhoto") : t("onb.pickPhoto")}
-              </button>
-              {avatarKey && (
-                <button onClick={() => setAvatarKey(null)} className="pressable text-fg-2">
-                  {t("onb.delete")}
-                </button>
-              )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="pressable text-[12px] font-semibold text-fg underline decoration-dashed underline-offset-2"
+            >
+              {processing ? t("onb.processing") : t("onb.pickPhoto")}
+            </button>
+            {/* 動物の絵10枚(オーナー支給)。絵か写真のどちらかを必ず選ぶ。 */}
+            <div role="radiogroup" aria-label={t("onb.pickIcon")} className="mt-1 grid grid-cols-5 gap-2.5">
+              {ANIMAL_AVATARS.map((a) => {
+                const on = avatarKey === animalKey(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    aria-label={a.id}
+                    onClick={() => setAvatarKey(animalKey(a.id))}
+                    className={`pressable rounded-full p-0.5 ring-2 transition-colors ${on ? "ring-accent" : "ring-transparent"}`}
+                  >
+                    <Avatar avatarKey={animalKey(a.id)} size={48} />
+                  </button>
+                );
+              })}
             </div>
+            {!avatarKey && <p className="text-[12px] font-semibold text-accent">{t("onb.pickIcon")}</p>}
             {pickError && <p className="text-[12px] text-crimson-300">{pickError}</p>}
           </div>
 

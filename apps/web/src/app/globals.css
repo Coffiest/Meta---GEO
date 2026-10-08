@@ -274,6 +274,33 @@ body {
   scale: 0.985;
 }
 
+/* ----------------------------------------------------------------------------
+   一覧の行(Apple Music の一覧と同じ作り。オーナー指示)。
+   行ごとの箱は使わず、左の絵の右端(--row-inset)から右端までの細い線だけで区切る。最後の行は線なし。
+   押した瞬間に行全体がうっすら明るくなる(沈む動きはしない)。
+   ---------------------------------------------------------------------------- */
+.list-row {
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.list-row::after {
+  content: "";
+  position: absolute;
+  left: var(--row-inset, 0px);
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: rgb(255 255 255 / 0.12);
+  pointer-events: none;
+}
+.list-row:last-child::after {
+  display: none;
+}
+.list-row:active {
+  background-color: rgb(255 255 255 / 0.06);
+}
+
 /* ============================================================================
    フォーカス・スクロールバー
    ============================================================================ */

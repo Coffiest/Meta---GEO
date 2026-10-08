@@ -14,7 +14,7 @@ import {
   type SngTier,
   type SngTierConfig,
 } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries } from "@meta-geo/db";
+import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries, animalKeyFromSeed } from "@meta-geo/db";
 import { lastAggressorSeat } from "./bot.js";
 import { decideStrongBotAction } from "./botStrategy/index.js";
 import { computeRevealedSeats } from "./showdown.js";
@@ -44,7 +44,7 @@ export const RUNOUT_STREET_PAUSE_MS = 1100;
 
 // 対戦相手として着席する自動プレイヤーの名前プール。人間と絶対に見分けがつかないよう、実在プレイヤーに
 // ありがちな「系統」を4つに分け、同卓時にどの系統も均等に混じるようにする(選出は下記 pickBotProfiles で
-// 系統ごとにシャッフル→ラウンドロビン)。avatarKey は null(人間と同じ共通アイコンで表示)。
+// 系統ごとにシャッフル→ラウンドロビン)。avatarKey は名前から決まる動物の絵(人間と同じ10枚)。
 const BOT_NAME_GROUPS: readonly (readonly string[])[] = [
   // A. ゆるいハンドル(食べ物・動物・かわいい造語)
   [
@@ -78,8 +78,8 @@ export interface BotProfile {
   readonly avatarKey: string | null;
 }
 
-/** 全系統をまとめた一覧(互換用)。avatarKey は常に null。 */
-export const BOT_PROFILES: readonly BotProfile[] = BOT_NAME_GROUPS.flat().map((name) => ({ name, avatarKey: null }));
+/** 全系統をまとめた一覧(互換用)。 */
+export const BOT_PROFILES: readonly BotProfile[] = BOT_NAME_GROUPS.flat().map((name) => ({ name, avatarKey: animalKeyFromSeed(name) }));
 
 // 自動プレイヤーがたまに送る自然な短いチャット。人間は勝ったときなどに一言つぶやくが、bot が完全に
 // 無言だと不自然なため、低頻度で文脈に合った短文を送る(過剰にならないよう頻度は抑える)。
@@ -114,7 +114,7 @@ export function pickBotProfiles(count: number): BotProfile[] {
   for (let i = 0; order.length < BOT_PROFILES.length; i++) {
     for (const g of groups) if (i < g.length) order.push(g[i]!);
   }
-  return Array.from({ length: count }, (_, i) => ({ name: order[i % order.length]!, avatarKey: null }));
+  return Array.from({ length: count }, (_, i) => ({ name: order[i % order.length]!, avatarKey: animalKeyFromSeed(order[i % order.length]!) }));
 }
 
 /** タイムバンクまで使って長考する確率(ターン/リバーのチェック以外のみ)。200回に1回ほどに留める(オーナー指示)。 */
