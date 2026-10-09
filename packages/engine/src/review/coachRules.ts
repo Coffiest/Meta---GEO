@@ -1,6 +1,7 @@
 import type { FlopClassId } from "../geo/boardClass.js";
 import { judgeFlopCb, type CbGroup, type HmTier, type SizeKey } from "./flopCb.js";
 import { judgeBmcb, type BmcbJudgement } from "./bmcb.js";
+import { readBoardTexture } from "./boardTexture.js";
 import type { Card, Rank } from "../types/card.js";
 import { RANKS, SUITS, parseCard } from "../types/card.js";
 import { HAND_CATEGORY, compareHandRank, evaluateBest, type HandRank } from "../handEvaluator.js";
@@ -48,7 +49,8 @@ export type CoachId =
   | "riverFoldBlocker"
   | "riverFoldOk"
   | "flopCb"
-  | "oopFlopCheck";
+  | "oopFlopCheck"
+  | "oopKingCb";
 
 export interface CoachVerdict {
   id: CoachId;
@@ -612,6 +614,35 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
         street,
         sizePct: kind === "bet" ? sizePct : undefined,
         handLabel: monotone ? "モノトーン" : "Jハイ以下",
+      };
+    }
+  }
+
+  // 7-2. SRP の OOP のオリジナルレイザー(J ハイ以下・モノトーンは上の 7.)。出典: sevenbetter「SRPにおけるOOPのCB戦略」。
+  //      ドライかつモノトーンでない K ハイだけ 33% で CB、それ以外(Q・A ハイ、ドライでない K ハイ)はレンジチェック(オーナー確定)。
+  //      SB vs BB は対象外(記事どおり)。
+  if (street === "flop" && !ip && r.preflopRaiser === r.hero && firstToAct && (kind === "check" || kind === "bet")) {
+    const pfRaises = (r.byStreet["preflop"] ?? []).filter((a) => a.kind === "raise" || a.kind === "allIn").length;
+    const offset = (seat: number) => (((seat - hand.buttonFixedPos) % hand.seatCount) + hand.seatCount) % hand.seatCount;
+    const blindBattle = offset(r.hero) === 1 && offset(opp.seat) === 2;
+    const tex = readBoardTexture(board.slice(0, 3));
+    if (pfRaises === 1 && !blindBattle && tex) {
+      const dryK = tex.isKingHigh && tex.draws === "dry" && tex.maxSuitCount < 3;
+      const grade: NotionGrade = dryK
+        ? kind === "check"
+          ? "inaccuracy"
+          : sizePct <= 0.45
+            ? "best"
+            : "good"
+        : kind === "check"
+          ? "best"
+          : "mistake";
+      return {
+        id: "oopKingCb",
+        grade,
+        street,
+        sizePct: kind === "bet" ? sizePct : undefined,
+        handLabel: dryK ? "dryK" : tex.isKingHigh ? "wetK" : tex.isAceHigh ? "A" : "Q",
       };
     }
   }

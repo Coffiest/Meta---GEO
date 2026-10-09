@@ -65,6 +65,28 @@ describe("コーチのルール", () => {
     expect(v.raiseLevel).toBe(3);
   });
 
+  it("7-2. SRP の OOP レイザー: ドライな K ハイは 33% CB が最善、A ハイはチェックが最善", () => {
+    for (const [board, kind, size, grade] of [
+      [["Kh", "7d", "2c"], "bet", 160, "best"],
+      [["Kh", "7d", "2c"], "check", null, "inaccuracy"],
+      [["Ah", "8d", "3c"], "check", null, "best"],
+      [["Ah", "8d", "3c"], "bet", 160, "mistake"],
+    ] as const) {
+      // UTG(席3)オープン → BTN(席0)コール。
+      const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 3: ["Qs", "Qc"] }, [...board, "9c", "4h"]);
+      b.act(3, "raise", 250);
+      b.act(4, "fold", null);
+      b.act(5, "fold", null);
+      b.act(0, "call", 250);
+      b.act(1, "fold", null);
+      b.act(2, "fold", null);
+      b.street("flop");
+      const v = judgeCoach(b.hand, b.act(3, kind, size))!;
+      expect(v.id).toBe("oopKingCb");
+      expect(v.grade).toBe(grade);
+    }
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);
