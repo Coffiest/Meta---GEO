@@ -101,6 +101,27 @@ export function coachComment(c: CoachData): CoachNote {
         sourceUrl: c.mdf != null ? SRC.mdf : undefined,
       };
     }
+    case "oddsFold": {
+      const ok = (c.equity ?? 0) < (c.requiredEquity ?? 0);
+      const formula = `${bb(c.callBb)} ÷(${bb(c.potBb)} + ${bb(c.callBb)})= ${pct(c.requiredEquity)}`;
+      const hand = c.handLabel ? `${c.handLabel}で` : "";
+      const summary = ok
+        ? `必要勝率 = ${formula}。相手のレンジに対する勝率は ${pct(c.equity)} くらいしかないから、${hand}降りるのが正解だよ。ナイスフォールド！`
+        : `必要勝率 = ${formula} に対して、相手のレンジに対する勝率は ${pct(c.equity)} くらいあるんだ。オッズが合っているから、${hand}降りずにコールしよう。`;
+      return {
+        title: "オッズと必要勝率",
+        summary,
+        points: [
+          { label: "オッズの式", text: `コール額 ÷(ポット + コール額)= ${formula}` },
+          { label: "推定勝率", text: `${pct(c.equity)}(相手のアクションから見積もったレンジに対して)` },
+          { label: "正解", text: ok ? "フォールド" : "コール" },
+        ],
+        body:
+          "降りるかどうかも「ポットオッズ」で決める。必要勝率 = コール額 ÷(コール後のポット)。自分の勝率がこれを下回れば降りるのが正解、上回っていればコールした方が得。\n" +
+          "勝率は、相手のプリフロップのアクション(オープン・3ベット・コール)と、ポストフロップのベット・コール・チェックから相手のレンジを見積もって計算している。\n" +
+          "勝率が足りているのに降りると、取れたはずのポットを捨てることになる。差が 10% 未満なら悪手、10% 以上なら大悪手だよ。",
+      };
+    }
     case "bmcb": {
       const size = pct(c.sizePct);
       const summary =

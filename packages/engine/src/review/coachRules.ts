@@ -30,6 +30,7 @@ import type { NotionGrade } from "./strategyVerdict.js";
 export type CoachId =
   | "commit"
   | "oddsCall"
+  | "oddsFold"
   | "bmcb"
   | "bmcbCheck"
   | "polarize"
@@ -648,8 +649,8 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
     return { id: "riverMdf", grade: null, ...base };
   }
 
-  // 3. ベットへのコール: オッズの式と推定勝率。
-  if (kind === "call" && r.facing > 0) {
+  // 3. ベットへのコール/フォールド: オッズの式と推定勝率。フォールドも同じ式で、降りて良かったかを言う(オーナー指示)。
+  if ((kind === "call" || kind === "fold") && r.facing > 0) {
     const required = r.facing / (r.potBefore + r.facing);
     const history: { street: string; kind: string }[] = [];
     for (const s of STREETS) {
@@ -666,6 +667,21 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
       seed: sequenceNumber * 7919 + r.hero,
     });
     if (equity === null) return null;
+    if (kind === "fold") {
+      // 推定勝率が必要勝率に届かなければ降りて正解。届いていたのに降りたら、差が 10% 未満で悪手・以上で大悪手(オーナー確定)。
+      const over = equity - required;
+      const foldGrade: NotionGrade = over <= 0 ? "best" : over < 0.1 ? "mistake" : "blunder";
+      return {
+        id: "oddsFold",
+        grade: foldGrade,
+        street,
+        requiredEquity: required,
+        equity,
+        callBb: r.facing / bb,
+        potBb: r.potBefore / bb,
+        handLabel: made?.label,
+      };
+    }
     const gap = required - equity;
     const grade: NotionGrade = gap <= 0 ? "best" : gap < 0.05 ? "inaccuracy" : gap < 0.15 ? "mistake" : "blunder";
     const heroCheckedFirst = streetActs.some((a) => a.seat === r.hero && a.kind === "check");

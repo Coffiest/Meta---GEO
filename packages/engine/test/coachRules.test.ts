@@ -193,6 +193,22 @@ describe("コーチのルール", () => {
     expect(["mistake", "blunder"]).toContain(v.grade);
   });
 
+  it("3. フロップのベットに降りたら、必要勝率と推定勝率で判定する(エアーは最善、ナッツドローは悪手以下)", () => {
+    const air = srp({ 2: ["6d", "3c"] }, ["Kh", "Qh", "Jc", "4d", "9s"]);
+    air.act(2, "check", null);
+    air.act(0, "bet", 550);
+    let v = judgeCoach(air.hand, air.act(2, "fold", null))!;
+    expect(v.id).toBe("oddsFold");
+    expect(v.grade).toBe("best");
+
+    const strong = srp({ 2: ["Ah", "Jh"] }, ["Kh", "7h", "2c", "4d", "9s"]);
+    strong.act(2, "check", null);
+    strong.act(0, "bet", 300);
+    v = judgeCoach(strong.hand, strong.act(2, "fold", null))!;
+    expect(v.id).toBe("oddsFold");
+    expect(["mistake", "blunder"]).toContain(v.grade);
+  });
+
   it("5-2. OOP(SRP)のミドルペアで、ターンに 33% のブロックベット → 絶妙手 / チェック → 緩手", () => {
     for (const [kind, id, grade] of [
       ["bet", "blockBet", "artistic"],

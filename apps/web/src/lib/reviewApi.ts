@@ -93,6 +93,7 @@ export interface ReviewedDecision {
     id:
       | "commit"
       | "oddsCall"
+      | "oddsFold"
       | "bmcb"
       | "bmcbCheck"
       | "polarize"
