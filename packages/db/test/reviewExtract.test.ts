@@ -48,6 +48,13 @@ describe("extractHeroDecisions", () => {
     expect(pre?.analyzable).toBe(true);
   });
 
+  it("ES は自分と、残っている相手のうち一番多い残りの小さい方(相手が短ければ相手の残り)", () => {
+    const hand = buildHUHand();
+    hand.seats = hand.seats.map((s) => ({ ...s, startingStack: s.seatIndex === 0 ? 10000 : 2300 }));
+    const [pre] = extractHeroDecisions(hand, "u0");
+    expect(pre?.effStackBb).toBeCloseTo(23);
+  });
+
   it("HUフロップのベットを analyzable=true・IP・サイズバケット付きで抽出", () => {
     const d = extractHeroDecisions(buildHUHand(), "u0");
     const flop = d[1];

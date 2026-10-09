@@ -662,7 +662,8 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
           grade: "blunder",
           street,
           requiredEquity: worst.required,
-          remainingBb: e / bb,
+          // 相手より多く持っていても、争えるのは相手の残りまで(エフェクティブ)。
+          remainingBb: worst.eff / bb,
           potBb: pAfter / bb,
         };
       }
