@@ -128,6 +128,7 @@ export interface ReviewedDecision {
     blocked?: string[];
     handLabel?: string;
     checkRaiseOk?: boolean;
+    raiseOption?: boolean;
     raiseLevel?: number;
     raisedPot?: {
       spot: "ip3bettor" | "oop3bettor" | "oop4betCaller" | "vsDonkJam";
