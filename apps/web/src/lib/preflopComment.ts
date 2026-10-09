@@ -18,7 +18,7 @@ function pct(f: number): string {
 
 export function preflopComment(
   d: ReviewedDecision,
-  v: { hand?: string; handCategory?: string; pos?: string }
+  v: { hand?: string; pos?: string }
 ): { title: string; summary: string; body: string } | undefined {
   if (d.street !== "preflop" || !d.gtoActions || d.gtoActions.length === 0) return undefined;
   const acts = d.gtoActions.filter((a) => a.frequency > 0);
@@ -26,19 +26,22 @@ export function preflopComment(
   const top = acts.reduce((a, b) => (b.frequency > a.frequency ? b : a));
   const hero = d.actionTaken.bucket;
   const heroFreq = acts.find((a) => a.bucket === hero)?.frequency ?? 0;
-  const facing = (d.facingSizeBb ?? 0) > 0;
+  const facing = facingRaise(d);
   const who = [v.pos, v.hand].filter(Boolean).join("の");
-  const cat = v.handCategory ? `(${v.handCategory})` : "";
-  const subject = who ? `${who}${cat}` : "このハンド";
-  const range = facing ? "コンティニューするレンジ" : `${v.pos ?? ""}のオープンレンジ`.trim();
+  // 手札の分類(「ハイ+ローのオフスート」など)は言わない(オーナー指示)。
+  const subject = who || "このハンド";
 
   let summary: string;
   if (heroFreq >= 0.3) {
     summary = `${subject}は、GTOで${VERB[hero] ?? hero}が${pct(heroFreq)}のハンドだよ。定石どおりだね。`;
   } else if (top.bucket === "fold") {
-    summary = `${subject}は${range}の外なんだ。GTOでは${pct(top.frequency)}降りるハンドだから、ここはフォールドしよう。`;
+    summary = facing
+      ? `${subject}は、GTOでは${pct(top.frequency)}降りるハンドなんだ。ここはコールもレイズもせずにフォールドしよう。`
+      : `${subject}はオープンしないよ。GTOでは${pct(top.frequency)}降りるハンドだから、ここはフォールドしよう。`;
   } else if (hero === "fold") {
-    summary = `${subject}は${range}に入るハンドだよ。GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}だから、降りずにオープンしようね。`;
+    summary = facing
+      ? `${subject}は降りずに${VERB[top.bucket] ?? top.bucket}するハンドだよ。GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}なんだ。`
+      : `${subject}は${v.pos ?? ""}のオープンレンジに入るハンドだよ。GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}だから、降りずにオープンしようね。`;
   } else {
     summary = `${subject}は、GTOでは${VERB[top.bucket] ?? top.bucket}が${pct(top.frequency)}のハンドなんだ。${VERB[hero] ?? hero}より${VERB[top.bucket] ?? top.bucket}を選ぼうね。`;
   }
@@ -55,4 +58,14 @@ export function preflopComment(
       "プリフロップは、ポジション(後ろに何人残っているか)とスタックの深さで参加するハンドレンジが決まる。" +
       "前のポジションほどタイトに、BTN や SB は広くオープンする。スタックが浅くなるほど、コールが減りオールインかフォールドの二択が増える。",
   };
+}
+
+/**
+ * 誰かのレイズ(またはリンプ)に直面しているか。`facingSizeBb` は未参加でもブラインドとの差額
+ * (UTG なら 1bb、SB なら 0.5bb)が入るので、それを超えたときだけ「直面している」とみなす。
+ */
+function facingRaise(d: ReviewedDecision): boolean {
+  const f = d.facingSizeBb ?? 0;
+  const blindGap = d.heroPos === "BB" ? 0 : d.heroPos === "SB" ? 0.5 : 1;
+  return f > blindGap + 1e-6;
 }

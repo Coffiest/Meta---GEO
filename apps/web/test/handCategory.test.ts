@@ -51,10 +51,16 @@ describe("プリフロップの一般論", () => {
       ...over,
     }) as ReviewedDecision;
 
-  it("オープンレンジ外の手をオープンしたら、レンジの外と言う", () => {
-    const n = preflopComment(d({}), { pos: "UTG", hand: "K4o", handCategory: "ハイ+ローのオフスート" })!;
-    expect(n.summary).toContain("UTGのK4o(ハイ+ローのオフスート)");
-    expect(n.summary).toContain("オープンレンジの外");
+  it("オープンレンジ外の手をオープンしたら、オープンしないと言う(手札の分類は言わない)", () => {
+    const n = preflopComment(d({ facingSizeBb: 1 }), { pos: "UTG", hand: "K4o" })!;
+    expect(n.summary).toContain("UTGのK4oはオープンしないよ");
+    expect(n.summary).not.toContain("(");
+  });
+
+  it("レイズに直面して降りるハンドは、コールもレイズもしないと言う", () => {
+    const n = preflopComment(d({ heroPos: "HJ", facingSizeBb: 2.5 }), { pos: "HJ", hand: "94o" })!;
+    expect(n.summary).toContain("コールもレイズもせずにフォールド");
+    expect(n.summary).not.toContain("コンティニュー");
   });
 
   it("GTO どおりなら褒める", () => {
