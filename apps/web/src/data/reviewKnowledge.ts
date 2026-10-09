@@ -730,18 +730,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
       "降ろせる手(ブラフターゲット)が存在しない、または少ないときは、ベットの意味がないのでチェックする。",
     when: { street: ["river"], made: ["highCard"], actionBucket: ANY_BET },
   },
-  {
-    id: "blocker-theory",
-    title: "ブロッカー理論",
-    summary:
-      "自分が持っているカードは、相手は持っていないよね。これがブロッカー理論。相手のどの手を減らしているか考えてみよう。",
-    body:
-      "ブロッカー理論 = 自分が持っているカードは、相手は持っていない。\n\n" +
-      "たとえば、相手のブラフになりうるカードを自分が持っていると、相手のブラフが減る。\n" +
-      "逆に、相手が降りるはずの手をブロックしていると、ブラフが通りにくくなる。\n" +
-      "コールや降りる判断のときは、自分のカードが相手のどのレンジをブロックしているかを考える。",
-    when: { street: ["river"], actionBucket: ["call", "checkOrCall", "fold"], made: ["highCard"] },
-  },
+
   {
     id: "geometric-size",
     title: "ジオメトリックサイズを使う理由",
