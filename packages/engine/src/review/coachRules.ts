@@ -32,6 +32,7 @@ export type CoachId =
   | "commit"
   | "oddsCall"
   | "oddsFold"
+  | "squeeze"
   | "bmcb"
   | "bmcbCheck"
   | "polarize"
@@ -74,6 +75,8 @@ export interface CoachVerdict {
   handLabel?: string | undefined;
   /** チェックレイズでもよい場面か(コールの解説に添える)。 */
   checkRaiseOk?: boolean | undefined;
+  /** スクイーズの判定(db の `squeezeFacts`。オープンレンジの上位半分か・GTO のコールの手か)。 */
+  squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" } | undefined;
   /** BMCB の判定(ボードの系統・手の役割・正解のアクション)。 */
   bmcb?: Omit<BmcbJudgement, "grade"> | undefined;
   /** フロップの CB(オリジナル・IP)。ボードの分類とレンジのサイズ配分、手の振り分け。 */

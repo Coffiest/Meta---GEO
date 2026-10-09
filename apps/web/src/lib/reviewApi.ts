@@ -94,6 +94,7 @@ export interface ReviewedDecision {
       | "commit"
       | "oddsCall"
       | "oddsFold"
+      | "squeeze"
       | "bmcb"
       | "bmcbCheck"
       | "polarize"
@@ -122,6 +123,7 @@ export interface ReviewedDecision {
     blocked?: string[];
     handLabel?: string;
     checkRaiseOk?: boolean;
+    squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" };
     bmcb?: {
       board: "high" | "connect" | "monotone" | "paired" | "monotoneAK" | "pairedBroadway";
       hand: "value" | "bluff" | "other" | "twoOver" | "any";
