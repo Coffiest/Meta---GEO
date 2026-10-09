@@ -139,9 +139,9 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     const swapped = analyzeExtractedHand({ ...hand, seats: seats(20, 2, ["As", "Ah"], 0, ["2s", "2h"]) }, "u2")!;
     expect(swapped.decisions).toEqual(r.decisions);
     // チェックはドンクを打てた場面(BB はオリジナルより先)なので、Notion の評価が付く。
-    // A-K のコネクトボードでもセットはドンクで打つ手(ドロー)ではないので、チェックで正解。
+    // A-K-2 はローコネクトボードではない(オーナー基準)のでドンクの場面ではなく、チェックで正解。
     const flopCheck = r.decisions.find((x) => x.street === "flop" && x.actionTaken.kind === "check")!;
-    expect(flopCheck.strategy?.spot).toMatchObject({ kind: "donk", situation: "checkOkNoFit" });
+    expect(flopCheck.strategy?.spot).toMatchObject({ kind: "donk", situation: "checkOkNoReason" });
     expect(flopCheck.classification).toBe("best");
   });
 
