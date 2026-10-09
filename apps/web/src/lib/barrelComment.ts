@@ -137,13 +137,13 @@ function sentence(v: BarrelVerdict, cardText: string, barrelName: string): strin
   switch (v.situation) {
     case "betOk": {
       if (v.hand === "mixedBluff") {
-        return `${cardText}で、${hand}を${size}でブラフ。フラッシュドローは半分くらいチェックレンジに残す手だけど、打つ半分としてノートどおりの${barrelName}だよ。ナイス！`;
+        return `${cardText}で、${hand}を${size}でブラフ。フラッシュドローは半分くらいチェックレンジに残す手だけど、打つ半分としてセオリーどおりの${barrelName}だよ。ナイス！`;
       }
       if (v.hand === "optionalBluff") {
         return `${cardText}で、${hand}を${size}でブラフ。Tハイ以下は打つかどうか任意の手で、打つなら${size}でばっちりだよ！`;
       }
       const kind = v.hand === "value" ? "バリューベット" : "ブラフ";
-      return `${cardText}で、${hand}を${size}で${kind}。ノートどおりの${barrelName}、ばっちりだね！`;
+      return `${cardText}で、${hand}を${size}で${kind}。セオリーどおりの${barrelName}、ばっちりだね！`;
     }
     case "betTooSmall":
       return (
@@ -219,12 +219,12 @@ function sentence(v: BarrelVerdict, cardText: string, barrelName: string): strin
     }
     case "checkMixedOk":
       return v.hand === "mixedBluff"
-        ? `${hand}は、半分くらいはチェックレンジに残す手だよ。チェックもノートどおり、ナイスだね！打つなら${size}だよ。`
+        ? `${hand}は、半分くらいはチェックレンジに残す手だよ。チェックもセオリーどおり、ナイスだね！打つなら${size}だよ。`
         : `${hand}は、打つかどうか任意の手だよ。チェックでも大丈夫、ナイス判断だね！打つなら${size}だよ。`;
     case "checkHandOk":
       return v.handKey === "flushDrawWithPair"
         ? `${hand}をチェック、ナイス！${cardText}では、ワンペア以上のフラッシュドローはチェックに回す手なんだ。`
-        : `${hand}をチェック、ナイス！${cardText}では、この手はチェックに回してチェックレンジを強化する手なんだ。ノートどおりだね！`;
+        : `${hand}をチェック、ナイス！${cardText}では、この手はチェックに回してチェックレンジを強化する手なんだ。セオリーどおりだね！`;
     case "checkShowdownOk":
       return (
         `${hand}をチェック、いい判断だね！${hand}は${cardText}のバリューにもブラフにも入らない手。` +
@@ -235,7 +235,7 @@ function sentence(v: BarrelVerdict, cardText: string, barrelName: string): strin
         return `外れたフラッシュドローをチェック、ナイス！相手の外れたフラッシュドローをブロックしちゃうから、リバーのブラフには回さない手なんだ。`;
       }
       if (v.card === "flush") {
-        return `${hand}をチェック、ナイス！${cardText}ではピュアブラフはしないから、チェックであきらめるのがノートどおりだよ。`;
+        return `${hand}をチェック、ナイス！${cardText}ではピュアブラフはしないから、チェックであきらめるのがセオリーどおりだよ。`;
       }
       return `${hand}をチェック、ナイス！バリューにもブラフにも入らない手だから、無理に打たずにあきらめるのが正解だよ。`;
   }
