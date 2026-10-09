@@ -1,5 +1,6 @@
 import type { FlopClassId } from "../geo/boardClass.js";
 import { judgeFlopCb, type CbGroup, type HmTier, type SizeKey } from "./flopCb.js";
+import { judgeBmcb, type BmcbJudgement } from "./bmcb.js";
 import type { Card, Rank } from "../types/card.js";
 import { RANKS, SUITS, parseCard } from "../types/card.js";
 import { HAND_CATEGORY, compareHandRank, evaluateBest, type HandRank } from "../handEvaluator.js";
@@ -12,7 +13,7 @@ import type { NotionGrade } from "./strategyVerdict.js";
  *  2.   ポットコミット(プリフロップ・フロップ)         → 無条件で大悪手。コミットとは何か・なぜダメかを解説。
  *  3.   ベットへのコール                               → オッズの式(必要勝率)と推定勝率。足りていれば最善、足りなければ乖離に応じて緩手〜大悪手。
  *                                                      チェックレイズでもよい場面ならそれも言う。
- *  4-1. BMCB(IP。相手の CB のチェックを見てベット)   → BMCB とは何かを解説し、サイズで判定。
+ *  4-1. BMCB(IP。相手の CB のチェックを見て)       → スライド「BMCB簡易戦略」で打つべきか・サイズを判定(bmcb.ts)。
  *  4-2. IP のダブル/トリプルバレルが 40% 以下         → 大悪手。ポラライズの解説。
  *  4-3. IP のリバーのシンバリュー                      → 75% 前後が主流だと解説(40% 以下のバレルは 4-2 が優先)。
  *  5-2. OOP のブロックベット(SRP)                    → セミナッツ/ガチナッツを 33〜50% で打てたら絶妙手。打てなければ緩手。
@@ -73,6 +74,8 @@ export interface CoachVerdict {
   handLabel?: string | undefined;
   /** チェックレイズでもよい場面か(コールの解説に添える)。 */
   checkRaiseOk?: boolean | undefined;
+  /** BMCB の判定(ボードの系統・手の役割・正解のアクション)。 */
+  bmcb?: Omit<BmcbJudgement, "grade"> | undefined;
   /** フロップの CB(オリジナル・IP)。ボードの分類とレンジのサイズ配分、手の振り分け。 */
   flopCb?:
     | {
@@ -709,11 +712,20 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
     streetActs[0]!.seat === opp.seat &&
     streetActs[0]!.kind === "check"
   ) {
-    if (kind === "bet") {
-      const grade: NotionGrade = sizePct <= 0.5 ? "best" : sizePct <= 0.8 ? "excellent" : "inaccuracy";
-      return { id: "bmcb", grade, street, sizePct };
+    if (kind === "bet" || kind === "check") {
+      // オーナー支給のスライド「BMCB簡易戦略」で、打つべきか・サイズを判定する。
+      const j = judgeBmcb({ hole: hero.holeCards, flop: board, kind, sizePct });
+      if (j) {
+        return {
+          id: kind === "bet" ? "bmcb" : "bmcbCheck",
+          grade: j.grade,
+          street,
+          sizePct: kind === "bet" ? sizePct : undefined,
+          handLabel: made?.label,
+          bmcb: { board: j.board, hand: j.hand, correct: j.correct },
+        };
+      }
     }
-    if (kind === "check") return { id: "bmcbCheck", grade: null, street };
   }
 
   // 4-3. IP のリバーのシンバリュー(ワンペアでのベット)。
