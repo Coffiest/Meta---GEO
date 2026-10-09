@@ -260,20 +260,7 @@ export function coachComment(c: CoachData): CoachNote {
         sourceUrl: SRC.riverRaise,
       };
     case "riverCallNoBlock":
-      return {
-        title: "リバーの MDF とブロッカー",
-        summary: `このベットに対する MDF は ${pct(c.mdf)}。レンジの ${pct(c.mdf)} くらいはコールで守る必要があるけど、守るのはブロッカーが優秀な手から。相手のナッツ級は ${nutList(c)} で、きみの手はどれも抑えていないから、ここは降りる側の手だったよ。`,
-        points: [
-          { label: "MDF", text: `レンジの ${pct(c.mdf)} くらいはコールかレイズで守る` },
-          { label: "相手のナッツ級", text: nutList(c) },
-          { label: "ブロック", text: "どれも抑えていない → 守る順番は後ろ(フォールド候補)" },
-        ],
-        body:
-          MDF_BODY +
-          "\n\nどの手で守るかは「ブロッカー」で選ぶ。相手のナッツ級に使われるカードを自分が持っていれば、相手がその手を持っている組み合わせが減り、相手のレンジの中でブラフの割合が上がる。\n" +
-          "同じくらいの強さなら、ナッツ級を抑えている手からコールし、抑えていない手から降りる。",
-        sourceUrl: SRC.mdf,
-      };
+      return riverMdfComment(c);
     case "riverFoldBlocker":
       return {
         title: "リバーの MDF とブロッカー",
@@ -289,30 +276,9 @@ export function coachComment(c: CoachData): CoachNote {
         sourceUrl: SRC.mdf,
       };
     case "riverFoldOk":
-      return {
-        title: "リバーの MDF とブロッカー",
-        summary: `このベットに対する MDF は ${pct(c.mdf)}。相手のナッツ級は ${nutList(c)} で、きみはどれも抑えていないから、守る順番は後ろ。ここは降りてOKだよ。`,
-        points: [
-          { label: "MDF", text: `レンジの ${pct(c.mdf)} くらいはコールかレイズで守る` },
-          { label: "相手のナッツ級", text: nutList(c) },
-          { label: "ブロック", text: "どれも抑えていない → フォールドでよい" },
-        ],
-        body: MDF_BODY + "\n\n守る手はブロッカーが優秀なものから選ぶ。抑えていない手は降りる側に回す。",
-        sourceUrl: SRC.mdf,
-      };
+      return riverMdfComment(c);
     case "riverMdf":
-      return {
-        title: "リバーの MDF",
-        summary: `このベットに対する MDF は ${pct(c.mdf)}。最低でも ${pct(c.mdf)} はコールかレイズで守らないと、相手にブラフで打たれ放題になるよ。相手のナッツ級は ${nutList(c)} あたりだね。`,
-        points: [
-          { label: "MDF", text: `${pct(c.mdf)} 以上は守る` },
-          { label: "相手のナッツ級", text: nutList(c) },
-        ],
-        body:
-          MDF_BODY +
-          "\n\nどの手で守るかは、ナッツ級をブロックしている手を優先しよう。ブロックしていれば相手のバリューが減り、ブラフの割合が上がるよ。",
-        sourceUrl: SRC.mdf,
-      };
+      return riverMdfComment(c);
     case "flopCb":
       return flopCbComment(c);
     case "oopFlopCheck": {
@@ -546,5 +512,35 @@ function squeezeComment(c: CoachData): CoachNote {
       "目安は、オープナーのレンジの上位半分くらいの強さ。それより弱い手で打つと、オープナーとコーラーの2人を相手に広すぎるスクイーズになる。\n" +
       "届かない手は、GTO でコールの手ならコール、そうでなければ降りる。A5s・A4s はブロッカーとして、いつでもライトにスクイーズできる。\n" +
       "ショートスタックのときは、スクイーズ(オールイン)の範囲が広くなるよ。",
+  };
+}
+
+/** リバーでベットに直面: MDF と、自分のレンジの中での手の位置(上位何%か)で、守る側か降りる側かを言う。 */
+function riverMdfComment(c: CoachData): CoachNote {
+  const top = c.equity != null ? 1 - c.equity : null;
+  const inMdf = top !== null && c.mdf != null && top <= c.mdf;
+  const where = top !== null ? `きみの手はレンジの上位 ${pct(top)}` : "きみの手の位置";
+  const good = c.grade === "best";
+  const act = c.id === "riverCallNoBlock" ? "コール" : c.id === "riverFoldOk" ? "フォールド" : "レイズ";
+  const summary = inMdf
+    ? good
+      ? `このベットに対する MDF は ${pct(c.mdf)}。${where}で、守る側の手だから${act}で正解！`
+      : `このベットに対する MDF は ${pct(c.mdf)}。${where}で守る側の手だから、降りずにコールしよう。`
+    : good
+      ? `このベットに対する MDF は ${pct(c.mdf)}。${where}で、守る範囲の外だから降りて正解だよ。`
+      : `このベットに対する MDF は ${pct(c.mdf)}。${where}で守る範囲の外だから、ここは降りよう。`;
+  return {
+    title: "リバーの MDF",
+    summary,
+    points: [
+      { label: "MDF", text: `レンジの上位 ${pct(c.mdf)} はコールかレイズで守る` },
+      { label: "きみの手", text: top !== null ? `レンジの上位 ${pct(top)}(${inMdf ? "守る側" : "降りる側"})` : "不明" },
+      { label: "相手のナッツ級", text: nutList(c) },
+    ],
+    body:
+      MDF_BODY +
+      "\n\nきみのレンジ(プリフロップとここまでのアクションから見積もったもの)を強い順に並べて、上位 MDF% に入る手は守り、入らない手は降りる。\n" +
+      "守る手の境目にいる手は、相手のナッツ級をブロックしているものを優先しよう。境目からの差が 10% 未満の間違いは悪手、10% 以上は大悪手だよ。",
+    sourceUrl: SRC.mdf,
   };
 }
