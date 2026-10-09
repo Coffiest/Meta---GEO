@@ -134,6 +134,16 @@ describe("コーチのルール", () => {
     expect(v.grade).toBe("best");
   });
 
+  it("3. ベットへのコールは、まずレイズの判定。セットでコールしたらレイズの選択肢を逃して緩手", () => {
+    const b = srp({ 2: ["7s", "7c"] }, ["Kh", "7h", "2c", "4d", "9s"]);
+    b.act(2, "check", null);
+    b.act(0, "bet", 300);
+    const v = judgeCoach(b.hand, b.act(2, "call", 300))!;
+    expect(v.id).toBe("oddsCall");
+    expect(v.raiseOption).toBe(true);
+    expect(v.grade).toBe("inaccuracy");
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);

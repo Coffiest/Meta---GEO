@@ -80,24 +80,29 @@ export function coachComment(c: CoachData): CoachNote {
     case "oddsCall": {
       const ok = (c.equity ?? 0) >= (c.requiredEquity ?? 1);
       const formula = `${bb(c.callBb)} ÷(${bb(c.potBb)} + ${bb(c.callBb)})= ${pct(c.requiredEquity)}`;
-      const summary = ok
-        ? `必要勝率 = ${formula}。相手のレンジに対する勝率は ${pct(c.equity)} くらいあるから、オッズに合ったコールだよ。ナイス！`
-        : `必要勝率 = ${formula} なのに、相手のレンジに対する勝率は ${pct(c.equity)} くらいしかないんだ。オッズが合っていないから、ここは降りた方がよかったよ。`;
-      const cr = c.checkRaiseOk ? "\nこれだけ勝率があるなら、コールだけでなくチェックレイズで大きくしにいくのもアリだよ。" : "";
+      const raise = c.raiseOption ?? c.checkRaiseOk ?? false;
+      const raiseWord = c.checkRaiseOk || c.raiseOption ? "チェックレイズ" : "レイズ";
+      // まずレイズの判定、次にオッズ(オーナー指示)。
+      const first = raise
+        ? `${c.handLabel ? `${c.handLabel}は` : "この手は"}${raiseWord}する手だよ。コールではなく${raiseWord}で大きくしにいこう。`
+        : `${c.handLabel ? `${c.handLabel}は` : "この手は"}${raiseWord}する手ではないから、コールかフォールドの二択。`;
+      const second = ok
+        ? `必要勝率 = ${formula} に対して、相手のレンジへの勝率は ${pct(c.equity)} くらいあるから、${raise ? "コールでも損はしないけどね。" : "オッズが合ってコール、OK！"}`
+        : `必要勝率 = ${formula} なのに、相手のレンジへの勝率は ${pct(c.equity)} くらいしかないから、降りた方がよかったよ。`;
       return {
-        title: "オッズと必要勝率",
-        summary: summary + (c.checkRaiseOk ? " チェックレイズしてもよかったね。" : ""),
+        title: "レイズの判定とオッズ",
+        summary: first + second,
         points: [
+          { label: "レイズ", text: raise ? `${raiseWord}する手(コールより${raiseWord})` : `${raiseWord}しない手 → コールかフォールド` },
           { label: "オッズの式", text: `コール額 ÷(ポット + コール額)= ${formula}` },
           { label: "推定勝率", text: `${pct(c.equity)}(相手のアクションから見積もったレンジに対して)` },
           ...(c.mdf != null ? [{ label: "MDF", text: `${pct(c.mdf)} 以上は守る(コールかレイズ)` }] : []),
         ],
         body:
-          "コールするかどうかは「ポットオッズ」で決める。必要勝率 = コール額 ÷(コール後のポット)。自分の勝率がこれを上回ればコールは得、下回れば損。\n" +
-          "勝率は、相手のプリフロップのアクション(オープン・3ベット・コール)と、ポストフロップのベット・コール・チェックから相手のレンジを見積もって計算している。強い手ほどベットしやすく、エアーはブラフの分だけ混ぜる、という重み付けだ。\n" +
-          "必要勝率との差が小さければ緩手、大きいほど悪手・大悪手になるよ。" +
-          (c.mdf != null ? `\n\n${MDF_BODY}` : "") +
-          cr,
+          "ベットを受けたら、まずレイズ(チェックレイズ)する手かを考える。バリューで大きくしたい強い手や、チェックレイズの表に入っている手はレイズ。レイズする手なのにコールで終わると、取れるはずの額を逃す。\n" +
+          "レイズしない手は、コールかフォールドの二択。これは「ポットオッズ」で決める。必要勝率 = コール額 ÷(コール後のポット)。自分の勝率がこれを上回ればコール、下回ればフォールド。\n" +
+          "勝率は、相手のプリフロップのアクション(オープン・3ベット・コール)と、ポストフロップのベット・コール・チェックから相手のレンジを見積もって計算している。" +
+          (c.mdf != null ? `\n\n${MDF_BODY}` : ""),
         sourceUrl: c.mdf != null ? SRC.mdf : undefined,
       };
     }

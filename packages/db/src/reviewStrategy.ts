@@ -12,6 +12,7 @@ import {
   judgePowerNumber,
   gradePowerNumber,
   judgeCoach,
+  oddsCallGrade,
   type CoachVerdict,
   PN_MAX_STACK_BB,
   ARTICLE_RULES,
@@ -255,6 +256,12 @@ export function attachCoach(hand: ExtractHand, decisions: ReviewedDecision[]): v
       const spot = d.strategy?.spot;
       if (d.coach?.id === "oddsFold" && spot && !(spot.kind === "checkRaise" && spot.situation === "foldNotListed")) {
         d.coach = null;
+      }
+      // コールの判定の「レイズする手だったか」は、チェックレイズの表があれば表で決める(オーナーの戦略)。
+      if (d.coach?.id === "oddsCall" && spot?.kind === "checkRaise" && d.coach.requiredEquity != null && d.coach.equity != null) {
+        const raiseOption = spot.hand === "value" || spot.hand === "bluff";
+        const g0 = oddsCallGrade(d.coach.requiredEquity, d.coach.equity);
+        d.coach = { ...d.coach, raiseOption, checkRaiseOk: raiseOption, grade: raiseOption && g0 === "best" ? "inaccuracy" : g0 };
       }
       // シンバリューの勝率判定は、Notion の表がそのベットを評価していればそちらを優先する(オーナーの戦略)。
       if (d.coach?.id === "thinValue" && d.strategy?.grade) d.coach = null;

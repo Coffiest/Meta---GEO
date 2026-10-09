@@ -80,6 +80,8 @@ export interface CoachVerdict {
   handLabel?: string | undefined;
   /** チェックレイズでもよい場面か(コールの解説に添える)。 */
   checkRaiseOk?: boolean | undefined;
+  /** ベットに直面したとき、レイズ(チェックレイズ)する手だったか。コールの判定の前に言う(オーナー指示)。 */
+  raiseOption?: boolean | undefined;
   /** A5s・A4s のライトな 3bet/4bet/5bet のレイズの段(3 = 3bet)。 */
   raiseLevel?: number | undefined;
   /** スクイーズの判定(db の `squeezeFacts`。オープンレンジの上位半分か・GTO のコールの手か)。 */
@@ -140,6 +142,14 @@ export const POLARIZE_MAX_PCT = 0.4;
 /** ブロックベットのサイズ(33〜50%。端数の揺れを少し許す)。 */
 export const BLOCK_MIN_PCT = 0.25;
 export const BLOCK_MAX_PCT = 0.55;
+/** ベットに直面して、レイズ(チェックレイズ)でバリューを取りにいく手とみなす推定勝率。 */
+export const RAISE_FOR_VALUE_EQUITY = 0.65;
+
+/** コールの格付け(必要勝率と推定勝率の差)。 */
+export function oddsCallGrade(required: number, equity: number): NotionGrade {
+  const gap = required - equity;
+  return gap <= 0 ? "best" : gap < 0.05 ? "inaccuracy" : gap < 0.15 ? "mistake" : "blunder";
+}
 
 const STREETS = ["preflop", "flop", "turn", "river"] as const;
 const AGGRESSIVE = new Set(["bet", "raise", "allIn"]);
@@ -885,8 +895,10 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
         handLabel: made?.label,
       };
     }
-    const gap = required - equity;
-    const grade: NotionGrade = gap <= 0 ? "best" : gap < 0.05 ? "inaccuracy" : gap < 0.15 ? "mistake" : "blunder";
+    const grade0 = oddsCallGrade(required, equity);
+    // まずレイズの判定(オーナー指示): レイズする手(推定勝率 65% 以上)なのにコールしたら、オッズが合っていても緩手。
+    const raiseOption = equity >= RAISE_FOR_VALUE_EQUITY;
+    const grade: NotionGrade = raiseOption && grade0 === "best" ? "inaccuracy" : grade0;
     const heroCheckedFirst = streetActs.some((a) => a.seat === r.hero && a.kind === "check");
     const p0 = r.potBefore - r.facing;
     return {
@@ -899,7 +911,8 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
       potBb: r.potBefore / bb,
       mdf: street === "river" && p0 > 0 ? p0 / (p0 + r.facing) : undefined,
       handLabel: made?.label,
-      checkRaiseOk: !ip && heroCheckedFirst && equity >= 0.65,
+      checkRaiseOk: !ip && heroCheckedFirst && raiseOption,
+      raiseOption,
     };
   }
 
