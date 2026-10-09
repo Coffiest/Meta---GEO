@@ -95,6 +95,7 @@ export interface ReviewedDecision {
       | "oddsCall"
       | "oddsFold"
       | "squeeze"
+      | "lightAce"
       | "bmcb"
       | "bmcbCheck"
       | "polarize"
@@ -123,6 +124,7 @@ export interface ReviewedDecision {
     blocked?: string[];
     handLabel?: string;
     checkRaiseOk?: boolean;
+    raiseLevel?: number;
     squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" };
     bmcb?: {
       board: "high" | "connect" | "monotone" | "paired" | "monotoneAK" | "pairedBroadway";

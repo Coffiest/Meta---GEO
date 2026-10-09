@@ -33,6 +33,7 @@ export type CoachId =
   | "oddsCall"
   | "oddsFold"
   | "squeeze"
+  | "lightAce"
   | "bmcb"
   | "bmcbCheck"
   | "polarize"
@@ -75,6 +76,8 @@ export interface CoachVerdict {
   handLabel?: string | undefined;
   /** チェックレイズでもよい場面か(コールの解説に添える)。 */
   checkRaiseOk?: boolean | undefined;
+  /** A5s・A4s のライトな 3bet/4bet/5bet のレイズの段(3 = 3bet)。 */
+  raiseLevel?: number | undefined;
   /** スクイーズの判定(db の `squeezeFacts`。オープンレンジの上位半分か・GTO のコールの手か)。 */
   squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" } | undefined;
   /** BMCB の判定(ボードの系統・手の役割・正解のアクション)。 */
@@ -569,6 +572,19 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
           potBb: pAfter / bb,
         };
       }
+    }
+  }
+
+  // 8. A5s・A4s のライトな 3bet/4bet/5bet(オールイン含む)は、コミットしていなければ絶妙手(オーナー指示)。
+  //    コミットは上の 2. が先に大悪手で返している。
+  if (street === "preflop" && (isRaiseLike || kind === "allIn")) {
+    const before = (r.byStreet["preflop"] ?? []).filter((a) => a.kind === "raise" || a.kind === "allIn" || a.kind === "bet").length;
+    const hc = cards(hero.holeCards);
+    const suited = hc.length === 2 && hc[0]!.suit === hc[1]!.suit;
+    const ranks = hc.map((c) => c.rank).sort((a, b) => b - a);
+    const lightAce = suited && ranks[0] === 14 && (ranks[1] === 5 || ranks[1] === 4);
+    if (lightAce && before >= 1) {
+      return { id: "lightAce", grade: "artistic", street, raiseLevel: before + 2, handLabel: ranks[1] === 5 ? "A5s" : "A4s" };
     }
   }
 
