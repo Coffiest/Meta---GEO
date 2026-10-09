@@ -59,6 +59,8 @@ export interface ReviewedDecision {
   facingSizeBb: number | null;
   actionTaken: { kind: string; bucket: string; toAmount: number | null };
   gtoActions: GtoActionEV[] | null;
+  /** GTO Wizard の解で判定した場面(例 "vs3bet_BTN_vs_SB")。解説に 13×13 のレンジ表を出す。 */
+  gtowScene?: string | null;
   evLossBb: number | null;
   classification: Classification | null;
   actionName: string;

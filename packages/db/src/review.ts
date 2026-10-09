@@ -207,6 +207,8 @@ export interface ReviewedDecision {
   potBb: number;
   facingSizeBb: number | null;
   actionTaken: { kind: string; bucket: string; toAmount: number | null };
+  /** GTO Wizard の解で判定した場面(例 "vs3bet_BTN_vs_SB")。解説の 13×13 の表を出すのに使う。 */
+  gtowScene?: string | null;
   gtoActions: GtoActionEV[] | null;
   evLossBb: number | null;
   classification: Classification | null;
@@ -363,6 +365,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       seatIndex: heroSeat,
       effStackBb: d.effStackBb,
       potBb: d.potBb,
+      gtowScene: gtowResult?.scene ?? null,
       facingSizeBb: d.facingSizeBb,
       actionTaken: d.actionTaken,
       gtoActions,
