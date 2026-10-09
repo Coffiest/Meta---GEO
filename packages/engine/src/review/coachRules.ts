@@ -565,6 +565,55 @@ export function heroRangePercentile(params: {
   return total > 0 ? stronger / total : null;
 }
 
+/**
+ * リバーで、相手がコールしてくるレンジ(相手のレンジのうち強い方から callFrac の割合)に対する自分の勝率。
+ * シンバリューベットの判定に使う(コールされたときに 50% 以上勝てるか)。
+ */
+export function equityVsCallingRange(params: {
+  hole: readonly string[];
+  board: readonly string[];
+  role: PreflopRole;
+  history: { street: string; kind: string }[];
+  fullBoard: readonly string[];
+  callFrac: number;
+}): number | null {
+  const hole = cards(params.hole);
+  const board = cards(params.board);
+  if (hole.length !== 2 || board.length !== 5) return null;
+  const mine = evaluateBest([...hole, ...board]);
+  const deck = deckWithout([...hole, ...board]);
+  const [lo, hi] = PREFLOP_RANGE[params.role];
+  const all: { a: Card; b: Card; s: number }[] = [];
+  for (let i = 0; i < deck.length; i++) for (let j = i + 1; j < deck.length; j++) all.push({ a: deck[i]!, b: deck[j]!, s: chen(deck[i]!, deck[j]!) });
+  all.sort((x, y) => y.s - x.s);
+  const from = Math.floor(all.length * lo);
+  const to = Math.max(from + 1, Math.ceil(all.length * hi));
+  const fullBoard = cards(params.fullBoard);
+  const boardAt = (street: string) => fullBoard.slice(0, street === "flop" ? 3 : street === "turn" ? 4 : 5);
+  const range: { rank: HandRank; w: number }[] = [];
+  for (const c of all.slice(from, to)) {
+    let w = 1;
+    for (const h of params.history) w *= actionWeight(h.kind, [c.a, c.b], boardAt(h.street));
+    if (w > 0) range.push({ rank: evaluateBest([c.a, c.b, ...board]), w });
+  }
+  range.sort((x, y) => compareHandRank(y.rank, x.rank));
+  const total = range.reduce((t, c) => t + c.w, 0);
+  if (total <= 0) return null;
+  const limit = total * Math.max(0, Math.min(1, params.callFrac));
+  let acc = 0;
+  let win = 0;
+  let n = 0;
+  for (const c of range) {
+    if (acc >= limit) break;
+    const w = Math.min(c.w, limit - acc);
+    acc += w;
+    const cmp = compareHandRank(mine, c.rank);
+    win += w * (cmp > 0 ? 1 : cmp === 0 ? 0.5 : 0);
+    n += w;
+  }
+  return n > 0 ? win / n : null;
+}
+
 // ───────────────────────── ルール ─────────────────────────
 
 function boardOf(hand: CoachHand, street: string): string[] {
@@ -838,9 +887,39 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
     }
   }
 
-  // 4-3. IP のリバーのシンバリュー(ワンペアでのベット)。
-  if (street === "river" && ip && kind === "bet" && made?.rank.category === HAND_CATEGORY.onePair) {
-    return { id: "thinValue", grade: null, street, sizePct, handLabel: made.label };
+  // 4-3. IP のリバーのシンバリュー(ワンペアでのベット/チェック)。出典: ポーカーアカデミー・gametrainer・ydpoker。
+  //   相手がコールしてくるレンジ(相手のレンジの上位 MDF%)に対して 50% 以上勝てるならベット。
+  //   サイズは 1/3〜2/3 ポット。勝率 55% 以上でチェックしたら緩手(迷ったらベット)。
+  //   フロップ・ターンと打ってきたリバー(トリプルバレルの場面)は、バレルの表が判定するので対象外。
+  const barrelLine = heroBetOn(r.byStreet, "flop", r.hero) && heroBetOn(r.byStreet, "turn", r.hero);
+  if (street === "river" && ip && !barrelLine && r.facing === 0 && (kind === "bet" || kind === "check") && made?.rank.category === HAND_CATEGORY.onePair) {
+    const oppHistory: { street: string; kind: string }[] = [];
+    for (const s2 of STREETS) {
+      if (s2 === "preflop") continue;
+      for (const a of r.byStreet[s2] ?? []) if (a.seat === opp.seat) oppHistory.push({ street: s2, kind: a.kind });
+    }
+    const f = kind === "bet" ? sizePct : 0.5;
+    const eq = equityVsCallingRange({
+      hole: hero.holeCards,
+      board,
+      role: preflopRoleOf(r.byStreet, opp.seat),
+      history: oppHistory,
+      fullBoard: hand.board,
+      callFrac: 1 / (1 + f),
+    });
+    if (eq !== null) {
+      const grade: NotionGrade =
+        kind === "bet"
+          ? eq >= 0.5
+            ? sizePct >= 0.3 && sizePct <= 0.75
+              ? "best"
+              : "good"
+            : "mistake"
+          : eq >= 0.55
+            ? "inaccuracy"
+            : "best";
+      return { id: "thinValue", grade, street, sizePct: kind === "bet" ? sizePct : undefined, equity: eq, handLabel: made.label };
+    }
   }
 
   // 5-2. OOP のブロックベット(SRP)。セミナッツ(ミドルペア・フラッシュボードのツーペア)とガチナッツ。

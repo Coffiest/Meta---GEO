@@ -119,6 +119,21 @@ describe("コーチのルール", () => {
     expect(v.grade).toBe("best");
   });
 
+  it("4-3. IP のリバー: トップペアでチェックされたら、コールされても勝てるので 50% ベットは最善", () => {
+    const b = srp({ 0: ["Kd", "Js"] }, ["Kh", "8c", "4d", "2s", "7h"]);
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("turn");
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("river");
+    b.act(2, "check", null);
+    const v = judgeCoach(b.hand, b.act(0, "bet", 275))!;
+    expect(v.id).toBe("thinValue");
+    expect(v.equity!).toBeGreaterThanOrEqual(0.5);
+    expect(v.grade).toBe("best");
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);
