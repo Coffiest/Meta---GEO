@@ -60,10 +60,13 @@ export function DecisionInfoRow({
               >
                 <span className="text-[10px] font-bold">{labelOf(a.bucket)}</span>
                 <span className="ml-1 text-[10px] font-black tabular-nums">{Math.round(a.frequency * 100)}%</span>
-                <span className="ml-1 text-[8px] font-bold tabular-nums opacity-80">
-                  EV{a.evBb >= 0 ? "+" : ""}
-                  {a.evBb.toFixed(1)}
-                </span>
+                {/* GTO Wizard の解のように EV の無いデータ(全て 0)では EV を出さない。 */}
+                {chips.some((c) => c.evBb !== 0) && (
+                  <span className="ml-1 text-[8px] font-bold tabular-nums opacity-80">
+                    EV{a.evBb >= 0 ? "+" : ""}
+                    {a.evBb.toFixed(1)}
+                  </span>
+                )}
               </span>
             ))}
           </div>

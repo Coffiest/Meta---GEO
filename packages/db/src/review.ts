@@ -1,3 +1,4 @@
+import { gtowSceneOf, judgeGtow, type GtowJudgement } from "./gtowPreflop.js";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
 import { icmStageOf, normalizeCallLikeAggression, type IcmStage } from "@meta-geo/engine";
@@ -278,13 +279,29 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
     let outOfScopeReason: string | null = d.outOfScopeReason ?? null;
     let spot: PreflopSpot | null = null;
     let difficultKind: DifficultActionKind | undefined;
+    let gtowResult: GtowJudgement | null = null;
 
     const handClass = handClassLabel(d.holeCards);
 
     if (d.analyzable && handClass) {
       if (d.street === "preflop") {
         spot = detectPreflopSpot(hand, heroSeat, d.sequenceNumber);
-        if (spot.kind === "open") {
+        // GTO Wizard の解(50bb 以上)があればそれで判定する(オーナー確定)。無い場面は従来のモデル。
+        const scene = gtowSceneOf(hand, heroSeat, d.sequenceNumber, strategyPositionsOf(hand));
+        const gtow = scene
+          ? judgeGtow({
+              scene,
+              handClass,
+              effStackBb: d.effStackBb,
+              chosenKind: d.actionTaken.kind,
+              chosenBucket: d.actionTaken.bucket,
+            })
+          : null;
+        if (gtow) {
+          gtowResult = gtow;
+          gtoActions = gtow.gtoActions;
+          outOfScopeReason = null;
+        } else if (spot.kind === "open") {
           gtoActions = openGtoActions({ heroPos: d.heroPos, handClass, effStackBb: d.effStackBb });
         } else if (spot.kind === "vsJam") {
           const riskBb = Math.min(d.effStackBb, Math.max(1, d.facingSizeBb));
@@ -319,7 +336,11 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       }
     }
 
-    if (gtoActions && gtoActions.length > 0) {
+    if (gtowResult) {
+      // GTO Wizard のデータには EV が無いので、頻度で格付けする(EV 損は出さない)。
+      classification = gtowResult.classification;
+      evLossBb = null;
+    } else if (gtoActions && gtoActions.length > 0) {
       const chosenBucket = snapChosenBucket(d.actionTaken, gtoActions, spot);
       const result = classifyDecision({
         gtoActions,
