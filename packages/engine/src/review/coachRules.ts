@@ -2,6 +2,7 @@ import type { FlopClassId } from "../geo/boardClass.js";
 import { judgeFlopCb, type CbGroup, type HmTier, type SizeKey } from "./flopCb.js";
 import { judgeBmcb, type BmcbJudgement } from "./bmcb.js";
 import { readBoardTexture } from "./boardTexture.js";
+import { judgeRaisedPot, type RaisedPotJudgement } from "./raisedPot.js";
 import type { Card, Rank } from "../types/card.js";
 import { RANKS, SUITS, parseCard } from "../types/card.js";
 import { HAND_CATEGORY, compareHandRank, evaluateBest, type HandRank } from "../handEvaluator.js";
@@ -50,7 +51,8 @@ export type CoachId =
   | "riverFoldOk"
   | "flopCb"
   | "oopFlopCheck"
-  | "oopKingCb";
+  | "oopKingCb"
+  | "raisedPot";
 
 export interface CoachVerdict {
   id: CoachId;
@@ -82,6 +84,8 @@ export interface CoachVerdict {
   raiseLevel?: number | undefined;
   /** スクイーズの判定(db の `squeezeFacts`。オープンレンジの上位半分か・GTO のコールの手か)。 */
   squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" } | undefined;
+  /** 3bet / 4bet ポットのフロップの判定(raisedPot.ts)。 */
+  raisedPot?: Omit<RaisedPotJudgement, "grade"> | undefined;
   /** BMCB の判定(ボードの系統・手の役割・正解のアクション)。 */
   bmcb?: Omit<BmcbJudgement, "grade"> | undefined;
   /** フロップの CB(オリジナル・IP)。ボードの分類とレンジのサイズ配分、手の振り分け。 */
@@ -710,6 +714,42 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
         sizePct: kind === "bet" ? sizePct : undefined,
         handLabel: monotone ? "モノトーン" : "Jハイ以下",
       };
+    }
+  }
+
+  // 9. 3bet ポット・4bet ポットのフロップ(スライドゼミ4 + GTO Wizard)。上の 7.(オーナー指示)が優先。
+  {
+    const pfRaises = (r.byStreet["preflop"] ?? []).filter((a) => a.kind === "raise" || a.kind === "allIn").length;
+    const spr = r.potBefore > 0 ? Math.min(r.heroRemaining, opp.remaining) / (r.potBefore - r.facing) : 0;
+    const othersChecked = streetActs.every((a) => a.kind === "check");
+    const heroActed = streetActs.some((a) => a.seat === r.hero);
+    let spot: "ip3bettor" | "oop3bettor" | "oop4betCaller" | "vsDonkJam" | null = null;
+    if (street === "flop" && !heroActed && r.facing === 0 && othersChecked && (kind === "check" || kind === "bet" || kind === "allIn")) {
+      if (pfRaises === 2 && r.preflopRaiser === r.hero) spot = ip ? "ip3bettor" : "oop3bettor";
+      else if (pfRaises === 3 && r.preflopRaiser !== r.hero && !ip && firstToAct) spot = "oop4betCaller";
+    }
+    if (
+      street === "flop" &&
+      pfRaises === 3 &&
+      r.preflopRaiser === r.hero &&
+      r.facing > 0 &&
+      (kind === "call" || kind === "fold") &&
+      streetActs.some((a) => a.seat === opp.seat && a.kind === "allIn")
+    ) {
+      spot = "vsDonkJam";
+    }
+    if (spot) {
+      const j = judgeRaisedPot({
+        spot,
+        hole: hero.holeCards,
+        flop: board,
+        spr,
+        action: { kind: kind as "check" | "bet" | "allIn" | "call" | "fold", sizePct },
+      });
+      if (j && !(spot === "vsDonkJam" && j.board !== "tenOrLower")) {
+        const { grade, ...rest } = j;
+        return { id: "raisedPot", grade, street, sizePct: kind === "bet" ? sizePct : undefined, handLabel: made?.label, raisedPot: rest };
+      }
     }
   }
 

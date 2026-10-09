@@ -111,6 +111,7 @@ export interface ReviewedDecision {
       | "flopCb"
       | "oopFlopCheck"
       | "oopKingCb"
+      | "raisedPot"
       | "riverMdf";
     grade: Classification | null;
     street: string;
@@ -126,6 +127,13 @@ export interface ReviewedDecision {
     handLabel?: string;
     checkRaiseOk?: boolean;
     raiseLevel?: number;
+    raisedPot?: {
+      spot: "ip3bettor" | "oop3bettor" | "oop4betCaller" | "vsDonkJam";
+      board: string;
+      deep: boolean;
+      correct: string;
+      handRole: string;
+    };
     squeeze?: { inTopHalf: boolean; inCallRange: boolean; correct: "squeeze" | "call" | "fold" };
     bmcb?: {
       board: "high" | "connect" | "monotone" | "paired" | "monotoneAK" | "pairedBroadway";

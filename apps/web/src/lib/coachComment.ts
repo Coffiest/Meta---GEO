@@ -127,6 +127,8 @@ export function coachComment(c: CoachData): CoachNote {
       return bmcbComment(c);
     case "squeeze":
       return squeezeComment(c);
+    case "raisedPot":
+      return raisedPotComment(c);
     case "oopKingCb": {
       const dryK = c.handLabel === "dryK";
       const bet = c.sizePct != null;
@@ -556,5 +558,62 @@ function riverMdfComment(c: CoachData): CoachNote {
       "\n\nきみのレンジ(プリフロップとここまでのアクションから見積もったもの)を強い順に並べて、上位 MDF% に入る手は守り、入らない手は降りる。\n" +
       "守る手の境目にいる手は、相手のナッツ級をブロックしているものを優先しよう。境目からの差が 10% 未満の間違いは悪手、10% 以上は大悪手だよ。",
     sourceUrl: SRC.mdf,
+  };
+}
+
+const RP_SPOT: Record<string, string> = {
+  ip3bettor: "3bet ポットの IP の 3ベッター",
+  oop3bettor: "3bet ポットの OOP の 3ベッター",
+  oop4betCaller: "4bet ポットの OOP のコーラー",
+  vsDonkJam: "4bet ポットでドンクオールインを受けた側",
+};
+const RP_BOARD: Record<string, string> = {
+  aceHigh: "A ハイ",
+  twoBroadway: "ブロードウェイ2枚",
+  lowConnect: "ロー・コネクト",
+  kingHigh: "K ハイ",
+  amm: "A-M-M / Q-M-M",
+  tenOrLower: "T ハイ以下",
+  other: "その他",
+};
+const RP_CORRECT: Record<string, string> = {
+  check: "チェック",
+  smallBet: "安ベット(33% 以下)",
+  halfBet: "ハーフ(40〜60%)",
+  bigBet: "大きいベット(75〜100%)",
+  jam: "オールイン",
+  betAny: "ベット(絶対に打つ)",
+  checkOrSmall: "チェックか安ベット",
+  call: "コール",
+  fold: "フォールド",
+};
+
+/** 3bet / 4bet ポットのフロップ(スライドゼミ4 + GTO Wizard)。 */
+function raisedPotComment(c: CoachData): CoachNote {
+  const j = c.raisedPot;
+  const spot = j ? RP_SPOT[j.spot] ?? "" : "";
+  const board = j ? RP_BOARD[j.board] ?? "" : "";
+  const correct = j ? RP_CORRECT[j.correct] ?? j.correct : "";
+  const role = j?.handRole ?? "";
+  const depth = j?.spot === "oop3bettor" || j?.spot === "ip3bettor" ? (j.deep ? "(SPR 2.5 以上の深いスタック)" : "(SPR 2.5 未満の浅いスタック)") : "";
+  const summary =
+    c.grade === "best"
+      ? `${spot}${depth}、${board}のボードで「${role}」は${correct}。正解だよ、ナイス！`
+      : c.grade === "inaccuracy"
+        ? `${spot}${depth}、${board}のボードで「${role}」は${correct}が正解。打つのはいいけど、サイズを合わせよう。`
+        : `${spot}${depth}、${board}のボードで「${role}」は${correct}が正解だよ。`;
+  return {
+    title: "3bet ポット・4bet ポットのフロップ",
+    summary,
+    points: [
+      { label: "場面", text: spot + depth },
+      { label: "ボード", text: board },
+      { label: "この手は", text: `${role} → ${correct}` },
+    ],
+    body:
+      "【3bet ポットの IP(3ベッター)】スタックが浅いほど安く広く打つ。A ハイ・ブロードウェイ2枚のボードはチェックか安ベットで、ポケット・A ヒットの弱いキッカー・セカンドペア・ボトムペアはチェック。深いときの 2BW はハーフでポットを大きくしてリバーのオールインを目指す。ロー・コネクトボードはセット・ストレート・2P・99〜QQ を必ず打つ。ES 40bb 以下ではポラライズしない。\n" +
+      "【3bet ポットの OOP(3ベッター)】OOP の方がレンジが強く、SPR が低いほどポジションの不利が薄れるので、高い頻度で安く CB を打つ。浅いローボードはワンペアでジャム、オーバーペアとエアーは安ベット。深いローボードはチェック中心で、まくられやすい 77〜TT だけ 75〜100%。A ハイはレンジで安ベット(深いときはポケットと弱い A をチェック)。\n" +
+      "【4bet ポットの OOP(コーラー)】A-M-M・Q-M-M はとても安いドンク、K ハイはレンジチェック、T ハイ以下はワンペア・オーバーペア・ストレートドローでたまにドンクオールイン。ローボードのドンクオールインには、ワンペア以上と AK はコールする。\n" +
+      "SPR 2.5 未満を浅い、2.5 以上を深いとしている。",
   };
 }
