@@ -166,6 +166,16 @@ export function extractHeroDecisions(rawHand: ExtractHand, heroUserId: string): 
       const priorHand = handContribution.get(action.seatIndex) ?? 0;
       const startingStack = startingStackBySeat.get(action.seatIndex) ?? 0;
       const behindStack = startingStack - priorHand - priorStreet;
+      // エフェクティブスタック = 自分の残りと、まだ残っている相手のうち一番多い残りの小さい方。
+      // 以前は自分の残りだけを使っていて、相手が短いときに ES を大きく表示・判定していた(オーナー指摘)。
+      let maxOpponentBehind = 0;
+      for (const [seat, start] of startingStackBySeat) {
+        if (seat === action.seatIndex || foldedSeats.has(seat)) continue;
+        // ストリート開始時点の残りで比べる(ブラインドなど、このストリートに入れた額で差が出ないように)。
+        const atStreetStart = start - (handContribution.get(seat) ?? 0);
+        maxOpponentBehind = Math.max(maxOpponentBehind, atStreetStart);
+      }
+      const effectiveBehind = Math.max(0, Math.min(startingStack - priorHand, maxOpponentBehind) - priorStreet);
       const isPreflop = currentStreet === "preflop";
 
       // facing(コールに必要な額) = 他席の現ストリート最大拠出 - hero拠出。
@@ -206,7 +216,7 @@ export function extractHeroDecisions(rawHand: ExtractHand, heroUserId: string): 
         street: currentStreet,
         heroPos: positions.get(heroSeat) ?? "",
         relPos,
-        effStackBb: behindStack / bb,
+        effStackBb: effectiveBehind / bb,
         potBb: action.potBefore / bb,
         facingSizeBb: facing / bb,
         holeCards: heroSeatEntry.holeCards,
