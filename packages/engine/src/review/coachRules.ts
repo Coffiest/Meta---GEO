@@ -526,6 +526,45 @@ export function estimateEquityVsRange(params: {
   return win / samples;
 }
 
+/**
+ * リバーで、自分の手が自分のレンジ(プリフロップの役割 × ポストフロップの自分のアクションの重み)の上位何割にいるか(0〜1)。
+ * 小さいほど強い。MDF と比べて、守る(コール/レイズ)側の手かを判定する。
+ */
+export function heroRangePercentile(params: {
+  hole: readonly string[];
+  board: readonly string[];
+  role: PreflopRole;
+  history: { street: string; kind: string }[];
+  fullBoard: readonly string[];
+}): number | null {
+  const hole = cards(params.hole);
+  const board = cards(params.board);
+  if (hole.length !== 2 || board.length !== 5) return null;
+  const mine = evaluateBest([...hole, ...board]);
+  const deck = deckWithout(board);
+  const [lo, hi] = PREFLOP_RANGE[params.role];
+  const all: { a: Card; b: Card; s: number }[] = [];
+  for (let i = 0; i < deck.length; i++) for (let j = i + 1; j < deck.length; j++) all.push({ a: deck[i]!, b: deck[j]!, s: chen(deck[i]!, deck[j]!) });
+  all.sort((x, y) => y.s - x.s);
+  const from = Math.floor(all.length * lo);
+  const to = Math.max(from + 1, Math.ceil(all.length * hi));
+  const fullBoard = cards(params.fullBoard);
+  const boardAt = (street: string) => fullBoard.slice(0, street === "flop" ? 3 : street === "turn" ? 4 : 5);
+  let total = 0;
+  let stronger = 0;
+  for (const c of all.slice(from, to)) {
+    let w = 1;
+    for (const h of params.history) w *= actionWeight(h.kind, [c.a, c.b], boardAt(h.street));
+    if (w <= 0) continue;
+    total += w;
+    const cmp = compareHandRank(evaluateBest([c.a, c.b, ...board]), mine);
+    if (cmp > 0) stronger += w;
+    else if (cmp === 0) stronger += w / 2;
+  }
+  // 自分の手そのものはレンジに入っていない(デッキから外していない手札も含む)ので、そのまま割合にする。
+  return total > 0 ? stronger / total : null;
+}
+
 // ───────────────────────── ルール ─────────────────────────
 
 function boardOf(hand: CoachHand, street: string): string[] {
@@ -689,24 +728,38 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
     if (doubleBarrel || tripleBarrel) return { id: "polarize", grade: "blunder", street, sizePct };
   }
 
-  // 5-3 / 5-4. リバーでベットに直面。
+  // 5-3 / 5-4. リバーでベットに直面。MDF と、自分のレンジの中での手の位置で判定する(オーナー指示)。
+  //   自分の手が自分のレンジの上位 MDF% に入っていれば守る(コール/レイズ)側、入っていなければ降りる側。
+  //   外したら、境目からの差が 10% 未満で悪手、10% 以上で大悪手。ナッツ級のブロッカー(絶妙手)の判定は先に見る。
   if (street === "river" && r.facing > 0 && made) {
     const p0 = r.potBefore - r.facing;
     const mdf = p0 > 0 ? p0 / (p0 + r.facing) : 0;
     const examples = nutExamples(hand.board.slice(0, 5));
     const blocked = blockedExamples(hero.holeCards, examples);
     const candidate = (made.aceHigh || made.boardPair) && blocked.length > 0;
-    const base = { street, mdf, nutExamples: examples, blocked, handLabel: made.label };
+    const myHistory: { street: string; kind: string }[] = [];
+    for (const s2 of STREETS) {
+      if (s2 === "preflop") continue;
+      for (const a of r.byStreet[s2] ?? []) if (a.seat === r.hero) myHistory.push({ street: s2, kind: a.kind });
+    }
+    const pctl = heroRangePercentile({
+      hole: hero.holeCards,
+      board: hand.board.slice(0, 5),
+      role: preflopRoleOf(r.byStreet, r.hero),
+      history: myHistory,
+      fullBoard: hand.board,
+    });
+    const inMdf = pctl !== null && pctl <= mdf;
+    const gapGrade = (): NotionGrade => (pctl === null ? "inaccuracy" : Math.abs(pctl - mdf) < 0.1 ? "mistake" : "blunder");
+    const base = { street, mdf, nutExamples: examples, blocked, handLabel: made.label, equity: pctl === null ? undefined : 1 - pctl };
     // リバーはオッズではなく MDF とブロッカーで考える(オーナー指示)。
     if (kind === "call" && blocked.length > 0) return { id: "riverCatch", grade: "artistic", ...base };
-    // ナッツ級を1つも抑えていないコールは、守る順番が後ろの手 → 降りる候補(緩手)。
-    if (kind === "call") return { id: "riverCallNoBlock", grade: "inaccuracy", ...base };
     if ((kind === "raise" || kind === "allIn") && candidate) return { id: "riverRaise", grade: "artistic", ...base };
     if (kind === "fold" && candidate) return { id: "riverRaiseMissed", grade: "inaccuracy", ...base };
-    // ナッツ級を抑えているのに降りた → コールで守る候補だった(緩手)。抑えていなければ降りてよい。
     if (kind === "fold" && blocked.length > 0) return { id: "riverFoldBlocker", grade: "inaccuracy", ...base };
-    if (kind === "fold") return { id: "riverFoldOk", grade: null, ...base };
-    return { id: "riverMdf", grade: null, ...base };
+    if (kind === "call") return { id: "riverCallNoBlock", grade: inMdf ? "best" : gapGrade(), ...base };
+    if (kind === "fold") return { id: "riverFoldOk", grade: inMdf ? gapGrade() : "best", ...base };
+    return { id: "riverMdf", grade: inMdf ? "best" : gapGrade(), ...base };
   }
 
   // 3. ベットへのコール/フォールド: オッズの式と推定勝率。フォールドも同じ式で、降りて良かったかを言う(オーナー指示)。

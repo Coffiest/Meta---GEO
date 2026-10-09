@@ -104,6 +104,21 @@ describe("コーチのルール", () => {
     expect(["mistake", "blunder"]).toContain(v.grade);
   });
 
+  it("5-3. リバー: ナッツ級をブロックしない弱い手で降りるのは、MDF の外なら最善", () => {
+    const b = srp({ 2: ["3d", "2c"] }, ["Kh", "Qh", "Jc", "8d", "7s"]);
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("turn");
+    b.act(2, "check", null);
+    b.act(0, "check", null);
+    b.street("river");
+    b.act(2, "check", null);
+    b.act(0, "bet", 400);
+    const v = judgeCoach(b.hand, b.act(2, "fold", null))!;
+    expect(v.id).toBe("riverFoldOk");
+    expect(v.grade).toBe("best");
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);
