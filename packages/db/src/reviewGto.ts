@@ -369,3 +369,51 @@ export function allInCallGtoActions(params: {
     { bucket: "fold", frequency: 1 - callFreq, evBb: 0 },
   ];
 }
+
+// ============================================================================
+// スクイーズ(オープン + コールのあとに自分がレイズできる場面)
+// ============================================================================
+
+/**
+ * スクイーズの判定材料(オーナー指示: スクイーズはオープンレンジの半分くらいの強さが目安)。
+ *  - inTopHalf: オープナーのレンジを強い順(レンジ自身に対する勝率)に並べ、コンボ数で上位半分に入るか
+ *  - inCallRange: オープンに対する GTO の表でコールが最も多いか(スクイーズしないならコールに回す手か)
+ * 表が無いポジション・スタックなら null。
+ */
+export function squeezeFacts(params: {
+  openerPos: string;
+  heroPos: string;
+  handClass: string;
+  effStackBb: number;
+}): { inTopHalf: boolean; inCallRange: boolean } | null {
+  if (!eqMatrixAvailable()) return null;
+  const band = bandOfStack(params.effStackBb);
+  const openPos = PREFLOP_BANDS[band]?.[params.openerPos];
+  const h = EV_IDX[params.handClass];
+  if (!openPos?.raise || h === undefined) return null;
+  const openArr = expandTo169(openPos.raise);
+  const members: { i: number; eq: number }[] = [];
+  for (let i = 0; i < EV_N; i++) if (openArr[i]! > 0) members.push({ i, eq: eqVsRange(i, openArr) });
+  if (members.length === 0) return null;
+  members.sort((a, b) => b.eq - a.eq);
+  const half = rangeMass(openArr) / 2;
+  const heroEq = eqVsRange(h, openArr);
+  // 上位半分の境目の勝率。自分の手がそれ以上なら上位半分(オープンレンジ外の手でも強ければ入る)。
+  let acc = 0;
+  let cut = members[members.length - 1]!.eq;
+  for (const m of members) {
+    acc += EV_P[m.i]!;
+    if (acc >= half) {
+      cut = m.eq;
+      break;
+    }
+  }
+  const def = defenseGtoActions({
+    openerPos: params.openerPos,
+    heroPos: params.heroPos,
+    handClass: params.handClass,
+    effStackBb: params.effStackBb,
+  });
+  const top = def?.reduce((a, b) => (b.frequency > a.frequency ? b : a));
+  return { inTopHalf: heroEq >= cut, inCallRange: top?.bucket === "call" };
+}

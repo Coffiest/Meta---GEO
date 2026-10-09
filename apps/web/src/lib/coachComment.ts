@@ -125,6 +125,8 @@ export function coachComment(c: CoachData): CoachNote {
     case "bmcb":
     case "bmcbCheck":
       return bmcbComment(c);
+    case "squeeze":
+      return squeezeComment(c);
     case "polarize":
       return {
         title: "ポラライズ(バレルは大きく)",
@@ -471,5 +473,34 @@ function bmcbComment(c: CoachData): CoachNote {
       ...(bet ? [{ label: "サイズ", text: size }] : []),
     ],
     body: BMCB_BODY,
+  };
+}
+
+/** スクイーズ(オープン + コールのあと)→ オープンレンジの上位半分か・コールの手か・降りる手か。 */
+function squeezeComment(c: CoachData): CoachNote {
+  const q = c.squeeze;
+  const good = c.grade === "best";
+  const correctText = q?.correct === "squeeze" ? "スクイーズ" : q?.correct === "call" ? "コール" : "フォールド";
+  let summary: string;
+  if (!q) summary = "オープンとコールが入った、スクイーズできる場面だね。";
+  else if (good && q.correct === "squeeze") summary = "相手のオープンレンジの上位半分に入る強さだから、スクイーズで正解！ナイススクイーズ！";
+  else if (good && q.correct === "call") summary = "スクイーズするには、相手のオープンレンジの上位半分の強さが必要。このハンドは届かないけど、GTO ではコールする手だから、コールで正解だよ。";
+  else if (good) summary = "スクイーズするには、相手のオープンレンジの上位半分の強さが必要。このハンドは届かないし、コールする手でもないから、フォールドで正解だよ。";
+  else if (q.correct === "squeeze") summary = "このハンドは相手のオープンレンジの上位半分に入る強さだよ。ここはスクイーズしよう。";
+  else if (q.correct === "call") summary = "このハンドは相手のオープンレンジの上位半分に届かないから、スクイーズには広すぎるんだ。GTO ではコールする手だから、コールしよう。";
+  else summary = "このハンドは相手のオープンレンジの上位半分に届かないし、コールする手でもないんだ。ここは降りよう。";
+  return {
+    title: "スクイーズの基準",
+    summary,
+    points: [
+      { label: "オープンレンジの上位半分", text: q?.inTopHalf ? "入る" : "入らない" },
+      { label: "GTO のコールの手", text: q?.inCallRange ? "そう" : "ちがう" },
+      { label: "正解", text: correctText },
+    ],
+    body:
+      "スクイーズ = オープンにコールが入ったあとの 3bet。コーラーのレンジは「3bet するほど強くない手」でキャップされているので通りやすい。\n" +
+      "目安は、オープナーのレンジの上位半分くらいの強さ。それより弱い手で打つと、オープナーとコーラーの2人を相手に広すぎるスクイーズになる。\n" +
+      "届かない手は、GTO でコールの手ならコール、そうでなければ降りる。A5s・A4s はブロッカーとして、いつでもライトにスクイーズできる。\n" +
+      "ショートスタックのときは、スクイーズ(オールイン)の範囲が広くなるよ。",
   };
 }

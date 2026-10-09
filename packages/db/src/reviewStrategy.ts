@@ -25,7 +25,8 @@ import {
   type StrategyReason,
   type StrategyTag,
 } from "@meta-geo/engine";
-import { SEAT_COUNT, type ExtractHand } from "./reviewExtract.js";
+import { SEAT_COUNT, strategyPositionsOf, type ExtractHand } from "./reviewExtract.js";
+import { squeezeFacts } from "./reviewGto.js";
 import { handClassLabel } from "./preflopBaseline.js";
 import type { ReviewedDecision } from "./review.js";
 
@@ -248,7 +249,7 @@ export function attachCoach(hand: ExtractHand, decisions: ReviewedDecision[]): v
   };
   for (const d of decisions) {
     try {
-      d.coach = judgeCoach(input, d.sequenceNumber);
+      d.coach = judgeCoach(input, d.sequenceNumber) ?? judgeSqueeze(hand, d);
       // 降りた判定(オッズ)は、チェックレイズの表で良し悪しが決まっている手(バリュー・ブラフ候補)には使わない。
       // 表が優先(オーナーの戦略)。表に無い手(foldNotListed)と、表の無い局面にだけ使う。
       const spot = d.strategy?.spot;
@@ -302,4 +303,50 @@ function applyArticleGrade(d: ReviewedDecision): void {
   if (!a?.grade) return;
   if (a.keepGto && d.classification !== null) return;
   d.classification = a.grade;
+}
+
+/**
+ * スクイーズの場面(オープン1回 + コール1人以上のあとに自分の番。自分はまだ動いていない)の判定(オーナー指示)。
+ * スクイーズはオープンレンジの上位半分くらいの強さが目安。上位半分ならスクイーズ、届かなくても GTO でコールの手ならコール、
+ * どちらでもなければフォールド。
+ */
+function judgeSqueeze(hand: ExtractHand, d: ReviewedDecision): CoachVerdict | null {
+  if (d.street !== "preflop") return null;
+  let opener: number | null = null;
+  let openerAllIn = false;
+  let callers = 0;
+  for (const a of hand.actions) {
+    if (a.sequenceNumber >= d.sequenceNumber) break;
+    if (a.street !== "preflop" || a.kind === "postBlind" || a.kind === "postAnte") continue;
+    if (a.seatIndex === d.seatIndex && a.kind !== "fold") return null;
+    if (a.kind === "bet" || a.kind === "raise" || a.kind === "allIn") {
+      if (opener !== null) return null;
+      opener = a.seatIndex;
+      openerAllIn = a.kind === "allIn";
+    } else if (a.kind === "call" && opener !== null) callers++;
+  }
+  if (opener === null || openerAllIn || callers === 0) return null;
+  const seat = hand.seats.find((s) => s.seatIndex === d.seatIndex);
+  const handClass = seat ? handClassLabel(seat.holeCards) : null;
+  const pos = strategyPositionsOf(hand);
+  const openerPos = pos.get(opener);
+  const heroPos = pos.get(d.seatIndex);
+  if (!handClass || !openerPos || !heroPos) return null;
+  const f = squeezeFacts({ openerPos, heroPos, handClass, effStackBb: d.effStackBb });
+  if (!f) return null;
+  const kind = d.actionTaken.kind;
+  const action = kind === "raise" || kind === "bet" || kind === "allIn" ? "squeeze" : kind === "call" ? "call" : kind === "fold" ? "fold" : null;
+  if (!action) return null;
+  const correct = f.inTopHalf ? "squeeze" : f.inCallRange ? "call" : "fold";
+  const grade: NotionGrade =
+    action === correct
+      ? "best"
+      : correct === "squeeze"
+        ? action === "call"
+          ? "inaccuracy"
+          : "mistake"
+        : correct === "call"
+          ? "inaccuracy"
+          : "mistake";
+  return { id: "squeeze", grade, street: "preflop", squeeze: { ...f, correct } };
 }
