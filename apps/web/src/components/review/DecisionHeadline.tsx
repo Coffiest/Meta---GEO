@@ -131,8 +131,12 @@ export function DecisionHeadline({
   // Notionの評価はすぐ出るが、GTOのEV損はソルバー待ち。バッジと解説を先に出し、EV損は後から埋まる。
   const gtoPending = c !== null && decision.outOfScopeReason === "solving";
 
+  // マルチウェイ(3人以上)のポストフロップは、ヘッズアップの解説に「1段階下がる」を添える(オーナー指示。判定は変えない)。
+  const multiway = decision.street !== "preflop" && !decision.analyzable;
   const line = note
-    ? note.summary
+    ? multiway && !note.summary.includes("マルチウェイ")
+      ? `ヘッズアップなら、${note.summary}ただしマルチウェイではベットサイズと頻度が1段階下がるよ！`
+      : note.summary
     : c
       ? GRADE_LINE[c]
       : solving
