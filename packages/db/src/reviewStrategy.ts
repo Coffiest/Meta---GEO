@@ -249,6 +249,12 @@ export function attachCoach(hand: ExtractHand, decisions: ReviewedDecision[]): v
   for (const d of decisions) {
     try {
       d.coach = judgeCoach(input, d.sequenceNumber);
+      // 降りた判定(オッズ)は、チェックレイズの表で良し悪しが決まっている手(バリュー・ブラフ候補)には使わない。
+      // 表が優先(オーナーの戦略)。表に無い手(foldNotListed)と、表の無い局面にだけ使う。
+      const spot = d.strategy?.spot;
+      if (d.coach?.id === "oddsFold" && spot && !(spot.kind === "checkRaise" && spot.situation === "foldNotListed")) {
+        d.coach = null;
+      }
     } catch (err) {
       console.error("[review] coach rule failed:", err);
       d.coach = null;
