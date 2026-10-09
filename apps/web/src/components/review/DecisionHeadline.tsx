@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionInfoRow } from "@/components/review/DecisionInfoRow";
 import { PowerNumberTable } from "@/components/review/PowerNumberTable";
+import { GtowRangeTable } from "@/components/review/GtowRangeTable";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { useSpeaker } from "@/lib/speakerContext";
 import { articleRuleById, fillTemplate, isFallbackRule, type TemplateVars } from "@/lib/articleRules";
@@ -123,6 +124,11 @@ export function DecisionHeadline({
     const knowledge = context ? matchKnowledge(decision, REVIEW_KNOWLEDGE, facts)[0] : undefined;
     return preflop ?? knowledge ?? articleNote;
   })();
+  // GTO Wizard の解で判定したプリフロップは、そのレンジの 13×13 の表を「詳しく見る」に出す(オーナー指示)。
+  const gtowTable =
+    decision.gtowScene && note && !note.extra ? (
+      <GtowRangeTable scene={decision.gtowScene} hand={handLabel(context?.heroHoleCards ?? []) ?? undefined} />
+    ) : undefined;
   const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
   // GTOのEV損は、バッジの根拠(プリフロップ=GTO / ポストフロップ=Notion)に関わらず出す。
@@ -185,7 +191,7 @@ export function DecisionHeadline({
           title={note?.title}
           body={note?.body}
           sourceUrl={note && "sourceUrl" in note ? note.sourceUrl : undefined}
-          extra={note?.extra}
+          extra={note?.extra ?? gtowTable}
         />
       </div>
       {gtoLabelOf ? (

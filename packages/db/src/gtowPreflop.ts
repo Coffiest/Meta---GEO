@@ -5,7 +5,7 @@ import type { ExtractHand } from "./reviewExtract.js";
 import type { GtoActionEV } from "./reviewClassify.js";
 
 /**
- * GTO Wizard のプリフロップの解(オーナーが画面から数値化。`data/gtow/<スタック>/<場面>.json`)で
+ * GTO Wizard のプリフロップの解(オーナーが画面から数値化。`packages/engine/data/gtow/<スタック>/<場面>.json`。web の解説の表も同じファイルを読む)で
  * プリフロップの決定を判定する(オーナー確定 2026-10-09)。
  *
  *  - データは MTT・ChipEV・8max の解を LJ 以降の6人として使う。アプリの「UTG」はデータの「LJ」。
@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 function loadScene(stack: number, scene: string): Record<string, Freq> | null {
   const key = `${stack}/${scene}`;
   if (cache.has(key)) return cache.get(key)!;
-  const file = join(here, "data", "gtow", String(stack), `${scene}.json`);
+  const file = join(here, "..", "..", "engine", "data", "gtow", String(stack), `${scene}.json`);
   let hands: Record<string, Freq> | null = null;
   try {
     if (existsSync(file)) hands = (JSON.parse(readFileSync(file, "utf8")) as { hands: Record<string, Freq> }).hands;
