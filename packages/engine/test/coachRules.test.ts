@@ -99,7 +99,7 @@ describe("コーチのルール", () => {
     expect(judgeCoach(b.hand, seq)?.id).not.toBe("polarize");
   });
 
-  it("4-1. BMCB: IP のコーラーが、レイザーのチェックを見て 33% → 最善", () => {
+  it("4-1. BMCB: ハイボード(K62)のローポケは、80% の大きい BMCB で最善(スライド)", () => {
     // CO(席5)オープン → BTN(席0)コール → ブラインドは降りる。
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 0: ["7d", "7c"] }, ["Kh", "6s", "2d", "9c", "3h"]);
     b.act(3, "fold", null);
@@ -110,9 +110,10 @@ describe("コーチのルール", () => {
     b.act(2, "fold", null);
     b.street("flop");
     b.act(5, "check", null);
-    const seq = b.act(0, "bet", 220);
+    const seq = b.act(0, "bet", 520);
     const v = judgeCoach(b.hand, seq)!;
     expect(v.id).toBe("bmcb");
+    expect(v.bmcb).toEqual({ board: "high", hand: "bluff", correct: "bigBet" });
     expect(v.grade).toBe("best");
   });
 

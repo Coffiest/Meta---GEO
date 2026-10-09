@@ -122,35 +122,9 @@ export function coachComment(c: CoachData): CoachNote {
           "勝率が足りているのに降りると、取れたはずのポットを捨てることになる。差が 10% 未満なら悪手、10% 以上なら大悪手だよ。",
       };
     }
-    case "bmcb": {
-      const size = pct(c.sizePct);
-      const summary =
-        c.grade === "best"
-          ? `相手(プリフロップのレイザー)の CB のチェックを見て、IP から ${size} のベット。これが「BMCB」だね。安いサイズでばっちり！`
-          : c.grade === "excellent"
-            ? `相手の CB のチェックを見て IP から打つ「BMCB」。打つのはいいけど、BMCB は 1/3 ポットくらいの安いサイズが主流だよ。`
-            : `相手の CB のチェックを見て IP から打つ「BMCB」。打つのはいいけど、${size} は大きすぎるかな。1/3 ポットくらいで十分だよ。`;
-      return {
-        title: "BMCB(ベット・トゥ・ミスド CB)",
-        summary,
-        points: [{ label: "サイズ", text: `${size}(主流は 1/3 ポット)` }],
-        body:
-          "BMCB は「Bet to Missed CB」。プリフロップのレイザー(アグレッサー)がフロップで CB を打たずにチェックしたのを見て、IP のコーラーがベットすること。\n" +
-          "IP でコールした側は、相手のアクションを見てから動けるのが強み。OOP のレイザーがチェックするボード(ドライ・ローボードなど)では、レイザーは強い手でもチェックを混ぜるので、IP は 6 割くらいの頻度で、ほとんど 1/3 ポットの安いサイズで打つ。\n" +
-          "当たっている手はバリューに、当たっていない手でも、コーラー側のレンジはポケットペアが多いので相手のハイカードを安く降ろせる。\n" +
-          "これは OOP が先に打つ「ドンクベット」とは別物。相手が BMCB を多用するなら、強い手でチェックしてチェックレイズを返すのが対策になるよ。",
-        sourceUrl: SRC.bmcb,
-      };
-    }
+    case "bmcb":
     case "bmcbCheck":
-      return {
-        title: "BMCB を打てる場面",
-        summary: "相手(レイザー)が CB を打たずにチェックしたね。IP のこの場面は「BMCB」で 1/3 ポットくらいを打てる場面だよ。チェックバックも混ぜていいけど、6 割くらいは打っていくのが目安。",
-        body:
-          "BMCB は「Bet to Missed CB」。プリフロップのレイザーがフロップで CB を打たずにチェックしたのを見て、IP のコーラーがベットすること。\n" +
-          "レイザーがチェックするボードでは、IP は 6 割くらいの頻度で、ほとんど 1/3 ポットの安いサイズで打つ。当たっていない手でも、相手のハイカードを安く降ろせるよ。",
-        sourceUrl: SRC.bmcb,
-      };
+      return bmcbComment(c);
     case "polarize":
       return {
         title: "ポラライズ(バレルは大きく)",
@@ -424,5 +398,78 @@ function flopCbComment(c: CoachData): CoachNote {
       `3. この手の振り分け: ${cbGroupText(f, hand)}\n` +
       "サイズの候補は 33 / 50 / 75 / 125% の4つ。安いサイズが中心のボードはレンジの頻度を全部の手に配ってから上げ下げし、全サイズを混ぜるボードは A type(全サイズ混合)/ B type(最大サイズ中心)/ C type(安いベットかチェック)に分けて組み立てる。\n" +
       "出典: Amu「Flop CBの基礎 (BTN vs BB)」(note)。GTO Wizard 100bb のソリューションを覚えやすく整理したもの。BTN vs BB 以外でも、オリジナルレイザーが IP のシングルレイズドポットに当てはめている。",
+  };
+}
+
+const BMCB_BOARD: Record<string, string> = {
+  high: "ハイボード",
+  connect: "コネクト・ローボード",
+  monotone: "モノトーンのボード",
+  paired: "ペアボード",
+  monotoneAK: "A・K ハイのモノトーン",
+  pairedBroadway: "全部ブロードウェイのペアボード",
+};
+
+const BMCB_BODY =
+  "BMCB は、プリフロップのレイザーがフロップで CB を打たずにチェックしたのを見て、IP のコーラーが打つベット。\n" +
+  "【ハイボード系】ポラライズして 80% くらいの大きいサイズ。バリューは TPTK 以上、ブラフはボトムヒット・ローポケ・ガットショット(ガットショットはターンで止める)。それ以外はチェック。ベット頻度は全体で約 20%。\n" +
+  "【コネクト・ロー系】レンジで 33% を頻度 60%。2オーバー(ペアもドローも無い手)は全部チェックに回す。\n" +
+  "【モノトーン系】ハンドに関係なく 33% を頻度 50%。ただし A・K ハイのモノトーンはレンジチェック。\n" +
+  "【ペアボード系】ハンドに関係なく 33% を頻度 60%。ただし全部ブロードウェイのペアボード(AKK など)はレンジチェック。\n" +
+  "CB をよく打つ相手がチェックしてきたら BMCB を打とう。チェックが多い相手がチェックしたら BMCB は控えよう。";
+
+/** BMCB の判定(スライド「BMCB簡易戦略」)→ 打つべきだったか・サイズを言う。 */
+function bmcbComment(c: CoachData): CoachNote {
+  const j = c.bmcb;
+  const bet = c.id === "bmcb";
+  const size = pct(c.sizePct);
+  const board = j ? BMCB_BOARD[j.board] ?? "このボード" : "このボード";
+  const hand = c.handLabel ?? "この手";
+  const good = c.grade === "best" || c.grade === "excellent" || c.grade === "great" || c.grade === "artistic";
+  let summary: string;
+  if (!j) {
+    summary = bet ? `相手の CB のチェックを見て BMCB(${size})。` : "相手が CB を打たずにチェックした場面だね。";
+  } else if (j.correct === "check" && (j.board === "monotoneAK" || j.board === "pairedBroadway")) {
+    summary = bet
+      ? `${board}は、BMCB を打たずにレンジでチェックする場面なんだ。ここはチェックしよう。`
+      : `${board}は、BMCB を打たずにレンジでチェックする場面。チェック、ナイス！`;
+  } else if (j.board === "high" && j.hand === "value") {
+    summary = !bet
+      ? `ハイボードの${hand}は TPTK 以上のバリューだよ。80% くらいの大きいサイズで BMCB を打とう。`
+      : good
+        ? `ハイボードの${hand}は TPTK 以上のバリュー。${size}の大きい BMCB、ばっちりだね！`
+        : `ハイボードの${hand}で BMCB を打つのは正解。ただ、ハイボードはポラライズして 80% くらいの大きいサイズで打とう。`;
+  } else if (j.board === "high" && j.hand === "bluff") {
+    summary = !bet
+      ? `${hand}はハイボードの BMCB のブラフ候補(ボトムヒット・ローポケ・ガットショット)だよ。80% くらいで打っていこう。`
+      : good
+        ? `${hand}はハイボードの BMCB のブラフ候補。${size}の大きい BMCB、ナイス！`
+        : `${hand}をブラフで打つのは正解。サイズはバリューと同じ 80% くらいにしよう。`;
+  } else if (j.board === "high") {
+    summary = bet
+      ? `ハイボードの BMCB は、TPTK 以上とブラフ候補(ボトムヒット・ローポケ・ガットショット)だけで打つんだ。${hand}はチェックしよう。`
+      : `ハイボードの BMCB は、TPTK 以上とブラフ候補だけで打つ。${hand}はチェックが正解、ナイス！`;
+  } else if (j.hand === "twoOver") {
+    summary = bet
+      ? `コネクト・ローボードでは、2オーバー(ペアもドローも無い手)は BMCB を打たずにチェックに回そう。`
+      : `コネクト・ローボードの2オーバーはチェックに回す手。チェック、ナイス！`;
+  } else {
+    summary = !bet
+      ? `${board}は、ハンドに関係なく 33% で広く BMCB を打つ場面だよ。チェックも混ぜるから悪くないけど、半分以上は 33% で打っていこう。`
+      : good
+        ? `${board}は、ハンドに関係なく 33% で広く打つ場面。${size}の BMCB、ばっちりだね！`
+        : `${board}で BMCB を打つのは正解。ただサイズは 33% で十分だよ。`;
+  }
+  const how =
+    j?.correct === "bigBet" ? "80% くらいで打つ" : j?.correct === "smallBet" ? "33% で打つ(頻度 50〜60%)" : "チェック";
+  return {
+    title: "BMCB(相手が打たなかった CB の代わりに打つベット)",
+    summary,
+    points: [
+      { label: "ボード", text: board },
+      { label: "この手は", text: how },
+      ...(bet ? [{ label: "サイズ", text: size }] : []),
+    ],
+    body: BMCB_BODY,
   };
 }

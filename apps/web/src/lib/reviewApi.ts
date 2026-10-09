@@ -122,6 +122,11 @@ export interface ReviewedDecision {
     blocked?: string[];
     handLabel?: string;
     checkRaiseOk?: boolean;
+    bmcb?: {
+      board: "high" | "connect" | "monotone" | "paired" | "monotoneAK" | "pairedBroadway";
+      hand: "value" | "bluff" | "other" | "twoOver" | "any";
+      correct: "bigBet" | "smallBet" | "check";
+    };
     flopCb?: {
       cls: 1 | 2 | 3 | 4 | 5 | 6 | 7;
       connected: boolean;

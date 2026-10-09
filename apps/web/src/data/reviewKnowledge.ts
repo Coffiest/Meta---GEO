@@ -1014,19 +1014,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
     priority: 1,
     when: { street: ["flop", "turn", "river"], heroPfr: false, heroIp: false },
   },
-  {
-    id: "nonpfr-ip-bmcb",
-    title: "レイザーではないIPは、相手のチェックにBMCB",
-    summary:
-      "プリフロップでレイズしたのは相手だよ。相手がCベットを打たずにチェックしてきたら、IPのきみはBMCB(相手が打たなかったCベットの代わりに打つベット)を広く小さく打つチャンスなんだ。",
-    body:
-      "BMCB(Bet vs Missed C-Bet)= プリフロップのレイザーがCベットを打たずにチェックしたときに、IPのコーラーが打つベット。\n" +
-      "レイザーがチェックした時点で、相手のレンジは強い手が抜けて弱くなっている。\n" +
-      "Tハイ以下のボードでは安く広く(33〜75%)、Aハイのボードでは狭く大きく(オーバーかチェック)が目安。\n" +
-      "相手がベットしてきたら、Cベットへの対応(コール・レイズ・フォールド)を考える。",
-    priority: 1,
-    when: { street: ["flop"], heroPfr: false, heroIp: true },
-  },
+
 
   // ═════════════════════════ BMCB ═════════════════════════
   {
