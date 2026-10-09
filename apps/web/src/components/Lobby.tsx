@@ -1627,6 +1627,8 @@ export function Lobby({
                                     </span>
                                     <span className="rounded bg-white/[0.08] px-1.5 py-[1px] text-[11px] font-semibold text-fg">{h.position}</span>
                                     {h.isFavorite && <Icon name="star" filled className="h-3 w-3 text-accent" />}
+                                    {/* 収支はカードと同じ段に置くと、7枚並んだとき狭い端末で重なる。日時の段の右端に置く。 */}
+                                    <span className={`ml-auto shrink-0 text-[13px] font-bold tabular-nums ${signedClass(h.deltaChips)}`}>{label}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     {h.holeCards.map((c, i) => (
@@ -1638,7 +1640,6 @@ export function Lobby({
                                     ))}
                                   </div>
                                 </div>
-                                <div className={`shrink-0 text-sm font-bold tabular-nums ${signedClass(h.deltaChips)}`}>{label}</div>
                                 <ReviewStarButton
                                   label={t("lobby.reviewRowHint")}
                                   onClick={() => {
