@@ -395,7 +395,8 @@ export type DonkReason =
   | "nutChange"
   | "threeBetStraight"
   | "lowBoard"
-  | "connectBoard";
+  | "connectBoard"
+  | "nutDraw";
 
 /** その理由のドンクで打つ手(ノートの「均衡的ドンク戦略」)。 */
 export type DonkFit = "draw" | "nutClass" | "block";
@@ -426,7 +427,7 @@ export interface DonkVerdict {
 }
 
 /** ドンクのフロップのローボード(最高ランクがこれ以下)。Notion に数値の定義が無いので暫定(8ハイ以下)。 */
-export const DONK_LOW_BOARD_MAX_RANK = 8;
+export const DONK_LOW_BOARD_MAX_RANK = 9;
 
 /** ロー1枚ストレートボード: 4枚が5つの連続した枠に収まり、その枠の最上位が9以下。 */
 function lowOneCardStraightBoard(board: readonly string[]): boolean {
@@ -448,9 +449,9 @@ export function readDonkReason(street: BetStreet, board: readonly string[], potT
   const tex = readBoardTexture(cur);
   if (!tex) return null;
   if (street === "flop") {
-    if (tex.highRank <= DONK_LOW_BOARD_MAX_RANK) return "lowBoard";
-    if (tex.hmGap !== null && tex.hmGap <= 1) return "connectBoard";
-    return null;
+    // フロップのドンクは「ローコネクト」ボードだけ(オーナー確定)。ロー = 9 ハイ以下、コネクト = 3枚が5ランクの幅に収まる。
+    const span = Math.max(...tex.ranks) - Math.min(...tex.ranks);
+    return tex.highRank <= DONK_LOW_BOARD_MAX_RANK && span <= 4 ? "connectBoard" : null;
   }
   const prevBoard = board.slice(0, n - 1);
   const prev = readBoardTexture(prevBoard);
@@ -473,7 +474,11 @@ function donkFit(reason: DonkReason, street: BetStreet, f: Facts): DonkFit | nul
   switch (reason) {
     case "lowBoard":
     case "connectBoard":
+    case "nutDraw":
+      return draw ? "draw" : null;
     case "turnRepeat":
+      // リピートでトリップス以上になった(コールしていたペアがトリップスになった)ら、ナッツ級のバリュー(オーナー指示)。
+      if (m === "trips" || m === "fullHouse" || m === "quads" || m === "straightFlush") return "nutClass";
       return draw ? "draw" : null;
     case "flushCompleted":
       if (m === "flush" || m === "fullHouse" || m === "quads" || m === "straightFlush") return "nutClass";
@@ -485,7 +490,7 @@ function donkFit(reason: DonkReason, street: BetStreet, f: Facts): DonkFit | nul
         ? "nutClass"
         : null;
     case "nutChange":
-      return m === "fullHouse" || m === "quads" || m === "straightFlush" ? "nutClass" : null;
+      return m === "trips" || m === "fullHouse" || m === "quads" || m === "straightFlush" ? "nutClass" : null;
     case "threeBetStraight":
       return m !== "highCard" ? "block" : null;
   }
@@ -506,7 +511,9 @@ export function judgeDonk(
 ): DonkVerdict | null {
   const f = readFacts(street, hole, board);
   if (!f) return null;
-  const reason = readDonkReason(street, board, potType);
+  // ボードで理由が無くても、ターンでナッツフラッシュドローを持っていればドンクしてよい
+  // (スライド「ブロックベットについて」: フロップで IP の CB にコール後、ターンでナッツドローを持っている時)。
+  const reason = readDonkReason(street, board, potType) ?? (street === "turn" && f.nutFd ? "nutDraw" : null);
   const fit = reason ? donkFit(reason, street, f) : null;
   const base = { kind: "donk" as const, street, reason, fit, handLabel: labelHand(f) };
   if (!bet) {
