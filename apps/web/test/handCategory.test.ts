@@ -59,8 +59,41 @@ describe("プリフロップの一般論", () => {
 
   it("レイズに直面して降りるハンドは、コールもレイズもしないと言う", () => {
     const n = preflopComment(d({ heroPos: "HJ", facingSizeBb: 2.5 }), { pos: "HJ", hand: "94o" })!;
-    expect(n.summary).toContain("コールもレイズもせずにフォールド");
+    expect(n.summary).toContain("コールも3betもせずにフォールド");
     expect(n.summary).not.toContain("コンティニュー");
+  });
+
+  it("3bet の場面はサイズを言わず「3betが推奨」と言う", () => {
+    const n = preflopComment(
+      d({
+        heroPos: "CO",
+        facingSizeBb: 2.5,
+        actionTaken: { kind: "call", bucket: "call", toAmount: 250 },
+        gtoActions: [
+          { bucket: "raise5+", frequency: 0.82, evBb: 1 },
+          { bucket: "call", frequency: 0.18, evBb: 0.5 },
+        ],
+      }),
+      { pos: "CO", hand: "AQs" }
+    )!;
+    expect(n.summary).toContain("GTOでは3betが推奨されているよ");
+    expect(n.summary).not.toContain("大きめ");
+  });
+
+  it("コールが多い 3bet の場面は「3betを打たずにコール」", () => {
+    const n = preflopComment(
+      d({
+        heroPos: "BB",
+        facingSizeBb: 1.5,
+        actionTaken: { kind: "call", bucket: "call", toAmount: 250 },
+        gtoActions: [
+          { bucket: "call", frequency: 0.7, evBb: 1 },
+          { bucket: "raise2-5", frequency: 0.3, evBb: 0.9 },
+        ],
+      }),
+      { pos: "BB", hand: "KJs" }
+    )!;
+    expect(n.summary).toContain("3betを打たずにコールが推奨されているよ");
   });
 
   it("GTO どおりなら褒める", () => {
