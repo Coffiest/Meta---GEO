@@ -1122,26 +1122,33 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {!spectating && !tournamentOver && (
-        <ActionBar
-          isYourTurn={Boolean(isYourTurn)}
-          street={state?.street ?? "preflop"}
-          canCheck={toCall <= 0}
-          toCall={toCall}
-          minRaiseToAmount={minRaiseToAmount}
-          maxRaiseToAmount={maxRaiseToAmount}
-          potTotal={state?.potTotal ?? 0}
-          streetContribution={yourSeat?.streetContribution ?? 0}
-          canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
-          bigBlind={bigBlind}
-          effectiveStackBehind={effectiveStackBehind}
-          onAction={sendAction}
-          away={away}
-          onToggleAway={toggleAway}
-          checkFoldArmed={checkFoldArmed}
-          onToggleCheckFold={setCheckFoldArmed}
-          displayMode={amountDisplayMode}
-        />
+      {/* 終了後もアクションバーの場所は残す(見えなくして触れなくする)。消すと空いた高さのぶん
+          3Dの卓が縦に伸びて、飛んだ直後に卓が急に縦長になっていた。 */}
+      {!spectating && (
+        <div
+          className={`shrink-0 ${tournamentOver ? "invisible pointer-events-none" : ""}`}
+          aria-hidden={tournamentOver ? true : undefined}
+        >
+          <ActionBar
+            isYourTurn={Boolean(isYourTurn)}
+            street={state?.street ?? "preflop"}
+            canCheck={toCall <= 0}
+            toCall={toCall}
+            minRaiseToAmount={minRaiseToAmount}
+            maxRaiseToAmount={maxRaiseToAmount}
+            potTotal={state?.potTotal ?? 0}
+            streetContribution={yourSeat?.streetContribution ?? 0}
+            canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
+            bigBlind={bigBlind}
+            effectiveStackBehind={effectiveStackBehind}
+            onAction={sendAction}
+            away={away}
+            onToggleAway={toggleAway}
+            checkFoldArmed={checkFoldArmed}
+            onToggleCheckFold={setCheckFoldArmed}
+            displayMode={amountDisplayMode}
+          />
+        </div>
       )}
     </div>
   );

@@ -6,7 +6,6 @@ import { SPRING_MOVE, SPRING_SHEET } from "@/lib/motion";
 import {
   fetchTournamentReview,
   fetchTournamentReviewSummary,
-  type ReviewedDecision,
   type ReviewQuotaInfo,
   type TournamentReview,
   type TournamentReviewSummary,
@@ -21,7 +20,6 @@ import {
 } from "@/lib/classification";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { ReviewReplayView, HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
-import { STREET_EN } from "@/lib/actionNotation";
 import { buildTournamentReplay } from "@/lib/replay";
 import { useCountUp } from "@/lib/useCountUp";
 import { AdSlot } from "@/components/AdSlot";
@@ -34,9 +32,6 @@ import { AdSlot } from "@/components/AdSlot";
  * アニメーションはスプリング+スタッガー(ease-out系)で統一し、reduced-motion時は簡略化する。
  * 画面遷移ではなくモーダルで開く(確定仕様)。呼び出し側で AnimatePresence によりマウント制御。
  */
-
-const STREET_LABEL = STREET_EN;
-
 
 /** スタッガー入場(親)。 */
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
@@ -95,21 +90,6 @@ function ScoreRing({ score }: { score: number | null }) {
         <span className="mt-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-accent">GTOスコア</span>
       </div>
     </div>
-  );
-}
-
-/** 総括のハイライト(ワースト/ベスト)1件。タップで再生の該当ステップへジャンプ。 */
-interface Highlight {
-  kind: "worst" | "best";
-  handId: string;
-  handNumber: number;
-  d: ReviewedDecision;
-}
-
-/** iOS風のチェブロン(リスト行の右端)。 */
-function Chevron() {
-  return (
-    <Icon name="chevron-right" className="ml-auto h-4 w-4 shrink-0 text-fg-3" />
   );
 }
 
@@ -263,7 +243,7 @@ export function TournamentReviewModal({
     [data, heroUserId]
   );
 
-  // 総括: 分類カウント / 総ロスEV / ワースト・ベスト。
+  // 総括: 分類カウント / 総ロスEV。
   const summary = useMemo(() => {
     const counts: Record<Classification, number> = {
       artistic: 0,
@@ -277,27 +257,14 @@ export function TournamentReviewModal({
       blunder: 0,
     };
     let totalEvLoss = 0;
-    let worst: Highlight | null = null;
-    let best: Highlight | null = null;
-    const bestPriority: Record<string, number> = { artistic: 0, great: 1, best: 2 };
     for (const h of data?.hands ?? []) {
       for (const d of h.decisions) {
         if (!d.classification) continue;
         counts[d.classification] += 1;
-        if (d.evLossBb !== null) {
-          totalEvLoss += d.evLossBb;
-          if (d.evLossBb > 0.02 && (!worst || d.evLossBb > (worst.d.evLossBb ?? 0))) {
-            worst = { kind: "worst", handId: h.handId, handNumber: h.handNumber, d };
-          }
-        }
-        const p = bestPriority[d.classification];
-        if (p !== undefined) {
-          const cur = best ? bestPriority[best.d.classification ?? ""] ?? 9 : 9;
-          if (p < cur) best = { kind: "best", handId: h.handId, handNumber: h.handNumber, d };
-        }
+        if (d.evLossBb !== null) totalEvLoss += d.evLossBb;
       }
     }
-    return { counts, totalEvLoss, worst, best };
+    return { counts, totalEvLoss };
   }, [data]);
 
   const steps = replay?.steps ?? [];
@@ -305,16 +272,6 @@ export function TournamentReviewModal({
   const goTo = useCallback(
     (idx: number) => setStepIndex(Math.max(0, Math.min(steps.length - 1, idx))),
     [steps.length]
-  );
-  const jumpToDecision = useCallback(
-    (handId: string, sequenceNumber: number) => {
-      const idx = replay?.stepIndexByDecision[`${handId}:${sequenceNumber}`];
-      if (idx !== undefined) {
-        setStepIndex(idx);
-        setView("replay");
-      }
-    },
-    [replay]
   );
 
   // 再生中はキーボードの←→でも操作できる。
@@ -627,56 +584,12 @@ export function TournamentReviewModal({
               )}
             </motion.div>
 
-            {/* ワースト / ベスト ハイライト */}
-            {(summary.worst || summary.best) && (
-              <motion.div variants={riseIn} className="mb-4 overflow-hidden rounded-[24px] bg-surface shadow-e1">
-                {summary.worst && (
-                  <button
-                    onClick={() => jumpToDecision(summary.worst!.handId, summary.worst!.d.sequenceNumber)}
-                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
-                  >
-                    {summary.worst.d.classification && (
-                      <ClassificationBadge classification={summary.worst.d.classification} size={26} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-crimson-300">ワースト</p>
-                      <p className="truncate text-[14px] font-semibold text-fg">
-                        Hand #{summary.worst.handNumber} · {STREET_LABEL[summary.worst.d.street] ?? summary.worst.d.street} ·{" "}
-                        {summary.worst.d.actionName}
-                        <span className="ml-1.5 text-[12px] font-bold text-crimson-300 tabular-nums">
-                          −{(summary.worst.d.evLossBb ?? 0).toFixed(2)}bb
-                        </span>
-                      </p>
-                    </div>
-                    <Chevron />
-                  </button>
-                )}
-                {summary.best && (
-                  <button
-                    onClick={() => jumpToDecision(summary.best!.handId, summary.best!.d.sequenceNumber)}
-                    className="pressable flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/[0.05]"
-                    style={summary.worst ? { borderTop: `0.5px solid ${HAIRLINE}` } : undefined}
-                  >
-                    {summary.best.d.classification && (
-                      <ClassificationBadge classification={summary.best.d.classification} size={26} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold" style={{ color: CLASSIFICATION_META[summary.best.d.classification ?? "best"].color }}>
-                        ベスト · {CLASSIFICATION_META[summary.best.d.classification ?? "best"].label}
-                      </p>
-                      <p className="truncate text-[14px] font-semibold text-fg">
-                        Hand #{summary.best.handNumber} · {STREET_LABEL[summary.best.d.street] ?? summary.best.d.street} ·{" "}
-                        {summary.best.d.actionName}
-                      </p>
-                    </div>
-                    <Chevron />
-                  </button>
-                )}
-              </motion.div>
-            )}
-
-            {/* 棋譜解析を開始(iOS Filled Button) */}
-            <motion.div variants={riseIn}>
+            {/* 棋譜解析を開始(iOS Filled Button)。スクロールせずに押せるよう画面下に固定。 */}
+            <motion.div
+              variants={riseIn}
+              className="sticky bottom-0 z-10 -mx-1 px-1 pt-3"
+              style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+            >
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
