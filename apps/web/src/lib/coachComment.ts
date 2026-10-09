@@ -127,6 +127,32 @@ export function coachComment(c: CoachData): CoachNote {
       return bmcbComment(c);
     case "squeeze":
       return squeezeComment(c);
+    case "oopKingCb": {
+      const dryK = c.handLabel === "dryK";
+      const bet = c.sizePct != null;
+      const board = dryK ? "ドライでモノトーンでない K ハイ" : c.handLabel === "wetK" ? "ドライではない K ハイ" : c.handLabel === "A" ? "A ハイ" : "Q ハイ";
+      const summary = dryK
+        ? bet
+          ? (c.sizePct ?? 0) <= 0.45
+            ? `${board}は、OOP からでもレンジで 33% の CB を打つボードだよ。ばっちりだね！`
+            : `${board}で CB を打つのは正解。サイズは 33% で十分だよ。`
+          : `${board}は、OOP からでもレンジで 33% の CB を打つボードなんだ。ここは打っていこう。`
+        : bet
+          ? `${board}のボードは、OOP のオリジナルレイザーはレンジでチェックする場面なんだ。ここはチェックしよう。`
+          : `${board}のボードは、OOP からはレンジでチェック。チェック、ナイス！`;
+      return {
+        title: "SRP の OOP の CB",
+        summary,
+        points: [
+          { label: "ボード", text: board },
+          { label: "正解", text: dryK ? "33% で CB" : "チェック" },
+        ],
+        body:
+          "シングルレイズドポットで OOP のオリジナルレイザーになったら、ドライかつモノトーンでない K ハイのボードだけ 33% で CB を打ち、それ以外はどの手でもチェックする。\n" +
+          "K ハイで打てるのは、IP のコールレンジに K を含む手が少ない(K の強い手は 3bet かフォールドに回りやすい)から。\n" +
+          "それ以外のボードは GTO でもチェックが多く、強い手も含めてチェックすることでチェックレンジが弱くならず、相手の弱い手でのベットを誘える。SB vs BB には使わないよ。",
+      };
+    }
     case "lightAce": {
       const lv = c.raiseLevel ?? 3;
       const name = lv >= 5 ? "5bet" : `${lv}bet`;
