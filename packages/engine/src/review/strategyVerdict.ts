@@ -291,6 +291,7 @@ const DONK_REASON: Record<DonkReason, StrategyReason> = {
   threeBetStraight: "donkThreeBetStraight",
   lowBoard: "donkLowBoard",
   connectBoard: "donkLowBoard",
+  nutDraw: "donkTurnRepeat",
 };
 
 function donkHit(v: DonkVerdict): Hit {

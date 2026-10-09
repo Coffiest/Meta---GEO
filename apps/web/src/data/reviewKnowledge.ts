@@ -1005,15 +1005,7 @@ export const REVIEW_KNOWLEDGE: readonly KnowledgeEntry[] = [
   },
 
   // ═════════════════════════ プリフロップのレイザーではないとき(オーナー指示) ═════════════════════════
-  {
-    id: "nonpfr-oop-donk",
-    title: "レイザーではないOOPは、ドンクするかどうかを考える",
-    summary:
-      "プリフロップでレイズしたのは相手だよ。OOPのきみは基本チェックで相手に任せて、ドンクはボードがきみの側に有利に変わったときだけにしようね。",
-    body: DONK_BODY,
-    priority: 1,
-    when: { street: ["flop", "turn", "river"], heroPfr: false, heroIp: false },
-  },
+
 
 
   // ═════════════════════════ BMCB ═════════════════════════
