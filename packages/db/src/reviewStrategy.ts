@@ -256,6 +256,8 @@ export function attachCoach(hand: ExtractHand, decisions: ReviewedDecision[]): v
       if (d.coach?.id === "oddsFold" && spot && !(spot.kind === "checkRaise" && spot.situation === "foldNotListed")) {
         d.coach = null;
       }
+      // シンバリューの勝率判定は、Notion の表がそのベットを評価していればそちらを優先する(オーナーの戦略)。
+      if (d.coach?.id === "thinValue" && d.strategy?.grade) d.coach = null;
     } catch (err) {
       console.error("[review] coach rule failed:", err);
       d.coach = null;
