@@ -87,6 +87,23 @@ describe("コーチのルール", () => {
     }
   });
 
+  it("マルチウェイでも、ベットへのコールはヘッズアップと同じオッズの判定", () => {
+    const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 2: ["6d", "3c"] }, ["Kh", "Qh", "Jc", "4d", "9s"]);
+    b.act(3, "fold", null);
+    b.act(4, "fold", null);
+    b.act(5, "raise", 250);
+    b.act(0, "call", 250);
+    b.act(1, "fold", null);
+    b.act(2, "call", 250);
+    b.street("flop");
+    b.act(2, "check", null);
+    b.act(5, "bet", 500);
+    b.act(0, "call", 500);
+    const v = judgeCoach(b.hand, b.act(2, "call", 500))!;
+    expect(v.id).toBe("oddsCall");
+    expect(["mistake", "blunder"]).toContain(v.grade);
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);

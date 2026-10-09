@@ -591,10 +591,17 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
   }
 
   if (street === "preflop") return null;
-  // ここから下は、ヘッズアップのポストフロップだけ。
-  if (r.opponents.length !== 1) return null;
-  const opp = r.opponents[0]!;
-  const ip = postflopOrder(r.hero, hand.buttonFixedPos, hand.seatCount) > postflopOrder(opp.seat, hand.buttonFixedPos, hand.seatCount);
+  // ここから下はポストフロップ。マルチウェイ(3人以上)もヘッズアップと同じ判定を使う(オーナー指示)。
+  // 相手は「このストリートで最後にベット/レイズした人 → プリフロップのレイザー → 先頭」の順に1人を選ぶ。
+  // IP は、残っている全員より後ろで動くとき。
+  if (r.opponents.length === 0) return null;
+  const lastAggressor = [...(r.byStreet[street] ?? [])].reverse().find((a) => AGGRESSIVE.has(a.kind) && a.seat !== r.hero)?.seat;
+  const opp =
+    r.opponents.find((o) => o.seat === lastAggressor) ??
+    r.opponents.find((o) => o.seat === r.preflopRaiser) ??
+    r.opponents[0]!;
+  const order = (seat: number) => postflopOrder(seat, hand.buttonFixedPos, hand.seatCount);
+  const ip = r.opponents.every((o) => order(r.hero) > order(o.seat));
   const board = boardOf(hand, street);
   const made = madeInfo(hero.holeCards, board);
   const streetActs = r.byStreet[street] ?? [];
