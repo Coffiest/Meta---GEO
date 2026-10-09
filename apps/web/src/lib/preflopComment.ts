@@ -75,6 +75,10 @@ export function preflopComment(
   } else {
     summary = `${subject}は、${recommend(first.group, facing)}。${name(heroGroup)}ではなく${name(first.group)}を選ぼうね。`;
   }
+  // A5s・A4s は 3bet に回せることを普段から教える(オーナー指示)。
+  if (facing && (v.hand === "A5s" || v.hand === "A4s") && heroGroup !== "raise" && heroGroup !== "allIn") {
+    summary += `${v.hand}は、ライトな3betに回すこともできるよ。`;
+  }
   const lines = groups.map((g) => `・${name(g.group)}: ${pct(g.frequency)}`).join("\n");
   return {
     title: "GTO のレンジで見ると",

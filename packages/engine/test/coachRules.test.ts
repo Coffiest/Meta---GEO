@@ -54,6 +54,17 @@ describe("コーチのルール", () => {
     expect(v.requiredEquity!).toBeLessThanOrEqual(0.25);
   });
 
+  it("8. A5s の 3bet(コミットしていない)は絶妙手", () => {
+    const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 0: ["Ah", "5h"] }, []);
+    b.act(3, "fold", null);
+    b.act(4, "fold", null);
+    b.act(5, "raise", 250);
+    const v = judgeCoach(b.hand, b.act(0, "raise", 800))!;
+    expect(v.id).toBe("lightAce");
+    expect(v.grade).toBe("artistic");
+    expect(v.raiseLevel).toBe(3);
+  });
+
   it("2. 40bb の普通のオープンはコミットではない", () => {
     const b = builder([4000, 4000, 4000, 4000, 4000, 4000], { 5: ["Kh", "Td"] }, []);
     b.act(3, "fold", null);

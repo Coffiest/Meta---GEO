@@ -127,6 +127,24 @@ export function coachComment(c: CoachData): CoachNote {
       return bmcbComment(c);
     case "squeeze":
       return squeezeComment(c);
+    case "lightAce": {
+      const lv = c.raiseLevel ?? 3;
+      const name = lv >= 5 ? "5bet" : `${lv}bet`;
+      const hand = c.handLabel ?? "A5s";
+      return {
+        title: "A5s・A4s のライトなレイズ",
+        summary: `ナイスなライト${name}！${hand}はいつでも使えるんだ！`,
+        points: [
+          { label: "ハンド", text: `${hand}(A のブロッカー + ホイールのストレート・ナッツフラッシュの可能性)` },
+          { label: "レイズ", text: name },
+        ],
+        body:
+          "A5s・A4s は、3bet・4bet・5bet のブラフ(ライトなレイズ)にいちばん向いているハンド。\n" +
+          "A を1枚持っているので、相手の AA・AK・AQ などの強い手の組み合わせを減らせる(ブロッカー)。\n" +
+          "コールされても、ホイール(A〜5)のストレートやナッツフラッシュになる可能性があり、まったく勝てない手ではない。\n" +
+          "だから、コミットしていない(降りても大きく損しない)スタックなら、いつでもライトなレイズに使っていいよ。",
+      };
+    }
     case "polarize":
       return {
         title: "ポラライズ(バレルは大きく)",
