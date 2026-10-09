@@ -103,8 +103,9 @@ describe("analyzeExtractedHand (局後検討 v2 パイプライン)", () => {
     const d = r.decisions[0]!;
     expect(d.gtoActions).toBeTruthy();
     expect(d.classification).not.toBeNull();
-    // 76sのBBディフェンスは大きなミスではない(緩手以内)。
-    expect(d.evLossBb!).toBeLessThan(0.8);
+    // 100bb は GTO Wizard の解(70bb)で頻度の格付け。76s の BB ディフェンスは定石手(EV 損は出さない)。
+    expect(d.classification).toBe("book");
+    expect(d.evLossBb).toBeNull();
   });
 
   it("HUポストフロップ: 相手のオールインへのコールは、相手の手札を使わず対象外になる", () => {
