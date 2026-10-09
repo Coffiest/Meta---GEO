@@ -1,7 +1,7 @@
 # PokerART 引き継ぎ
 
 ## 更新日時
-2026-10-09 17:45
+2026-10-09 17:50
 
 ## 現在地
 - 本番は v4.188.0(main 507d4ee)。URL: https://meta-geo-poker.vercel.app
@@ -14,8 +14,8 @@
   - そろっていないもの:SB 対 BB の全場面(`vsOpen_BB_vs_SB`、`vs3bet_SB_vs_BB`、`vs4bet_BB_vs_SB`、`vs5bet_SB_vs_BB`、`vs4betAI_BB_vs_SB`)、`vs4bet_BB_vs_LJ`、`vs5bet_LJ_vs_BB`。7/10/14/20/30bb は未着手。
   - 精度:ハンドごとの頻度は画面と一致(目で照合済み。例:vs3bet_BTN_vs_SB の AA レイズ 23%)。レンジがとても狭い場面(vs5bet など)は `weight` の誤差が大きく、場面全体の割合は画面とずれる(例:vs5bet_BTN_vs_SB コール 画面57% / 計算70%)。判定には頻度だけを使い、`weight` は「0 かどうか」程度にとどめるのが安全。
 - GTO Wizard の無料プランは1日100場面まで(帯に「n/100」)。途中で通るだけの場面も1つと数えられる。
-- UI/UX の記録は `GTOWizard-UIUX.md`(チャットで共有済み。Mac の Obsidian へはまだ入れていない。フォルダ未接続のため)。
-- スクショの原画(15MB)はクラウドの作業場所にだけあり、Mac の `~/Documents/PokerART/gtow_raw/` へはまだ入れていない(フォルダ未接続)。作業場所が消えると原画は失われる。数値は上のブランチにある。
+- スクショの原画(73枚・15MB)と UI/UX の記録(`GTOWizard-UIUX.md`)は、**一時的に独立ブランチ `claude/gtow-raw`(main と履歴を共有しない orphan)に置いた。** 中身:`gtow_raw/MTT_ChipEV_8max/70/<場面>.jpg`、`GTOWizard-UIUX.md`、`README.md`。取り出すときは `git fetch --depth=1 origin claude/gtow-raw` → `git show FETCH_HEAD:GTOWizard-UIUX.md` など。ブランチを切り替えない。
+  - 本来の置き場所は Mac の `~/Documents/PokerART/gtow_raw/` と Obsidian(フォルダ未接続のため未移動)。移したら `claude/gtow-raw` は消してよい。
 
 ## 決定事項
 - 「アンティ」と書く。料金はシート(usePricingSheet)。
@@ -36,7 +36,7 @@
    - JSON は計 880KB。web に載せるなら必要な場面だけ読む。
    - 自動の席の判断(`packages/server/src/botStrategy/`)にも使えるか後で検討。
 2. 残りのデータ(別のチャット・Mac につないだもの。1日100場面まで):70bb の SB 対 BB と LJ 対 BB の残り → 30/20/14/10/7bb。手順は `scripts/gtow/README.md`。
-3. Mac の `~/Documents` をチャットにつなぎ、原画と UI/UX のノート(Obsidian)を入れる。
+3. Mac の `~/Documents` をチャットにつなぎ、`claude/gtow-raw` の原画を `~/Documents/PokerART/gtow_raw/` へ、`GTOWizard-UIUX.md` を Obsidian へ入れる。済んだら `claude/gtow-raw` を消す。
 4. 未回答の質問: ラフくんの吹き出しに「〇〇(SB)の手番」と書き、文中の「きみ」を相手の席名に置き換えるか / トーナメント履歴の RR レートの詳細表示を戻すか。
 5. 実機確認(オーナー): v4.172 以降の解説・バッジの出方、履歴の収支の位置、飛んだ直後の卓。
 6. ショーダウン順(packages/server/src/showdown.ts の showdownOrder)のテストを書く。
