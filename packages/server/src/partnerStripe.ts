@@ -1,4 +1,14 @@
 import type Stripe from "stripe";
+import {
+  getPartnerByPromotionCodeId,
+  getStripeCustomerId,
+  hasPartnerCharge,
+  hasPartnerReferral,
+  prisma,
+  recordPartnerPayment,
+  recordPartnerReferral,
+  recordPartnerReversal,
+} from "@meta-geo/db";
 
 /**
  * インフルエンサー(ローンチパートナー)のコードと Stripe の対応。仕様は docs/HANDOFF_influencer_partner.md。
@@ -58,4 +68,107 @@ export async function setPartnerPromotionCodeActive(stripe: Stripe, promotionCod
 /** テスト用: クーポンの確認済みの印を捨てる。 */
 export function resetPartnerCouponCache(): void {
   couponReady = false;
+}
+
+/**
+ * 契約にパートナーのコードが使われていれば、その契約を記録する(何度呼んでも1行)。
+ * 決済画面の完了(checkout.session.completed)と、最初の入金(invoice.paid)のどちらが先に届いても記録できるように、両方から呼ぶ。
+ * 割引は「1ヶ月」なので、最初の入金の時点では契約にまだ割引が付いている。
+ *
+ * 本人の加入(本人のアカウント・本人のカードと同じ指紋のカード)は selfReferral として記録し、報酬の対象外にする。
+ */
+export async function attributePartnerSubscription(stripe: Stripe, subscriptionId: string): Promise<boolean> {
+  if (await hasPartnerReferral(subscriptionId)) return true;
+  // Webhook の中身は受け口の API の版で形が変わるので、SDK の版で取り直す。
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId, { expand: ["discounts", "default_payment_method"] });
+  const promotionCodeId = promotionCodeOf(subscription);
+  if (!promotionCodeId) return false;
+  const partner = await getPartnerByPromotionCodeId(promotionCodeId);
+  if (!partner) return false;
+  const userId = subscription.metadata?.["userId"] ?? null;
+  const pm = subscription.default_payment_method;
+  const fingerprint = pm && typeof pm === "object" ? pm.card?.fingerprint ?? null : null;
+  const selfReferral = await isPartnerSelf(stripe, partner.userId, userId, fingerprint);
+  await recordPartnerReferral({ partnerId: partner.id, stripeSubscriptionId: subscriptionId, userId, selfReferral });
+  console.log(`[partner] ${partner.code} -> ${subscriptionId}${selfReferral ? " (self)" : ""}`);
+  return true;
+}
+
+function promotionCodeOf(subscription: Stripe.Subscription): string | null {
+  const discounts = [...(subscription.discounts ?? []), subscription.discount].filter(Boolean);
+  for (const d of discounts) {
+    if (!d || typeof d === "string") continue;
+    const promo = d.promotion_code;
+    if (typeof promo === "string") return promo;
+    if (promo && typeof promo === "object") return promo.id;
+  }
+  return null;
+}
+
+/** 本人の加入か。本人のアカウントそのもの、または本人の Stripe の顧客に登録されたカードと同じカード。 */
+async function isPartnerSelf(
+  stripe: Stripe,
+  partnerUserId: string | null,
+  userId: string | null,
+  fingerprint: string | null,
+): Promise<boolean> {
+  if (!partnerUserId) return false;
+  if (userId && userId === partnerUserId) return true;
+  if (!fingerprint) return false;
+  const customerId = await getStripeCustomerId(partnerUserId);
+  if (!customerId) return false;
+  const cards = await stripe.paymentMethods.list({ customer: customerId, type: "card", limit: 20 });
+  return cards.data.some((c) => c.card?.fingerprint === fingerprint);
+}
+
+/** 入金(invoice.paid)を台帳に載せる。コードを使っていない契約には Stripe への問い合わせをしない。 */
+export async function recordPartnerInvoicePaid(stripe: Stripe, invoice: Stripe.Invoice, subscriptionId: string): Promise<void> {
+  const hasDiscount = Array.isArray(invoice.discounts) && invoice.discounts.length > 0;
+  if (!(await hasPartnerReferral(subscriptionId))) {
+    if (!hasDiscount) return;
+    if (!(await attributePartnerSubscription(stripe, subscriptionId))) return;
+  }
+  if (!invoice.id) return;
+  const fresh = await stripe.invoices.retrieve(invoice.id);
+  const charge = typeof fresh.charge === "string" ? fresh.charge : fresh.charge?.id ?? null;
+  const paidAt = fresh.status_transitions?.paid_at;
+  const row = await prisma.subscription.findUnique({ where: { stripeSubscriptionId: subscriptionId }, select: { plan: true } });
+  const result = await recordPartnerPayment({
+    stripeSubscriptionId: subscriptionId,
+    stripeInvoiceId: invoice.id,
+    stripeChargeId: charge,
+    amount: fresh.amount_paid,
+    plan: row?.plan ?? null,
+    occurredAt: paidAt ? new Date(paidAt * 1000) : new Date(),
+  });
+  if (result === "recorded") console.log(`[partner] payment ${invoice.id} (${fresh.amount_paid} JPY)`);
+}
+
+/** 返金(charge.refunded)を、元の入金を打ち消す行として載せる。台帳に無い入金なら何もしない。 */
+export async function recordPartnerRefunds(stripe: Stripe, chargeId: string): Promise<void> {
+  if (!(await hasPartnerCharge(chargeId))) return;
+  const refunds = await stripe.refunds.list({ charge: chargeId, limit: 100 });
+  for (const r of refunds.data) {
+    if (r.status !== "succeeded") continue;
+    await recordPartnerReversal({
+      kind: "refund",
+      sourceId: r.id,
+      stripeChargeId: chargeId,
+      amount: r.amount,
+      occurredAt: new Date(r.created * 1000),
+    });
+  }
+}
+
+/** チャージバック(charge.dispute.created)。カード会社が利用者に返したお金の分を打ち消す。 */
+export async function recordPartnerDispute(dispute: Stripe.Dispute): Promise<void> {
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+  if (!chargeId || !(await hasPartnerCharge(chargeId))) return;
+  await recordPartnerReversal({
+    kind: "dispute",
+    sourceId: dispute.id,
+    stripeChargeId: chargeId,
+    amount: dispute.amount,
+    occurredAt: new Date(dispute.created * 1000),
+  });
 }

@@ -65,3 +65,40 @@ describe("partner coupon", () => {
     ]);
   });
 });
+
+describe("台帳の CSV", () => {
+  it("BOM 付きで、種類・状態を日本語で出す", async () => {
+    const { partnerLedgerCsv } = await import("../src/adminApi.js");
+    const csv = partnerLedgerCsv([
+      {
+        occurredAt: new Date("2026-10-31T16:00:00Z"),
+        kind: "payment",
+        stripeInvoiceId: "in_1",
+        paymentIndex: 1,
+        plan: "gold",
+        amount: 966,
+        commission: 772,
+        voidReason: null,
+        payoutId: null,
+        referralId: "abcdef123456",
+      },
+      {
+        occurredAt: new Date("2026-11-02T00:00:00Z"),
+        kind: "refund",
+        stripeInvoiceId: "in_1",
+        paymentIndex: 1,
+        plan: "gold",
+        amount: -966,
+        commission: -772,
+        voidReason: null,
+        payoutId: "po_1",
+        referralId: "abcdef123456",
+      },
+    ]);
+    expect(csv.startsWith("\uFEFF日時")).toBe(true);
+    const lines = csv.trim().split("\n");
+    expect(lines[1]).toBe("2026-10-31T16:00:00.000Z,2026-11,入金,in_1,abcdef12,1,gold,966,772,未払い");
+    expect(lines[2]).toContain(",返金,");
+    expect(lines[2]).toContain(",-772,支払済");
+  });
+});

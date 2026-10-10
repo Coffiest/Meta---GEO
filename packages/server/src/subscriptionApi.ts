@@ -17,6 +17,7 @@ import {
   type PlanId,
 } from "@meta-geo/db";
 import { resolvePriceId } from "./stripePlans.js";
+import { attributePartnerSubscription, recordPartnerDispute, recordPartnerInvoicePaid, recordPartnerRefunds } from "./partnerStripe.js";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { readJsonBodyLimited, readRawBody as readRawBodyLimited } from "./httpBody.js";
 import { cancelForPaymentFailure, reconcileSubscription, syncSubscription } from "./subscriptionReconciler.js";
@@ -338,6 +339,9 @@ const RELEVANT_EVENT_TYPES = new Set([
   // 更新の引き落とし成功(新しい期限を取り込む)/ 失敗(自動解約)。
   "invoice.paid",
   "invoice.payment_failed",
+  // インフルエンサーへの報酬の打ち消し(返金・チャージバック)。partnerStripe.ts
+  "charge.refunded",
+  "charge.dispute.created",
 ]);
 
 /** 請求が属するサブスクの ID(API のバージョンで場所が違うので両方を見る)。 */
@@ -414,6 +418,8 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
         });
         if (subscription.status === "trialing") subscription = await settleTrial(stripe, session.customer, subscription);
         await syncSubscription(session.customer, subscription);
+        // インフルエンサーのコードで始まった契約を記録する(報酬の台帳の起点)。
+        await attributePartnerSubscription(stripe, subscription.id);
       }
     } else if (event.type === "invoice.payment_failed") {
       // 引き落としができなかった → 再試行を待たずに自動解約(オーナー確定仕様)。
@@ -426,6 +432,11 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
       if (subscriptionId && typeof invoice.customer === "string") {
         await reconcileSubscription(stripe, invoice.customer, subscriptionId);
       }
+      if (subscriptionId) await recordPartnerInvoicePaid(stripe, invoice, subscriptionId);
+    } else if (event.type === "charge.refunded") {
+      await recordPartnerRefunds(stripe, (event.data.object as Stripe.Charge).id);
+    } else if (event.type === "charge.dispute.created") {
+      await recordPartnerDispute(event.data.object as Stripe.Dispute);
     } else {
       const subscription = event.data.object as Stripe.Subscription;
       if (typeof subscription.customer === "string") {

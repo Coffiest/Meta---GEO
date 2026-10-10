@@ -15,6 +15,14 @@ interface Partner {
   userId: string | null;
   active: boolean;
   createdAt: string;
+  /** 報酬の残高(円)。accruing = 今月分(来月末に払う)/ payable = 締めた月の未払い(¥3,000 以上で今月末に払う)。 */
+  balance: { referrals: number; accruing: number; payable: number; paidTotal: number };
+}
+
+const MIN_PAYOUT = 3000;
+
+function yen(n: number): string {
+  return `¥${n.toLocaleString()}`;
 }
 
 const ERROR_TEXT: Record<string, string> = {
@@ -45,6 +53,8 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  /** 振込済みは1回目のタップで確認の状態にし、2回目で実行する(ホーム画面アプリでは window.confirm が出ないことがあるため)。 */
+  const [confirmPaid, setConfirmPaid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -74,7 +84,8 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
         setMessage({ text: ERROR_TEXT[body.error ?? ""] ?? `発行できませんでした(${body.error ?? res.status})。`, ok: false });
         return;
       }
-      setPartners((list) => [body.partner!, ...(list ?? [])]);
+      const fresh: Partner = { ...body.partner, balance: { referrals: 0, accruing: 0, payable: 0, paidTotal: 0 } };
+      setPartners((list) => [fresh, ...(list ?? [])]);
       setForm({ name: "", contact: "", code: "", userId: "", note: "" });
       setMessage({ text: `${body.partner.name} さんのコード ${body.partner.code} を発行しました。`, ok: true });
     } catch {
@@ -102,6 +113,51 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
     }
   }
 
+  async function markPaid(p: Partner) {
+    if (confirmPaid !== p.id) {
+      setConfirmPaid(p.id);
+      return;
+    }
+    setConfirmPaid(null);
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/partners/paid`, {
+        method: "POST",
+        headers: { ...adminHeaders(passcode, accessToken), "content-type": "application/json" },
+        body: JSON.stringify({ id: p.id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; amount?: number };
+      if (!body.ok) {
+        setMessage({ text: `${p.name} さんの未払いが ${yen(body.amount ?? 0)} で、最低額に届いていません。`, ok: false });
+        return;
+      }
+      setMessage({ text: `${p.name} さんへの ${yen(body.amount ?? 0)} を振込済みにしました。`, ok: true });
+      await load();
+    } catch {
+      setMessage({ text: "サーバーに接続できませんでした。", ok: false });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadCsv(p: Partner) {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/partners/ledger.csv?id=${encodeURIComponent(p.id)}`, {
+        headers: adminHeaders(passcode, accessToken),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `partner_${p.code}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setMessage({ text: "CSV を取得できませんでした。", ok: false });
+    }
+  }
+
   function copy(code: string) {
     void navigator.clipboard?.writeText(code).then(() => {
       setCopied(code);
@@ -110,6 +166,7 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
   }
 
   const activeCount = partners?.filter((p) => p.active).length ?? 0;
+  const dueTotal = (partners ?? []).reduce((sum, p) => sum + (p.balance.payable >= MIN_PAYOUT ? p.balance.payable : 0), 0);
 
   return (
     <div className="mb-4 rounded-xl border border-line p-3.5">
@@ -175,6 +232,13 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
             <p className={`mt-2 text-[11px] font-bold ${message.ok ? "text-accent" : "text-crimson-300"}`}>{message.text}</p>
           )}
 
+          {partners && partners.length > 0 && (
+            <div className="mt-3 rounded-lg bg-surface-2 px-3 py-2.5">
+              <p className="text-[10px] font-bold text-fg-3">今月末に振り込む合計(締めた月の未払い・¥3,000以上の人)</p>
+              <p className="text-[18px] font-black tabular-nums text-fg">{yen(dueTotal)}</p>
+            </div>
+          )}
+
           <div className="mt-3">
             {partners?.length === 0 && <p className="text-[11px] text-fg-3">まだ発行していません。</p>}
             {partners?.map((p) => (
@@ -190,6 +254,30 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     {p.userId && <span>・ 本人のアカウントあり</span>}
                   </p>
                   {p.note && <p className="mt-0.5 truncate text-[10.5px] text-fg-3">{p.note}</p>}
+                  <p className="mt-1 text-[11px] tabular-nums text-fg-2">
+                    加入 {p.balance.referrals}人 ・ 今月分 {yen(p.balance.accruing)} ・ 未払い{" "}
+                    <span className={p.balance.payable >= MIN_PAYOUT ? "font-black text-accent" : ""}>{yen(p.balance.payable)}</span>{" "}
+                    ・ 支払済 {yen(p.balance.paidTotal)}
+                  </p>
+                  <div className="mt-1.5 flex gap-1.5">
+                    {p.balance.payable >= MIN_PAYOUT && (
+                      <button
+                        type="button"
+                        onClick={() => void markPaid(p)}
+                        disabled={busy}
+                        className="pressable rounded-lg bg-accent/15 px-2.5 py-1 text-[11px] font-black text-accent ring-1 ring-accent disabled:opacity-40"
+                      >
+                        {confirmPaid === p.id ? `${yen(p.balance.payable)} を振込済みにする` : "振込済みにする"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void downloadCsv(p)}
+                      className="pressable rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-fg-2"
+                    >
+                      台帳CSV
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"
