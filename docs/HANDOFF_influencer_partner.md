@@ -44,7 +44,7 @@
 | # | 中身 | 状態 |
 |---|---|---|
 | 1 | **コードの発行**(管理者画面: 名前・連絡先・メモ・本人のユーザーID・任意のコード → Stripe のクーポン+プロモーションコードを作り、台帳に記録。一覧・停止)+ **決済画面のコード入力欄**(Checkout に `allow_promotion_codes: true`) | **済(v4.196.0)**。管理者画面「インフルエンサーのコード」 |
-| 2 | **報酬の台帳**(Webhook `invoice.paid` で1件=1行。`charge.refunded` はマイナスの行で打ち消し、元の行は書き換えない)+ 管理者の「今月いくら払うか」一覧・CSV・支払済みにする操作 | 未着手 |
+| 2 | **報酬の台帳**(Webhook `invoice.paid` で1件=1行。`charge.refunded` はマイナスの行で打ち消し、元の行は書き換えない)+ 管理者の「今月いくら払うか」一覧・CSV・支払済みにする操作 | **済(v4.197.0)**。Stripe の Webhook に `charge.refunded`・`charge.dispute.created` を足す作業はオーナーの To-Do |
 | 3 | **インフルエンサー用の明細ページ**(本人専用の秘密 URL。日付・プラン・入金額・報酬・状態を1行ずつ。相手の名前は伏せ、請求書番号は末尾だけ) | 未着手 |
 | 4 | **パートナー規約のページ**(上の条件・禁止事項・広告表示の義務・18歳以上・支払い条件・停止条件)。DM にはこのリンクを貼る | 未着手 |
 
@@ -59,11 +59,12 @@
 - 無料体験との重なり: `once` だと体験中の ¥0 の請求で割引が使い切られるおそれがあるため、`repeating`(1ヶ月)にした。契約の開始から1ヶ月の間に来る有料の請求(体験ありなら7日目、なしなら初日)の1回だけが30%OFFになる。
 - 管理者 API は `packages/server/src/adminApi.ts`(`/api/admin/partners` など)、画面は `apps/web/src/app/admin/page.tsx` に `components/admin/PartnerPanel.tsx` として足す(`FeedbackInbox` と同じ形)。
 
-### 2 の設計メモ
+### 2 の設計メモ(実装: `packages/db/src/partnerLedger.ts`・`packages/server/src/partnerStripe.ts`)
 
-- `PartnerCommission`: `partnerId` / `stripeInvoiceId` / `kind`("payment" | "refund")/ `userId` / `plan` / `amountPaid` / `commission` / `paymentIndex`(1〜3)/ `status`("pending" | "payable" | "paid" | "void")/ `voidReason` / `occurredAt` / `paidAt`。`(stripeInvoiceId, kind)` で一意(Webhook の再送で二重に数えない)。
-- 判定: 請求書の discount のプロモーションコード → `Partner`。その契約で何回目の支払いか(1〜3。4回目以降は記録しない)。加入日が期限(2027-03-31)以内か。本人・同じカードなら `void`。
-- 月末締め: 前月分の `pending` → `payable`。合計が ¥3,000 未満なら繰り越し。
+- `PartnerReferral`: コードで始まった契約(サブスク1つに1行)。`checkout.session.completed` と最初の `invoice.paid` の両方から記録する(どちらが先に届いてもよい)。本人のアカウント・本人のカード(指紋)なら `selfReferral`。
+- `PartnerLedger`: 入金・返金・チャージバック1件に1行。`sourceId`(in_ / re_ / dp_)で一意。報酬 = 入金額の80%(切り捨て)。最初の3回分だけ。¥0 の請求は数えない。本人の加入・期限後の加入は報酬0で理由付き。返金はマイナスの行(全額返金でちょうど0に戻る)。
+- `PartnerPayout`: 振込。管理者画面の「振込済みにする」で、日本時間の今月より前の未払いの行をまとめて払った扱いにする(¥3,000 未満は不可)。
+- 管理者画面: パートナーごとに 加入人数・今月分・未払い・支払済。今月末に振り込む合計。台帳の CSV。
 - **Supabase の転送量のきまり(CLAUDE.md)を守る**: `select` の無い upsert・全件の findMany をしない。
 
 ## 3. 表示・文言のきまり(CLAUDE.md より)

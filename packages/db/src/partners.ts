@@ -93,3 +93,11 @@ export async function getPartner(id: string): Promise<PartnerRow | null> {
 export async function setPartnerActive(id: string, active: boolean): Promise<void> {
   await prisma.partner.update({ where: { id }, data: { active }, select: { id: true } });
 }
+
+export async function getPartnerByPromotionCodeId(stripePromotionCodeId: string): Promise<PartnerRow | null> {
+  return prisma.partner.findUnique({ where: { stripePromotionCodeId }, select: PARTNER_SELECT });
+}
+
+export async function getPartnerByStatementToken(statementToken: string): Promise<PartnerRow | null> {
+  return prisma.partner.findUnique({ where: { statementToken }, select: PARTNER_SELECT });
+}

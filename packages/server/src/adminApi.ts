@@ -39,6 +39,10 @@ import {
   listPartners,
   normalizePartnerCode,
   setPartnerActive,
+  partnerBalances,
+  partnerLedgerRows,
+  markPartnerPaid,
+  monthKeyJst,
   type CompDurationUnit,
   type DecisionFactBackfillProgress,
   type GeoBackfillProgress,
@@ -128,6 +132,31 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return readJsonBodyLimited(req);
+}
+
+const LEDGER_KIND_LABEL: Record<string, string> = { payment: "入金", refund: "返金", dispute: "チャージバック" };
+const VOID_REASON_LABEL: Record<string, string> = { self: "対象外(本人の加入)", expired: "対象外(期限後の加入)" };
+
+/** 台帳の CSV。Excel で文字化けしないよう BOM を付ける。 */
+export function partnerLedgerCsv(
+  rows: { occurredAt: Date; kind: string; stripeInvoiceId: string | null; paymentIndex: number; plan: string | null; amount: number; commission: number; voidReason: string | null; payoutId: string | null; referralId: string }[],
+): string {
+  const header = ["日時(UTC)", "月(日本時間)", "種類", "請求書", "加入者", "何回目", "プラン", "金額", "報酬", "状態"];
+  const lines = rows.map((r) =>
+    [
+      r.occurredAt.toISOString(),
+      monthKeyJst(r.occurredAt),
+      LEDGER_KIND_LABEL[r.kind] ?? r.kind,
+      r.stripeInvoiceId ?? "",
+      r.referralId.slice(0, 8),
+      String(r.paymentIndex),
+      r.plan ?? "",
+      String(r.amount),
+      String(r.commission),
+      r.voidReason ? VOID_REASON_LABEL[r.voidReason] ?? r.voidReason : r.payoutId ? "支払済" : "未払い",
+    ].join(","),
+  );
+  return "\uFEFF" + [header.join(","), ...lines].join("\n") + "\n";
 }
 
 export async function handleAdminApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -320,9 +349,13 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
 
     // インフルエンサー(ローンチパートナー)のコードの一覧。
     if (url.pathname === "/api/admin/partners" && req.method === "GET") {
-      const partners = await listPartners();
+      const [partners, balances] = await Promise.all([listPartners(), partnerBalances()]);
+      const empty = { referrals: 0, accruing: 0, payable: 0, paidTotal: 0 };
       sendJson(res, 200, {
-        partners: partners.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
+        partners: partners.map((p) => {
+          const { partnerId: _omit, ...balance } = balances.find((b) => b.partnerId === p.id) ?? { partnerId: p.id, ...empty };
+          return { ...p, createdAt: p.createdAt.toISOString(), balance };
+        }),
       });
       return true;
     }
@@ -385,6 +418,36 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         await setPartnerPromotionCodeActive(stripe, promotionCodeId, false).catch(() => {});
         throw err;
       }
+      return true;
+    }
+
+    // 振込済みにする: { id }。締めた月(日本時間の今月より前)の未払いの行をまとめて払った扱いにする。¥3,000 未満は 409。
+    if (url.pathname === "/api/admin/partners/paid" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const partner = id ? await getPartner(id) : null;
+      if (!partner) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      const result = await markPartnerPaid(partner.id);
+      sendJson(res, result.ok ? 200 : 409, result);
+      return true;
+    }
+
+    // 1人分の台帳の CSV(振込の控え・確認用)。
+    if (url.pathname === "/api/admin/partners/ledger.csv" && req.method === "GET") {
+      const partner = await getPartner(url.searchParams.get("id") ?? "");
+      if (!partner) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      const rows = await partnerLedgerRows(partner.id);
+      res.writeHead(200, {
+        "content-type": "text/csv; charset=utf-8",
+        "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
+      });
+      res.end(partnerLedgerCsv(rows));
       return true;
     }
 

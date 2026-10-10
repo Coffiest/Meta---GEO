@@ -829,3 +829,59 @@ model Partner {
   active                Boolean  @default(true)
   createdAt             DateTime @default(now())
 }
+
+/// インフルエンサーのコードで始まった契約(Stripe のサブスク1つにつき1行)。決済画面でコードが使われたときに記録する。
+model PartnerReferral {
+  id                   String   @id @default(uuid())
+  partnerId            String
+  stripeSubscriptionId String   @unique
+  userId               String?
+  /// 本人のアカウント・本人と同じカードでの加入(報酬の対象外。オーナー承認済み)。
+  selfReferral         Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  @@index([partnerId])
+}
+
+/// 報酬の台帳。入金1件・返金1件・チャージバック1件につき1行。行は書き換えず、返金はマイナスの行で打ち消す
+/// (インフルエンサーへの支払いの証明に使うため)。
+model PartnerLedger {
+  id               String    @id @default(uuid())
+  partnerId        String
+  referralId       String
+  /// "payment" | "refund" | "dispute"
+  kind             String
+  /// Stripe 側の元の id(請求書 in_ / 返金 re_ / チャージバック dp_)。Webhook の再送で二重に数えない。
+  sourceId         String    @unique
+  stripeInvoiceId  String?
+  stripeChargeId   String?
+  /// 入金なら何回目の支払いか(1〜3)。返金・チャージバックは元の入金の回。
+  paymentIndex     Int
+  plan             String?
+  /// 入金額(円)。返金・チャージバックはマイナス。
+  amount           Int
+  /// 報酬(円)。対象外の入金は 0。返金・チャージバックはマイナス。
+  commission       Int
+  /// 対象外の理由("self" = 本人の加入 / "expired" = 期限後の加入)。対象なら null。
+  voidReason       String?
+  occurredAt       DateTime
+  payoutId         String?
+  createdAt        DateTime  @default(now())
+
+  @@index([partnerId, occurredAt])
+  @@index([stripeChargeId])
+  @@index([payoutId])
+}
+
+/// インフルエンサーへの振込(月末締め・翌月末払い)。どの台帳の行を払ったかは PartnerLedger.payoutId。
+model PartnerPayout {
+  id        String   @id @default(uuid())
+  partnerId String
+  amount    Int
+  /// この時刻より前の行を払った(締めの境目。日本時間の月初)。
+  closedBefore DateTime
+  paidAt    DateTime @default(now())
+  note      String?
+
+  @@index([partnerId])
+}
