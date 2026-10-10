@@ -12,6 +12,8 @@ interface Partner {
   contact: string | null;
   note: string | null;
   code: string;
+  /** 本人の明細ページの鍵(/partner/<鍵>)。 */
+  statementToken: string;
   userId: string | null;
   active: boolean;
   createdAt: string;
@@ -270,6 +272,15 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                         {confirmPaid === p.id ? `${yen(p.balance.payable)} を振込済みにする` : "振込済みにする"}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => copy(`${window.location.origin}/partner/${p.statementToken}`)}
+                      className="pressable rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-fg-2"
+                    >
+                      {copied === `${typeof window !== "undefined" ? window.location.origin : ""}/partner/${p.statementToken}`
+                        ? "コピーしました"
+                        : "明細URLをコピー"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => void downloadCsv(p)}
