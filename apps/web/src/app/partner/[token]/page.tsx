@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
@@ -89,6 +90,9 @@ export default function PartnerStatementPage() {
       <div className="mx-auto max-w-md px-4 pb-16">
         <header className="flex items-center justify-between pb-6 pt-[calc(env(safe-area-inset-top)+16px)]">
           <div className="text-[11px] font-semibold tracking-[0.25em] text-accent">POKER ART</div>
+          <Link href="/partner-terms" className="text-[12px] text-fg-3 hover:text-fg">
+            パートナー規約
+          </Link>
         </header>
 
         {state === "loading" && <p className="text-[13px] text-fg-3">読み込み中…</p>}
