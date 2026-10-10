@@ -286,6 +286,12 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         )}
         </div>
 
+        {/* インフルエンサーのコードは Stripe の決済画面で入れる(フォロワーが入れ場所で迷わないように)。 */}
+        {!isCurrent && !canChange && (
+          <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
+            紹介コードをお持ちの方は、次の決済画面の「プロモーションコードを追加」に入力すると初月30%OFF(はじめて有料会員になる方のみ)。
+          </p>
+        )}
         {canChange && (
           <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
             差額は日割りで、上げるときはその場で請求、下げるときは次回以降の請求から差し引きます。
