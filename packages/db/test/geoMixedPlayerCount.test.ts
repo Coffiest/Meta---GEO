@@ -147,7 +147,8 @@ describe("GEO tree with mixed table sizes (integration, real Postgres)", () => {
     const root6 = await at(6, []);
     const root4 = await at(4, []);
     expect(root6.node.position).toBe("UTG");
-    expect(root4.node.position).toBe("UTG");
+    // 後ろの人数で数える(オーナー承認 2026-10-10): 4人卓の最初の人は後ろが BTN・SB・BB の3人なので CO。
+    expect(root4.node.position).toBe("CO");
     expect(root6.node.sampleSize).toBeGreaterThanOrEqual(2);
     expect(root4.node.sampleSize).toBeGreaterThanOrEqual(3);
 
@@ -168,7 +169,7 @@ describe("GEO tree with mixed table sizes (integration, real Postgres)", () => {
     await playHand([0, 2, 3, 4], 7);
 
     const deadSbRoot = await at(4, []);
-    expect(deadSbRoot.node.position, "どちらの並びでも最初はUTG").toBe("UTG");
+    expect(deadSbRoot.node.position, "どちらの並びでも最初は(4人卓の)CO").toBe("CO");
     expect(deadSbRoot.node.sampleSize, "通常3 + SBデッド2 = 5ハンド").toBe(5);
 
     // 次のノードは2つの並びが競合する。多い方(通常の並びのBTN=3件)に揃え、
