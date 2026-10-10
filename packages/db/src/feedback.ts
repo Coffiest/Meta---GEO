@@ -5,7 +5,8 @@ import { prisma } from "./client.js";
  * 写真は FeedbackImage に分けて保存し、一覧では中身を読まない(管理者画面が1枚ずつ取りに行く)。
  */
 
-export const FEEDBACK_KINDS = ["request", "bug", "other"] as const;
+/** shareX = 「Xでシェアしてゴールド GET」の申請(オーナーが確認して手動でゴールド1週間を付与)。 */
+export const FEEDBACK_KINDS = ["request", "bug", "other", "shareX"] as const;
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];
 
 export const FEEDBACK_MAX_BODY = 4000;

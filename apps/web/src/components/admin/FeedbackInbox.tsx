@@ -18,7 +18,7 @@ interface FeedbackItem {
   images: { id: string; mime: string; bytes: number }[];
 }
 
-const KIND_LABEL: Record<string, string> = { request: "要望", bug: "不具合", other: "その他" };
+const KIND_LABEL: Record<string, string> = { request: "要望", bug: "不具合", other: "その他", shareX: "Xシェア" };
 
 function fmt(iso: string): string {
   const d = new Date(iso);
@@ -159,6 +159,14 @@ export function FeedbackInbox({ passcode, accessToken }: { passcode: string; acc
                   <span className="min-w-0 flex-1 truncate">
                     v{f.appVersion ?? "?"} · {f.user.email ?? f.user.id.slice(0, 8)}
                   </span>
+                  {f.kind === "shareX" && (
+                    <GrantGoldButton
+                      userId={f.user.id}
+                      passcode={passcode}
+                      accessToken={accessToken}
+                      onDone={() => void markRead(f.id, true)}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => void markRead(f.id, !f.readAt)}
@@ -173,5 +181,48 @@ export function FeedbackInbox({ passcode, accessToken }: { passcode: string; acc
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 「Xでシェアしてゴールド GET」の申請に、ゴールドプラン1週間を付与する(オーナーが投稿を目で確認してから押す)。
+ * 付与は管理者の無料付与(`/api/admin/grant`)と同じ。付与したら既読にする。
+ */
+function GrantGoldButton({
+  userId,
+  passcode,
+  accessToken,
+  onDone,
+}: {
+  userId: string;
+  passcode: string;
+  accessToken: string | null;
+  onDone: () => void;
+}) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  async function grant() {
+    if (!window.confirm("この申請者にゴールドプラン1週間を付与しますか?")) return;
+    setState("busy");
+    try {
+      const r = await fetch(`${SERVER_URL}/api/admin/grant`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, accessToken) },
+        body: JSON.stringify({ userId, unit: "week", amount: 1, plan: "gold" }),
+      });
+      setState(r.ok ? "done" : "error");
+      if (r.ok) onDone();
+    } catch {
+      setState("error");
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => void grant()}
+      disabled={state === "busy" || state === "done"}
+      className="pressable rounded-full bg-accent/15 px-2.5 py-1 font-bold text-accent ring-1 ring-accent disabled:opacity-50"
+    >
+      {state === "done" ? "付与済み" : state === "error" ? "失敗(再試行)" : "ゴールド1週間を付与"}
+    </button>
   );
 }
