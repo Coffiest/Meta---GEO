@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { PasscodeModal } from "@/components/PasscodeModal";
 import { ActiveUsersPanel } from "@/components/admin/ActiveUsersPanel";
 import { FeedbackInbox } from "@/components/admin/FeedbackInbox";
+import { PartnerPanel } from "@/components/admin/PartnerPanel";
 import { adminHeaders, checkAdminSession } from "@/lib/adminApi";
 import { useAuth } from "@/lib/useAuth";
 
@@ -585,6 +586,7 @@ export default function AdminPage() {
             {/* ホームのご意見フォームから届いたもの(要望・不具合・その他)。 */}
             <ActiveUsersPanel passcode={passcode} accessToken={accessToken ?? null} />
             <FeedbackInbox passcode={passcode} accessToken={accessToken ?? null} />
+            <PartnerPanel passcode={passcode} accessToken={accessToken ?? null} />
 
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
             <div className="mb-4 rounded-xl border border-line p-3.5">

@@ -808,3 +808,24 @@ model TrialFingerprint {
   userId      String
   createdAt   DateTime @default(now())
 }
+
+/// インフルエンサー(ローンチパートナー)。1人に1つ、Stripe のプロモーションコード(初回の支払いが30%OFF)を発行する。
+/// 決済画面でこのコードを入れて加入した人の、最初の3回分の支払いの80%を還元する(docs/HANDOFF_influencer_partner.md)。
+model Partner {
+  id                    String   @id @default(uuid())
+  /// 管理用の呼び名(例 "ヒカル")。
+  name                  String
+  /// 連絡先(X のアカウントなど)。
+  contact               String?
+  note                  String?
+  /// 決済画面で入れるコード(大文字英数字。例 "HIKARU30")。
+  code                  String   @unique
+  stripePromotionCodeId String   @unique
+  /// 本人専用の明細ページの秘密の鍵(URL に入れる)。
+  statementToken        String   @unique
+  /// 本人のアカウント(任意)。本人が自分のコードで加入した分は報酬の対象外にする。
+  userId                String?
+  /// 停止したコードは決済画面で使えない(Stripe 側も active: false)。
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+}

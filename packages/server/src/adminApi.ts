@@ -31,6 +31,14 @@ import {
   summarizeErrorReports,
   setErrorReportResolved,
   getStorageReport,
+  createPartner,
+  generatePartnerCode,
+  getPartner,
+  isPartnerCodeTaken,
+  isValidPartnerCode,
+  listPartners,
+  normalizePartnerCode,
+  setPartnerActive,
   type CompDurationUnit,
   type DecisionFactBackfillProgress,
   type GeoBackfillProgress,
@@ -40,6 +48,7 @@ import { checkAdminAccess } from "./adminAuth.js";
 import { clearGeoAccessCache } from "./geoAccess.js";
 import { getStripeClient } from "./subscriptionApi.js";
 import { syncSubscription } from "./subscriptionReconciler.js";
+import { createPartnerPromotionCode, setPartnerPromotionCodeActive } from "./partnerStripe.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -305,6 +314,103 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       }
       await syncSubscription(row.stripeCustomerId, canceled);
       clearGeoAccessCache();
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // インフルエンサー(ローンチパートナー)のコードの一覧。
+    if (url.pathname === "/api/admin/partners" && req.method === "GET") {
+      const partners = await listPartners();
+      sendJson(res, 200, {
+        partners: partners.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
+      });
+      return true;
+    }
+
+    // コードの発行: { name, contact?, note?, code?, userId? }。code を省くと "ART" + 5文字で作る。
+    // Stripe にプロモーションコード(初回30%OFF・有料会員になったことが無い人だけ)を作ってから台帳に記録する。
+    if (url.pathname === "/api/admin/partners" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const str = (k: string, max: number) => (typeof body[k] === "string" ? (body[k] as string).trim().slice(0, max) : "");
+      const name = str("name", 80);
+      const contact = str("contact", 200) || null;
+      const note = str("note", 1000) || null;
+      const userId = str("userId", 64) || null;
+      if (!name) {
+        sendJson(res, 400, { error: "name_required" });
+        return true;
+      }
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      if (userId) {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+        if (!user) {
+          sendJson(res, 400, { error: "user_not_found" });
+          return true;
+        }
+      }
+      let code = normalizePartnerCode(str("code", 40));
+      if (code) {
+        if (!isValidPartnerCode(code)) {
+          sendJson(res, 400, { error: "invalid_code" });
+          return true;
+        }
+        if (await isPartnerCodeTaken(code)) {
+          sendJson(res, 409, { error: "code_taken" });
+          return true;
+        }
+      } else {
+        do code = generatePartnerCode();
+        while (await isPartnerCodeTaken(code));
+      }
+      let promotionCodeId: string;
+      try {
+        promotionCodeId = await createPartnerPromotionCode(stripe, { code, partnerRef: code });
+      } catch (err) {
+        console.error("[adminApi] partner promotion code failed:", err);
+        const message = err instanceof Error ? err.message : "unknown";
+        // Stripe 側で同じコードが既に有効(管理画面で手作りしたものなど)。
+        const taken = /already exists|active promotion code/i.test(message);
+        sendJson(res, taken ? 409 : 502, { error: taken ? "code_taken" : `stripe: ${message}`.slice(0, 200) });
+        return true;
+      }
+      try {
+        const partner = await createPartner({ name, contact, note, code, stripePromotionCodeId: promotionCodeId, userId });
+        sendJson(res, 200, { partner: { ...partner, createdAt: partner.createdAt.toISOString() } });
+      } catch (err) {
+        // 台帳に書けなかったコードを Stripe に残すと、誰の紹介か分からない割引が使われてしまう。止めておく。
+        await setPartnerPromotionCodeActive(stripe, promotionCodeId, false).catch(() => {});
+        throw err;
+      }
+      return true;
+    }
+
+    // コードの停止・再開: { id, active }。Stripe のプロモーションコードも同じ状態にする。
+    if (url.pathname === "/api/admin/partners/active" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const active = body["active"] === true;
+      const partner = id ? await getPartner(id) : null;
+      if (!partner) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      try {
+        await setPartnerPromotionCodeActive(stripe, partner.stripePromotionCodeId, active);
+      } catch (err) {
+        console.error("[adminApi] partner promotion code update failed:", err);
+        sendJson(res, 502, { error: `stripe: ${err instanceof Error ? err.message : "unknown"}`.slice(0, 200) });
+        return true;
+      }
+      await setPartnerActive(partner.id, active);
       sendJson(res, 200, { ok: true });
       return true;
     }

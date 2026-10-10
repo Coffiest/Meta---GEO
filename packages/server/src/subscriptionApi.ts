@@ -194,6 +194,8 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         customer: stripeCustomerId,
         line_items: [{ price: priceId, quantity: 1 }],
         payment_method_collection: "always",
+        // 決済画面にコードの入力欄を出す(インフルエンサーのコードで初回30%OFF。partnerStripe.ts)。
+        allow_promotion_codes: true,
         subscription_data: {
           metadata: { userId: user.id, plan },
           ...(trial ? { trial_period_days: TRIAL_DAYS } : {}),

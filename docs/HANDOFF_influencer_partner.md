@@ -43,7 +43,7 @@
 
 | # | 中身 | 状態 |
 |---|---|---|
-| 1 | **コードの発行**(管理者画面: 名前・連絡先・メモ・本人のユーザーID・任意のコード → Stripe のクーポン+プロモーションコードを作り、台帳に記録。一覧・停止)+ **決済画面のコード入力欄**(Checkout に `allow_promotion_codes: true`) | 未着手(設計済み) |
+| 1 | **コードの発行**(管理者画面: 名前・連絡先・メモ・本人のユーザーID・任意のコード → Stripe のクーポン+プロモーションコードを作り、台帳に記録。一覧・停止)+ **決済画面のコード入力欄**(Checkout に `allow_promotion_codes: true`) | **済(v4.196.0)**。管理者画面「インフルエンサーのコード」 |
 | 2 | **報酬の台帳**(Webhook `invoice.paid` で1件=1行。`charge.refunded` はマイナスの行で打ち消し、元の行は書き換えない)+ 管理者の「今月いくら払うか」一覧・CSV・支払済みにする操作 | 未着手 |
 | 3 | **インフルエンサー用の明細ページ**(本人専用の秘密 URL。日付・プラン・入金額・報酬・状態を1行ずつ。相手の名前は伏せ、請求書番号は末尾だけ) | 未着手 |
 | 4 | **パートナー規約のページ**(上の条件・禁止事項・広告表示の義務・18歳以上・支払い条件・停止条件)。DM にはこのリンクを貼る | 未着手 |
@@ -52,11 +52,11 @@
 
 - DB(新しいマイグレーション):
   - `Partner`: `id` / `name` / `contact`(X のアカウントなど)/ `note` / `code`(一意)/ `stripePromotionCodeId`(一意)/ `statementToken`(明細ページの秘密の鍵。3 で使う)/ `userId`(本人のアカウント。自己購入の除外用。任意)/ `active` / `createdAt`。
-- Stripe:
-  - クーポンは全員で共通の1つ(id `poker_art_partner_30_once_v1`、`percent_off: 30`、`duration: "once"`)。無ければ初回に作る(`stripePlans.ts` の価格と同じやり方)。
+- Stripe(実装: `packages/server/src/partnerStripe.ts`):
+  - クーポンは全員で共通の1つ(id `poker_art_partner_30_first_month_v1`、`percent_off: 30`、`duration: "repeating"`・`duration_in_months: 1`)。無ければ初回に作る(`stripePlans.ts` の価格と同じやり方)。
   - プロモーションコードはパートナーごと(`coupon` に上の id、`code`、`restrictions.first_time_transaction: true`、`metadata.partnerId`)。停止は `active: false`。
   - SDK は `stripe@17.7.0`(`promotionCodes.create({ coupon })` の形)。
-- **要確認: 無料体験と `duration: "once"` のクーポンの重なり。** 体験中の ¥0 の請求でクーポンが使い切られる可能性がある。調べきれていない(コンテナから docs.stripe.com に届かなかった)。対応案: Webhook `checkout.session.completed` で、パートナーのコードが使われていて `trialing` なら体験をその場で終わらせる(`settleTrial` と同じ `trial_end: "now"`)。無料体験ごと削除する判断になれば、この問題は消える。
+- 無料体験との重なり: `once` だと体験中の ¥0 の請求で割引が使い切られるおそれがあるため、`repeating`(1ヶ月)にした。契約の開始から1ヶ月の間に来る有料の請求(体験ありなら7日目、なしなら初日)の1回だけが30%OFFになる。
 - 管理者 API は `packages/server/src/adminApi.ts`(`/api/admin/partners` など)、画面は `apps/web/src/app/admin/page.tsx` に `components/admin/PartnerPanel.tsx` として足す(`FeedbackInbox` と同じ形)。
 
 ### 2 の設計メモ
