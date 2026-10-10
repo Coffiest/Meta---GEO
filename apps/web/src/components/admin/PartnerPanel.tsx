@@ -23,6 +23,40 @@ interface Partner {
 
 const MIN_PAYOUT = 3000;
 
+/** 最初の DM(コードを渡す前)。条件は規約のページに任せ、DM では金額の目安だけを書く。 */
+function firstDmText(origin: string): string {
+  return [
+    "はじめまして、ポーカーの学習アプリ「Poker ART」を作っている者です。",
+    "いつも投稿を拝見していて、よければ Poker ART を実際に使って、面白いと思ったところを自由に紹介していただけないかと思い、ご連絡しました。",
+    "",
+    "・プラチナプラン(最上位)を3ヶ月無料でお使いいただけます",
+    "・専用のコードをお渡しします。フォロワーの方は初回30%OFFで加入できます",
+    "・コードで加入した方の最初の3回分の支払いの80%をお支払いします(ゴールドなら1人あたり約¥2,980)",
+    "・紹介の内容は自由です(良い点も気になった点も率直にどうぞ)",
+    "",
+    `条件の詳細: ${origin}/partner-terms`,
+    `アプリ: ${origin}`,
+    "",
+    "ご興味があれば、このままお返事いただけるとうれしいです。",
+  ].join("\n");
+}
+
+/** 引き受けてもらえたあとに送る文面(コードと、本人専用の明細ページ)。 */
+function codeDmText(origin: string, p: { code: string; statementToken: string }): string {
+  return [
+    "ありがとうございます。専用のコードをお送りします。",
+    "",
+    `コード: ${p.code}`,
+    "(有料プランの決済画面で入力すると、初回の支払いが30%OFFになります)",
+    "",
+    `報酬の明細(あなた専用のページ・他の方には共有しないでください): ${origin}/partner/${p.statementToken}`,
+    `条件: ${origin}/partner-terms`,
+    "",
+    "投稿には「#PR」など広告であることが分かる表示を必ず入れてください。",
+    "プラチナプランは、アプリに登録したアカウントを教えていただければこちらで付与します。",
+  ].join("\n");
+}
+
 function yen(n: number): string {
   return `¥${n.toLocaleString()}`;
 }
@@ -160,10 +194,11 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
     }
   }
 
-  function copy(code: string) {
-    void navigator.clipboard?.writeText(code).then(() => {
-      setCopied(code);
-      setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
+  /** 文字列をコピーし、key のボタンだけを「コピーしました」にする(既定の key は文字列そのもの)。 */
+  function copy(text: string, key: string = text) {
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
     });
   }
 
@@ -185,6 +220,14 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
 
       {open && (
         <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => copy(firstDmText(window.location.origin), "first-dm")}
+            className="pressable mb-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-surface-2 px-3 py-2 text-[12px] font-bold text-fg-2"
+          >
+            <Icon name={copied === "first-dm" ? "check" : "send"} className="h-3.5 w-3.5" />
+            {copied === "first-dm" ? "コピーしました" : "最初の DM の文面をコピー"}
+          </button>
           <p className="text-[11px] leading-relaxed text-fg-3">
             決済画面で入れると初回の支払いが30%OFFになるコード。有料会員になったことが無い人だけが使えます。コードを省くと自動で作ります。
           </p>
@@ -261,7 +304,7 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     <span className={p.balance.payable >= MIN_PAYOUT ? "font-black text-accent" : ""}>{yen(p.balance.payable)}</span>{" "}
                     ・ 支払済 {yen(p.balance.paidTotal)}
                   </p>
-                  <div className="mt-1.5 flex gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {p.balance.payable >= MIN_PAYOUT && (
                       <button
                         type="button"
@@ -274,12 +317,17 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     )}
                     <button
                       type="button"
-                      onClick={() => copy(`${window.location.origin}/partner/${p.statementToken}`)}
+                      onClick={() => copy(codeDmText(window.location.origin, p), `code-dm:${p.id}`)}
                       className="pressable rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-fg-2"
                     >
-                      {copied === `${typeof window !== "undefined" ? window.location.origin : ""}/partner/${p.statementToken}`
-                        ? "コピーしました"
-                        : "明細URLをコピー"}
+                      {copied === `code-dm:${p.id}` ? "コピーしました" : "コードを渡す文面"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copy(`${window.location.origin}/partner/${p.statementToken}`, `statement:${p.id}`)}
+                      className="pressable rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-fg-2"
+                    >
+                      {copied === `statement:${p.id}` ? "コピーしました" : "明細URL"}
                     </button>
                     <button
                       type="button"
