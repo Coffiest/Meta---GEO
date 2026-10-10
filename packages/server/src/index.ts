@@ -7,6 +7,7 @@ import { handleReviewApiRequest } from "./reviewApi.js";
 import { getStripeClient, handleSubscriptionApiRequest } from "./subscriptionApi.js";
 import { startSubscriptionReconciler } from "./subscriptionReconciler.js";
 import { handleAdminApiRequest } from "./adminApi.js";
+import { handlePartnerApiRequest } from "./partnerApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { handleFeedbackApiRequest } from "./feedbackApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
@@ -132,8 +133,11 @@ const httpServer = createServer((req, res) => {
                   if (handled7) return;
                   return handleFeedbackApiRequest(req, res).then((handled8) => {
                     if (handled8) return;
-                    res.writeHead(404);
-                    res.end();
+                    return handlePartnerApiRequest(req, res).then((handled9) => {
+                      if (handled9) return;
+                      res.writeHead(404);
+                      res.end();
+                    });
                   });
                 });
               });

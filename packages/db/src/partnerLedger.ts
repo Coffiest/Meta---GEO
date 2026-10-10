@@ -177,21 +177,22 @@ export interface PartnerBalance {
 }
 
 /** パートナーごとの残高。集計はDBで行い、小さな結果だけを読む。 */
-export async function partnerBalances(now = new Date()): Promise<PartnerBalance[]> {
+export async function partnerBalances(now = new Date(), onlyPartnerId?: string): Promise<PartnerBalance[]> {
   const cutoff = startOfMonthJst(now);
+  const only = onlyPartnerId ? { partnerId: onlyPartnerId } : {};
   const [referrals, accruing, payable, paid] = await Promise.all([
-    prisma.partnerReferral.groupBy({ by: ["partnerId"], where: { selfReferral: false }, _count: { _all: true } }),
+    prisma.partnerReferral.groupBy({ by: ["partnerId"], where: { ...only, selfReferral: false }, _count: { _all: true } }),
     prisma.partnerLedger.groupBy({
       by: ["partnerId"],
-      where: { payoutId: null, occurredAt: { gte: cutoff } },
+      where: { ...only, payoutId: null, occurredAt: { gte: cutoff } },
       _sum: { commission: true },
     }),
     prisma.partnerLedger.groupBy({
       by: ["partnerId"],
-      where: { payoutId: null, occurredAt: { lt: cutoff } },
+      where: { ...only, payoutId: null, occurredAt: { lt: cutoff } },
       _sum: { commission: true },
     }),
-    prisma.partnerPayout.groupBy({ by: ["partnerId"], _sum: { amount: true } }),
+    prisma.partnerPayout.groupBy({ by: ["partnerId"], where: only, _sum: { amount: true } }),
   ]);
   const ids = new Set<string>([
     ...referrals.map((r) => r.partnerId),
