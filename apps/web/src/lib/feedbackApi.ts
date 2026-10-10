@@ -2,7 +2,7 @@ import { APP_VERSION } from "./version";
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
-export type FeedbackKind = "request" | "bug" | "other";
+export type FeedbackKind = "request" | "bug" | "other" | "shareX";
 export const FEEDBACK_MAX_IMAGES = 3;
 /** 送る前に縮める目安(サーバーの上限 1.3MB より少し小さく)。 */
 const TARGET_BYTES = 1_000_000;

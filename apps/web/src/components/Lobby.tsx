@@ -22,6 +22,7 @@ import { PasscodeModal } from "./PasscodeModal";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { AppShareCard } from "./AppShareCard";
 import { FeedbackCard } from "./FeedbackCard";
+import { ShareCampaignButton } from "./ShareCampaign";
 import { InviteCard } from "./InviteCard";
 import { CouponWallet } from "./CouponWallet";
 import { PlayerDetailModal } from "./PlayerDetailModal";
@@ -1253,6 +1254,8 @@ export function Lobby({
             <div data-tour="elite">
               <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
             </div>
+            {/* Xでシェアしてゴールド GET(オーナー指示)。Play・High Roller と同じ意匠のボタン。 */}
+            {accessToken && <ShareCampaignButton accessToken={accessToken} />}
 
             {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
                 (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
