@@ -569,6 +569,7 @@ export async function getPreflopNode(params: {
   /** 卓の参加人数(2〜6)で絞り込む。未指定なら全人数のハンドを対象にする。 */
   playerCount?: number | undefined;
 }): Promise<{ node: TreeNode; matrix: HandClassMatrixResult }> {
+  params = { ...params, line: normalizeLine(params.line, "preflop", params.playerCount) };
   if (useDecisionTable()) {
     return nodeFromDecisionTable({
       street: "preflop",
@@ -598,7 +599,7 @@ export async function getPreflopNode(params: {
     );
     if (countedSeats.size === 0) return;
 
-    const decisions = replayPreflopDecisions(hand, countedSeats);
+    const decisions = normalizeReplayed(replayPreflopDecisions(hand, countedSeats), hand.seats.length, () => "preflop");
     if (!linesMatch(decisions, params.line)) return;
     const next = decisions[params.line.length];
     if (!next) return;
@@ -742,6 +743,11 @@ export async function getPostflopNode(params: {
   if (params.board.length !== requiredBoardLen) {
     throw new Error(`board must have exactly ${requiredBoardLen} cards for street ${params.street}`);
   }
+  params = {
+    ...params,
+    preflopLine: normalizeLine(params.preflopLine, "preflop", params.playerCount),
+    postflopLine: normalizeLine(params.postflopLine, params.street, params.playerCount),
+  };
 
   if (useDecisionTable()) {
     return nodeFromDecisionTable({
@@ -779,13 +785,14 @@ export async function getPostflopNode(params: {
     );
     if (countedSeats.size === 0) return;
 
-    const preflopDecisions = replayPreflopDecisions(hand, countedSeats);
+    const n = hand.seats.length;
+    const preflopDecisions = normalizeReplayed(replayPreflopDecisions(hand, countedSeats), n, () => "preflop");
     if (!linesMatch(preflopDecisions, params.preflopLine)) return;
 
     // フォールド済み座席は「実際のハンドで起きた全プリフロップフォールド」を対象にする
     // (要求ラインの範囲内だけではない。ライン一致判定と実際のゲーム進行は別物)。
     const foldedSeats = new Set(preflopDecisions.filter((d) => d.bucket === "fold").map((d) => d.seatIndex));
-    const allPostflop = replayPostflopDecisions(hand, countedSeats, foldedSeats);
+    const allPostflop = normalizeReplayed(replayPostflopDecisions(hand, countedSeats, foldedSeats), n, (d) => d.street);
     const streetDecisions = allPostflop.filter((d) => d.street === params.street);
     if (!linesMatch(streetDecisions, params.postflopLine)) return;
 
@@ -1026,23 +1033,34 @@ function decisionWhere(params: {
 }): Prisma.Sql {
   const parts: Prisma.Sql[] = [
     Prisma.sql`d."street" = ${params.street}`,
-    Prisma.sql`d."lineKey" = ${params.lineKey}`,
     Prisma.sql`d."boardKey" = ${params.boardKey}`,
     // 管理者がGEOから除外した席は集計しない(後から切り替わるためJOINで見る)。
     Prisma.sql`s."excludedFromGeo" = false`,
   ];
+  // 人数ごとに、統合後のライン(とプリフロップライン)を生の席名・アクションへ展開して照合する(A・B)。
+  const counts = params.playerCount !== undefined ? [params.playerCount] : [2, 3, 4, 5, 6];
+  const perCount: Prisma.Sql[] = [];
+  for (const n of counts) {
+    const lines = expandLineKey(params.lineKey, n, params.street);
+    if (lines.length === 0) continue;
+    const conds: Prisma.Sql[] = [Prisma.sql`d."playerCount" = ${n}`, Prisma.sql`d."lineKey" = ANY(${lines}::text[])`];
+    // プリフロップラインは前方一致(linesMatch は「要求が実際の先頭に一致」で判定するため)。
+    if (params.preflopKey !== null && params.preflopKey !== "") {
+      const pre = expandLineKey(params.preflopKey, n, "preflop");
+      if (pre.length === 0) continue;
+      conds.push(
+        Prisma.sql`(d."preflopKey" = ANY(${pre}::text[]) OR ${Prisma.join(
+          pre.map((k) => Prisma.sql`d."preflopKey" LIKE ${k + "|%"}`),
+          " OR "
+        )})`
+      );
+    }
+    perCount.push(Prisma.sql`(${Prisma.join(conds, " AND ")})`);
+  }
+  parts.push(perCount.length > 0 ? Prisma.sql`(${Prisma.join(perCount, " OR ")})` : Prisma.sql`FALSE`);
   if (params.stackBucket !== null) parts.push(Prisma.sql`d."stackBucket" = ${params.stackBucket}`);
   // 要求が "normal" のときは全バブル段階が対象(bubbleStageMatches と同じ意味)。
   if (params.bubbleStage !== "normal") parts.push(Prisma.sql`d."bubbleStage" = ${params.bubbleStage}`);
-  if (params.playerCount !== undefined) parts.push(Prisma.sql`d."playerCount" = ${params.playerCount}`);
-  // プリフロップラインは前方一致(linesMatch は「要求が実際の先頭に一致」で判定するため)。
-  if (params.preflopKey !== null) {
-    parts.push(
-      params.preflopKey === ""
-        ? Prisma.sql`TRUE`
-        : Prisma.sql`(d."preflopKey" = ${params.preflopKey} OR d."preflopKey" LIKE ${params.preflopKey + "|%"})`,
-    );
-  }
   if (params.ratingUserIds !== null) parts.push(Prisma.sql`d."userId" = ANY(${params.ratingUserIds}::text[])`);
   return Prisma.join(parts, " AND ");
 }
@@ -1057,6 +1075,7 @@ async function ratingUserIdsFor(range?: RatingRange): Promise<string[] | null> {
 interface DecisionGroupRow {
   bucket: string;
   position: string;
+  playerCount: number;
   handClassRow: number | null;
   handClassCol: number | null;
   isGeometric: boolean;
@@ -1078,12 +1097,17 @@ async function nodeFromDecisionTable(params: {
   const base = { ...params, ratingUserIds, playerCount: params.playerCount };
 
   const groups = await prisma.$queryRaw<DecisionGroupRow[]>(Prisma.sql`
-    SELECT d."bucket", d."position", d."handClassRow", d."handClassCol", d."isGeometric", COUNT(*)::int AS n
+    SELECT d."bucket", d."position", d."playerCount", d."handClassRow", d."handClassCol", d."isGeometric", COUNT(*)::int AS n
     FROM "GeoDecision" d
     JOIN "HandSeat" s ON s."id" = d."handSeatId"
     WHERE ${decisionWhere({ ...base, stackBucket: params.stackBucket })}
-    GROUP BY 1, 2, 3, 4, 5
+    GROUP BY 1, 2, 3, 4, 5, 6
   `);
+  // 統合(A・B): 席名を6人卓の名前に、プリフロップのレイズを1つに読み替える。
+  for (const g of groups) {
+    g.position = normalizePosition(g.position, g.playerCount);
+    g.bucket = normalizeBucket(g.bucket, params.street);
+  }
 
   // ポジション名は「最も多く出たもの」を採り、そのポジションの行だけを集計する
   // (旧経路の buildNodeFromDecisions と同じ規則)。
@@ -1125,19 +1149,91 @@ async function nodeFromDecisionTable(params: {
   // 該当スタック帯にサンプルが1件も無い場合でも、そのノードのポジション名は出す
   // (旧経路の expectedPosition と同じ。スタック帯を外して数える)。
   if (position === null) {
-    const fallback = await prisma.$queryRaw<{ position: string; n: number }[]>(Prisma.sql`
-      SELECT d."position", COUNT(*)::int AS n
+    const fallback = await prisma.$queryRaw<{ position: string; playerCount: number; n: number }[]>(Prisma.sql`
+      SELECT d."position", d."playerCount", COUNT(*)::int AS n
       FROM "GeoDecision" d
       JOIN "HandSeat" s ON s."id" = d."handSeatId"
       WHERE ${decisionWhere({ ...base, stackBucket: null })}
-      GROUP BY 1
+      GROUP BY 1, 2
     `);
-    position = dominantPosition(new Map(fallback.map((r) => [r.position, r.n])));
+    const fc = new Map<string, number>();
+    for (const r of fallback) {
+      const p = normalizePosition(r.position, r.playerCount);
+      fc.set(p, (fc.get(p) ?? 0) + r.n);
+    }
+    position = dominantPosition(fc);
   }
 
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
 }
 
+
+// ─────────────── 本質的に同じスポットの統合(オーナー承認 2026-10-10) ───────────────
+//  A. ポジションは「後ろに残っている人数」で数える。6人卓の CO と 4人卓の UTG は、どちらも後ろが BTN・SB・BB の
+//     3人なので同じ「CO」。卓の人数ごとの席名(positionLabels の MIDDLE_NAMES)を、6人卓の名前に読み替える。
+//  B. プリフロップの、オールインでないレイズは全て1つのアクション(raise2-5)にまとめる。
+//  集計テーブル(GeoDecision)は作り直さない(全ハンドの読み直しで Supabase の転送量を使うため)。
+//  読み出すときに、要求のラインを各人数の生のラインへ展開し、結果の席名・アクションを読み替える。
+
+const SIX_MAX_MIDDLES = ["UTG", "HJ", "CO"];
+/** n人卓の生の中間ポジション名 → 6人卓の名前。 */
+function middleMap(n: number): Map<string, string> {
+  const m = Math.max(0, Math.min(3, n - 3));
+  const raw = m === 1 ? ["UTG"] : m === 2 ? ["UTG", "CO"] : m === 3 ? ["UTG", "HJ", "CO"] : [];
+  const norm = SIX_MAX_MIDDLES.slice(3 - m);
+  return new Map(raw.map((r, i) => [r, norm[i]!]));
+}
+
+/** 生の席名(n人卓)→ 統合後の席名。 */
+export function normalizePosition(position: string, n: number): string {
+  return middleMap(n).get(position) ?? position;
+}
+
+/** 統合後の席名 → n人卓の生の席名(その人数に存在しなければ null)。 */
+function rawPosition(position: string, n: number): string | null {
+  if (["BTN", "SB", "BB", "BTN(SB)"].includes(position)) {
+    if (n === 2) return position === "BB" || position === "BTN(SB)" ? position : null;
+    return position === "BTN(SB)" ? null : position;
+  }
+  for (const [raw, norm] of middleMap(n)) if (norm === position) return raw;
+  return null;
+}
+
+/** プリフロップのアクションの統合(オールインでないレイズは1つ)。 */
+export function normalizeBucket(bucket: string, street: string): string {
+  return street === "preflop" && bucket === "raise5+" ? "raise2-5" : bucket;
+}
+
+/** 統合後のライン(lineKey)を、n人卓の生のラインの候補へ展開する。存在しないラインなら空。 */
+function expandLineKey(key: string, n: number, street: string): string[] {
+  if (key === "") return [""];
+  let out: string[] = [""];
+  for (const step of key.split("|")) {
+    const [pos, bucket] = step.split(":") as [string, string];
+    const raw = rawPosition(pos, n);
+    if (!raw) return [];
+    const buckets = street === "preflop" && (bucket === "raise2-5" || bucket === "raise5+") ? ["raise2-5", "raise5+"] : [bucket];
+    const next: string[] = [];
+    for (const prefix of out) for (const b of buckets) next.push(prefix === "" ? `${raw}:${b}` : `${prefix}|${raw}:${b}`);
+    out = next;
+    if (out.length > 64) return out.slice(0, 64);
+  }
+  return out;
+}
+
+
+/** 再生した決定の席名・プリフロップのアクションを統合後の名前に読み替える(集計テーブル経路と同じ規則)。 */
+function normalizeReplayed<T extends ReplayedDecision>(ds: T[], n: number, street: (d: T) => string): T[] {
+  return ds.map((d) => ({ ...d, position: normalizePosition(d.position, n), bucket: normalizeBucket(d.bucket, street(d)) }));
+}
+
+/** 要求されたラインを統合後の名前に揃える。人数が分かっていれば生の席名でも受け付ける。 */
+function normalizeLine(line: LineStep[], street: string, n: number | undefined): LineStep[] {
+  return line.map((s) => ({
+    position: n !== undefined ? normalizePosition(s.position, n) : s.position,
+    bucket: normalizeBucket(s.bucket, street),
+  }));
+}
 /** バックフィルの進捗。管理画面から状況を見られるようにするため、呼び出し側へ逐次通知する。 */
 export interface GeoBackfillProgress {
   /** 対象ハンド総数。 */
