@@ -332,7 +332,7 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
   }
 }
 
-const RELEVANT_EVENT_TYPES = new Set([
+export const RELEVANT_EVENT_TYPES: ReadonlySet<string> = new Set([
   "checkout.session.completed",
   "customer.subscription.updated",
   "customer.subscription.deleted",

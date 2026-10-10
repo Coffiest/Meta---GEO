@@ -52,7 +52,7 @@ import { checkAdminAccess } from "./adminAuth.js";
 import { clearGeoAccessCache } from "./geoAccess.js";
 import { getStripeClient } from "./subscriptionApi.js";
 import { syncSubscription } from "./subscriptionReconciler.js";
-import { createPartnerPromotionCode, setPartnerPromotionCodeActive } from "./partnerStripe.js";
+import { createPartnerPromotionCode, getWebhookEventsStatus, setPartnerPromotionCodeActive } from "./partnerStripe.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -352,6 +352,7 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       const [partners, balances] = await Promise.all([listPartners(), partnerBalances()]);
       const empty = { referrals: 0, accruing: 0, payable: 0, paidTotal: 0 };
       sendJson(res, 200, {
+        webhook: getWebhookEventsStatus(),
         partners: partners.map((p) => {
           const { partnerId: _omit, ...balance } = balances.find((b) => b.partnerId === p.id) ?? { partnerId: p.id, ...empty };
           return { ...p, createdAt: p.createdAt.toISOString(), balance };

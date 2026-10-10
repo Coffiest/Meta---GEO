@@ -102,3 +102,34 @@ describe("台帳の CSV", () => {
     expect(lines[2]).toContain(",-772,支払済");
   });
 });
+
+describe("ensureWebhookEvents", () => {
+  it("この受け口に足りない通知だけを足す(外さない・ほかの送信先には触らない)", async () => {
+    const { ensureWebhookEvents } = await import("../src/partnerStripe.js");
+    const updates: { id: string; events: string[] }[] = [];
+    const stripe = {
+      webhookEndpoints: {
+        list: async () => ({
+          data: [
+            { id: "we_1", url: "https://x.fly.dev/api/subscriptions/webhook", status: "enabled", enabled_events: ["invoice.paid", "foo"] },
+            { id: "we_2", url: "https://other.example.com/hook", status: "enabled", enabled_events: ["invoice.paid"] },
+            { id: "we_3", url: "https://y.fly.dev/api/subscriptions/webhook", status: "enabled", enabled_events: ["*"] },
+          ],
+        }),
+        update: async (id: string, p: { enabled_events: string[] }) => {
+          updates.push({ id, events: p.enabled_events });
+          return {};
+        },
+      },
+    } as unknown as Stripe;
+    const status = await ensureWebhookEvents(stripe, ["invoice.paid", "charge.refunded", "charge.dispute.created"]);
+    expect(status).toEqual({ state: "ok", added: ["charge.refunded", "charge.dispute.created"] });
+    expect(updates).toEqual([{ id: "we_1", events: ["invoice.paid", "foo", "charge.refunded", "charge.dispute.created"] }]);
+  });
+
+  it("送信先が無ければ no_endpoint", async () => {
+    const { ensureWebhookEvents } = await import("../src/partnerStripe.js");
+    const stripe = { webhookEndpoints: { list: async () => ({ data: [] }) } } as unknown as Stripe;
+    expect(await ensureWebhookEvents(stripe, ["invoice.paid"])).toEqual({ state: "no_endpoint" });
+  });
+});
