@@ -23,6 +23,20 @@ interface Partner {
 
 const MIN_PAYOUT = 3000;
 
+/** Stripe の Webhook に返金・チャージバックの通知が選ばれているか(サーバーが起動時に確かめて、足りなければ足す)。 */
+type WebhookStatus =
+  | { state: "unknown" }
+  | { state: "ok"; added: string[] }
+  | { state: "no_endpoint" }
+  | { state: "error"; message: string };
+
+function webhookText(w: WebhookStatus): { text: string; ok: boolean } {
+  if (w.state === "ok") return { text: "Stripe の通知(入金・返金・チャージバック): 準備OK", ok: true };
+  if (w.state === "no_endpoint") return { text: "Stripe に Webhook の送信先が見つかりません。返金の差し引きが動きません。", ok: false };
+  if (w.state === "error") return { text: `Stripe の通知の確認に失敗しました: ${w.message}`, ok: false };
+  return { text: "Stripe の通知: 確認中(サーバーの起動直後)", ok: false };
+}
+
 /** 最初の DM(コードを渡す前)。docs/influencer-dm.md の A と揃える。【】は送る前に相手に合わせて書き換える。 */
 function firstDmText(origin: string): string {
   return [
@@ -90,6 +104,7 @@ const INPUT =
 export function PartnerPanel({ passcode, accessToken }: { passcode: string; accessToken: string | null }) {
   const [open, setOpen] = useState(false);
   const [partners, setPartners] = useState<Partner[] | null>(null);
+  const [webhook, setWebhook] = useState<WebhookStatus | null>(null);
   const [form, setForm] = useState({ name: "", contact: "", code: "", userId: "", note: "" });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -101,7 +116,9 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
     try {
       const res = await fetch(`${SERVER_URL}/api/admin/partners`, { headers: adminHeaders(passcode, accessToken) });
       if (!res.ok) throw new Error(String(res.status));
-      setPartners(((await res.json()) as { partners: Partner[] }).partners);
+      const body = (await res.json()) as { partners: Partner[]; webhook?: WebhookStatus };
+      setPartners(body.partners);
+      setWebhook(body.webhook ?? null);
     } catch {
       setMessage({ text: "一覧を読み込めませんでした。", ok: false });
     }
@@ -233,6 +250,12 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
             <Icon name={copied === "first-dm" ? "check" : "send"} className="h-3.5 w-3.5" />
             {copied === "first-dm" ? "コピーしました" : "最初の DM の文面をコピー"}
           </button>
+          {webhook && (
+            <p className={`mb-2 flex items-center gap-1.5 text-[11px] font-bold ${webhookText(webhook).ok ? "text-accent" : "text-crimson-300"}`}>
+              <Icon name={webhookText(webhook).ok ? "check" : "warning"} className="h-3.5 w-3.5 shrink-0" />
+              {webhookText(webhook).text}
+            </p>
+          )}
           <p className="text-[11px] leading-relaxed text-fg-3">
             決済画面で入れると初回の支払いが30%OFFになるコード。有料会員になったことが無い人だけが使えます。コードを省くと自動で作ります。
           </p>

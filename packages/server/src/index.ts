@@ -4,7 +4,8 @@ import { Lobby } from "./lobby.js";
 import { handleGeoTreeApiRequest } from "./geoTreeApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
-import { getStripeClient, handleSubscriptionApiRequest } from "./subscriptionApi.js";
+import { getStripeClient, handleSubscriptionApiRequest, RELEVANT_EVENT_TYPES } from "./subscriptionApi.js";
+import { ensureWebhookEvents } from "./partnerStripe.js";
 import { startSubscriptionReconciler } from "./subscriptionReconciler.js";
 import { handleAdminApiRequest } from "./adminApi.js";
 import { handlePartnerApiRequest } from "./partnerApi.js";
@@ -177,6 +178,11 @@ startPrimeTimeNotifier();
 
 // 棋譜解析プランの期限・更新・引き落とし失敗による自動解約を、Stripe の実状態と定期的に照合する。
 startSubscriptionReconciler(getStripeClient);
+// Stripe の Webhook に、処理する通知(返金・チャージバックを含む)が全部選ばれているか確かめ、足りなければ足す。
+{
+  const stripe = getStripeClient();
+  if (stripe) void ensureWebhookEvents(stripe, RELEVANT_EVENT_TYPES);
+}
 
 // DB の掃除(1日1回): 対応済みのエラー報告を一定期間で消す。未対応の報告は残す。
 {

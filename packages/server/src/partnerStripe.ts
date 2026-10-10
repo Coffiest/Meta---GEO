@@ -172,3 +172,53 @@ export async function recordPartnerDispute(dispute: Stripe.Dispute): Promise<voi
     occurredAt: new Date(dispute.created * 1000),
   });
 }
+
+export type WebhookEventsStatus =
+  | { state: "unknown" }
+  | { state: "ok"; added: string[] }
+  | { state: "no_endpoint" }
+  | { state: "error"; message: string };
+
+let webhookEventsStatus: WebhookEventsStatus = { state: "unknown" };
+
+/** 管理者画面に出す、Webhook の通知の準備の状況(サーバー起動時に確かめた結果)。 */
+export function getWebhookEventsStatus(): WebhookEventsStatus {
+  return webhookEventsStatus;
+}
+
+/** このサーバーの Webhook の受け口(Stripe に登録された送信先のうち、URL がこのパスのもの)。 */
+const WEBHOOK_PATH = "/api/subscriptions/webhook";
+
+/**
+ * Stripe の Webhook の送信先に、このサーバーが処理する通知(返金・チャージバックを含む)が全部選ばれているか確かめ、
+ * 足りなければ足す(足すだけで、外さない)。オーナーが Stripe の管理画面で操作しなくても、
+ * インフルエンサーへの報酬から返金分が差し引かれるようにするため。サーバーの起動時に1回だけ呼ぶ。
+ */
+export async function ensureWebhookEvents(stripe: Stripe, required: Iterable<string>): Promise<WebhookEventsStatus> {
+  try {
+    const list = await stripe.webhookEndpoints.list({ limit: 100 });
+    const endpoints = list.data.filter((e) => e.url.includes(WEBHOOK_PATH) && e.status === "enabled");
+    if (endpoints.length === 0) {
+      webhookEventsStatus = { state: "no_endpoint" };
+      console.warn("[partnerStripe] no Stripe webhook endpoint for", WEBHOOK_PATH);
+      return webhookEventsStatus;
+    }
+    const added = new Set<string>();
+    for (const endpoint of endpoints) {
+      if (endpoint.enabled_events.includes("*")) continue;
+      const missing = [...required].filter((e) => !endpoint.enabled_events.includes(e));
+      if (missing.length === 0) continue;
+      await stripe.webhookEndpoints.update(endpoint.id, {
+        enabled_events: [...endpoint.enabled_events, ...missing] as Stripe.WebhookEndpointUpdateParams.EnabledEvent[],
+      });
+      missing.forEach((e) => added.add(e));
+      console.log(`[partnerStripe] webhook ${endpoint.id}: added ${missing.join(", ")}`);
+    }
+    webhookEventsStatus = { state: "ok", added: [...added] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    webhookEventsStatus = { state: "error", message: message.slice(0, 200) };
+    console.error("[partnerStripe] ensureWebhookEvents failed:", err);
+  }
+  return webhookEventsStatus;
+}
