@@ -17,7 +17,7 @@ import {
  * インフルエンサーへの報酬の台帳。実DB(Postgres)が必要。
  *
  * ここで固定している仕様(docs/HANDOFF_influencer_partner.md。オーナー承認済み):
- *  - 報酬は入金額の 80%(円未満切り捨て)。コードで始まった契約の最初の3回分だけ。¥0 の請求は数えない
+ *  - 報酬は入金額 × 率(円未満切り捨て)。最初の3回分は 80%、4回目以降は 20%(解約までずっと)。¥0 の請求は数えない
  *  - 同じ請求書を2回数えない(Webhook の再送)
  *  - 本人の加入・期限後の加入は記録するが報酬 0(理由付き)
  *  - 返金はマイナスの行。全額返金で報酬がちょうど 0 に戻る
@@ -59,7 +59,7 @@ describe("JST の月", () => {
 });
 
 describe("partner ledger", () => {
-  it("最初の3回分だけ、入金額の80%", async () => {
+  it("最初の3回分は80%、4回目以降は20%", async () => {
     const partnerId = await makePartner("A");
     const sub = `sub_${RUN}_A`;
     await recordPartnerReferral({ partnerId, stripeSubscriptionId: sub, userId: null, selfReferral: false });
@@ -79,13 +79,16 @@ describe("partner ledger", () => {
     expect(await pay("1", 966)).toBe("duplicate");
     expect(await pay("2", 1380)).toBe("recorded");
     expect(await pay("3", 1380)).toBe("recorded");
-    expect(await pay("4", 1380)).toBe("beyond_covered");
+    expect(await pay("4", 1380)).toBe("recorded");
+    expect(await pay("5", 1380)).toBe("recorded");
 
     const rows = await partnerLedgerRows(partnerId);
     expect(rows.map((r) => [r.paymentIndex, r.commission]).sort()).toEqual([
       [1, 772],
       [2, 1104],
       [3, 1104],
+      [4, 276],
+      [5, 276],
     ]);
   });
 
