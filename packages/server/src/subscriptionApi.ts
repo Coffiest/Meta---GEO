@@ -190,20 +190,43 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         await attachStripeCustomerId({ userId: user.id, stripeCustomerId });
       }
 
-      const session = await stripe.checkout.sessions.create({
-        mode: "subscription",
-        customer: stripeCustomerId,
-        line_items: [{ price: priceId, quantity: 1 }],
-        payment_method_collection: "always",
-        // 決済画面にコードの入力欄を出す(インフルエンサーのコードで初回30%OFF。partnerStripe.ts)。
-        allow_promotion_codes: true,
-        subscription_data: {
-          metadata: { userId: user.id, plan },
-          ...(trial ? { trial_period_days: TRIAL_DAYS } : {}),
-        },
-        success_url: reviewLandingUrl(tournamentId, "success"),
-        cancel_url: reviewLandingUrl(tournamentId, "cancelled"),
-      });
+      // 料金の画面でクーポン(インフルエンサーのコードなど)が入力されていれば、その割引を付けて決済画面を開く。
+      // 入力が無ければ、決済画面にコードの入力欄を出す(どちらか一方しか Stripe は受け付けない)。
+      const promoCode = typeof body["promoCode"] === "string" ? body["promoCode"].toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 40) : "";
+      let promotionCodeId: string | null = null;
+      if (promoCode) {
+        const found = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
+        promotionCodeId = found.data[0]?.id ?? null;
+        if (!promotionCodeId) {
+          sendJson(res, 400, { error: "invalid_code" });
+          return true;
+        }
+      }
+
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await stripe.checkout.sessions.create({
+          mode: "subscription",
+          customer: stripeCustomerId,
+          line_items: [{ price: priceId, quantity: 1 }],
+          payment_method_collection: "always",
+          ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : { allow_promotion_codes: true }),
+          subscription_data: {
+            metadata: { userId: user.id, plan },
+            ...(trial ? { trial_period_days: TRIAL_DAYS } : {}),
+          },
+          success_url: reviewLandingUrl(tournamentId, "success"),
+          cancel_url: reviewLandingUrl(tournamentId, "cancelled"),
+        });
+      } catch (err) {
+        // コードの条件(有料会員になったことが無い人だけ など)に当たらないと、Stripe が受け付けない。
+        if (promotionCodeId && (err as { type?: string }).type === "StripeInvalidRequestError") {
+          console.warn("[subscriptionApi] promotion code not applicable:", (err as Error).message);
+          sendJson(res, 400, { error: "code_not_applicable" });
+          return true;
+        }
+        throw err;
+      }
 
       sendJson(res, 200, { url: session.url });
       return true;
