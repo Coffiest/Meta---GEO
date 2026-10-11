@@ -151,7 +151,8 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
       const fresh: Partner = { ...body.partner, balance: { referrals: 0, accruing: 0, payable: 0, paidTotal: 0 } };
       setPartners((list) => [fresh, ...(list ?? [])]);
       setForm({ name: "", contact: "", code: "", userId: "", note: "" });
-      setMessage({ text: `${body.partner.name} さんのコード ${body.partner.code} を発行しました。`, ok: true });
+      setMessage({ text: `${body.partner.name} さんのコード ${body.partner.code} を発行しました(コピー済み)。`, ok: true });
+      copy(body.partner.code);
     } catch {
       setMessage({ text: "サーバーに接続できませんでした。", ok: false });
     } finally {
@@ -263,7 +264,7 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
             </p>
           )}
           <p className="text-[11px] leading-relaxed text-fg-3">
-            決済画面で入れると初回の支払いが30%OFFになるコード。有料会員になったことが無い人だけが使えます。コードを省くと自動で作ります。
+            料金の画面のクーポンコード欄(または決済画面)で入れると初回の支払いが30%OFFになるコード。有料会員になったことが無い人だけが使えます。コードを省くと自動で作ります。コードを押すとコピーできます。
           </p>
 
           <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -327,9 +328,23 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     {p.name}
                     {p.contact && <span className="ml-1.5 font-bold text-fg-3">{p.contact}</span>}
                   </p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-3">
-                    <span className={`font-black tracking-wider ${p.active ? "text-fg" : "text-fg-3 line-through"}`}>{p.code}</span>
-                    <span>・ {fmtDate(p.createdAt)}</span>
+                  {/* コードそのものを押すとコピーできる(インフルエンサーに渡す招待コード)。 */}
+                  <button
+                    type="button"
+                    onClick={() => copy(p.code)}
+                    aria-label={`コード ${p.code} をコピー`}
+                    className="pressable mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5"
+                  >
+                    <span className={`text-[13px] font-black tracking-[0.12em] ${p.active ? "text-fg" : "text-fg-3 line-through"}`}>
+                      {p.code}
+                    </span>
+                    <Icon name={copied === p.code ? "check" : "copy"} className={`h-3.5 w-3.5 ${copied === p.code ? "text-accent" : "text-fg-3"}`} />
+                    <span className={`text-[10.5px] font-bold ${copied === p.code ? "text-accent" : "text-fg-3"}`}>
+                      {copied === p.code ? "コピーしました" : "コピー"}
+                    </span>
+                  </button>
+                  <p className="mt-1 flex items-center gap-1.5 text-[11px] text-fg-3">
+                    <span>{fmtDate(p.createdAt)}</span>
                     {p.userId && <span>・ 本人のアカウントあり</span>}
                   </p>
                   {p.note && <p className="mt-0.5 truncate text-[10.5px] text-fg-3">{p.note}</p>}
@@ -372,14 +387,6 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => copy(p.code)}
-                  className="pressable shrink-0 rounded-lg p-2 text-fg-3"
-                  aria-label="コードをコピー"
-                >
-                  <Icon name={copied === p.code ? "check" : "copy"} className="h-4 w-4" />
-                </button>
                 <button
                   type="button"
                   onClick={() => void toggle(p)}

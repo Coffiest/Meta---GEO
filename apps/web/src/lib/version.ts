@@ -2,4 +2,4 @@
  * アプリのバージョン表示用(ホーム画面フッターに表示)。CLAUDE.mdの運用ルールにより、
  * mainへの変更をデプロイするたびにここを1つ上げる。
  */
-export const APP_VERSION = "4.205.0";
+export const APP_VERSION = "4.206.0";
