@@ -52,13 +52,22 @@ export async function fetchSubscriptionStatus(accessToken: string): Promise<Subs
  * tournamentIdを渡すと、加入後にその棋譜解析画面へ戻る。
  * Stripe未設定(503)時は SubscriptionUnavailableError を投げる。
  */
-export async function startCheckout(accessToken: string, tournamentId?: string, plan: PlanId = "silver"): Promise<void> {
+export async function startCheckout(
+  accessToken: string,
+  tournamentId?: string,
+  plan: PlanId = "silver",
+  promoCode?: string,
+): Promise<void> {
   const res = await fetch(`${SERVER_URL}/api/subscriptions/checkout`, {
     method: "POST",
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-    body: JSON.stringify(tournamentId ? { tournamentId, plan } : { plan }),
+    body: JSON.stringify({ plan, ...(tournamentId ? { tournamentId } : {}), ...(promoCode ? { promoCode } : {}) }),
   });
   if (res.status === 503) throw new SubscriptionUnavailableError();
+  if (res.status === 400) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (body.error === "invalid_code" || body.error === "code_not_applicable") throw new PromoCodeError(body.error);
+  }
   if (!res.ok) throw new Error("チェックアウトの開始に失敗しました");
   const { url } = (await res.json()) as { url: string };
   window.location.href = url;
@@ -89,6 +98,13 @@ export async function previewChangePlan(accessToken: string, plan: PlanId): Prom
 }
 
 /** Stripe のポータルでプランの変更が許可されていない。 */
+/** 料金の画面で入れたクーポンが使えない(存在しない・停止中 / 条件に合わない)。 */
+export class PromoCodeError extends Error {
+  constructor(readonly reason: "invalid_code" | "code_not_applicable") {
+    super(reason);
+  }
+}
+
 export class PortalUpdateDisabledError extends Error {
   constructor() {
     super("portal_update_disabled");

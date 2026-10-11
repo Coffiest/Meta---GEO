@@ -13,6 +13,7 @@ import {
   openBillingPortal,
   PLAN_LABEL,
   startCheckout,
+  PromoCodeError,
   SubscriptionUnavailableError,
   useSubscriptionStatus,
   type PlanId,
@@ -66,6 +67,8 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
   const { status, reload } = useSubscriptionStatus(accessToken);
   const [submitting, setSubmitting] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** クーポン(インフルエンサーの紹介コードなど)。入れて加入すると、その割引で決済画面が開く。 */
+  const [promoCode, setPromoCode] = useState("");
   // 選んでいるタブ。既定はおすすめのゴールド(加入中なら今のプラン)。
   const [selected, setSelected] = useState<PlanId>(initialPlan ?? "gold");
   // 局後検討のポップアップから来たときは見出しを合わせる。
@@ -93,10 +96,16 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         await changePlan(accessToken, plan);
         return;
       }
-      await startCheckout(accessToken, undefined, plan);
+      await startCheckout(accessToken, undefined, plan, promoCode || undefined);
     } catch (e) {
       setSubmitting(null);
-      if (e instanceof PortalUpdateDisabledError) {
+      if (e instanceof PromoCodeError) {
+        setError(
+          e.reason === "invalid_code"
+            ? "そのクーポンコードは見つかりませんでした。綴りをご確認ください。"
+            : "このクーポンコードは、はじめて有料会員になる方だけが使えます。",
+        );
+      } else if (e instanceof PortalUpdateDisabledError) {
         setError("いまはプランの変更を受け付けていません。時間をおいて再度お試しください。");
       } else if (e instanceof SubscriptionUnavailableError) {
         setError("決済は現在準備中です。まもなくご利用いただけます。");
@@ -267,11 +276,25 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
             {PLAN_LABEL[selected]}に加入中
           </div>
         ) : (
+          <>
+          {/* クーポン(インフルエンサーの紹介コードなど)。新しく加入するときだけ(プラン変更には使えない)。 */}
+          {!canChange && (
+            <input
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20))}
+              placeholder="クーポンコード(お持ちの方)"
+              aria-label="クーポンコード"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              className="mx-auto mt-4 block h-10 w-[62%] rounded-xl border border-line bg-surface px-3 text-center text-[13px] font-bold tracking-[0.12em] text-fg placeholder:font-normal placeholder:tracking-normal placeholder:text-fg-3 focus:border-accent focus:outline-none"
+            />
+          )}
           <button
             onClick={() => void handleSubscribe(selected)}
             // Stripe の契約が無い加入(管理者の付与など)は Checkout で新しく契約できる(サーバーも許す)。
             disabled={submitting != null}
-            className="premium-btn pressable mt-4 h-14 w-full disabled:opacity-60"
+            className={`premium-btn pressable ${canChange ? "mt-4" : "mt-2.5"} h-14 w-full disabled:opacity-60`}
           >
             {/* 星が流れる背景と、下のピンク/紫の光(出典: uiverse.io by StealthWorm。オーナー指示) */}
             <span aria-hidden className="premium-btn-stars"><span className="premium-btn-stars-inner" /></span>
@@ -283,15 +306,10 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
               {submitting === selected ? <Loader size="sm" /> : canChange && currentPlan ? `${PLAN_LABEL[selected]}に${buttonLabel(selected).includes("上げる") ? "上げる" : "下げる"}` : trialEligible ? `${trialDays}日間 無料で試す` : "さあプレミアム会員に"}
             </strong>
           </button>
+          </>
         )}
         </div>
 
-        {/* インフルエンサーのコードは Stripe の決済画面で入れる(フォロワーが入れ場所で迷わないように)。 */}
-        {!isCurrent && !canChange && (
-          <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
-            紹介コードをお持ちの方は、次の決済画面の「プロモーションコードを追加」に入力すると初月30%OFF(はじめて有料会員になる方のみ)。
-          </p>
-        )}
         {canChange && (
           <p className="mt-2 text-center text-[11px] leading-relaxed text-fg-3">
             差額は日割りで、上げるときはその場で請求、下げるときは次回以降の請求から差し引きます。
