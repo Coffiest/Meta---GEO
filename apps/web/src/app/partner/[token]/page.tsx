@@ -10,7 +10,14 @@ type RowStatus = "accruing" | "payable" | "paid" | "void_self" | "void_expired";
 
 interface Statement {
   partner: { name: string; code: string; active: boolean };
-  terms: { ratePercent: number; paymentsCovered: number; discountPercent: number; minPayout: number; deadline: string };
+  terms: {
+    introRatePercent: number;
+    introPayments: number;
+    ongoingRatePercent: number;
+    discountPercent: number;
+    minPayout: number;
+    deadline: string;
+  };
   balance: { referrals: number; accruing: number; payable: number; paidTotal: number };
   rows: {
     occurredAt: string;
@@ -122,8 +129,8 @@ export default function PartnerStatementPage() {
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-fg-3">
-              報酬は、このコードで加入した方の最初の{data.terms.paymentsCovered}回分の入金額(割引後・税込)の
-              {data.terms.ratePercent}%です。月末締め・翌月末払いで、未払いが ¥{data.terms.minPayout.toLocaleString()}
+              報酬は、このコードで加入した方の入金額(割引後・税込)のうち、最初の{data.terms.introPayments}回分は
+              {data.terms.introRatePercent}%、それ以降は解約されるまでずっと{data.terms.ongoingRatePercent}%です。月末締め・翌月末払いで、未払いが ¥{data.terms.minPayout.toLocaleString()}
               に届かない月は翌月に繰り越します。返金・チャージバックがあった分は差し引きます。対象は{" "}
               {jstDate(new Date(new Date(data.terms.deadline).getTime() - 1).toISOString())} までに加入した方です。
             </p>

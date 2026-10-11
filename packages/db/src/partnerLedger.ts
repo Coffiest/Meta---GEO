@@ -4,7 +4,8 @@ import { prisma } from "./client.js";
 /**
  * インフルエンサー(ローンチパートナー)への報酬の台帳。仕様は docs/HANDOFF_influencer_partner.md。
  *
- * - 報酬 = 入金額(割引後・税込)の 80%。コードで始まった契約の**最初の3回分の入金**だけ。
+ * - 報酬 = 入金額(割引後・税込)× 率。率は、コードで始まった契約の**最初の3回分の入金は 80%、4回目以降は 20%**
+ *   (会員が解約するまでずっと。オーナー確定 2026-10-11。80% のまま永続は採算が合わないため)。
  * - 2027年3月末(日本時間)までに始まった契約が対象。本人の加入(本人のアカウント・本人と同じカード)は対象外。
  * - 行は書き換えない。返金・チャージバックは**マイナスの行**で打ち消す(支払いの証明に使うため)。
  * - 月末締め・翌月末払い。締めた月の合計が ¥3,000 未満なら繰り越す。
@@ -12,8 +13,11 @@ import { prisma } from "./client.js";
  * Supabase の転送量のきまり(CLAUDE.md): 大きな行を読み戻さない。必ず select を付ける。
  */
 
-export const PARTNER_COMMISSION_RATE = 0.8;
-export const PARTNER_PAYMENTS_COVERED = 3;
+/** 最初の PARTNER_INTRO_PAYMENTS 回分の入金の率。 */
+export const PARTNER_INTRO_RATE = 0.8;
+export const PARTNER_INTRO_PAYMENTS = 3;
+/** それ以降(会員が解約するまでずっと)の率。 */
+export const PARTNER_ONGOING_RATE = 0.2;
 export const PARTNER_MIN_PAYOUT_JPY = 3000;
 /** ローンチパートナー特別レートの期限。この時刻より後に始まった契約は対象外(2027-03-31 24:00 JST)。 */
 export const PARTNER_PROGRAM_DEADLINE = new Date("2027-03-31T15:00:00.000Z");
@@ -32,9 +36,14 @@ export function monthKeyJst(at: Date): string {
   return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** 入金1件の報酬(円未満は切り捨て)。 */
-export function commissionOf(amount: number): number {
-  return Math.floor(amount * PARTNER_COMMISSION_RATE);
+/** paymentIndex 回目の入金に掛ける率。 */
+export function commissionRateOf(paymentIndex: number): number {
+  return paymentIndex <= PARTNER_INTRO_PAYMENTS ? PARTNER_INTRO_RATE : PARTNER_ONGOING_RATE;
+}
+
+/** paymentIndex 回目の入金1件の報酬(円未満は切り捨て)。 */
+export function commissionOf(amount: number, paymentIndex: number): number {
+  return Math.floor(amount * commissionRateOf(paymentIndex));
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -66,10 +75,10 @@ export async function hasPartnerCharge(stripeChargeId: string): Promise<boolean>
   return row !== null;
 }
 
-export type PartnerPaymentResult = "recorded" | "not_referred" | "zero" | "beyond_covered" | "duplicate";
+export type PartnerPaymentResult = "recorded" | "not_referred" | "zero" | "duplicate";
 
 /**
- * 入金(Stripe の請求書の支払い)を台帳に載せる。コードで始まった契約の最初の3回分だけ。¥0 の請求(無料体験)は数えない。
+ * 入金(Stripe の請求書の支払い)を台帳に載せる。コードで始まった契約の入金すべて(何回目かで率が変わる)。¥0 の請求(無料体験)は数えない。
  * 同じ請求書は2回載せない(Webhook の再送)。
  */
 export async function recordPartnerPayment(params: {
@@ -89,7 +98,6 @@ export async function recordPartnerPayment(params: {
   const existing = await prisma.partnerLedger.findUnique({ where: { sourceId: params.stripeInvoiceId }, select: { id: true } });
   if (existing) return "duplicate";
   const paid = await prisma.partnerLedger.count({ where: { referralId: referral.id, kind: "payment" } });
-  if (paid >= PARTNER_PAYMENTS_COVERED) return "beyond_covered";
 
   const voidReason = referral.selfReferral ? "self" : referral.createdAt > PARTNER_PROGRAM_DEADLINE ? "expired" : null;
   try {
@@ -104,7 +112,7 @@ export async function recordPartnerPayment(params: {
         paymentIndex: paid + 1,
         plan: params.plan,
         amount: params.amount,
-        commission: voidReason ? 0 : commissionOf(params.amount),
+        commission: voidReason ? 0 : commissionOf(params.amount, paid + 1),
         voidReason,
         occurredAt: params.occurredAt,
       },
@@ -139,7 +147,7 @@ export async function recordPartnerReversal(params: {
     _sum: { commission: true },
   });
   const remaining = payment.commission + (reversed._sum.commission ?? 0);
-  const commission = -Math.max(0, Math.min(remaining, Math.ceil(params.amount * PARTNER_COMMISSION_RATE)));
+  const commission = -Math.max(0, Math.min(remaining, Math.ceil(params.amount * commissionRateOf(payment.paymentIndex))));
   try {
     await prisma.partnerLedger.create({
       data: {
