@@ -343,6 +343,8 @@ export interface AdminUserSearchResult {
   displayName: string;
   email: string | null;
   createdAt: Date;
+  /** 友達招待のコード(メニューの「あなたの招待コード」)。本人が招待カードを開くまでは未発行(null)。 */
+  referralCode: string | null;
   subscription: {
     status: string;
     currentPeriodEnd: Date | null;
@@ -358,7 +360,7 @@ export interface AdminUserSearchResult {
   } | null;
 }
 
-/** 管理者画面用: プレイヤー名・メールアドレス・ユーザーIDの部分一致で検索する(Bot除外・最大20件)。 */
+/** 管理者画面用: プレイヤー名・メールアドレス・ユーザーID・招待コードの部分一致で検索する(Bot除外)。 */
 export async function searchUsersForAdmin(
   query: string,
   opts: { limit?: number; offset?: number } = {}
@@ -374,6 +376,10 @@ export async function searchUsersForAdmin(
               { displayName: { contains: q, mode: "insensitive" as const } },
               { email: { contains: q, mode: "insensitive" as const } },
               { id: { contains: q, mode: "insensitive" as const } },
+              // 招待コードは大文字英数字だけで保存している(表記の揺れ・ハイフンは吸収する)。
+              ...(q.replace(/[^A-Za-z0-9]/g, "").length >= 3
+                ? [{ referralCode: { contains: q.toUpperCase().replace(/[^A-Z0-9]/g, "") } }]
+                : []),
             ],
           }
         : {}),
@@ -388,6 +394,7 @@ export async function searchUsersForAdmin(
       displayName: true,
       email: true,
       createdAt: true,
+      referralCode: true,
       adminPlan: true,
       adminPlanUntil: true,
       subscription: { select: { status: true, currentPeriodEnd: true, plan: true, stripeSubscriptionId: true } },
@@ -412,6 +419,7 @@ export async function searchUsersForAdmin(
         displayName: u.displayName,
         email: u.email,
         createdAt: u.createdAt,
+        referralCode: u.referralCode,
         subscription: hasAnything
           ? {
               status: eff.status ?? "none",
