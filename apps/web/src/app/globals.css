@@ -290,7 +290,11 @@ body {
   left: var(--row-inset, 0px);
   right: 0;
   bottom: 0;
-  height: 0.5px;
+  /* 0.5px の高さを直接書くと、行の下端が端数の位置に来たとき線が消える(履歴で一部の行だけ線が無かった)。
+     1px の線を縦に半分へ縮めて、どの位置でも同じ細さで描く。 */
+  height: 1px;
+  transform: scaleY(0.5);
+  transform-origin: bottom;
   background: rgb(255 255 255 / 0.12);
   pointer-events: none;
 }
@@ -310,7 +314,11 @@ body {
   left: var(--row-inset, 12px);
   right: 0;
   bottom: 0;
-  height: 0.5px;
+  /* 0.5px の高さを直接書くと、行の下端が端数の位置に来たとき線が消える(履歴で一部の行だけ線が無かった)。
+     1px の線を縦に半分へ縮めて、どの位置でも同じ細さで描く。 */
+  height: 1px;
+  transform: scaleY(0.5);
+  transform-origin: bottom;
   background: rgb(255 255 255 / 0.12);
   pointer-events: none;
 }
