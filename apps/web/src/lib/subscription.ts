@@ -15,8 +15,10 @@ export interface SubscriptionStatus {
   plan?: PlanId | null;
   /** Stripe の契約が生きていて、プランの上げ下げ(change-plan)ができるか。 */
   canChangePlan?: boolean;
-  /** 無料体験(全プランを通して1人1回)がまだ使えるか。 */
+  /** いま7日間無料で始められるか(インマネ10回ごとに1時間だけ出る特別オファーの期限内)。 */
   trialEligible?: boolean;
+  /** 特別オファーの期限(ISO)。出ていなければ null。 */
+  trialOfferUntil?: string | null;
   trialDays?: number;
   prices?: Record<PlanId, number>;
 }
@@ -139,6 +141,34 @@ export async function openBillingPortal(accessToken: string): Promise<void> {
 }
 
 /** ログイン済みユーザーのサブスク状態(+無料枠残数)を取得するフック。ゲスト(トークン無し)ではnullのまま。 */
+/** トーナメントが終わったことを知らせるイベント(特別オファーが出ていないか確かめるきっかけ)。 */
+export const TOURNAMENT_FINISHED_EVENT = "poker-art:tournament-finished";
+
+/** 7日間無料の特別オファー(インマネ10回ごとに1時間だけ)が出ていれば、その期限。加入中・出ていなければ null。 */
+export async function fetchTrialOffer(accessToken: string): Promise<{ offerUntil: string | null; trialDays: number } | null> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/offer`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as { offerUntil: string | null; trialDays: number };
+}
+
+/** 期限までの残り時間を1秒ごとに数える("mm:ss")。期限を過ぎたら null。 */
+export function useCountdown(until: string | null | undefined): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!until) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [until]);
+  if (!until) return null;
+  const left = new Date(until).getTime() - now;
+  if (left <= 0) return null;
+  const sec = Math.floor(left / 1000);
+  return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+}
+
 /** 会員の状態が変わったことを、開いているすべての画面に知らせるイベント(決済から戻ったときなど)。 */
 export const SUBSCRIPTION_CHANGED_EVENT = "poker-art:subscription-changed";
 

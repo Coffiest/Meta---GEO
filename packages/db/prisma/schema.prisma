@@ -32,6 +32,10 @@ model User {
   geoAccessOverride String?
   /// 無料体験を使った時刻(全プランを通して1人1回。オーナー確定)。null = まだ使っていない。
   trialUsedAt  DateTime?
+  /// 7日間無料の特別オファー(オーナー確定 2026-10-12): インマネ10回ごとに1回、1時間だけ出る。
+  /// trialOfferMilestone = 最後にオファーを出したインマネの区切り(10, 20, 30…)。trialOfferUntil = その期限(使ったら null)。
+  trialOfferMilestone Int @default(0)
+  trialOfferUntil     DateTime?
   /// 管理者が付与したプラン("silver" | "gold" | "platinum")と期限。Stripe の契約とは別に持ち、高い方が効く
   /// (支払い中の人にも上位プランを付与できるように。オーナー指示)。期限切れ・null は無し。
   adminPlan      String?

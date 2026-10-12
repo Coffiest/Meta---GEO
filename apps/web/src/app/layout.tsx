@@ -1,5 +1,6 @@
 import { PricingSheetProvider } from "@/components/PricingSheet";
 import { CheckoutReturn } from "@/components/CheckoutReturn";
+import { TrialOfferPopup } from "@/components/TrialOfferPopup";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -218,7 +219,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* 起動画面。アプリ本体(/)を開いたときだけ、最初の描画から出る。 */}
         <LaunchSplash />
         <LocaleProvider>
-          <PricingSheetProvider>{children}</PricingSheetProvider>
+          <PricingSheetProvider>
+            {children}
+            {/* 7日間無料の特別オファー(インマネ10回ごとに1時間だけ)。料金のシートを開くので Provider の中。 */}
+            <TrialOfferPopup />
+          </PricingSheetProvider>
           <CheckoutReturn />
           {/* 端末の言語と国の言語が食い違うときだけ「◯◯語で表示しますか?」と提案する。 */}
           <LocaleSuggestion />
