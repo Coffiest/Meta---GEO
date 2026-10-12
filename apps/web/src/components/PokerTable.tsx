@@ -539,12 +539,12 @@ export function PokerTable({
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
                   (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
-              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
+              <span className="text-[9.5px] font-black tracking-[0.08em] text-n-9 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
-              <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
+              <span className="text-[16px] font-black tracking-[-0.01em] text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>
               {spr !== null && (
-                <span className="text-[10px] font-bold text-n-9 tabular-nums leading-none border-l border-line pl-2">
+                <span className="text-[11px] font-bold text-fg-2 tabular-nums leading-none border-l border-line pl-2">
                   SPR {spr.toFixed(1)}
                 </span>
               )}
@@ -566,10 +566,10 @@ export function PokerTable({
                 key={i}
                 className="flex items-center gap-1.5 rounded-full bg-surface border border-line-strong px-2.5 py-1 shadow-e0"
               >
-                <span className="text-[8px] font-black tracking-[0.18em] text-n-9">
+                <span className="text-[9.5px] font-black text-n-9">
                   {i === 0 ? "メイン" : `サイド ${i}`}
                 </span>
-                <span className="text-[11px] font-black text-fg tabular-nums leading-none">
+                <span className="text-[12px] font-black text-fg tabular-nums leading-none">
                   {formatAmount(pot.amount, bigBlind, displayMode)}
                 </span>
               </span>
