@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -212,6 +212,14 @@ function GameStartButton({
 }
 
 export type Tab = "home" | "stats" | "leaderboard" | "history" | "tournaments";
+
+/** 下のナビの並び(左から)。タブを切り替えるとき、右のタブへ移るなら右から入り左へ抜ける(apple-design: 空間の一貫性)。 */
+const TAB_ORDER: Record<Tab, number> = { home: 0, stats: 1, history: 2, tournaments: 2, leaderboard: 3 };
+const TAB_VARIANTS = {
+  enter: (dir: number) => ({ opacity: 0, x: 16 * dir }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir: number) => ({ opacity: 0, x: -16 * dir }),
+};
 
 /** URLの?tabクエリから有効なタブ名だけを取り出す(それ以外はnull)。/geo等の他画面からの遷移用。 */
 export function tabFromQuery(value: string | null): Tab | null {
@@ -1025,6 +1033,15 @@ export function Lobby({
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
+  // 直前のタブとの並びの差で、切り替えの向きを決める(右へ移る = 1 / 左へ移る = -1)。
+  // 向きはタブが変わったときだけ決め直す(抜けていく途中の再描画で向きが反転しないように)。
+  const prevTabRef = useRef<Tab>(tab);
+  const tabDirRef = useRef(1);
+  if (prevTabRef.current !== tab) {
+    tabDirRef.current = TAB_ORDER[tab] >= TAB_ORDER[prevTabRef.current] ? 1 : -1;
+    prevTabRef.current = tab;
+  }
+  const tabDir = tabDirRef.current;
   // リーダーボードでタップされたプレイヤー(スタッツ詳細モーダルを開く対象)。
   const [lbTapped, setLbTapped] = useState<{ userId: string; displayName: string; avatarKey: string | null } | null>(null);
   const [stats, setStats] = useState<PlayerStats | null>(null);
@@ -1234,13 +1251,15 @@ export function Lobby({
             </span>
           </button>
         )}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" custom={tabDir}>
         {tab === "home" && (
           <motion.div
             key="home"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
+            custom={tabDir}
+            variants={TAB_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={SPRING_MOVE}
             className="space-y-5"
           >
@@ -1291,9 +1310,11 @@ export function Lobby({
         {tab === "stats" && (
           <motion.div
             key="stats"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
+            custom={tabDir}
+            variants={TAB_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={SPRING_MOVE}
             className="space-y-3"
           >
@@ -1449,9 +1470,11 @@ export function Lobby({
         {tab === "leaderboard" && (
           <motion.div
             key="leaderboard"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
+            custom={tabDir}
+            variants={TAB_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={SPRING_MOVE}
           >
             <TabHeader command="curl leaderboard --top" eyebrow="Ranking" title="Leaderboard" />
@@ -1548,9 +1571,11 @@ export function Lobby({
         {tab === "history" && (
           <motion.div
             key="history"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
+            custom={tabDir}
+            variants={TAB_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={SPRING_MOVE}
           >
             <TabHeader command="tail -f hands.log" eyebrow="Every hand" title="Hand History" />
@@ -1663,9 +1688,11 @@ export function Lobby({
         {tab === "tournaments" && (
           <motion.div
             key="tournaments"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
+            custom={tabDir}
+            variants={TAB_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={SPRING_MOVE}
           >
             <TabHeader command="ls tournaments/" eyebrow="Results" title="Tournaments" />
