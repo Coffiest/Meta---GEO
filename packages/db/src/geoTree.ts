@@ -1331,7 +1331,41 @@ export interface GeoPositionStatRow {
 }
 
 /** 集計母数の内訳。ポジション偏りの原因が「そもそも集計対象外」かを切り分ける。 */
+/** 統合後のポジション(後ろに残る人数で数える。GEO データベースが実際に使う単位)ごとの集まり具合。 */
+export interface GeoMergedPositionRow {
+  position: string;
+  decisions: number;
+  hands: number;
+  /** どの人数の卓から集まったか(人数の多い順)。 */
+  byPlayerCount: { playerCount: number; rawPosition: string; hands: number }[];
+}
+
+/** 統合後のポジションの並び(6人卓の名前 + ヘッズアップ)。 */
+const MERGED_POSITION_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB", "BTN(SB)"];
+
+/** 卓の人数×生のポジションの行を、統合後のポジションごとに足し合わせる(1つのハンドは1つの人数にしか無いので足してよい)。 */
+export function mergePositionStats(rows: GeoPositionStatRow[]): GeoMergedPositionRow[] {
+  const merged = new Map<string, GeoMergedPositionRow>();
+  for (const r of rows) {
+    const position = normalizePosition(r.position, r.playerCount);
+    const m = merged.get(position) ?? { position, decisions: 0, hands: 0, byPlayerCount: [] };
+    m.decisions += r.decisions;
+    m.hands += r.hands;
+    m.byPlayerCount.push({ playerCount: r.playerCount, rawPosition: r.position, hands: r.hands });
+    merged.set(position, m);
+  }
+  const rank = (p: string) => {
+    const i = MERGED_POSITION_ORDER.indexOf(p);
+    return i < 0 ? MERGED_POSITION_ORDER.length : i;
+  };
+  return [...merged.values()]
+    .map((m) => ({ ...m, byPlayerCount: m.byPlayerCount.sort((a, b) => b.playerCount - a.playerCount) }))
+    .sort((a, b) => rank(a.position) - rank(b.position));
+}
+
 export interface GeoPositionStats {
+  /** 統合後のポジションごとの合計(GEO データベースが実際に使う単位。オーナー指示 2026-10-12)。 */
+  merged: GeoMergedPositionRow[];
   /** プリフロップのポジション×人数の内訳(hands の多い順)。 */
   preflop: GeoPositionStatRow[];
   /** ストリート別の行数(プリフロップ以外も含めた全体像)。 */
@@ -1382,13 +1416,15 @@ export async function getGeoPositionStats(): Promise<GeoPositionStats> {
     prisma.hand.count({ where: { ...HUMAN_SEATED, decisions: { some: {} } } }),
   ]);
 
+  const preflop = preflopRows.map((r) => ({
+    position: r.position,
+    playerCount: r.playerCount,
+    decisions: Number(r.decisions),
+    hands: Number(r.hands),
+  }));
   return {
-    preflop: preflopRows.map((r) => ({
-      position: r.position,
-      playerCount: r.playerCount,
-      decisions: Number(r.decisions),
-      hands: Number(r.hands),
-    })),
+    merged: mergePositionStats(preflop),
+    preflop,
     byStreet: streetRows.map((r) => ({ street: r.street, rows: Number(r.rows) })),
     seats: { total, bot, human: total - bot, humanAway, humanExcluded },
     handsWithoutDecisions: totalHands - handsWithDecisions,
