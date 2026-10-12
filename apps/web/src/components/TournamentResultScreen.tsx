@@ -7,7 +7,6 @@ import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
 import { useI18n } from "@/lib/i18n";
-import { UpsellCard } from "@/components/UpsellCard";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
 import { PROD_URL, buildMilestoneShareUrl, shareOrTweet } from "@/lib/share";
 import { buildMilestoneShareText, detectMilestone } from "@/lib/milestone";
@@ -479,9 +478,6 @@ export function TournamentResultScreen({
             {t("result.postGame")}
           </button>
         )}
-
-        {/* 無料の人だけに出す、有料プランの案内(プランは料金ページで選んでもらう)。 */}
-        {tournamentId && <UpsellCard accessToken={accessToken} />}
 
         <div className={`grid gap-2 ${tournamentId ? "mt-2" : "mt-4"} ${onPlayAgain || showReEntry ? "grid-cols-2" : "grid-cols-1"}`}>
           <button onClick={onExit} className="rounded-2xl bg-surface-2 py-3.5 text-[14px] font-black text-fg pressable">
