@@ -146,6 +146,13 @@ function formatBytes(n: number): string {
  * hands(重複なしのハンド数)が人数ごとに揃っていれば母集団は健全で、見え方の問題だと分かる。
  */
 interface GeoPositionStats {
+  /** 統合後のポジション(後ろに残る人数で数える。GEO データベースが使う単位)ごとの合計。 */
+  merged?: {
+    position: string;
+    decisions: number;
+    hands: number;
+    byPlayerCount: { playerCount: number; rawPosition: string; hands: number }[];
+  }[];
   preflop: { position: string; playerCount: number; decisions: number; hands: number }[];
   byStreet: { street: string; rows: number }[];
   seats: { total: number; bot: number; human: number; humanAway: number; humanExcluded: number };
@@ -715,8 +722,9 @@ export default function AdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-black text-fg">ポジション別の集まり具合</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-n-9">
-                    プリフロップの意思決定を、卓の人数×ポジションで数えます。人数ごとに横並びの数字が
-                    おおむね揃っていれば母集団は健全です。特定のポジションだけ極端に少なければ、
+                    プリフロップで行動したハンドの数。上の表は GEO データベースが実際に使う単位で、後ろに残る人数が
+                    同じポジションを1つにまとめています(6人卓の CO・5人卓の CO・4人卓の UTG はどれも後ろが BTN・SB・BB
+                    なので「CO」)。下は卓の人数ごとの元の数です。特定のポジションだけ極端に少なければ、
                     席の割り当てかボタン回転を疑います。
                   </p>
                 </div>
@@ -740,6 +748,25 @@ export default function AdminPage() {
 
               {posStatsOpen && posStats && (
                 <div className="mt-3 space-y-3">
+                  {posStats.merged && posStats.merged.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-[11px] font-black text-accent">統合後(GEO データベースで使う単位)</p>
+                      <div>
+                        {posStats.merged.map((m) => (
+                          <div key={m.position} className="flex items-baseline gap-2 border-b border-n-3 py-1.5 tabular-nums">
+                            <span className="w-16 shrink-0 text-[12px] font-black text-fg">{m.position}</span>
+                            <span className="w-16 shrink-0 text-right text-[13px] font-black text-fg">{m.hands.toLocaleString()}</span>
+                            <span className="min-w-0 flex-1 text-[10.5px] leading-snug text-n-9">
+                              {m.byPlayerCount
+                                .map((b) => `${b.playerCount}人卓${b.rawPosition !== m.position ? `の${b.rawPosition}` : ""} ${b.hands.toLocaleString()}`)
+                                .join(" / ")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[11px] font-black text-n-10">卓の人数ごとの元の数</p>
                   {[6, 5, 4, 3, 2].map((pc) => {
                     const order = POSITIONS_BY_PLAYER_COUNT[pc] ?? [];
                     const rows = posStats.preflop.filter((r) => r.playerCount === pc);
