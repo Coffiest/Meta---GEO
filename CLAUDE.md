@@ -9,7 +9,7 @@
   - 通信内容でも判別させない。Socket.IOのペイロードやREST応答に `isBot` 相当のフラグを含めない。プロフィールAPIは相手が誰であっても同じステータス・同じ形で応答する(自動プレイヤーには `packages/server/src/syntheticProfile.ts` の決定論的な擬似スタッツを返す)。404などの応答差で判別できてはいけない。
   - 新機能を作るときも、相手の種別によって挙動・表示・応答が変わる分岐を入れていないか必ず確認する。
 - コード変更を行ったら、**毎回必ず** `git commit` して `git push` すること。作業を溜めて後でまとめてコミットしない。
-- **変更のたびに必ずバージョンを1つ上げる**こと。バージョンの実体は `apps/web/src/lib/version.ts` の `APP_VERSION` 定数(例: `"1.1.0"` → `"1.2.0"`)。`apps/web/package.json` の `version` フィールドも同じ値に揃える。ホーム画面フッターに「Poker ART v{APP_VERSION}」として自動表示される。
+- **変更のたびに必ずバージョンを1つ上げる**こと。バージョンの実体は `apps/web/src/lib/version.ts` の `APP_VERSION` 定数(例: `"1.1.0"` → `"1.2.0"`)。`apps/web/package.json` の `version` フィールドも同じ値に揃える。ホーム画面フッターに「Poker ART v{APP_VERSION}」として自動表示される。**2026-10-12 にオーナー指示で 4.210.0 → 1.0.0 に振り直した**(以降は 1.1.0, 1.2.0…と上げる。CLAUDE.md・docs に残る「v4.x」は振り直し前の番号)。
 - 変更を(featureブランチ経由も含め最終的に)mainへ反映したら、GitHub Actionsの`Deploy`ワークフロー(`.github/workflows/deploy.yml`)がFly.io(サーバー)+Vercel(Web)へ自動デプロイする。デプロイ完了(`conclusion: success`)を確認してから、**必ず**チャットに次の2つを出すこと:
   1. 上げたバージョン名(例: `v1.2.0`)
   2. 最新のアプリURL: **https://meta-geo-poker.vercel.app**
