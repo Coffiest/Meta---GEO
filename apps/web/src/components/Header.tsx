@@ -44,7 +44,7 @@ export function HeaderLogo() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={LOGO_SRC} alt="Poker ART" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
       <span>
-        Poker<span className="text-accent">ART</span>
+        Poker <span className="text-accent">ART</span>
       </span>
     </div>
   );
