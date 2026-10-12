@@ -17,6 +17,8 @@ interface AdminUser {
   displayName: string;
   email: string | null;
   createdAt: string;
+  /** 友達招待のコード(本人が招待カードを開くまでは未発行)。 */
+  referralCode?: string | null;
   subscription: {
     status: string;
     currentPeriodEnd: string | null;
@@ -213,6 +215,8 @@ export default function AdminPage() {
   const [total, setTotal] = useState(0);
   const [planFilter, setPlanFilter] = useState<PlanFilter>("all");
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  /** コピーした招待コード(押した行だけ「コピーしました」にする)。 */
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   /** 操作の結果を、そのプレイヤーのカードの中に出す(画面上部だけだと、下の方のカードで押したとき見えず「何も起きない」ように見えた)。 */
   const [cardMsg, setCardMsg] = useState<{ userId: string; text: string; ok: boolean } | null>(null);
   /** 剥奪は1回目のタップで確認の状態にし、2回目で実行する(ホーム画面アプリでは window.confirm が出ないことがあるため)。 */
@@ -944,7 +948,7 @@ export default function AdminPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="プレイヤー名・ID・メールアドレスで検索"
+                placeholder="プレイヤー名・ID・メール・招待コードで検索"
                 className="w-full rounded-xl border border-line py-3 pl-10 pr-3.5 text-sm text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
               />
             </div>
@@ -1005,6 +1009,28 @@ export default function AdminPage() {
                           <p className="truncate text-[15px] font-black tracking-tight text-fg">{u.displayName}</p>
                           <p className="truncate text-[11px] text-fg-2">{u.email ?? "メール未登録"}</p>
                           <p className="mt-0.5 truncate text-[9px] text-fg-3">ID: {u.id}</p>
+                          {u.referralCode ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void navigator.clipboard?.writeText(u.referralCode!).then(() => {
+                                  setCopiedCode(u.referralCode!);
+                                  setTimeout(() => setCopiedCode((c) => (c === u.referralCode ? null : c)), 1500);
+                                })
+                              }
+                              aria-label={`招待コード ${u.referralCode} をコピー`}
+                              className="pressable mt-1 inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-2 py-1"
+                            >
+                              <span className="text-[9.5px] font-bold text-fg-3">招待コード</span>
+                              <span className="font-mono text-[12px] font-black tracking-[0.12em] text-fg">{u.referralCode}</span>
+                              <Icon
+                                name={copiedCode === u.referralCode ? "check" : "copy"}
+                                className={`h-3.5 w-3.5 ${copiedCode === u.referralCode ? "text-accent" : "text-fg-3"}`}
+                              />
+                            </button>
+                          ) : (
+                            <p className="mt-0.5 text-[9.5px] text-fg-3">招待コード: 未発行(本人がメニューの招待カードを開くと発行)</p>
+                          )}
                           <p className="mt-0.5 text-[10px] text-fg-3">登録日 {fmtDate(u.createdAt)}</p>
                         </div>
                         <span
