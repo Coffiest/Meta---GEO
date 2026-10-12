@@ -120,7 +120,6 @@ export function Onboarding({
         {/* ブランド */}
         <motion.div initial="hidden" animate="show" variants={container}>
           <motion.div variants={item} className="flex items-center gap-2.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-accent" />
             <span className="text-[13px] font-extrabold tracking-[0.22em] uppercase">Poker ART</span>
           </motion.div>
 

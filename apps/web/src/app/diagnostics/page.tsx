@@ -165,7 +165,6 @@ export default function DiagnosticsPage() {
     <div className="min-h-screen text-fg">
       <div className="mx-auto w-full max-w-2xl px-5 pb-16 pt-[calc(env(safe-area-inset-top)+24px)]">
         <div className="flex items-center gap-2.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
           <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">Poker ART</span>
         </div>
         <h1 className="mt-5 text-[30px] font-black leading-tight tracking-tight">

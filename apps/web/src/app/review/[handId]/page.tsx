@@ -127,7 +127,6 @@ export default function ReviewHandPage() {
           ← 戻る
         </button>
         <div className="flex items-center gap-2 mb-4">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-fg">局後検討</p>
         </div>
 
