@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
 import { PlanToggle } from "@/components/PlanToggle";
@@ -131,6 +131,14 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
   const couponUntil =
     byCoupon && status?.currentPeriodEnd ? new Date(status.currentPeriodEnd).toLocaleDateString() : null;
   const currentPlan = status?.plan ?? null;
+  // 加入中なら、そのプランのタブを開いた状態にする(状態が届いたとき・決済から戻って反映されたとき)。
+  // 料金のシートを特定のプランで開いたとき(initialPlan)は、そちらを優先する。
+  const syncedPlan = useRef<PlanId | null>(null);
+  useEffect(() => {
+    if (initialPlan || !active || byCoupon || !currentPlan || syncedPlan.current === currentPlan) return;
+    syncedPlan.current = currentPlan;
+    setSelected(currentPlan);
+  }, [initialPlan, active, byCoupon, currentPlan]);
   const canChange = status?.canChangePlan ?? false;
   const trialEligible = status?.trialEligible ?? false;
   const trialDays = status?.trialDays ?? 7;
@@ -196,7 +204,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
                 )}
                 <PlanMark plan={plan} active={on} />
                 <span className={`text-[14px] font-black ${on ? "text-fg" : "text-fg-3"}`}>{PLAN_LABEL[plan]}</span>
-                {active && !byCoupon && currentPlan === plan && <span className="text-[10px] font-bold text-accent">加入中</span>}
+                {active && !byCoupon && currentPlan === plan && <span className="text-[10px] font-bold text-accent">現在加入中</span>}
               </button>
             );
           })}
@@ -273,7 +281,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
         {isCurrent ? (
           <div className="mt-4 flex h-14 items-center justify-center gap-1.5 rounded-2xl bg-accent/15 text-[15px] font-black text-accent">
             <Icon name="check" className="h-5 w-5" />
-            {PLAN_LABEL[selected]}に加入中
+            {PLAN_LABEL[selected]} ・ 現在加入中
           </div>
         ) : (
           <>
