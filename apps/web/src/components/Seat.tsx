@@ -518,9 +518,9 @@ export function Seat({
                 initial={{ opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.6 }}
-                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full glass-panel py-0.5 pl-0.5 pr-2.5 text-[10px] font-semibold text-n-10 tabular-nums"
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full glass-panel py-0.5 pl-0.5 pr-2.5 text-[12px] font-bold text-fg tabular-nums"
               >
-                <ChipIcon size={15} />
+                <ChipIcon size={17} />
                 {formatAmount(streetContribution, bigBlind, displayMode)}
               </motion.div>
             )
