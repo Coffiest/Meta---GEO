@@ -32,6 +32,7 @@ import {
   setErrorReportResolved,
   getStorageReport,
   createPartner,
+  deletePartner,
   generatePartnerCode,
   getPartner,
   isPartnerCodeTaken,
@@ -475,6 +476,29 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       await setPartnerActive(partner.id, active);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // コードの削除: { id }。停止したコードだけ消せる(Stripe のプロモーションコードは停止の時点で無効になっている。
+    // Stripe 側は削除できないので無効のまま残る)。加入・報酬の記録があるコードは消さない(409 has_records)。
+    if (url.pathname === "/api/admin/partners/delete" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const partner = id ? await getPartner(id) : null;
+      if (!partner) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      if (partner.active) {
+        sendJson(res, 409, { error: "still_active" });
+        return true;
+      }
+      const result = await deletePartner(partner.id);
+      if (result === "has_records") {
+        sendJson(res, 409, { error: "has_records" });
+        return true;
+      }
       sendJson(res, 200, { ok: true });
       return true;
     }

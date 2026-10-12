@@ -101,3 +101,19 @@ export async function getPartnerByPromotionCodeId(stripePromotionCodeId: string)
 export async function getPartnerByStatementToken(statementToken: string): Promise<PartnerRow | null> {
   return prisma.partner.findUnique({ where: { statementToken }, select: PARTNER_SELECT });
 }
+
+/**
+ * コードを削除する(管理者画面の「削除」)。加入・報酬・振込の記録が1件でもあるコードは消さない
+ * (台帳はインフルエンサーへの支払いの証明なので、元のパートナーを失わせない)。その場合は停止で止める。
+ * Stripe のプロモーションコードは削除できないので、呼び出し側が先に無効にしておくこと。
+ */
+export async function deletePartner(id: string): Promise<"deleted" | "has_records" | "not_found"> {
+  const [referrals, ledger, payouts] = await Promise.all([
+    prisma.partnerReferral.count({ where: { partnerId: id } }),
+    prisma.partnerLedger.count({ where: { partnerId: id } }),
+    prisma.partnerPayout.count({ where: { partnerId: id } }),
+  ]);
+  if (referrals + ledger + payouts > 0) return "has_records";
+  const result = await prisma.partner.deleteMany({ where: { id } });
+  return result.count > 0 ? "deleted" : "not_found";
+}

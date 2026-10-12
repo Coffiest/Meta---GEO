@@ -117,6 +117,8 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
   const [copied, setCopied] = useState<string | null>(null);
   /** 振込済みは1回目のタップで確認の状態にし、2回目で実行する(ホーム画面アプリでは window.confirm が出ないことがあるため)。 */
   const [confirmPaid, setConfirmPaid] = useState<string | null>(null);
+  /** 削除も同じく2回タップで確定する(取り消せないため)。 */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -173,6 +175,42 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
       setPartners((list) => (list ?? []).map((x) => (x.id === p.id ? { ...x, active: !p.active } : x)));
     } catch {
       setMessage({ text: "切り替えられませんでした。", ok: false });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(p: Partner) {
+    if (confirmDelete !== p.id) {
+      setConfirmDelete(p.id);
+      return;
+    }
+    setConfirmDelete(null);
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/partners/delete`, {
+        method: "POST",
+        headers: { ...adminHeaders(passcode, accessToken), "content-type": "application/json" },
+        body: JSON.stringify({ id: p.id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!body.ok) {
+        setMessage({
+          text:
+            body.error === "has_records"
+              ? `${p.name} さんのコードには加入・報酬の記録があるため削除できません(停止のままにしてください)。`
+              : body.error === "still_active"
+                ? "先にコードを停止してください。"
+                : "削除できませんでした。",
+          ok: false,
+        });
+        return;
+      }
+      setPartners((list) => (list ?? []).filter((x) => x.id !== p.id));
+      setMessage({ text: `${p.name} さんのコード ${p.code} を削除しました。`, ok: true });
+    } catch {
+      setMessage({ text: "サーバーに接続できませんでした。", ok: false });
     } finally {
       setBusy(false);
     }
@@ -387,16 +425,31 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
                     </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void toggle(p)}
-                  disabled={busy}
-                  className={`pressable shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-black disabled:opacity-40 ${
-                    p.active ? "bg-surface-2 text-fg-2" : "bg-accent/15 text-accent"
-                  }`}
-                >
-                  {p.active ? "停止" : "再開"}
-                </button>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void toggle(p)}
+                    disabled={busy}
+                    className={`pressable rounded-lg px-2.5 py-1.5 text-[11px] font-black disabled:opacity-40 ${
+                      p.active ? "bg-surface-2 text-fg-2" : "bg-accent/15 text-accent"
+                    }`}
+                  >
+                    {p.active ? "停止" : "再開"}
+                  </button>
+                  {/* 削除は停止したコードだけ。2回タップで確定(1回目で「本当に削除」に変わる)。 */}
+                  {!p.active && (
+                    <button
+                      type="button"
+                      onClick={() => void remove(p)}
+                      disabled={busy}
+                      className={`pressable rounded-lg px-2.5 py-1.5 text-[11px] font-black disabled:opacity-40 ${
+                        confirmDelete === p.id ? "bg-surface-2 text-fg ring-1 ring-line-strong" : "bg-surface-2 text-fg-3"
+                      }`}
+                    >
+                      {confirmDelete === p.id ? "本当に削除" : "削除"}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
