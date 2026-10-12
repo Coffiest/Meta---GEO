@@ -440,6 +440,13 @@ export function Seat({
                   frame={frame ?? null}
                 />
               </div>
+              {/* ポジションはアバターの下端に重ねる白いピル(以前は名前の下の 8px の灰色の札で、実機ではほぼ読めなかった)。
+                  文字の行から外したぶん、名前とスタックに幅を回せる。 */}
+              {position && (
+                <span className="absolute -bottom-1.5 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-fg px-[5px] text-[9px] font-black leading-[13px] text-canvas ring-[1.5px] ring-canvas">
+                  {position}
+                </span>
+              )}
               {markingColor && (
                 <span
                   aria-hidden
@@ -449,31 +456,29 @@ export function Seat({
               )}
             </div>
             <div className="text-left min-w-0">
-              <div className={`${size === "lg" ? "text-[13px] max-w-[84px]" : "text-[11px] max-w-[40px]"} font-medium truncate text-fg`}>
+              {/* 名前は小さく控えめに、スタックはいちばん大きく太く(卓で最も読む数字)。 */}
+              <div className={`${size === "lg" ? "text-[12px] max-w-[72px]" : "text-[10.5px] max-w-[52px]"} font-medium leading-tight truncate text-fg-2`}>
                 {name}
               </div>
-              <div className="flex min-w-0 items-center gap-1 mt-[1px]">
-                {position && (
-                  <span className="shrink-0 rounded bg-n-4 text-white text-[8px] font-bold uppercase tracking-wide px-1 py-[1px]">
-                    {position}
-                  </span>
-                )}
-                {onStackTap ? (
+              {(() => {
+                const label = compactStack(stack, bigBlind, displayMode);
+                // 点数表示で桁が多いときだけ一段小さくして、席の幅に収める。
+                const big = label.length <= (size === "lg" ? 7 : 5);
+                const cls = `${size === "lg" ? (big ? "text-[16px]" : "text-[13px]") : big ? "text-[14px]" : "text-[12px]"} block font-black leading-none tracking-[-0.01em] text-fg tabular-nums`;
+                return onStackTap ? (
                   // 自席のスタックはタップでbb表示⇄点数表示を切り替えられる(卓上の全金額に反映)。
                   <button
                     type="button"
                     onClick={onStackTap}
                     aria-label={displayMode === "chips" ? "bb表示に切り替える" : "点数表示に切り替える"}
-                    className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 appearance-none rounded bg-transparent p-0 font-semibold text-n-10 tabular-nums underline decoration-fg-faint decoration-dotted underline-offset-2 transition-transform pressable`}
+                    className={`${cls} mt-[2px] appearance-none rounded bg-transparent p-0 underline decoration-fg-faint decoration-dotted underline-offset-2 pressable`}
                   >
-                    {compactStack(stack, bigBlind, displayMode)}
+                    {label}
                   </button>
                 ) : (
-                  <span className={`${size === "lg" ? "text-[12px]" : "text-[11px]"} shrink-0 font-semibold text-n-10 tabular-nums`}>
-                    {compactStack(stack, bigBlind, displayMode)}
-                  </span>
-                )}
-              </div>
+                  <span className={`${cls} mt-[2px]`}>{label}</span>
+                );
+              })()}
               {away && status !== "allIn" && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-fg-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-n-5" />
