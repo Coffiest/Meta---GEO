@@ -1,4 +1,5 @@
 import { PricingSheetProvider } from "@/components/PricingSheet";
+import { CheckoutReturn } from "@/components/CheckoutReturn";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -218,6 +219,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LaunchSplash />
         <LocaleProvider>
           <PricingSheetProvider>{children}</PricingSheetProvider>
+          <CheckoutReturn />
           {/* 端末の言語と国の言語が食い違うときだけ「◯◯語で表示しますか?」と提案する。 */}
           <LocaleSuggestion />
         </LocaleProvider>

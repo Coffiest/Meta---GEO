@@ -139,6 +139,25 @@ export async function openBillingPortal(accessToken: string): Promise<void> {
 }
 
 /** ログイン済みユーザーのサブスク状態(+無料枠残数)を取得するフック。ゲスト(トークン無し)ではnullのまま。 */
+/** 会員の状態が変わったことを、開いているすべての画面に知らせるイベント(決済から戻ったときなど)。 */
+export const SUBSCRIPTION_CHANGED_EVENT = "poker-art:subscription-changed";
+
+/**
+ * 決済(Stripe Checkout)から戻ったときに、その決済をサーバーに確かめてもらい、加入をすぐ反映する
+ * (Webhook を待たない)。反映できたら SUBSCRIPTION_CHANGED_EVENT を出す。
+ */
+export async function confirmCheckout(accessToken: string, sessionId: string): Promise<{ active: boolean; plan: PlanId | null } | null> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/confirm`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { active: boolean; plan: PlanId | null };
+  window.dispatchEvent(new Event(SUBSCRIPTION_CHANGED_EVENT));
+  return body;
+}
+
 export function useSubscriptionStatus(accessToken: string | undefined) {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(Boolean(accessToken));
@@ -158,6 +177,13 @@ export function useSubscriptionStatus(accessToken: string | undefined) {
     }
     void reload();
   }, [accessToken, reload]);
+
+  // 決済から戻って加入が反映されたら、開いている画面の状態もすぐ取り直す。
+  useEffect(() => {
+    const onChanged = () => void reload();
+    window.addEventListener(SUBSCRIPTION_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(SUBSCRIPTION_CHANGED_EVENT, onChanged);
+  }, [reload]);
 
   return { status, loading, reload };
 }

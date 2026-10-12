@@ -73,8 +73,50 @@ function webOrigin(): string {
 /** 棋譜解析の着地URL。加入後は解析画面(該当トナメ)へ戻す。tournamentId不明時は/pricingへ。 */
 function reviewLandingUrl(tournamentId: string | null, outcome: "success" | "cancelled"): string {
   const base = webOrigin();
-  if (tournamentId) return `${base}/review/tournament/${encodeURIComponent(tournamentId)}?checkout=${outcome}`;
-  return `${base}/pricing?checkout=${outcome}`;
+  // 成功のときは決済のセッション ID を付けて戻す。戻った画面がそれで Stripe に確かめ、Webhook を待たずに加入を反映する。
+  const query = outcome === "success" ? "checkout=success&session_id={CHECKOUT_SESSION_ID}" : `checkout=${outcome}`;
+  if (tournamentId) return `${base}/review/tournament/${encodeURIComponent(tournamentId)}?${query}`;
+  return `${base}/pricing?${query}`;
+}
+
+/**
+ * 決済(Checkout)で始まった契約を DB に反映する。Webhook(checkout.session.completed)・決済から戻った画面の確認・
+ * 状態の確認(加入しかけのまま止まっている人)の3か所から呼ぶ。何度呼んでも同じ結果になる。
+ * Webhook だけに頼ると、届くのが遅い・届かないときに「お金は払ったのに会員にならない」ことになる(オーナー指摘)。
+ */
+async function finalizeCheckoutSubscription(stripe: Stripe, customerId: string, subscriptionId: string): Promise<void> {
+  let subscription: Stripe.Subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ["default_payment_method"],
+  });
+  if (subscription.status === "trialing") subscription = await settleTrial(stripe, customerId, subscription);
+  await syncSubscription(customerId, subscription);
+  // インフルエンサーのコードで始まった契約を記録する(報酬の台帳の起点)。ここで失敗しても加入の反映は済んでいる。
+  // 最初の入金(invoice.paid)でもう一度記録を試みる。
+  await attributePartnerSubscription(stripe, subscription.id).catch((err) =>
+    console.error("[subscriptionApi] partner attribution failed:", err),
+  );
+}
+
+/** 同じ人に Stripe へ何度も問い合わせないための間隔(加入しかけのまま止まっている人の確認)。 */
+const PENDING_CHECK_INTERVAL_MS = 30_000;
+const pendingCheckedAt = new Map<string, number>();
+
+/**
+ * 決済画面へ進んだが、DB の契約がまだ反映されていない人(status "incomplete"・契約 ID なし)を Stripe に確かめ、
+ * 有効な契約があれば反映する。Webhook が失敗・遅延していても、次に状態を見たときに会員になる。
+ */
+export async function resolvePendingCheckout(stripe: Stripe, userId: string): Promise<void> {
+  const row = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { stripeCustomerId: true, stripeSubscriptionId: true, status: true },
+  });
+  if (!row || row.stripeSubscriptionId || row.status !== "incomplete") return;
+  const last = pendingCheckedAt.get(userId) ?? 0;
+  if (Date.now() - last < PENDING_CHECK_INTERVAL_MS) return;
+  pendingCheckedAt.set(userId, Date.now());
+  const list = await stripe.subscriptions.list({ customer: row.stripeCustomerId, status: "all", limit: 3 });
+  const live = list.data.find((sub) => sub.status === "active" || sub.status === "trialing");
+  if (live) await finalizeCheckoutSubscription(stripe, row.stripeCustomerId, live.id);
 }
 
 /**
@@ -112,6 +154,11 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
       // 期限を過ぎた(または支払いが滞っている)契約は、その場で Stripe に照会してから答える。
       // 更新済みなら新しい期限で有効のまま、引き落としに失敗していれば自動解約される。
       const stripeForReconcile = getStripeClient();
+      if (stripeForReconcile) {
+        await resolvePendingCheckout(stripeForReconcile, user.id).catch((err) =>
+          console.error("[subscriptionApi] pending checkout check failed:", err),
+        );
+      }
       const dueSubscriptionId = stripeForReconcile ? await subscriptionNeedsReconcile(user.id) : null;
       if (stripeForReconcile && dueSubscriptionId) {
         const customerId = await getStripeCustomerId(user.id);
@@ -141,6 +188,48 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         reviewLimit: quota.limit,
         nextFreeAt: quota.nextFreeAt,
       });
+      return true;
+    }
+
+    // 決済から戻った画面が呼ぶ: { sessionId }。その決済が本人のもので完了していれば、Webhook を待たずに加入を反映する。
+    if (url.pathname === "/api/subscriptions/confirm" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const sessionId = typeof body["sessionId"] === "string" ? body["sessionId"] : "";
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
+        sendJson(res, 400, { error: "invalid_session" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const customerId = await getStripeCustomerId(user.id);
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await stripe.checkout.sessions.retrieve(sessionId);
+      } catch {
+        sendJson(res, 404, { error: "session_not_found" });
+        return true;
+      }
+      const sessionCustomer = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+      // 他人の決済で自分の状態を書き換えられないように、本人の Stripe の顧客の決済だけを受け付ける。
+      if (!customerId || sessionCustomer !== customerId) {
+        sendJson(res, 403, { error: "forbidden" });
+        return true;
+      }
+      const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+      if (session.status === "complete" && subscriptionId) {
+        await finalizeCheckoutSubscription(stripe, customerId, subscriptionId);
+      }
+      const subscription = await getSubscriptionStatusForUser(user.id);
+      sendJson(res, 200, { active: subscription.active, plan: subscription.plan, status: subscription.status });
       return true;
     }
 
@@ -436,13 +525,7 @@ async function handleWebhook(req: IncomingMessage, res: ServerResponse): Promise
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       if (typeof session.customer === "string" && typeof session.subscription === "string") {
-        let subscription: Stripe.Subscription = await stripe.subscriptions.retrieve(session.subscription, {
-          expand: ["default_payment_method"],
-        });
-        if (subscription.status === "trialing") subscription = await settleTrial(stripe, session.customer, subscription);
-        await syncSubscription(session.customer, subscription);
-        // インフルエンサーのコードで始まった契約を記録する(報酬の台帳の起点)。
-        await attributePartnerSubscription(stripe, subscription.id);
+        await finalizeCheckoutSubscription(stripe, session.customer, session.subscription);
       }
     } else if (event.type === "invoice.payment_failed") {
       // 引き落としができなかった → 再試行を待たずに自動解約(オーナー確定仕様)。
