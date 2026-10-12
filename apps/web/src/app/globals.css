@@ -1016,17 +1016,21 @@ textarea:focus-visible,
   color: rgb(var(--accent-hi));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color 240ms ease, color 240ms ease;
+  touch-action: manipulation;
+  /* 離したときだけ少しゆっくり戻す。押した瞬間は下の :active で待たずに塗る(apple-design: 反応は触れた瞬間に)。 */
+  transition: background-color 180ms ease-out, color 180ms ease-out;
 }
 .line-fill-btn:active {
   background-color: rgb(var(--accent));
   color: rgb(var(--on-accent));
+  transition-duration: 0ms;
 }
 .line-fill-arrow {
-  transition: transform 240ms ease;
+  transition: transform 180ms ease-out;
 }
 .line-fill-btn:active .line-fill-arrow {
   transform: translateX(4px);
+  transition-duration: 0ms;
 }
 
 /* High Roller / Super High Roller の卓のボタン。Play と同じ意匠で、色だけ銀・金(資格者のアイコン枠と同じ色)。
