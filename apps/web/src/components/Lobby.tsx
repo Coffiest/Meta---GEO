@@ -728,7 +728,9 @@ function SingleLineChart({
   const height = 140;
   const padLeft = 46;
   const padBottom = 16;
-  const plotWidth = width - padLeft;
+  // 右端に余白を取る。無いと最新値の発光ドット(半径7)と最後の目盛りの数字("30" → "3")が右端で切れていた。
+  const padRight = 12;
+  const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padBottom;
 
   const values = [...points.map((p) => p.y), baseline];
@@ -778,7 +780,7 @@ function SingleLineChart({
         </defs>
         {yTicks.map((tick) => (
           <g key={tick}>
-            <line x1={padLeft} y1={toY(tick)} x2={width} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-fg-3" />
+            <line x1={padLeft} y1={toY(tick)} x2={width - padRight} y2={toY(tick)} stroke="currentColor" strokeWidth={0.5} className="text-fg-3" />
             <text x={padLeft - 6} y={toY(tick) + 3} textAnchor="end" className="fill-n-9" style={{ fontSize: 8 }}>
               {formatAxisValue(tick)}
             </text>
@@ -789,7 +791,7 @@ function SingleLineChart({
         <line
           x1={padLeft}
           y1={toY(baseline)}
-          x2={width}
+          x2={width - padRight}
           y2={toY(baseline)}
           stroke="currentColor"
           strokeWidth={1}
