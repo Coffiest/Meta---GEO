@@ -1471,6 +1471,25 @@ export default function Page() {
     );
   }
 
+  // 管理者が利用停止(BAN)したアカウントは、ここで止める(卓への参加はサーバーでも拒否している)。
+  if (profile.banned) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <Icon name="lock" className="h-8 w-8 text-fg-3" />
+        <p className="text-base font-bold text-fg">このアカウントは利用停止中です</p>
+        <p className="max-w-xs text-sm leading-relaxed text-n-9">
+          管理者によりご利用を停止しています。お心当たりがない場合は、お問い合わせください。
+        </p>
+        <button
+          onClick={() => void auth.signOut()}
+          className="pressable mt-2 text-[13px] font-semibold text-n-9 underline underline-offset-2"
+        >
+          ログアウト
+        </button>
+      </div>
+    );
+  }
+
   // 名前とアバターを決めるまでは、ホームには一切進めない(この分岐が常に先に評価される)。
   if (!profile.onboarded || editingProfile) {
     return (

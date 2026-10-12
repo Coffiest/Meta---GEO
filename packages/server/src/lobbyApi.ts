@@ -31,6 +31,7 @@ import {
   getEliteFrames,
   getEliteStats,
   randomAnimalKey,
+  isUserBanned,
 } from "@meta-geo/db";
 import { eliteFrameOf, qualifiesForTier } from "@meta-geo/engine";
 import { deleteAuthUser, verifyAccessToken, type VerifiedUser } from "./auth.js";
@@ -225,6 +226,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         avatarKey: user.avatarKey,
         onboarded: user.onboarded,
         email: verified.email,
+        // 利用停止(BAN)中なら、アプリは利用停止の画面だけを出す(理由は本人には返さない)。
+        banned: await isUserBanned(user.id),
       });
       return true;
     }
