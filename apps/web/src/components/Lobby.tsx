@@ -23,8 +23,7 @@ import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingD
 import { AppShareCard } from "./AppShareCard";
 import { FeedbackCard } from "./FeedbackCard";
 import { ShareCampaignButton } from "./ShareCampaign";
-import { InviteCard } from "./InviteCard";
-import { CouponWallet } from "./CouponWallet";
+import { InviteCouponCard } from "./InviteCouponCard";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
 import { EliteTierCards, type EliteInfo } from "./EliteTierCards";
@@ -992,8 +991,7 @@ function HamburgerMenu({
         {accessToken && (
           <div className="mt-5 px-4 space-y-3">
             <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-fg-2">{t("menu.inviteCoupon")}</p>
-            <InviteCard accessToken={accessToken} />
-            <CouponWallet accessToken={accessToken} />
+            <InviteCouponCard accessToken={accessToken} />
           </div>
         )}
       </motion.div>
