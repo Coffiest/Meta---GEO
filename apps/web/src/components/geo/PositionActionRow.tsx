@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING_MOVE } from "@/lib/motion";
 import { mergeOpenRaiseOptions, type TreeNode } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex, bucketTintRgb } from "./colors";
 
@@ -53,7 +54,7 @@ export function PositionActionRow({
       key={node.position}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
+      transition={SPRING_MOVE}
       className="glass-tile rounded-2xl p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
@@ -75,7 +76,7 @@ export function PositionActionRow({
               layout
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
+              transition={{ ...SPRING_MOVE, delay: i * 0.03 }}
               whileTap={{ scale: 0.94 }}
               onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
               className="glass-tile-tint pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl py-2.5 pl-3 pr-2.5 text-left text-white"
@@ -115,7 +116,7 @@ export function PositionActionRow({
             key={opt.bucket}
             initial={{ width: 0 }}
             animate={{ width: `${opt.frequency * 100}%` }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
+            transition={SPRING_MOVE}
             style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
           />
         ))}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import { mergeOpenRaiseByBucket, OPEN_RAISE_BUCKET, type HandClassCell, type HandClassMatrixResult } from "@/lib/geoApi";
 import { bucketColor, bucketOrderIndex } from "./colors";
 
@@ -125,7 +126,7 @@ export function HandClassMatrix({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: "easeOut" }}
+        transition={SPRING_MOVE}
         className="grid gap-[2px] rounded-lg overflow-hidden bg-canvas-sunken p-[2px]"
         style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}
       >
@@ -167,9 +168,11 @@ export function HandClassMatrix({
             initial={{ opacity: 0, scale: 0.85, y: showAbove ? 8 : -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
+            transition={SPRING_SNAPPY}
             style={{
               position: "fixed",
+              // 押したマスの側から出てくるように、縮む・広がる中心をマスに向いた辺に置く。
+              transformOrigin: showAbove ? "bottom center" : "top center",
               left: tooltipLeft,
               [showAbove ? "bottom" : "top"]: showAbove
                 ? (typeof window !== "undefined" ? window.innerHeight : 800) - hover.anchorTop + 8
@@ -196,7 +199,7 @@ export function HandClassMatrix({
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.3, ease: "easeOut" }}
+                          transition={SPRING_MOVE}
                           className="h-full rounded-full"
                           style={{ background: colorForBucket(hover.cell, bucket) }}
                         />
