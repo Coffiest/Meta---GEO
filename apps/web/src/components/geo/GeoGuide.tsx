@@ -109,7 +109,7 @@ function GapBars({ reduce }: { reduce: boolean }) {
   ];
   return (
     <div className="mx-auto mt-6 w-full max-w-[320px] rounded-[20px] glass-panel p-4 text-left">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">例: BB が BTN のオープンを守る割合</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.06em] text-fg-3">例: BB が BTN のオープンを守る割合</p>
       <div className="mt-3 space-y-3">
         {rows.map((row, i) => (
           <div key={row.label}>
@@ -183,7 +183,7 @@ function NodePath({ reduce }: { reduce: boolean }) {
         transition={{ delay: reduce ? 0 : 1.15 }}
         className="mt-3 flex items-center justify-center gap-2"
       >
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-fg-3">Flop</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.06em] text-fg-3">Flop</span>
         {board.map((c, i) => (
           <motion.span
             key={i}

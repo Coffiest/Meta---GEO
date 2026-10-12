@@ -38,7 +38,7 @@ export function PositionActionRow({
         animate={{ opacity: 1, y: 0 }}
         className="glass-tile rounded-2xl p-6 text-center"
       >
-        <p className="text-[11px] tracking-[0.2em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
+        <p className="text-[11px] tracking-[0.06em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
         <p className="text-sm text-fg-3">サンプルなし</p>
       </motion.div>
     );
@@ -57,9 +57,9 @@ export function PositionActionRow({
       className="glass-tile rounded-2xl p-3"
     >
       <div className="flex items-center justify-between mb-2.5 px-1">
-        <p className="text-[11px] tracking-[0.2em] text-n-10 uppercase font-black">{node.position}</p>
+        <p className="text-[12px] tracking-[0.04em] text-n-10 uppercase font-black">{node.position}</p>
         {node.isGto ? (
-          <p className="text-[10px] text-accent tabular-nums font-black tracking-[0.15em]">GTO</p>
+          <p className="text-[10px] text-accent tabular-nums font-black tracking-[0.06em]">GTO</p>
         ) : (
           <p className="text-[10px] text-fg-3 tabular-nums">n={node.sampleSize}</p>
         )}
