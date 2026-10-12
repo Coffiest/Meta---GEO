@@ -9,6 +9,7 @@ import {
   subscriptionNeedsReconcile,
   claimTrialFingerprint,
   isTrialEligible,
+  refreshTrialOffer,
   markTrialUsed,
   parsePlan,
   prisma,
@@ -168,6 +169,8 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
           );
         }
       }
+      // インマネが新しい区切り(10回ごと)に届いていれば、7日間無料の特別オファー(1時間だけ)を出す。
+      const trialOfferUntil = await refreshTrialOffer(user.id);
       const [subscription, quota, trialEligible, row] = await Promise.all([
         getSubscriptionStatusForUser(user.id),
         getReviewQuotaRemaining(user.id),
@@ -182,12 +185,28 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         // Stripe の契約が生きていれば、プランの変更は Checkout ではなく change-plan で行う。
         canChangePlan: hasLiveStripeSubscription(row),
         trialEligible,
+        trialOfferUntil: trialEligible ? trialOfferUntil : null,
         trialDays: TRIAL_DAYS,
         prices: PLAN_PRICE_JPY,
         reviewsRemaining: quota.remaining,
         reviewLimit: quota.limit,
         nextFreeAt: quota.nextFreeAt,
       });
+      return true;
+    }
+
+    // 7日間無料の特別オファー(インマネ10回ごとに1回・1時間だけ)。トーナメントの結果の画面・ホームが呼び、
+    // 出ていればポップアップを出す。加入中の人には出さない(offerUntil: null)。
+    if (url.pathname === "/api/subscriptions/offer" && req.method === "GET") {
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const until = await refreshTrialOffer(user.id);
+      const subscription = until ? await getSubscriptionStatusForUser(user.id) : null;
+      sendJson(res, 200, { offerUntil: until && !subscription?.active ? until : null, trialDays: TRIAL_DAYS });
       return true;
     }
 

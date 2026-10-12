@@ -1,5 +1,6 @@
 "use client";
 
+import { TOURNAMENT_FINISHED_EVENT } from "@/lib/subscription";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
@@ -279,6 +280,11 @@ export function TournamentResultScreen({
     if (!accessToken) return;
     void fetchResultSnapshot(accessToken).then(setAfter);
   }, [accessToken]);
+
+  // 特別オファー(インマネ10回ごとの7日間無料)が出ていないか、結果の記録を待って確かめてもらう(TrialOfferPopup)。
+  useEffect(() => {
+    window.dispatchEvent(new Event(TOURNAMENT_FINISHED_EVENT));
+  }, []);
 
   // 事前計算: リザルトを見ている間に棋譜解析のソルバー計算をバックグラウンドで先回りして始める。
   useEffect(() => {

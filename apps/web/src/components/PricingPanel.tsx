@@ -13,6 +13,7 @@ import {
   openBillingPortal,
   PLAN_LABEL,
   startCheckout,
+  useCountdown,
   PromoCodeError,
   SubscriptionUnavailableError,
   useSubscriptionStatus,
@@ -140,7 +141,9 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
     setSelected(currentPlan);
   }, [initialPlan, active, byCoupon, currentPlan]);
   const canChange = status?.canChangePlan ?? false;
-  const trialEligible = status?.trialEligible ?? false;
+  // 7日間無料は、インマネ10回ごとに1時間だけ出る特別オファーの間だけ(残り時間を出す)。
+  const offerLeft = useCountdown(status?.trialOfferUntil);
+  const trialEligible = (status?.trialEligible ?? false) && offerLeft != null;
   const trialDays = status?.trialDays ?? 7;
   const prices = status?.prices ?? DEFAULT_PRICES;
   useEffect(() => {
@@ -271,8 +274,8 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
             <span className="ml-1 text-[14px] font-bold text-fg-2">/ 月(税込)</span>
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-fg-3">
-            {trialEligible && !active
-              ? `はじめての方は${trialDays}日間無料。体験終了後は月額で自動更新、体験中に解約すれば料金はかかりません。`
+            {trialEligible && !active && offerLeft
+              ? `特別オファー(残り ${offerLeft}): いまなら${trialDays}日間無料。体験終了後は月額で自動更新、体験中に解約すれば料金はかかりません。`
               : "月額・いつでも解約できます。"}
           </p>
         </div>
