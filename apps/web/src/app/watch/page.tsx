@@ -91,7 +91,6 @@ export default function WatchPage() {
     <div className="min-h-screen text-fg">
       <div className="mx-auto w-full max-w-2xl px-6 pb-16 pt-[calc(env(safe-area-inset-top)+28px)]">
         <div className="flex items-center gap-2.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
           <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">Poker ART</span>
         </div>
 

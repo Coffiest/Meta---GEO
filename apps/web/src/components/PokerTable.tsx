@@ -538,11 +538,8 @@ export function PokerTable({
               className="flex items-center gap-2 rounded-full bg-surface border border-line-strong pl-3 pr-3.5 py-1.5 shadow-e0"
             >
               {/* サイドポットがある間は、この枠が「合計」であることを明示する
-                  (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。
-                  左のドットは進行中のハンドであることを示す小さな「オンライン」点滅
-                  (Header.tsxのterm-ledと同じ意匠)。 */}
-              <span className="flex items-center gap-1 text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
-                <span className="term-led" aria-hidden="true" />
+                  (内訳のメイン枠と取り違えて「計算がおかしい」と見えないように)。 */}
+              <span className="text-[8px] font-black tracking-[0.22em] text-n-9 uppercase">
                 {state.pots.length > 1 ? "合計" : "Pot"}
               </span>
               <span className="text-[13px] font-black text-fg tabular-nums leading-none">{formatAmount(state.collectedPot, bigBlind, displayMode)}</span>

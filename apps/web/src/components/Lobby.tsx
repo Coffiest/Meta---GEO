@@ -263,7 +263,6 @@ function TabHeader({ eyebrow, title, command }: { eyebrow: string; title: string
         transition={{ duration: 0.35, delay: outputDelay, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="mt-2 flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           <span className="text-[10px] font-black uppercase tracking-[0.28em] text-fg-3">{`// ${eyebrow}`}</span>
         </div>
         <h1 className="mt-1.5 text-[34px] font-black leading-none tracking-tight text-fg">
@@ -1216,8 +1215,7 @@ export function Lobby({
             className="group flex w-full items-center gap-3 rounded-2xl bg-n-4 px-4 py-3 text-left text-white shadow-e2 ring-1 ring-accent/30 pressable"
           >
             <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/15">
-              <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-accent-hi/70" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-hi" />
+              <Icon name="play" className="h-4 w-4 text-accent-hi" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">

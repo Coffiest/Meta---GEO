@@ -747,7 +747,6 @@ function GeoDatabase({
           >
             {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。GTOモードへの入口は
                 廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。 */}
-            <span className="h-2 w-2 rounded-full bg-accent shadow-glow-sm" />
             <p className="text-[15px] font-black tracking-tight text-fg leading-none">
               GEO<span className="text-accent"> Database</span>
               <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />

@@ -497,21 +497,6 @@ textarea:focus-visible,
   animation: term-cursor-blink 1.1s steps(1) infinite;
 }
 
-/* ロゴ横の「オンライン」LED。呼吸するように明滅する。 */
-@keyframes term-led-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-.term-led {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: rgb(var(--accent));
-  box-shadow: 0 0 6px 1px rgb(var(--accent) / 0.65);
-  animation: term-led-blink 2.4s ease-in-out infinite;
-}
-
 /* "$ コマンド"のタイプライター表示(TermPrompt)。全面モノスペースなので、文字数分の
    steps()が等幅の1文字ずつの表示になる(可変幅フォントだと崩れるが、このアプリは
    フォントが全面モノスペース固定なので成立する)。文字数は--term-type-stepsで渡す。 */
