@@ -40,6 +40,7 @@ import {
   listPartners,
   normalizePartnerCode,
   setPartnerActive,
+  setUserBanned,
   partnerBalances,
   partnerLedgerRows,
   markPartnerPaid,
@@ -277,6 +278,23 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       }
       const count = await restoreGeoData(userId);
       sendJson(res, 200, { ok: true, count });
+      return true;
+    }
+
+    // 利用停止(BAN)/ 解除: { userId, banned: boolean, reason?: string }。オーナー指示 2026-10-12。
+    if (url.pathname === "/api/admin/ban" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const userId = typeof body["userId"] === "string" ? body["userId"] : "";
+      const banned = body["banned"] === true;
+      const reason = typeof body["reason"] === "string" ? body["reason"].trim().slice(0, 500) || null : null;
+      const user = userId ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, isBot: true } }) : null;
+      if (!user || user.isBot) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      await setUserBanned(user.id, banned, reason);
+      console.log(`[admin] ${banned ? "ban" : "unban"} ${user.id}`);
+      sendJson(res, 200, { ok: true, banned });
       return true;
     }
 

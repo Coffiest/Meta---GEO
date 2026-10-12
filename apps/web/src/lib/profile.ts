@@ -8,6 +8,8 @@ export interface Profile {
   avatarKey: string | null;
   onboarded: boolean;
   email: string | null;
+  /** 管理者が利用停止(BAN)したアカウント。アプリは利用停止の画面だけを出す。 */
+  banned?: boolean;
 }
 
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";

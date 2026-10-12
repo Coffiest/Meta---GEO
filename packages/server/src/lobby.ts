@@ -1,5 +1,5 @@
 import type { Server, Socket } from "socket.io";
-import { getEliteStats, getOrCreateUserByAuthId, prisma } from "@meta-geo/db";
+import { getEliteStats, getOrCreateUserByAuthId, isUserBanned, prisma } from "@meta-geo/db";
 import { qualifiesForTier, type SngTier } from "@meta-geo/engine";
 import { authAvailable, verifyAccessToken } from "./auth.js";
 import type { GameSession, HumanPlayer } from "./gameServer.js";
@@ -162,6 +162,11 @@ export class Lobby {
     const resolved = await this.resolveUser(socket);
     if (!resolved) {
       socket.emit("joinGameError", { message: "認証またはプロフィール設定が完了していません" });
+      return;
+    }
+    // 管理者が利用停止(BAN)したアカウントは卓に参加できない(オーナー指示 2026-10-12)。
+    if (await isUserBanned(resolved.userId)) {
+      socket.emit("joinGameError", { message: "このアカウントは利用停止中です" });
       return;
     }
     socket.data["userId"] = resolved.userId;

@@ -345,6 +345,9 @@ export interface AdminUserSearchResult {
   createdAt: Date;
   /** 友達招待のコード(メニューの「あなたの招待コード」)。本人が招待カードを開くまでは未発行(null)。 */
   referralCode: string | null;
+  /** 利用停止(BAN)した時刻と理由。null = 利用停止していない。 */
+  bannedAt: Date | null;
+  bannedReason: string | null;
   subscription: {
     status: string;
     currentPeriodEnd: Date | null;
@@ -395,6 +398,8 @@ export async function searchUsersForAdmin(
       email: true,
       createdAt: true,
       referralCode: true,
+      bannedAt: true,
+      bannedReason: true,
       adminPlan: true,
       adminPlanUntil: true,
       subscription: { select: { status: true, currentPeriodEnd: true, plan: true, stripeSubscriptionId: true } },
@@ -420,6 +425,8 @@ export async function searchUsersForAdmin(
         email: u.email,
         createdAt: u.createdAt,
         referralCode: u.referralCode,
+        bannedAt: u.bannedAt,
+        bannedReason: u.bannedReason,
         subscription: hasAnything
           ? {
               status: eff.status ?? "none",

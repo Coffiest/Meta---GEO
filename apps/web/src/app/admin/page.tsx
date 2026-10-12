@@ -19,6 +19,9 @@ interface AdminUser {
   createdAt: string;
   /** 友達招待のコード(本人が招待カードを開くまでは未発行)。 */
   referralCode?: string | null;
+  /** 利用停止(BAN)した時刻と理由。null = 利用停止していない。 */
+  bannedAt?: string | null;
+  bannedReason?: string | null;
   subscription: {
     status: string;
     currentPeriodEnd: string | null;
@@ -221,6 +224,9 @@ export default function AdminPage() {
   const [cardMsg, setCardMsg] = useState<{ userId: string; text: string; ok: boolean } | null>(null);
   /** 剥奪は1回目のタップで確認の状態にし、2回目で実行する(ホーム画面アプリでは window.confirm が出ないことがあるため)。 */
   const [confirmCancelFor, setConfirmCancelFor] = useState<string | null>(null);
+  /** BAN も1回目のタップで確認の状態にし、2回目で実行する。理由はプレイヤーごとに入力できる(任意)。 */
+  const [confirmBanFor, setConfirmBanFor] = useState<string | null>(null);
+  const [banReasons, setBanReasons] = useState<Record<string, string>>({});
   /** GEOデータの期間指定削除フォームを開いているユーザーID。 */
   // GEO集計テーブル(GeoDecision)の再構築。全履歴を舐める重い処理なので、進捗をポーリングで見る。
   const [geoBackfill, setGeoBackfill] = useState<GeoBackfillStatus | null>(null);
@@ -537,6 +543,32 @@ export default function AdminPage() {
   }
 
   /** プランの剥奪: Stripe の契約をその場で解約する(取り消せない)。 */
+  /** 利用停止(BAN)/ 解除。BAN は2回押しで確定する。 */
+  async function setBan(userId: string, banned: boolean) {
+    if (!passcode) return;
+    if (banned && confirmBanFor !== userId) {
+      setConfirmBanFor(userId);
+      setCardMsg({ userId, text: "もう一度押すと、このプレイヤーを利用停止(BAN)します。卓に参加できなくなります。", ok: false });
+      return;
+    }
+    setConfirmBanFor(null);
+    setBusyUserId(userId);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/admin/ban`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
+        body: JSON.stringify({ userId, banned, reason: banReasons[userId] ?? null }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setCardMsg({ userId, text: banned ? "利用停止(BAN)しました。" : "利用停止を解除しました。", ok: true });
+      await search(query, passcode);
+    } catch (e) {
+      setCardMsg({ userId, text: `失敗しました(${e instanceof Error ? e.message : "不明"})。`, ok: false });
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
   async function cancelStripe(userId: string) {
     if (!passcode) return;
     if (confirmCancelFor !== userId) {
@@ -1006,7 +1038,19 @@ export default function AdminPage() {
                     <div key={u.id} className="rounded-2xl glass-panel p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-[15px] font-black tracking-tight text-fg">{u.displayName}</p>
+                          <p className="truncate text-[15px] font-black tracking-tight text-fg">
+                            {u.displayName}
+                            {u.bannedAt && (
+                              <span className="ml-2 rounded-full bg-crimson-500/15 px-2 py-0.5 align-middle text-[10px] font-black text-crimson-300">
+                                BAN中
+                              </span>
+                            )}
+                          </p>
+                          {u.bannedAt && (
+                            <p className="mt-0.5 text-[10px] text-crimson-300">
+                              {fmtDate(u.bannedAt)} に利用停止{u.bannedReason ? `(${u.bannedReason})` : ""}
+                            </p>
+                          )}
                           <p className="truncate text-[11px] text-fg-2">{u.email ?? "メール未登録"}</p>
                           <p className="mt-0.5 truncate text-[9px] text-fg-3">ID: {u.id}</p>
                           {u.referralCode ? (
@@ -1101,6 +1145,34 @@ export default function AdminPage() {
                           </button>
                         )}
                         {busy && <Loader size="sm" />}
+                      </div>
+                      {/* 利用停止(BAN)。BAN は2回押しで確定。理由は管理用のメモ(本人には見せない)。 */}
+                      <div className="mt-2 flex items-center gap-2">
+                        {u.bannedAt ? (
+                          <button
+                            onClick={() => void setBan(u.id, false)}
+                            disabled={busy}
+                            className="pressable rounded-full border border-line-strong px-3.5 py-1.5 text-[11px] font-black text-fg-2 disabled:opacity-40"
+                          >
+                            BANを解除
+                          </button>
+                        ) : (
+                          <>
+                            <input
+                              value={banReasons[u.id] ?? ""}
+                              onChange={(e) => setBanReasons((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                              placeholder="BANの理由(任意・管理用)"
+                              className="min-w-0 flex-1 rounded-full border border-line bg-canvas px-3 py-1.5 text-[11px] text-fg placeholder:text-fg-3 focus:border-line-strong focus:outline-none"
+                            />
+                            <button
+                              onClick={() => void setBan(u.id, true)}
+                              disabled={busy}
+                              className="pressable shrink-0 rounded-full border border-crimson-500/40 px-3.5 py-1.5 text-[11px] font-black text-crimson-300 disabled:opacity-40"
+                            >
+                              {confirmBanFor === u.id ? "本当にBANする" : "BAN"}
+                            </button>
+                          </>
+                        )}
                       </div>
                       {cardMsg?.userId === u.id && (
                         <p className={`mt-2 text-[12px] font-bold ${cardMsg.ok ? "text-accent" : "text-crimson-300"}`}>{cardMsg.text}</p>

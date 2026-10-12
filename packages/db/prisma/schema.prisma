@@ -36,6 +36,10 @@ model User {
   /// trialOfferMilestone = 最後にオファーを出したインマネの区切り(10, 20, 30…)。trialOfferUntil = その期限(使ったら null)。
   trialOfferMilestone Int @default(0)
   trialOfferUntil     DateTime?
+  /// 管理者による利用停止(BAN)の時刻と理由(管理用のメモ。本人には見せない)。null = 利用停止していない。
+  /// 利用停止中は卓に参加できず、アプリは利用停止の画面だけになる(オーナー指示 2026-10-12)。
+  bannedAt     DateTime?
+  bannedReason String?
   /// 管理者が付与したプラン("silver" | "gold" | "platinum")と期限。Stripe の契約とは別に持ち、高い方が効く
   /// (支払い中の人にも上位プランを付与できるように。オーナー指示)。期限切れ・null は無し。
   adminPlan      String?
