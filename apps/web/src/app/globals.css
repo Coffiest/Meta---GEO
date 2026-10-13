@@ -1260,3 +1260,34 @@ textarea:focus-visible,
     animation: none;
   }
 }
+
+/* ── オールイン中の手札の震え ────────────────────────────────
+   出典: uiverse.io by xbeat_5120(uiverse-glitch-input)。オールインした席の手札を、
+   心臓の鼓動で震えるように 1px ずつ小刻みに揺らす。transform だけを動かすので
+   コンポジタで完結する(卓の発熱対策)。視差に弱い人の設定では止める。 */
+@keyframes allin-tremble {
+  0% {
+    transform: translate(0);
+  }
+  25% {
+    transform: translate(-1px, 1px);
+  }
+  50% {
+    transform: translate(1px, -1px);
+  }
+  75% {
+    transform: translate(-1px, -1px);
+  }
+  100% {
+    transform: translate(0);
+  }
+}
+.allin-tremble {
+  animation: allin-tremble 0.3s steps(2) infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .allin-tremble {
+    animation: none;
+  }
+}

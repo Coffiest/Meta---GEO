@@ -250,7 +250,9 @@ export function Seat({
         const cardSize = size === "lg" ? "xl" : "sm";
         const anyArmed = Boolean(heroShowArmed?.[0] || heroShowArmed?.[1]);
         return (
-          <div className="relative z-30 flex gap-1">
+          // オールインしている間は、手札が鼓動で震えるように小刻みに揺れる(オーナー指示。
+          // 出典: uiverse.io by xbeat_5120 の glitch。CSS は globals.css の .allin-tremble)。
+          <div className={`relative z-30 flex gap-1 ${status === "allIn" && showCards ? "allin-tremble" : ""}`}>
             {showCards &&
               holeCards.map((c, i) => {
                 if (shown && !isHero) {
