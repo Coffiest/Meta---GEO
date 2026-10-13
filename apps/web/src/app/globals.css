@@ -400,15 +400,17 @@ textarea:focus-visible,
   height: 6px;
   border-radius: 9999px;
 }
+/* つまみは指で掴める大きさに(以前は 18px で、ベット額を動かそうとしてつまみを外しやすかった)。
+   トラックは 6px のまま、つまみだけを 26px にして、中心をトラックに合わせる(-(26-6)/2 = -10px)。 */
 .bet-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
-  margin-top: -6px;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
   border-radius: 9999px;
   background: rgb(var(--accent));
-  border: 3px solid rgb(var(--n-1));
+  border: 4px solid rgb(var(--n-1));
   box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 .bet-slider::-moz-range-track {
@@ -422,11 +424,11 @@ textarea:focus-visible,
   background: rgb(var(--accent));
 }
 .bet-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
   background: rgb(var(--accent));
-  border: 3px solid rgb(var(--n-1));
+  border: 4px solid rgb(var(--n-1));
   box-shadow: 0 0 12px -2px rgb(var(--accent) / 0.7);
 }
 
