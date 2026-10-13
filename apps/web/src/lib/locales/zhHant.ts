@@ -84,6 +84,7 @@ export const zhHant: Record<string, string> = {
   "action.raise": "加注",
   "action.checkFoldShort": "過牌／棄牌",
   "action.waiting": "等待其他玩家行動",
+  "action.sitOut": "離座",
   "seat.chat": "聊天",
   "seat.timeBankUsed": "時間銀行",
   "seat.away": "離座中",

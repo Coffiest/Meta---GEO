@@ -47,6 +47,49 @@ function ActionButton({
   );
 }
 
+/**
+ * 手番待ちの間に触るトグル(離席 / チェック・フォールドの予約)。アクションボタンと同じ高さ・同じ角丸で、
+ * 塗りは地に近い控えめな面にする。押せることは、上端のハイライトのある面・輪郭・チェックの枠で伝える。
+ * ONのときはアクセントの中段(輪郭+薄い塗り+アクセント色の文字)。押した瞬間に沈む(.pressable)。
+ */
+function WaitToggle({
+  active,
+  onClick,
+  label,
+  ariaLabel,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-label={ariaLabel ?? label}
+      onClick={onClick}
+      className={`pressable flex h-[50px] flex-1 items-center justify-center gap-2 rounded-2xl text-[13px] font-bold shadow-e1 ring-1 ring-inset transition-colors duration-150 ${
+        active ? "bg-accent/15 text-accent ring-accent" : "bg-white/[0.05] text-fg-2 ring-white/10"
+      }`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        data-on={active}
+        className="seat-check-mark h-[18px] w-[18px] shrink-0"
+      >
+        <rect className="box" x="3" y="3" width="18" height="18" rx="6" strokeWidth={1.8} />
+        <polyline className="tick" points="7.5 12.3 10.5 15.3 16.8 8.7" strokeWidth={2.2} />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 /* 卓上のアクション名は、意匠として全ロケール共通の英字にする(オーナー指示)。
    読み上げ用の aria-label は t() の各言語のまま残してあるので、
    日本語話者がスクリーンリーダーで使えなくなることはない。 */
@@ -407,9 +450,21 @@ export function ActionBar({
         ) : (
           <>
             {/* 手番待ち。枠は出さない(星空がそのまま透ける)。高さだけは手番中と揃えてあるので、
-                手番が回ってきても卓の位置と大きさは 1px も動かない。 */}
-            <div className="flex flex-1 flex-col items-center justify-center gap-2">
-              <span className="text-[11px] font-semibold tracking-wide text-fg-3">{t("action.waiting")}</span>
+                手番が回ってきても卓の位置と大きさは 1px も動かない。
+                空いている主行動の行には、待っている間に触る「離席」「チェック/フォールドの予約」を、
+                アクションボタンと同じ位置・同じ大きさで置く(オーナー指示)。色は控えめな地の面で、
+                ONのときだけアクセントの中段(細い輪郭+薄い塗り)にして「予約されている」ことを示す。 */}
+            <div className="flex flex-1 items-center justify-center">
+              <span className="text-[11px] font-semibold text-fg-3">{t("action.waiting")}</span>
+            </div>
+            <div className="flex gap-2">
+              <WaitToggle active={away} onClick={() => onToggleAway(!away)} label={t("action.sitOut")} />
+              <WaitToggle
+                active={checkFoldArmed}
+                onClick={() => onToggleCheckFold(!checkFoldArmed)}
+                label={t("action.checkFoldShort")}
+                ariaLabel={t("action.armCheckFold")}
+              />
             </div>
           </>
         )}

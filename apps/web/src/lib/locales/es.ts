@@ -84,6 +84,7 @@ export const es: Record<string, string> = {
   "action.raise": "Subir",
   "action.checkFoldShort": "Check / Fold",
   "action.waiting": "Turno de otro jugador",
+  "action.sitOut": "Ausentarse",
   "seat.chat": "Chat",
   "seat.timeBankUsed": "Banco de tiempo",
   "seat.away": "Ausente",
