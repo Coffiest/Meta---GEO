@@ -249,7 +249,7 @@ export const zhHant: Record<string, string> = {
   "lobby.metric.roi": "ROI",
   "lobby.metric.rrRating": "錦標賽評分",
   "lobby.metric.itmRate": "進錢圈率",
-  "lobby.sec.profit": "盈虧",
+  "lobby.sec.profit": "概覽",
   "lobby.sec.trend": "盈虧走勢",
   "lobby.sec.tourneyResults": "錦標賽成績",
   "lobby.recentTourneys": "最近錦標賽場數",
