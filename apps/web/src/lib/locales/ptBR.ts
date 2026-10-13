@@ -249,7 +249,7 @@ export const ptBR: Record<string, string> = {
   "lobby.metric.roi": "ROI",
   "lobby.metric.rrRating": "Rating",
   "lobby.metric.itmRate": "Taxa de ITM",
-  "lobby.sec.profit": "Lucro",
+  "lobby.sec.profit": "Resumo",
   "lobby.sec.trend": "Evolução",
   "lobby.sec.tourneyResults": "Resultados em torneios",
   "lobby.recentTourneys": "Torneios recentes",

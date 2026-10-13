@@ -132,13 +132,14 @@ body {
   background: rgb(var(--n-2) / var(--glass-alpha));
 }
 
-/* 画面上端に貼り付くヘッダー。光は上から来るので、明るい縁は上端に、
-   コンテンツと接する下端には暗い縁を置いて「厚み」を作る。 */
+/* 画面上端に貼り付くヘッダー。光は上から来るので、明るい縁は上端に置く。
+   コンテンツと接する下端は固い線で区切らず、下へ柔らかく落ちる影でにじませる
+   (apple-design: scroll edge effect。以前は 1px の黒い線で、面が板のように切れて見えた)。 */
 .glass-header {
   background: rgb(var(--n-1) / var(--glass-alpha));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
-    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+    0 12px 24px -16px rgb(0 0 0 / 0.65);
 }
 
 /* 画面下端に貼り付くフッター/アクションバー。 */

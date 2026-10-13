@@ -999,7 +999,7 @@ function HamburgerMenu({
         {/* 友達招待とクーポンをひとつのセクションに集約(旧ホームから移設)。 */}
         {accessToken && (
           <div className="mt-5 px-4 space-y-3">
-            <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-fg-2">{t("menu.inviteCoupon")}</p>
+            <p className="px-1 text-[11px] font-black uppercase tracking-[0.04em] text-fg-2">{t("menu.inviteCoupon")}</p>
             <InviteCouponCard accessToken={accessToken} />
           </div>
         )}

@@ -249,7 +249,7 @@ export const es: Record<string, string> = {
   "lobby.metric.roi": "ROI",
   "lobby.metric.rrRating": "Rating",
   "lobby.metric.itmRate": "Tasa ITM",
-  "lobby.sec.profit": "Balance",
+  "lobby.sec.profit": "Resumen",
   "lobby.sec.trend": "Evolución",
   "lobby.sec.tourneyResults": "Resultados en torneos",
   "lobby.recentTourneys": "Torneos recientes",
