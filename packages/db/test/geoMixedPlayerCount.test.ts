@@ -185,5 +185,28 @@ describe("GEO tree with mixed table sizes (integration, real Postgres)", () => {
     });
     expect(contestedLegacy.node.position).toBe(contested.node.position);
     expect(contestedLegacy.node.sampleSize).toBe(contested.node.sampleSize);
+
+    // --- 全人数をまとめる(人数を指定しない。GEO 画面の既定) ---
+    //
+    // 後ろの人数で数える統合では、6人卓の「UTG・HJ がフォールドして CO」と 4人卓の「最初の CO」は同じ局面。
+    // 以前は 4人卓に居ない UTG・HJ のフォールドを展開できず、4人卓のハンドが1件も合流しなかった。
+    const merged = async (l: LineStep[], decisionTable: boolean) =>
+      withDecisionTable(decisionTable, async () => {
+        clearRawHandsCache();
+        return getPreflopNode({ stackBucket: "30+", bubbleStage: "normal", line: l });
+      });
+    const mergedRoot = await merged([], true);
+    expect(mergedRoot.node.position, "まとめてもルートは行動順で最初の UTG").toBe("UTG");
+    expect(mergedRoot.node.sampleSize, "ルートの UTG は6人卓の2件").toBe(2);
+    const coLine: LineStep[] = [
+      { position: "UTG", bucket: "fold" },
+      { position: "HJ", bucket: "fold" },
+    ];
+    const mergedCo = await merged(coLine, true);
+    expect(mergedCo.node.position).toBe("CO");
+    expect(mergedCo.node.sampleSize, "4人卓の最初の CO(通常3+SBデッド2)が合流する").toBe(5);
+    const mergedCoLegacy = await merged(coLine, false);
+    expect(mergedCoLegacy.node.position).toBe("CO");
+    expect(mergedCoLegacy.node.sampleSize).toBe(5);
   }, 120_000);
 });
