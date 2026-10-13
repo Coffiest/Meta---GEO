@@ -384,9 +384,11 @@ export function ActionBar({
                 )}
               </ActionButton>
 
+              {/* レイズできないとき(相手が全員オールインで、コールかフォールドしかない等)は、
+                  押せないボタンを並べずにコール/フォールドの2つだけにする。 */}
+              {!raiseDisabled && (
               <ActionButton
                 tone="raise"
-                disabled={raiseDisabled}
                 ariaLabel={
                   raiseTo >= maxRaiseToAmount ? t("action.allInPreset") : isRaiseLabel ? t("action.raise") : t("action.bet")
                 }
@@ -399,6 +401,7 @@ export function ActionBar({
                   {formatAmount(raiseTo >= maxRaiseToAmount ? maxRaiseToAmount : raiseTo, bigBlind, displayMode)}
                 </span>
               </ActionButton>
+              )}
             </div>
           </>
         ) : (

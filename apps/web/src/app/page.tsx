@@ -579,7 +579,13 @@ function GameScreen({
   }, [accessToken, statsBefore]);
 
   const isYourTurn = yourSeatIndex !== null && state?.actingSeatIndex === yourSeatIndex && !state.isComplete;
-  const toCall = state && yourSeat ? Math.max(0, state.currentBetToMatch - yourSeat.streetContribution) : 0;
+  // コールに要る額。自分のスタックより大きくはならない(相手の 5000 のオールインに 3000 しか無ければ、出せるのは 3000)。
+  const toCall = state && yourSeat ? Math.min(yourSeat.stack, Math.max(0, state.currentBetToMatch - yourSeat.streetContribution)) : 0;
+  // 自分以外に、まだチップを賭けられる人(降りておらず、オールインでもない人)がいるか。
+  // いなければレイズは意味が無い(相手のオールインにはコールかフォールドしかない)ので、レイズのボタンを出さない。
+  const othersCanStillBet = (state?.seats ?? []).some(
+    (s) => s.seatIndex !== yourSeatIndex && s.status === "active" && s.stack > 0,
+  );
   const maxRaiseToAmount = yourSeat ? yourSeat.streetContribution + yourSeat.stack : 0;
   const minRaiseToAmount = state ? Math.min(maxRaiseToAmount, state.currentBetToMatch + state.lastFullRaiseSize) : 0;
   // トーナメントのレベルはハンドの途中で上がることがあるが、進行中のハンドのミニマムベット/
@@ -1138,7 +1144,11 @@ function GameScreen({
             maxRaiseToAmount={maxRaiseToAmount}
             potTotal={state?.potTotal ?? 0}
             streetContribution={yourSeat?.streetContribution ?? 0}
-            canRaise={!(yourSeat?.hasActedThisStreet ?? false)}
+            canRaise={
+              !(yourSeat?.hasActedThisStreet ?? false) &&
+              othersCanStillBet &&
+              maxRaiseToAmount > (state?.currentBetToMatch ?? 0)
+            }
             bigBlind={bigBlind}
             effectiveStackBehind={effectiveStackBehind}
             onAction={sendAction}
