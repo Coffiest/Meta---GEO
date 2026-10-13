@@ -19,8 +19,10 @@ import {
   writeGtoPostflopSnapshot,
   type GtoPostflopSpotHandle,
   STACK_BUCKETS,
+  STACK_FILTERS,
   BUBBLE_STAGES,
   type StackBucket,
+  type StackFilter,
   type BubbleStage,
   type LineStep,
 } from "@meta-geo/db";
@@ -191,6 +193,11 @@ function isStackBucket(v: unknown): v is StackBucket {
   return typeof v === "string" && (STACK_BUCKETS as string[]).includes(v);
 }
 
+/** GEO(実測)の絞り込み用。スタック帯に加えて "all"(絞らない)を受け付ける。 */
+function isStackFilter(v: unknown): v is StackFilter {
+  return typeof v === "string" && (STACK_FILTERS as string[]).includes(v);
+}
+
 function isBubbleStage(v: unknown): v is BubbleStage {
   return typeof v === "string" && (BUBBLE_STAGES as string[]).includes(v);
 }
@@ -257,7 +264,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       const stackBucket = body["stackBucket"];
       const bubbleStage = body["bubbleStage"] ?? "normal";
       const line = parseLine(body["line"] ?? []);
-      if (!isStackBucket(stackBucket) || !isBubbleStage(bubbleStage) || line === null) {
+      if (!isStackFilter(stackBucket) || !isBubbleStage(bubbleStage) || line === null) {
         sendJson(res, 400, { error: "invalid stackBucket, bubbleStage, or line" });
         return true;
       }
@@ -465,7 +472,7 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
       const board = body["board"];
       const street = body["street"];
       if (
-        !isStackBucket(stackBucket) ||
+        !isStackFilter(stackBucket) ||
         !isBubbleStage(bubbleStage) ||
         preflopLine === null ||
         postflopLine === null ||

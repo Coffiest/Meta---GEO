@@ -1,9 +1,11 @@
 const SERVER_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
 
 /** packages/db/src/geoTree.ts と揃えた型。今回のGEO DATABASEは無制限アクセスのため認証不要。 */
-export type StackBucket = "0-5" | "5-10" | "10-15" | "15-20" | "20-30" | "30+";
-export const STACK_BUCKETS: StackBucket[] = ["0-5", "5-10", "10-15", "15-20", "20-30", "30+"];
+/** "all" はスタック帯で絞らない(画面の「全て」。GEO の既定。オーナー指示 2026-10-13)。 */
+export type StackBucket = "all" | "0-5" | "5-10" | "10-15" | "15-20" | "20-30" | "30+";
+export const STACK_BUCKETS: StackBucket[] = ["all", "0-5", "5-10", "10-15", "15-20", "20-30", "30+"];
 export const STACK_BUCKET_LABELS: Record<StackBucket, string> = {
+  all: "全て",
   "0-5": "0-5bb",
   "5-10": "5-10bb",
   "10-15": "10-15bb",

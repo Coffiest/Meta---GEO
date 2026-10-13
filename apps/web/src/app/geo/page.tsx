@@ -203,7 +203,7 @@ function GeoDatabase({
   // データ源。GTOモードへの入口は廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。
   // 内部の分岐(GEO/GTOで別エンドポイントを叩く等)はそのまま残してあるが、常に"geo"側だけを通る。
   const [mode] = useState<"geo" | "gto">("geo");
-  const [stackBucket, setStackBucket] = useState<StackBucket>("30+");
+  const [stackBucket, setStackBucket] = useState<StackBucket>("all");
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
@@ -520,6 +520,43 @@ function GeoDatabase({
     }
   }
 
+  /**
+   * プリフロップで、まだ手番の来ていない席を押したとき: 今の手番からその席の手前までを全員フォールドにして、
+   * その席まで一気に進める(オーナー指示 2026-10-13)。例: UTG オープンの後に BTN を押すと、HJ・CO の
+   * フォールドを入れなくても BTN のレンジ(コール・3bet など)が見られる。
+   */
+  function jumpTo(target: string) {
+    if (loading || !node?.position || street !== "preflop") return;
+    const order = preflopOrder();
+    const decided = new Set(preflopLine.map((s) => s.position));
+    // 2巡目(既に動いた人の番)からは飛ばさない。並び順が1周目の前提で作れないため。
+    if (decided.has(node.position)) return;
+    const from = order.indexOf(node.position);
+    const to = order.indexOf(target);
+    if (from === -1 || to === -1 || to <= from) return;
+    const folds: LineStepWithMeta[] = order
+      .slice(from, to)
+      .filter((p) => !decided.has(p))
+      .map((p, i) => ({
+        position: p,
+        bucket: "fold",
+        geometricRatio: 0,
+        // 今の手番の選択肢だけは手元にある(PC版で後から付け替えるのに使う)。
+        ...(i === 0 ? { options: node.options } : {}),
+      }));
+    setDismissedStreet(null);
+    setJustPickedBoard(false);
+    setPreflopLine((prev) => [...prev, ...folds]);
+  }
+
+  /** プリフロップで、押して飛べる(まだ手番の来ていない・今の手番より後ろの)席か。 */
+  function canJumpTo(position: string): boolean {
+    if (street !== "preflop" || !node?.position || loading) return false;
+    const order = preflopOrder();
+    if (preflopLine.some((s) => s.position === node.position)) return false;
+    return order.indexOf(position) > order.indexOf(node.position);
+  }
+
   function handleTruncate(streetKey: Street, lineIndex: number) {
     setDismissedStreet(null);
     if (streetKey === "preflop") {
@@ -631,7 +668,13 @@ function GeoDatabase({
       if (isCurrentStreet && node?.position === position) {
         return { kind: "position", street: streetKey, position, state: "active" };
       }
-      return { kind: "position", street: streetKey, position, state: "future" };
+      return {
+        kind: "position",
+        street: streetKey,
+        position,
+        state: "future",
+        ...(streetKey === "preflop" && isCurrentStreet && canJumpTo(position) ? { jumpable: true } : {}),
+      };
     });
   }
 
@@ -773,6 +816,7 @@ function GeoDatabase({
             <PositionPillBar
               items={items}
               onTruncate={handleTruncate}
+              onJump={jumpTo}
               activeOptions={node?.position ? node.options : undefined}
               activeSampleSize={node?.position ? node.sampleSize : undefined}
               bucketLabels={bucketLabels}
