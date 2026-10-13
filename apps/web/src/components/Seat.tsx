@@ -221,7 +221,7 @@ export function Seat({
          自分が降りたことは手札が伏せられることとアクションバーの表示で既に分かるので、
          自席を薄くする必要はない。 */
       className={`relative flex flex-col items-center gap-1 transition-opacity duration-300 ${size === "lg" ? "w-32" : "w-24"} ${
-        folded && !isHero ? "opacity-35" : "opacity-100"
+        folded && !isHero ? "opacity-55" : "opacity-100"
       }`}
     >
       {/* 同卓チャットの吹き出し。自分の手札の真上にふわっと浮かせ、尻尾(菱形)を下=手札方向へ。
@@ -338,14 +338,17 @@ export function Seat({
       {/* 名前+スタックの識別ピル。中身の自然幅に任せると、表示名やスタック桁数によっては
           席の枠(w-24/w-32)を左右にはみ出し、テーブルが小さい端末で隣席のピルと重なって
           読めなくなる。max-w-full で必ず席の幅に収め、あふれる分は表示名を削る。 */}
-      <div
-        className={`relative flex max-w-full items-center gap-1 rounded-full pr-2 pl-0.5 py-1 transition-all duration-300 ${
+      {/* 手番の席は少し大きく。ばね(SPRING_SNAPPY)で動かすので、手番がすぐ移っても途中から戻る。 */}
+      <motion.div
+        animate={{ scale: isActingSeat && !reducedMotion ? 1.06 : 1 }}
+        transition={SPRING_SNAPPY}
+        className={`relative flex max-w-full items-center gap-1 rounded-full pr-2 pl-0.5 py-1 transition-[background-color,box-shadow] duration-200 ${
           isEmpty
             ? "bg-transparent"
             : folded
               ? "bg-surface/80 border border-line-strong/30"
               : "glass-panel"
-        } ${isActingSeat ? "z-10 scale-[1.06] ring-2 ring-accent shadow-glow-sm" : ""}`}
+        } ${isActingSeat ? "z-10 ring-2 ring-accent shadow-glow-sm" : ""}`}
       >
         {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
             CSSキーフレームで動かす(コンポジタで完結し、端末の発熱を抑える)。 */}
@@ -488,7 +491,7 @@ export function Seat({
             </div>
           </>
         )}
-      </div>
+      </motion.div>
 
       {/* バッジ/ベット額表示の行。どちらも出ない瞬間(フォールド直後で街道コントリビューションが
           0、かつ直近アクションバッジも無いとき)に高さ0へ潰れないよう、min-hで場所を確保しておく。
