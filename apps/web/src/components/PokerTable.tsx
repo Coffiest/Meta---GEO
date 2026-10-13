@@ -259,8 +259,11 @@ function badgeForSeat(params: {
   lastHandDeltaBySeat: Record<number, number> | null;
   bigBlind: number;
   displayMode: AmountDisplayMode;
+  /** この席の今のストリートの拠出と残りスタック。表示する額をこの席が出せる額までに抑える。 */
+  streetContribution: number;
+  stack: number;
 }): SeatBadge | null {
-  const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind, displayMode } = params;
+  const { seatIndex, seatStatus, lastActionBySeat, lastHandDeltaBySeat, bigBlind, displayMode, streetContribution, stack } = params;
 
   // ポットを取ったことは「獲得額」だけで伝える。Won/Lostのような勝敗ラベルは置かない
   // (卓上に英単語の宣言を並べるのは他社アプリの語彙で、Poker ARTの静かな面構えに合わない)。
@@ -274,8 +277,22 @@ function badgeForSeat(params: {
   }
 
   const action = lastActionBySeat[seatIndex];
+  // この席がこのストリートに出せる上限(いま出している額+残りのスタック)。サーバーから届く額は
+  // 「コールした相手のベット額」なので、スタックが足りずにオールインでコールした席では、
+  // 持っていた額より大きく出てしまう(3000 しか無いのに「Call 5000」)。表示はここで抑える。
+  const capOf = (toAmount: number) => Math.min(toAmount, streetContribution + stack);
+
+  // オールインした席は、額が 1BB に満たなくても、コールでオールインになっても、
+  // ショーダウン(ハンドの終わり)まで「All In」を赤で出し続ける。ストリートが進んで額が 0 に戻ったら額は書かない。
+  if (seatStatus === "allIn" && !lastHandDeltaBySeat) {
+    const amount = streetContribution > 0 ? streetContribution : action ? capOf(action.toAmount) : 0;
+    return amount > 0
+      ? { text: `All In ${formatAmount(amount, bigBlind, displayMode)}`, tone: "raise", chips: true }
+      : { text: "All In", tone: "raise" };
+  }
+
   if (action) {
-    const bb = formatAmount(action.toAmount, bigBlind, displayMode);
+    const bb = formatAmount(capOf(action.toAmount), bigBlind, displayMode);
     switch (action.kind) {
       case "raise":
         return { text: `Raise ${bb}`, tone: "raise", chips: true };
@@ -695,6 +712,8 @@ export function PokerTable({
               lastHandDeltaBySeat,
               bigBlind,
               displayMode,
+              streetContribution: seat?.streetContribution ?? 0,
+              stack: seat?.stack ?? 0,
             })}
           />
         );
