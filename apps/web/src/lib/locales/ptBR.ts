@@ -84,6 +84,7 @@ export const ptBR: Record<string, string> = {
   "action.raise": "Raise",
   "action.checkFoldShort": "Check / Fold",
   "action.waiting": "Vez de outro jogador",
+  "action.sitOut": "Ausentar-se",
   "seat.chat": "Chat",
   "seat.timeBankUsed": "Time bank",
   "seat.away": "Ausente",
