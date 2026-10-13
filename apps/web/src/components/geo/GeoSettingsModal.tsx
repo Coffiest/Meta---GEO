@@ -170,7 +170,7 @@ export function GeoSettingsModal({
         <div className={isGto ? "mt-5" : "mb-5"}>
           <p className="text-[11px] tracking-wide text-fg-2 uppercase font-bold mb-2">人数</p>
           <div className="flex flex-wrap gap-1.5">
-            {[2, 3, 4, 5, 6].map((n) => {
+            {(isGto ? [2, 3, 4, 5, 6] : [0, 2, 3, 4, 5, 6]).map((n) => {
               const selected = isGto ? gtoPlayerCount === n : playerCount === n;
               return (
                 <motion.button
@@ -181,7 +181,7 @@ export function GeoSettingsModal({
                     selected ? "bg-accent text-on-accent" : "glass-panel text-fg-2"
                   }`}
                 >
-                  {n}人
+                  {n === 0 ? "全人数" : `${n}人`}
                 </motion.button>
               );
             })}
@@ -189,7 +189,7 @@ export function GeoSettingsModal({
           <p className="mt-1.5 text-[10px] text-fg-3">
             {isGto
               ? "少人数はアーリーポジションがフォールドした局面のGTO戦略を表示します。"
-              : "その人数でプレイされたハンドだけを集計します(変更するとラインはリセット)。人数が違うとアクション順そのものが変わる(6人のHJ・5人のCO・4人のBTNは同じ順番)ため、人数はまとめずに1つ選びます。"}
+              : "全人数: 後ろに残っている人数が同じ局面をまとめて集計します(6人卓で UTG・HJ が降りた後の CO と、4人卓で最初に動く CO は同じ)。人数を選ぶと、その人数でプレイされたハンドだけになります(変更するとラインはリセット)。"}
           </p>
         </div>
 

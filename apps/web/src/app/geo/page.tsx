@@ -208,15 +208,14 @@ function GeoDatabase({
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
   const [bubbleStage, setBubbleStage] = useState<BubbleStage>("normal");
   /**
-   * GEOタブ: 卓の参加人数(2〜6)。必ずどれか1つを選ぶ。
+   * GEOタブ: 卓の参加人数。0 = 全人数をまとめる(既定)、2〜6 = その人数のハンドだけ。
    *
-   * 人数をまとめて集計してはいけない。ラインはポジション名の並びで表すが、人数が違うと
-   * アクション順そのものが変わるため、同じ "UTG:fold" というラインが6人卓のHJ・5人卓のCO・
-   * 4人卓のBTNを1つのノードへ合流させてしまう。さらにルート(ライン無し)だけは全人数の
-   * 最初のアクションが合算されるので、「UTGだけ異常にデータが多く、その先が急に痩せる」
-   * という実体のない偏りが生まれていた。
+   * 席名は「後ろに残っている人数」で数える統合を済ませてある(オーナー承認 2026-10-10)。6人卓の
+   * 「UTG・HJ がフォールドして CO」と4人卓の「最初の CO」は同じ局面なので、サーバーが人数ごとのラインへ
+   * 展開して合算する。以前は既定が6人で固定され、2〜5人卓のハンド(トナメ後半の大半)が一切集計に
+   * 入らず、データが極端に少なく見えていた。
    */
-  const [playerCount, setPlayerCount] = useState<number>(6);
+  const [playerCount, setPlayerCount] = useState<number>(0);
   /** GTOタブ: 人数(2〜6)。6未満はアーリーポジションの自動フォールド接頭辞で表現する。 */
   const [gtoPlayerCount, setGtoPlayerCount] = useState(6);
   // トナメ偏差値フィルタ範囲。全域(RATING_MIN〜RATING_MAX)のときはフィルタなし扱い。
@@ -377,7 +376,7 @@ function GeoDatabase({
             bubbleStage,
             line: preflopLine,
             ratingRange: ratingFilter,
-            playerCount,
+            playerCount: playerCount || undefined,
           })
         : geoTreeApi.postflopNode({
             stackBucket,
@@ -387,7 +386,7 @@ function GeoDatabase({
             street,
             postflopLine: streetLines[street],
             ratingRange: ratingFilter,
-            playerCount,
+            playerCount: playerCount || undefined,
           });
 
     // 失敗したら「1回目で」原因を画面に出す。ここでリトライを重ねてから表示すると、
@@ -721,7 +720,7 @@ function GeoDatabase({
         <div className="hidden pt-3 lg:block">
           <DesktopSpotBar
             items={items}
-            settingsSummary={`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+            settingsSummary={`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
             onOpenSettings={() => setSettingsOpen(true)}
             activeOptions={node?.position ? node.options : undefined}
             activeSampleSize={node?.position ? node.sampleSize : undefined}
@@ -767,7 +766,7 @@ function GeoDatabase({
                 設定
               </div>
               <div className="text-[11px] font-bold text-fg whitespace-nowrap">
-                {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount}人${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+                {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
               </div>
             </motion.button>
             <PositionPillBar

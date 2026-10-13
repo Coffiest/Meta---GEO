@@ -465,6 +465,26 @@ function dominantPosition(counts: ReadonlyMap<string, number>): string | null {
   return best;
 }
 
+/** 統合(全人数)のときの、統合後の席名の行動順。 */
+const MERGED_ORDER: Record<string, string[]> = {
+  preflop: ["UTG", "HJ", "CO", "BTN", "SB", "BB", "BTN(SB)"],
+  postflop: ["SB", "BB", "UTG", "HJ", "CO", "BTN", "BTN(SB)"],
+};
+
+/**
+ * ノードのポジション名を決める。人数を1つに絞っているときは多数決(dominantPosition)。
+ * 全人数をまとめているときは、行動順で最も早い席にする。同じラインの次に動く人は、6人卓なら UTG、
+ * 4人卓なら CO … と人数で違い、多数決では少人数の卓が多いだけでルートが CO や BTN になってしまう。
+ * ラインに出ていない席のうち行動順で最も早い人が、本当に「次に動く人」。
+ */
+function choosePosition(counts: ReadonlyMap<string, number>, street: string, merged: boolean): string | null {
+  if (merged) {
+    const order = MERGED_ORDER[street === "preflop" ? "preflop" : "postflop"]!;
+    for (const p of order) if ((counts.get(p) ?? 0) > 0) return p;
+  }
+  return dominantPosition(counts);
+}
+
 function linesMatch(actual: ReplayedDecision[], requested: LineStep[]): boolean {
   if (actual.length < requested.length) return false;
   for (let i = 0; i < requested.length; i++) {
@@ -513,6 +533,7 @@ function buildNodeFromDecisions(
   nextDecisions: ReplayedDecision[],
   stackBucket: StackBucket,
   expectedPosition: string | null,
+  pick: (counts: ReadonlyMap<string, number>) => string | null = dominantPosition,
 ): { node: TreeNode; matrix: HandClassMatrixResult } {
   const inBucket = nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
 
@@ -525,7 +546,7 @@ function buildNodeFromDecisions(
   // 別々のスポットの頻度が混ざった数字になってしまう。多い方のポジションに揃える。
   const positionsInBucket = new Map<string, number>();
   for (const d of inBucket) positionsInBucket.set(d.position, (positionsInBucket.get(d.position) ?? 0) + 1);
-  const nodePosition = dominantPosition(positionsInBucket) ?? expectedPosition ?? null;
+  const nodePosition = pick(positionsInBucket) ?? expectedPosition ?? null;
   const filtered = nodePosition === null ? inBucket : inBucket.filter((d) => d.position === nodePosition);
 
   const tally = new Map<string, { count: number; geometricCount: number }>();
@@ -600,8 +621,9 @@ export async function getPreflopNode(params: {
     if (countedSeats.size === 0) return;
 
     const decisions = normalizeReplayed(replayPreflopDecisions(hand, countedSeats), hand.seats.length, () => "preflop");
-    if (!linesMatch(decisions, params.line)) return;
-    const next = decisions[params.line.length];
+    const line = params.playerCount === undefined ? lineForCount(params.line, hand.seats.length, "preflop") : params.line;
+    if (!line || !linesMatch(decisions, line)) return;
+    const next = decisions[line.length];
     if (!next) return;
     // ポジション名は多数決で決める(dominantPosition)。1件目を採ると、データに異常のある
     // ハンドが先頭に1件混ざっただけで正しい大多数の結果が塗り替えられてしまう。
@@ -610,7 +632,8 @@ export async function getPreflopNode(params: {
     if (next.isCounted) nextDecisions.push(next);
   });
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket, dominantPosition(positionCounts));
+  const pick = (c: ReadonlyMap<string, number>) => choosePosition(c, "preflop", params.playerCount === undefined);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, pick(positionCounts), pick);
 }
 
 interface ReplayedPostflopDecision extends ReplayedDecision {
@@ -787,7 +810,8 @@ export async function getPostflopNode(params: {
 
     const n = hand.seats.length;
     const preflopDecisions = normalizeReplayed(replayPreflopDecisions(hand, countedSeats), n, () => "preflop");
-    if (!linesMatch(preflopDecisions, params.preflopLine)) return;
+    const preflopLine = params.playerCount === undefined ? lineForCount(params.preflopLine, n, "preflop") : params.preflopLine;
+    if (!preflopLine || !linesMatch(preflopDecisions, preflopLine)) return;
 
     // フォールド済み座席は「実際のハンドで起きた全プリフロップフォールド」を対象にする
     // (要求ラインの範囲内だけではない。ライン一致判定と実際のゲーム進行は別物)。
@@ -803,7 +827,8 @@ export async function getPostflopNode(params: {
     if (next.isCounted) nextDecisions.push(next);
   });
 
-  return buildNodeFromDecisions(nextDecisions, params.stackBucket, dominantPosition(positionCounts));
+  const pick = (c: ReadonlyMap<string, number>) => choosePosition(c, params.street, params.playerCount === undefined);
+  return buildNodeFromDecisions(nextDecisions, params.stackBucket, pick(positionCounts), pick);
 }
 
 // ============================================================================
@@ -1048,6 +1073,11 @@ function decisionWhere(params: {
     if (params.preflopKey !== null && params.preflopKey !== "") {
       const pre = expandLineKey(params.preflopKey, n, "preflop");
       if (pre.length === 0) continue;
+      // 読み飛ばしで空になった(=その人数ではプリフロップの指定が無いのと同じ)ときは絞らない。
+      if (pre.includes("")) {
+        perCount.push(Prisma.sql`(${Prisma.join(conds, " AND ")})`);
+        continue;
+      }
       conds.push(
         Prisma.sql`(d."preflopKey" = ANY(${pre}::text[]) OR ${Prisma.join(
           pre.map((k) => Prisma.sql`d."preflopKey" LIKE ${k + "|%"}`),
@@ -1119,7 +1149,8 @@ async function nodeFromDecisionTable(params: {
   // 合算された数字になってしまう。
   const positionCounts = new Map<string, number>();
   for (const g of groups) positionCounts.set(g.position, (positionCounts.get(g.position) ?? 0) + g.n);
-  let position = dominantPosition(positionCounts);
+  const merged = params.playerCount === undefined;
+  let position = choosePosition(positionCounts, params.street, merged);
 
   const tally = new Map<string, { count: number; geometricCount: number }>();
   const cells = emptyMatrix();
@@ -1161,7 +1192,7 @@ async function nodeFromDecisionTable(params: {
       const p = normalizePosition(r.position, r.playerCount);
       fc.set(p, (fc.get(p) ?? 0) + r.n);
     }
-    position = dominantPosition(fc);
+    position = choosePosition(fc, params.street, merged);
   }
 
   return { node: { position, sampleSize: totalSamples, options }, matrix: { cells, totalSamples } };
@@ -1211,7 +1242,14 @@ function expandLineKey(key: string, n: number, street: string): string[] {
   for (const step of key.split("|")) {
     const [pos, bucket] = step.split(":") as [string, string];
     const raw = rawPosition(pos, n);
-    if (!raw) return [];
+    if (!raw) {
+      // その人数の卓に居ない中間ポジション(4人卓の UTG・HJ など)のフォールドは、「最初から居ない」のと同じ。
+      // 読み飛ばすと、6人卓の「UTG・HJ・CO がフォールドして BTN」と 3〜4人卓の「最初に BTN」が1つのノードに合流する
+      // (後ろの人数で数える統合。オーナー承認 2026-10-10)。以前はここで空を返していたため、人数をまとめても
+      // 少人数の卓のハンドがほとんど拾われていなかった。
+      if (street === "preflop" && bucket === "fold" && SIX_MAX_MIDDLES.includes(pos)) continue;
+      return [];
+    }
     const buckets = street === "preflop" && (bucket === "raise2-5" || bucket === "raise5+") ? ["raise2-5", "raise5+"] : [bucket];
     const next: string[] = [];
     for (const prefix of out) for (const b of buckets) next.push(prefix === "" ? `${raw}:${b}` : `${prefix}|${raw}:${b}`);
@@ -1221,6 +1259,23 @@ function expandLineKey(key: string, n: number, street: string): string[] {
   return out;
 }
 
+
+/**
+ * 統合後のライン(6人卓の名前)を、n人卓のハンドと照合できる形にする(旧経路用。expandLineKey と同じ規則)。
+ * その人数の卓に居ない中間ポジションのフォールドは読み飛ばし、居ない席がフォールド以外をしていれば null(一致しない)。
+ */
+function lineForCount(line: LineStep[], n: number, street: string): LineStep[] | null {
+  const present = new Set(middleMap(n).values());
+  const out: LineStep[] = [];
+  for (const s of line) {
+    if (SIX_MAX_MIDDLES.includes(s.position) && !present.has(s.position)) {
+      if (street === "preflop" && s.bucket === "fold") continue;
+      return null;
+    }
+    out.push(s);
+  }
+  return out;
+}
 
 /** 再生した決定の席名・プリフロップのアクションを統合後の名前に読み替える(集計テーブル経路と同じ規則)。 */
 function normalizeReplayed<T extends ReplayedDecision>(ds: T[], n: number, street: (d: T) => string): T[] {
