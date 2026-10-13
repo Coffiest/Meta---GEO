@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { SPRING_SNAPPY } from "@/lib/motion";
 import { bucketColor, bucketOrderIndex } from "./colors";
 import { mergeOpenRaiseOptions, type ActionOption } from "@/lib/geoApi";
+import { Icon } from "../Icon";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type PostflopStreet = "flop" | "turn" | "river";
@@ -18,6 +19,8 @@ export interface PositionPillItem {
   geometricRatio?: number;
   /** ライン内でのインデックス。decided状態のときのみ存在し、タップで巻き戻すのに使う。 */
   lineIndex?: number;
+  /** まだ手番の来ていない席のうち、押すと手前の席を全員フォールドにしてそこまで進める席(プリフロップ)。 */
+  jumpable?: boolean;
 }
 
 export interface StreetMarkerItem {
@@ -51,6 +54,7 @@ function suitTextClass(card: string): string {
 export function PositionPillBar({
   items,
   onTruncate,
+  onJump,
   activeOptions,
   activeSampleSize,
   bucketLabels,
@@ -58,6 +62,8 @@ export function PositionPillBar({
 }: {
   items: PillBarItem[];
   onTruncate: (street: Street, lineIndex: number) => void;
+  /** まだ手番の来ていない席を押したとき(手前の席を全員フォールドにしてそこまで進める)。 */
+  onJump?: (position: string) => void;
   /** 手番中ポジションの選択肢。無ければそのピルは「選択中」表示のみ(サンプルなし等)。 */
   activeOptions?: ActionOption[];
   activeSampleSize?: number;
@@ -142,12 +148,16 @@ export function PositionPillBar({
             layout
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            whileTap={item.lineIndex !== undefined ? { scale: 0.94 } : undefined}
+            whileTap={item.lineIndex !== undefined || item.jumpable ? { scale: 0.94 } : undefined}
             transition={SPRING_SNAPPY}
-            disabled={item.state === "future"}
-            onClick={() => item.lineIndex !== undefined && onTruncate(item.street, item.lineIndex)}
+            disabled={item.state === "future" && !(item.jumpable && onJump)}
+            onClick={() => {
+              if (item.lineIndex !== undefined) onTruncate(item.street, item.lineIndex);
+              else if (item.jumpable) onJump?.(item.position);
+            }}
+            aria-label={item.jumpable ? `${item.position}まで進める(手前の席はフォールド)` : undefined}
             className={`glass-tile shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
-              item.state === "decided" ? "" : "opacity-40"
+              item.state === "decided" ? "" : item.jumpable ? "opacity-70" : "opacity-40"
             }`}
           >
             <div className="text-[9px] font-black tracking-wide text-fg-2">{item.position}</div>
@@ -158,6 +168,12 @@ export function PositionPillBar({
                   style={{ background: bucketColor(item.bucket ?? "") }}
                 />
                 {item.actionLabel}
+              </div>
+            ) : item.jumpable ? (
+              // 押せることが分かるように、手前を飛ばしてここへ進めることを短く書く。
+              <div className="flex items-center gap-0.5 text-[11px] font-bold text-fg-2">
+                ここへ
+                <Icon name="chevron-right" className="h-3 w-3" />
               </div>
             ) : (
               <div className="text-[11px] font-medium text-fg-faint">—</div>

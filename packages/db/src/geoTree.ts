@@ -50,6 +50,9 @@ function positionLabelsForHand(hand: RawHand): Map<number, string> {
 
 export type StackBucket = "0-5" | "5-10" | "10-15" | "15-20" | "20-30" | "30+";
 export const STACK_BUCKETS: StackBucket[] = ["0-5", "5-10", "10-15", "15-20", "20-30", "30+"];
+/** GEO の絞り込みに使うスタック帯。"all" はスタック帯で絞らない(画面の「全て」。既定)。 */
+export type StackFilter = StackBucket | "all";
+export const STACK_FILTERS: StackFilter[] = ["all", ...STACK_BUCKETS];
 
 export type BubbleStage = "normal" | "30" | "20" | "10" | "5" | "4" | "3" | "2" | "1" | "finalTable";
 export const BUBBLE_STAGES: BubbleStage[] = ["normal", "30", "20", "10", "5", "4", "3", "2", "1", "finalTable"];
@@ -531,11 +534,11 @@ function emptyMatrix(): HandClassCell[][] {
  */
 function buildNodeFromDecisions(
   nextDecisions: ReplayedDecision[],
-  stackBucket: StackBucket,
+  stackBucket: StackFilter,
   expectedPosition: string | null,
   pick: (counts: ReadonlyMap<string, number>) => string | null = dominantPosition,
 ): { node: TreeNode; matrix: HandClassMatrixResult } {
-  const inBucket = nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
+  const inBucket = stackBucket === "all" ? nextDecisions : nextDecisions.filter((d) => stackBucketOf(d.stackBb) === stackBucket);
 
   // ノードは1つのポジションだけを集計する。
   //
@@ -583,7 +586,7 @@ function buildNodeFromDecisions(
  * 次のポジションの意思決定を、指定スタック帯のものだけ集計して返す。
  */
 export async function getPreflopNode(params: {
-  stackBucket: StackBucket;
+  stackBucket: StackFilter;
   bubbleStage: BubbleStage;
   line: LineStep[];
   ratingRange?: RatingRange | undefined;
@@ -751,7 +754,7 @@ function replayPostflopDecisions(
  * そのストリート内のライン、まで絞り込んだ上で次の意思決定を集計する。
  */
 export async function getPostflopNode(params: {
-  stackBucket: StackBucket;
+  stackBucket: StackFilter;
   bubbleStage: BubbleStage;
   preflopLine: LineStep[];
   board: string[];
@@ -1118,7 +1121,7 @@ async function nodeFromDecisionTable(params: {
   lineKey: string;
   boardKey: string;
   preflopKey: string | null;
-  stackBucket: StackBucket;
+  stackBucket: StackFilter;
   bubbleStage: BubbleStage;
   playerCount?: number | undefined;
   ratingRange?: RatingRange | undefined;
@@ -1130,7 +1133,7 @@ async function nodeFromDecisionTable(params: {
     SELECT d."bucket", d."position", d."playerCount", d."handClassRow", d."handClassCol", d."isGeometric", COUNT(*)::int AS n
     FROM "GeoDecision" d
     JOIN "HandSeat" s ON s."id" = d."handSeatId"
-    WHERE ${decisionWhere({ ...base, stackBucket: params.stackBucket })}
+    WHERE ${decisionWhere({ ...base, stackBucket: params.stackBucket === "all" ? null : params.stackBucket })}
     GROUP BY 1, 2, 3, 4, 5, 6
   `);
   // 統合(A・B): 席名を6人卓の名前に、プリフロップのレイズを1つに読み替える。

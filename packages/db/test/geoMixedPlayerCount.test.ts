@@ -205,6 +205,11 @@ describe("GEO tree with mixed table sizes (integration, real Postgres)", () => {
     const mergedCo = await merged(coLine, true);
     expect(mergedCo.node.position).toBe("CO");
     expect(mergedCo.node.sampleSize, "4人卓の最初の CO(通常3+SBデッド2)が合流する").toBe(5);
+    // スタック帯「全て」(絞らない)は、この卓(全員 100bb)では 30bb+ と同じ数になる。
+    const allStacks = await withDecisionTable(true, () =>
+      getPreflopNode({ stackBucket: "all", bubbleStage: "normal", line: coLine }),
+    );
+    expect(allStacks.node.sampleSize).toBe(5);
     const mergedCoLegacy = await merged(coLine, false);
     expect(mergedCoLegacy.node.position).toBe("CO");
     expect(mergedCoLegacy.node.sampleSize).toBe(5);
