@@ -68,7 +68,15 @@ export function PositionPillBar({
     ? mergeOpenRaiseOptions(activeOptions).sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket))
     : [];
   return (
-    <div className="flex items-stretch gap-1.5 overflow-x-auto no-scrollbar">
+    // 横にスクロールするカードの列。端は固い線で切らず、左 8px・右 12px かけて消す(左は内側に 8px 空けて、先頭のカードは消さない)(スクロールの端の効果)。
+    // 以前は左端でカードが途中でぶつ切りになり(「old」「N Raise」のように見える)、壊れて見えた。
+    <div
+      className="flex min-w-0 items-start gap-1.5 overflow-x-auto no-scrollbar pl-2 pr-3"
+      style={{
+        maskImage: "linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)",
+      }}
+    >
       {items.map((item, i) =>
         item.kind === "street" ? (
           <motion.div

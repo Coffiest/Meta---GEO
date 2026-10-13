@@ -751,8 +751,9 @@ function GeoDatabase({
               <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
             </p>
           </motion.div>
-          {/* items-stretch で設定ボタンをアクションタブ(PositionPillBar)と同じ高さに常に揃える。 */}
-          <div className="flex items-stretch gap-2.5">
+          {/* 上端で揃える。以前は items-stretch で、手番の席のカード(Fold/Call/Raise を縦に並べる)が背が高いと
+              設定ボタンも他の席のカードも同じ高さまで間延びし、大きな空の箱が並んでいた(オーナー指摘)。 */}
+          <div className="flex items-start gap-1">
             {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
                 高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
             <motion.button
