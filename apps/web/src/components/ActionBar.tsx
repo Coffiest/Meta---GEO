@@ -315,9 +315,11 @@ export function ActionBar({
       <AnimatePresence initial={false} mode="popLayout">
       <motion.div
         key={isYourTurn ? "turn" : "wait"}
-        // 手番が来たら、操作の面が下からせり上がって「手元に差し出される」。ぼかしと拡大を同時にほどく。
-        initial={reduce ? { opacity: 0 } : isYourTurn ? { opacity: 0, y: 28, scale: 0.94, filter: "blur(8px)" } : { opacity: 0 }}
-        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        // 手番が来たら、操作の面が下からせり上がって「手元に差し出される」。
+        // ぼかし(filter: blur)は動かさない。すりガラスの面の上でぼかしを毎フレーム描き直すことになり、
+        // 手番のたびに重くなる(卓画面の発熱対策)。位置・拡大・不透明度だけで十分に「差し出す」動きになる。
+        initial={reduce ? { opacity: 0 } : isYourTurn ? { opacity: 0, y: 28, scale: 0.94 } : { opacity: 0 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={reduce ? { opacity: 0 } : isYourTurn ? { opacity: 0, y: 20, scale: 0.97 } : { opacity: 0 }}
         transition={reduce ? FADE : SPRING_MOVE}
         className={`absolute inset-0 flex flex-col justify-between gap-[5px] rounded-[24px] px-3 py-2 ${
