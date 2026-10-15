@@ -358,7 +358,9 @@ export function ActionBar({
                 })}
             </div>
 
-            {/* 金額: スライダーで大きく動かし、ステッパーで1bbずつ詰める。 */}
+            {/* 金額: スライダーで大きく動かし、ステッパーで1bbずつ詰める。
+                ステッパーの見た目は 32px 角のまま、押せる範囲だけを ::before で 44px 角に広げる
+                (アクションバーの高さは卓の大きさと引き換えなので、見た目は大きくしない)。 */}
             <div className={`flex h-8 items-center gap-1.5 ${showRaiseUI ? "" : "invisible"}`}>
               <input
                 type="range"
@@ -377,7 +379,7 @@ export function ActionBar({
                 type="button"
                 onClick={() => stepRaise(-1)}
                 aria-label={t("action.betMinus")}
-                className="pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
+                className="pressable relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10 before:absolute before:-inset-1.5 before:content-['']"
               >
                 <Icon name="minus" className="h-4 w-4" />
               </button>
@@ -398,7 +400,7 @@ export function ActionBar({
                 type="button"
                 onClick={() => stepRaise(1)}
                 aria-label={t("action.betPlus")}
-                className="pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10"
+                className="pressable relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-fg ring-1 ring-inset ring-white/10 before:absolute before:-inset-1.5 before:content-['']"
               >
                 <Icon name="plus" className="h-4 w-4" />
               </button>
