@@ -1302,7 +1302,8 @@ export function Lobby({
             <div className="pt-1">
               <p className="mt-1.5 text-center text-[10px] tabular-nums text-fg-3">
                 <span className="text-accent">{"$ "}</span>
-                poker-art --version {APP_VERSION} · Coffiest · © 2026 Poker ART
+                poker-art --version {APP_VERSION} · Coffiest · © 2026 Poker ART{" "}
+                <span className="whitespace-nowrap">· Powered by Runner Runner</span>
                 <span className="term-cursor bg-fg-3" style={{ width: 5, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
               </p>
             </div>
