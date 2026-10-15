@@ -7,6 +7,8 @@ import { PasscodeModal } from "@/components/PasscodeModal";
 import { ActiveUsersPanel } from "@/components/admin/ActiveUsersPanel";
 import { FeedbackInbox } from "@/components/admin/FeedbackInbox";
 import { PartnerPanel } from "@/components/admin/PartnerPanel";
+import { PromoCouponPanel } from "@/components/admin/PromoCouponPanel";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { adminHeaders, checkAdminSession } from "@/lib/adminApi";
 import { useAuth } from "@/lib/useAuth";
 
@@ -193,8 +195,29 @@ const POSITIONS_BY_PLAYER_COUNT: Record<number, string[]> = {
   6: ["UTG", "HJ", "CO", "BTN", "SB", "BB"],
 };
 
+type AdminTab = "overview" | "players" | "coupons" | "database";
+const ADMIN_TABS: { key: AdminTab; label: string; icon: "bar-chart" | "group" | "ticket" | "db" }[] = [
+  { key: "overview", label: "概要", icon: "bar-chart" },
+  { key: "players", label: "プレイヤー", icon: "group" },
+  { key: "coupons", label: "クーポン", icon: "ticket" },
+  { key: "database", label: "データベース", icon: "db" },
+];
+
 export default function AdminPage() {
   const [passcode, setPasscode] = useState<string | null>(null);
+  // 開いているタブ。URL の #players などに残し、再読み込みしても同じタブに戻る。
+  const [tab, setTab] = useState<AdminTab>("players");
+  useEffect(() => {
+    const fromHash = window.location.hash.slice(1);
+    if (ADMIN_TABS.some((t) => t.key === fromHash)) setTab(fromHash as AdminTab);
+  }, []);
+  function selectTab(next: AdminTab) {
+    setTab(next);
+    try {
+      window.history.replaceState(null, "", `#${next}`);
+    } catch {}
+    window.scrollTo({ top: 0 });
+  }
   const [gateNeeded, setGateNeeded] = useState(false);
   // 管理者の操作は、パスコードに加えてログイン中のアカウントもサーバーで確かめる(adminApi.ts)。
   const { loading: authLoading, accessToken } = useAuth();
@@ -605,13 +628,39 @@ export default function AdminPage() {
       <div className="mx-auto max-w-md px-4 pb-24 lg:max-w-5xl lg:px-8">
         <header className="flex items-center justify-between pt-[calc(env(safe-area-inset-top)+16px)] pb-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">Admin</p>
-            <h1 className="text-xl font-black tracking-tight text-fg">プレイヤー管理</h1>
+            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-accent">Admin</p>
+            <h1 className="text-[28px] font-black leading-tight tracking-[-0.02em] text-fg">{ADMIN_TABS.find((t) => t.key === tab)?.label}</h1>
           </div>
           <Link href="/" className="text-[12px] font-bold text-n-9 underline underline-offset-2">
             アプリへ戻る
           </Link>
         </header>
+
+        {/* タブ(オーナー指示 2026-10-15: 種類ごとに分けて使いやすく)。上に貼り付くガラスのバーで、選んだ塗りは滑って移る。 */}
+        {passcode && (
+          <nav className="glass-header sticky top-0 z-20 -mx-4 mb-5 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+8px)] lg:-mx-8 lg:px-8">
+            <div className="flex rounded-[12px] bg-surface-2/80 p-1">
+              {ADMIN_TABS.map((t) => {
+                const active = t.key === tab;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => selectTab(t.key)}
+                    aria-pressed={active}
+                    className={`pressable relative flex flex-1 flex-col items-center gap-0.5 rounded-[9px] py-1.5 text-[11px] font-bold ${
+                      active ? "text-fg" : "text-fg-3"
+                    }`}
+                  >
+                    {active && <motion.span layoutId="admin-tab" transition={SPRING_SNAPPY} className="absolute inset-0 rounded-[9px] bg-n-4 shadow-e1" />}
+                    <Icon name={t.icon} className="relative h-4 w-4" />
+                    <span className="relative">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
 
         {notAdmin && !passcode && (
           <div className="mb-4 rounded-xl border border-line p-4 text-[12px] leading-relaxed text-fg-2">
@@ -627,12 +676,25 @@ export default function AdminPage() {
         {passcode && (
           <>
             {/* ホームのご意見フォームから届いたもの(要望・不具合・その他)。 */}
-            <ActiveUsersPanel passcode={passcode} accessToken={accessToken ?? null} />
-            <FeedbackInbox passcode={passcode} accessToken={accessToken ?? null} />
-            <PartnerPanel passcode={passcode} accessToken={accessToken ?? null} />
+            {/* 概要: いま遊んでいる人・ご意見・(下の方に)SNS のトレンド。 */}
+            {tab === "overview" && (
+              <>
+                <ActiveUsersPanel passcode={passcode} accessToken={accessToken ?? null} />
+                <FeedbackInbox passcode={passcode} accessToken={accessToken ?? null} />
+              </>
+            )}
+            {/* クーポン: 管理者が発行するクーポンと、インフルエンサーのコード。 */}
+            {tab === "coupons" && (
+              <div className="space-y-8">
+                <PromoCouponPanel passcode={passcode} accessToken={accessToken ?? null} />
+                <PartnerPanel passcode={passcode} accessToken={accessToken ?? null} />
+              </div>
+            )}
 
+            {tab === "database" && (
+            <>
             {/* GEO集計テーブル(GeoDecision)の再構築。既存ハンドを展開し終えるまでGEOは旧経路のまま。 */}
-            <div className="mb-4 rounded-xl border border-line p-3.5">
+            <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
               <div className="flex items-start gap-2.5">
                 <Icon name="db" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
@@ -672,7 +734,7 @@ export default function AdminPage() {
             </div>
 
             {/* 研究用テーブル(DecisionFact)の作り直し。過去のハンドは思考時間・ICMが無いので、その列は空になる。 */}
-            <div className="mb-4 rounded-xl border border-line p-3.5">
+            <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
               <div className="flex items-start gap-2.5">
                 <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
@@ -713,7 +775,7 @@ export default function AdminPage() {
             </div>
 
             {/* DB容量。どのテーブルがどれだけ増えているかを見て、容量プランの上限に近づく前に手を打つ。 */}
-            <div className="mb-4 rounded-xl border border-line p-3.5">
+            <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
               <div className="flex items-start gap-2.5">
                 <Icon name="layers" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
@@ -752,7 +814,7 @@ export default function AdminPage() {
             </div>
 
             {/* ポジション別の集まり具合。「UTGばかり集まる」の原因切り分け用。 */}
-            <div className="mb-4 rounded-xl border border-line p-3.5">
+            <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
               <div className="flex items-start gap-2.5">
                 <Icon name="bar-chart" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
@@ -874,8 +936,12 @@ export default function AdminPage() {
               )}
             </div>
 
+            </>
+            )}
+            {tab === "overview" && (
+            <>
             {/* ④⑨ SNSのトレンド収集とネガティブ検知。日次のGitHub Actionsが集めたものを見る。 */}
-            <div className="mb-4 rounded-xl border border-line p-3.5">
+            <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
               <div className="flex items-start gap-2.5">
                 <Icon name="bell" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <div className="min-w-0 flex-1">
@@ -974,6 +1040,10 @@ export default function AdminPage() {
               )}
             </div>
 
+            </>
+            )}
+            {tab === "players" && (
+            <>
             {/* 検索 */}
             <div className="relative">
               <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-3" />
@@ -1347,6 +1417,8 @@ export default function AdminPage() {
               >
                 さらに表示(残り {total - users.length}人)
               </button>
+            )}
+            </>
             )}
           </>
         )}

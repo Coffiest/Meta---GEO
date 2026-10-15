@@ -273,7 +273,7 @@ export function PartnerPanel({ passcode, accessToken }: { passcode: string; acce
   const dueTotal = (partners ?? []).reduce((sum, p) => sum + (p.balance.payable >= MIN_PAYOUT ? p.balance.payable : 0), 0);
 
   return (
-    <div className="mb-4 rounded-xl border border-line p-3.5">
+    <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2.5 text-left">
         <Icon name="ticket" className="h-4 w-4 shrink-0 text-accent" />
         <span className="flex-1 text-[13px] font-black text-fg">インフルエンサーのコード</span>

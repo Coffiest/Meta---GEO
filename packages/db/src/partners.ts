@@ -64,7 +64,10 @@ const PARTNER_SELECT = {
 
 export async function isPartnerCodeTaken(code: string): Promise<boolean> {
   const row = await prisma.partner.findUnique({ where: { code }, select: { id: true } });
-  return row !== null;
+  if (row !== null) return true;
+  // 管理者が発行するクーポン(promoCoupons.ts)とも重ならないこと(料金のシートの入力欄は1つ)。
+  const promo = await prisma.promoCoupon.findUnique({ where: { code }, select: { id: true } });
+  return promo !== null;
 }
 
 export async function createPartner(params: {

@@ -893,3 +893,46 @@ model PartnerPayout {
 
   @@index([partnerId])
 }
+
+/// 管理者が発行する割引・無料体験のクーポン(オーナー指示 2026-10-15)。料金のシートのコード入力欄で使う。
+/// 割引(percent)は Stripe のクーポン+プロモーションコードを発行時に作り、決済に付ける。
+/// 無料体験(trial)は Stripe のプロモーションコードでは表せないので、決済を作るときに体験の日数として付ける。
+model PromoCoupon {
+  id                    String    @id @default(uuid())
+  /// 料金のシートで入れるコード(大文字英数字)。
+  code                  String    @unique
+  /// 管理用のメモ(例 "X のキャンペーン")。
+  note                  String?
+  /// 使えるプラン(silver / gold / platinum)。null ならどのプランでも使える。
+  plan                  String?
+  /// "percent"(○% OFF を○ヶ月)/ "trial"(○日間無料)。
+  kind                  String
+  /// percent: 割引率(1〜100。100 なら無料)。
+  percentOff            Int?
+  /// percent: 割引が続く月数(最初の○回の支払い)。
+  durationMonths        Int?
+  /// trial: 無料の日数。
+  trialDays             Int?
+  /// このコードを入力できる期限。null なら期限なし。
+  expiresAt             DateTime?
+  /// 使える人数の上限。null なら上限なし。
+  maxRedemptions        Int?
+  /// 失効させたコードは使えない(Stripe のプロモーションコードも active: false)。
+  active                Boolean   @default(true)
+  stripeCouponId        String?
+  stripePromotionCodeId String?   @unique
+  createdAt             DateTime  @default(now())
+  redemptions           PromoCouponRedemption[]
+}
+
+/// クーポンを使って加入した記録(1人1コード1回)。
+model PromoCouponRedemption {
+  id                   String      @id @default(uuid())
+  couponId             String
+  coupon               PromoCoupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId               String
+  stripeSubscriptionId String?
+  createdAt            DateTime    @default(now())
+
+  @@unique([couponId, userId])
+}

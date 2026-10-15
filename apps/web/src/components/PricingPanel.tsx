@@ -15,6 +15,7 @@ import {
   startCheckout,
   useCountdown,
   PromoCodeError,
+  PROMO_CODE_MESSAGES,
   SubscriptionUnavailableError,
   useSubscriptionStatus,
   type PlanId,
@@ -101,11 +102,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
     } catch (e) {
       setSubmitting(null);
       if (e instanceof PromoCodeError) {
-        setError(
-          e.reason === "invalid_code"
-            ? "そのクーポンコードは見つかりませんでした。綴りをご確認ください。"
-            : "このクーポンコードは、はじめて有料会員になる方だけが使えます。",
-        );
+        setError(PROMO_CODE_MESSAGES[e.reason] ?? PROMO_CODE_MESSAGES.invalid_code);
       } else if (e instanceof PortalUpdateDisabledError) {
         setError("いまはプランの変更を受け付けていません。時間をおいて再度お試しください。");
       } else if (e instanceof SubscriptionUnavailableError) {

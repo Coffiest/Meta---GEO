@@ -69,6 +69,8 @@ export async function startCheckout(
   if (res.status === 400) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     if (body.error === "invalid_code" || body.error === "code_not_applicable") throw new PromoCodeError(body.error);
+    // 管理者が発行したクーポン(promo_*)。理由ごとに文言を分ける。
+    if (body.error?.startsWith("promo_")) throw new PromoCodeError(body.error as PromoCodeReason);
   }
   if (!res.ok) throw new Error("チェックアウトの開始に失敗しました");
   const { url } = (await res.json()) as { url: string };
@@ -101,8 +103,30 @@ export async function previewChangePlan(accessToken: string, plan: PlanId): Prom
 
 /** Stripe のポータルでプランの変更が許可されていない。 */
 /** 料金の画面で入れたクーポンが使えない(存在しない・停止中 / 条件に合わない)。 */
+export type PromoCodeReason =
+  | "invalid_code"
+  | "code_not_applicable"
+  | "promo_not_found"
+  | "promo_inactive"
+  | "promo_expired"
+  | "promo_wrong_plan"
+  | "promo_used_up"
+  | "promo_already_used";
+
+/** 使えないクーポンの理由ごとの文言。 */
+export const PROMO_CODE_MESSAGES: Record<PromoCodeReason, string> = {
+  invalid_code: "そのクーポンコードは見つかりませんでした。綴りをご確認ください。",
+  code_not_applicable: "このクーポンコードは、はじめて有料会員になる方だけが使えます。",
+  promo_not_found: "そのクーポンコードは見つかりませんでした。綴りをご確認ください。",
+  promo_inactive: "このクーポンコードは使えなくなりました。",
+  promo_expired: "このクーポンコードは有効期限が切れています。",
+  promo_wrong_plan: "このクーポンコードは、選んだプランでは使えません。",
+  promo_used_up: "このクーポンコードは、使える人数の上限に達しました。",
+  promo_already_used: "このクーポンコードは、すでに使用済みです。",
+};
+
 export class PromoCodeError extends Error {
-  constructor(readonly reason: "invalid_code" | "code_not_applicable") {
+  constructor(readonly reason: PromoCodeReason) {
     super(reason);
   }
 }

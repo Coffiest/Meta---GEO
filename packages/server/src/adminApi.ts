@@ -45,6 +45,18 @@ import {
   partnerLedgerRows,
   markPartnerPaid,
   monthKeyJst,
+  createPromoCoupon,
+  deletePromoCoupon,
+  describePromoCoupon,
+  generatePromoCode,
+  getPromoCoupon,
+  isPromoCodeTaken,
+  listPromoCoupons,
+  normalizePromoCode,
+  setPromoCouponActive,
+  validatePromoCouponInput,
+  type PromoCouponInput,
+  type PromoCouponRow,
   type CompDurationUnit,
   type DecisionFactBackfillProgress,
   type GeoBackfillProgress,
@@ -55,6 +67,7 @@ import { clearGeoAccessCache } from "./geoAccess.js";
 import { getStripeClient } from "./subscriptionApi.js";
 import { syncSubscription } from "./subscriptionReconciler.js";
 import { createPartnerPromotionCode, getWebhookEventsStatus, setPartnerPromotionCodeActive } from "./partnerStripe.js";
+import { createPromoStripeObjects, setPromoStripeActive } from "./promoCouponStripe.js";
 import { clampLimit, readJsonBodyLimited } from "./httpBody.js";
 
 /**
@@ -521,6 +534,125 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
       return true;
     }
 
+    // ---- 管理者が発行するクーポン(割引・無料体験)。packages/db/src/promoCoupons.ts ----
+    if (url.pathname === "/api/admin/promo-coupons" && req.method === "GET") {
+      const coupons = await listPromoCoupons();
+      sendJson(res, 200, { coupons: coupons.map(promoToWire) });
+      return true;
+    }
+
+    // 発行: { code?, note?, plan?, kind: "percent"|"trial", percentOff?, durationMonths?, trialDays?, expiresAt?, maxRedemptions? }
+    // code を省くと "PA" + 6文字で作る。割引は Stripe にクーポンとプロモーションコードを作ってから記録する。
+    if (url.pathname === "/api/admin/promo-coupons" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const num = (k: string) => (typeof body[k] === "number" && Number.isFinite(body[k]) ? Math.round(body[k] as number) : null);
+      const str = (k: string, max: number) => (typeof body[k] === "string" ? (body[k] as string).trim().slice(0, max) : "");
+      const kind = body["kind"] === "trial" ? "trial" : body["kind"] === "percent" ? "percent" : null;
+      if (!kind) {
+        sendJson(res, 400, { error: "invalid_kind" });
+        return true;
+      }
+      let code = normalizePromoCode(str("code", 40));
+      if (code) {
+        if (await isPromoCodeTaken(code)) {
+          sendJson(res, 409, { error: "code_taken" });
+          return true;
+        }
+      } else {
+        do code = generatePromoCode();
+        while (await isPromoCodeTaken(code));
+      }
+      const expiresRaw = str("expiresAt", 40);
+      const expiresAt = expiresRaw ? new Date(expiresRaw) : null;
+      if (expiresAt && Number.isNaN(expiresAt.getTime())) {
+        sendJson(res, 400, { error: "invalid_expiry" });
+        return true;
+      }
+      const input: PromoCouponInput = {
+        code,
+        note: str("note", 500) || null,
+        plan: parsePlan(body["plan"]),
+        kind,
+        percentOff: kind === "percent" ? num("percentOff") : null,
+        durationMonths: kind === "percent" ? num("durationMonths") : null,
+        trialDays: kind === "trial" ? num("trialDays") : null,
+        expiresAt,
+        maxRedemptions: num("maxRedemptions"),
+      };
+      const invalid = validatePromoCouponInput(input);
+      if (invalid) {
+        sendJson(res, 400, { error: invalid });
+        return true;
+      }
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      let stripeIds: { stripeCouponId: string | null; stripePromotionCodeId: string | null };
+      try {
+        stripeIds = await createPromoStripeObjects(stripe, input);
+      } catch (err) {
+        console.error("[adminApi] promo coupon stripe create failed:", err);
+        sendJson(res, 502, { error: `stripe: ${err instanceof Error ? err.message : "unknown"}`.slice(0, 200) });
+        return true;
+      }
+      const created = await createPromoCoupon({ ...input, ...stripeIds });
+      sendJson(res, 200, { coupon: promoToWire(created) });
+      return true;
+    }
+
+    // 失効・再開: { id, active }。割引のコードは Stripe のプロモーションコードも同じ状態にする。
+    if (url.pathname === "/api/admin/promo-coupons/active" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const active = body["active"] === true;
+      const coupon = id ? await getPromoCoupon(id) : null;
+      if (!coupon) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      if (coupon.stripePromotionCodeId) {
+        const stripe = getStripeClient();
+        if (!stripe) {
+          sendJson(res, 503, { error: "subscriptions_unavailable" });
+          return true;
+        }
+        try {
+          await setPromoStripeActive(stripe, coupon.stripePromotionCodeId, active);
+        } catch (err) {
+          console.error("[adminApi] promo coupon stripe update failed:", err);
+          sendJson(res, 502, { error: `stripe: ${err instanceof Error ? err.message : "unknown"}`.slice(0, 200) });
+          return true;
+        }
+      }
+      await setPromoCouponActive(coupon.id, active);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // 削除: { id }。失効させたコードだけ。使って加入した人がいるコードは記録として残す(409 has_redemptions)。
+    if (url.pathname === "/api/admin/promo-coupons/delete" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const id = typeof body["id"] === "string" ? body["id"] : "";
+      const coupon = id ? await getPromoCoupon(id) : null;
+      if (!coupon) {
+        sendJson(res, 404, { error: "not_found" });
+        return true;
+      }
+      if (coupon.active) {
+        sendJson(res, 409, { error: "still_active" });
+        return true;
+      }
+      const result = await deletePromoCoupon(coupon.id);
+      if (result === "has_redemptions") {
+        sendJson(res, 409, { error: "has_redemptions" });
+        return true;
+      }
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
     // ユーザーからのエラー報告の一覧。`?scope=` で絞り込み、`?unresolved=1` で未対応のみ。
     // 画面に出ていた文言だけでなく、技術詳細(detail)と構造化コンテキスト(context)まで返す。
     if (url.pathname === "/api/admin/error-reports" && req.method === "GET") {
@@ -754,4 +886,15 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
     sendJson(res, 500, { error: "internal error" });
     return true;
   }
+}
+
+/** 管理画面に返すクーポンの形(日付は ISO、説明文つき)。 */
+function promoToWire(c: PromoCouponRow) {
+  return {
+    ...c,
+    expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+    createdAt: c.createdAt.toISOString(),
+    summary: describePromoCoupon(c),
+    expired: Boolean(c.expiresAt && c.expiresAt.getTime() <= Date.now()),
+  };
 }

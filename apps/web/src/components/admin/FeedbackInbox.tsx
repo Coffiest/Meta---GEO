@@ -105,7 +105,7 @@ export function FeedbackInbox({ passcode, accessToken }: { passcode: string; acc
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-line p-3.5">
+    <div className="mb-4 rounded-[20px] bg-surface p-4 shadow-e1">
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2.5 text-left">
         <Icon name="chat" className="h-4 w-4 shrink-0 text-accent" />
         <span className="flex-1 text-[13px] font-black text-fg">ご意見</span>
