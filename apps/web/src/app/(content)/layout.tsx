@@ -68,7 +68,7 @@ export default function ContentLayout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <p className="mt-8 text-[11px] text-fg-3">© 2026 Poker ART</p>
+          <p className="mt-8 text-[11px] text-fg-3">© 2026 Poker ART{" "}<span className="whitespace-nowrap">· Powered by Runner Runner</span></p>
         </div>
       </footer>
     </div>

@@ -990,7 +990,8 @@ function GeoDatabase({
             className="pressable cursor-pointer text-[11px] font-medium tracking-wide text-fg-3 transition-colors active:text-n-9"
           >
             <span className="text-accent">{"$ "}</span>
-            poker-art --version {APP_VERSION} · © 2026 Poker ART
+            poker-art --version {APP_VERSION} · © 2026 Poker ART{" "}
+            <span className="whitespace-nowrap">· Powered by Runner Runner</span>
             <span className="term-cursor bg-fg-3" style={{ width: 4, height: 10, verticalAlign: "-1px" }} aria-hidden="true" />
           </button>
         </div>

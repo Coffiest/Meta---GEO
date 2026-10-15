@@ -556,7 +556,8 @@ export function LoginScreen({ auth }: { auth: AuthState }) {
             onClick={() => setAdminGate(true)}
             className="text-[11px] font-medium tracking-wide text-fg-3"
           >
-            Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+            Poker ART v{APP_VERSION} ・ © 2026 Poker ART{" "}
+            <span className="whitespace-nowrap">・ Powered by Runner Runner</span>
           </button>
         </div>
         <AnimatePresence>

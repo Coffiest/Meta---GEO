@@ -179,7 +179,8 @@ export default function WatchPage() {
 
         <p className="mt-8 text-center text-[11px] leading-relaxed text-fg-3">{t("watch.fairnessNote")}</p>
         <p className="mt-4 text-center text-[11px] tracking-wide text-fg-3">
-          Poker ART v{APP_VERSION} ・ © 2026 Poker ART
+          Poker ART v{APP_VERSION} ・ © 2026 Poker ART{" "}
+          <span className="whitespace-nowrap">・ Powered by Runner Runner</span>
         </p>
       </div>
     </div>
