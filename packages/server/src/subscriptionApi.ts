@@ -15,6 +15,9 @@ import {
   prisma,
   PLAN_PRICE_JPY,
   TRIAL_DAYS,
+  checkPromoCoupon,
+  getPromoCouponByCode,
+  recordPromoRedemption,
   type PlanId,
 } from "@meta-geo/db";
 import { resolvePriceId } from "./stripePlans.js";
@@ -91,6 +94,14 @@ async function finalizeCheckoutSubscription(stripe: Stripe, customerId: string, 
   });
   if (subscription.status === "trialing") subscription = await settleTrial(stripe, customerId, subscription);
   await syncSubscription(customerId, subscription);
+  // 管理者のクーポンで加入したら記録する(1人1コード1回・使った人数)。
+  const promoCouponId = subscription.metadata?.["promoCouponId"];
+  const promoUserId = subscription.metadata?.["userId"];
+  if (promoCouponId && promoUserId) {
+    await recordPromoRedemption({ couponId: promoCouponId, userId: promoUserId, stripeSubscriptionId: subscription.id }).catch((err) =>
+      console.error("[subscriptionApi] promo redemption record failed:", err),
+    );
+  }
   // インフルエンサーのコードで始まった契約を記録する(報酬の台帳の起点)。ここで失敗しても加入の反映は済んでいる。
   // 最初の入金(invoice.paid)でもう一度記録を試みる。
   await attributePartnerSubscription(stripe, subscription.id).catch((err) =>
@@ -302,14 +313,31 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
       // 入力が無ければ、決済画面にコードの入力欄を出す(どちらか一方しか Stripe は受け付けない)。
       const promoCode = typeof body["promoCode"] === "string" ? body["promoCode"].toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 40) : "";
       let promotionCodeId: string | null = null;
+      // 管理者が発行したクーポン(割引・無料体験)。無料体験は Stripe のプロモーションコードで表せないので、体験の日数として付ける。
+      let promoCouponId: string | null = null;
+      let promoTrialDays: number | null = null;
       if (promoCode) {
-        const found = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
-        promotionCodeId = found.data[0]?.id ?? null;
-        if (!promotionCodeId) {
-          sendJson(res, 400, { error: "invalid_code" });
-          return true;
+        const own = await getPromoCouponByCode(promoCode);
+        if (own) {
+          const check = await checkPromoCoupon(promoCode, plan, user.id);
+          if (!check.ok) {
+            sendJson(res, 400, { error: `promo_${check.reason}` });
+            return true;
+          }
+          promoCouponId = check.coupon.id;
+          if (check.coupon.kind === "trial") promoTrialDays = check.coupon.trialDays;
+          else promotionCodeId = check.coupon.stripePromotionCodeId;
+        } else {
+          const found = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
+          promotionCodeId = found.data[0]?.id ?? null;
+          if (!promotionCodeId) {
+            sendJson(res, 400, { error: "invalid_code" });
+            return true;
+          }
         }
       }
+      // 体験の日数: クーポンの無料体験を優先し、無ければ通常の無料体験(対象者だけ)。
+      const trialDays = promoTrialDays ?? (trial ? TRIAL_DAYS : null);
 
       let session: Stripe.Checkout.Session;
       try {
@@ -318,10 +346,20 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
           customer: stripeCustomerId,
           line_items: [{ price: priceId, quantity: 1 }],
           payment_method_collection: "always",
-          ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : { allow_promotion_codes: true }),
+          // 料金のシートでコードを入れたときは決済画面に入力欄を出さない(二重に割引を付けさせない)。
+          ...(promotionCodeId
+            ? { discounts: [{ promotion_code: promotionCodeId }] }
+            : promoCouponId
+              ? {}
+              : { allow_promotion_codes: true }),
           subscription_data: {
-            metadata: { userId: user.id, plan },
-            ...(trial ? { trial_period_days: TRIAL_DAYS } : {}),
+            metadata: {
+              userId: user.id,
+              plan,
+              ...(promoCouponId ? { promoCouponId } : {}),
+              ...(promoTrialDays ? { promoTrial: "1" } : {}),
+            },
+            ...(trialDays ? { trial_period_days: trialDays } : {}),
           },
           success_url: reviewLandingUrl(tournamentId, "success"),
           cancel_url: reviewLandingUrl(tournamentId, "cancelled"),
@@ -497,6 +535,8 @@ function hasLiveStripeSubscription(row: { stripeSubscriptionId: string | null; s
  * その場で体験を終わらせて課金を始める(複数アカウントで体験を繰り返させない。オーナー確定)。
  */
 async function settleTrial(stripe: Stripe, customerId: string, subscription: Stripe.Subscription): Promise<Stripe.Subscription> {
+  // 管理者のクーポンの無料体験は、通常の無料体験(1人1回・同じカード1回)とは別枠。そのまま体験させる。
+  if (subscription.metadata?.["promoTrial"] === "1") return subscription;
   const row = await prisma.subscription.findUnique({ where: { stripeCustomerId: customerId }, select: { userId: true } });
   if (!row) return subscription;
   await markTrialUsed(row.userId);

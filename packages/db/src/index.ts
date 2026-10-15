@@ -30,6 +30,7 @@ export * from "./subscriptions.js";
 export * from "./plans.js";
 export * from "./premiumCoupons.js";
 export * from "./partners.js";
+export * from "./promoCoupons.js";
 export * from "./userBan.js";
 export * from "./partnerLedger.js";
 export * from "./adminGeo.js";
