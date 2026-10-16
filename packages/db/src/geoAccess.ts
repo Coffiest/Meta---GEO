@@ -1,6 +1,7 @@
 import { prisma } from "./client.js";
 import type { PlanId } from "./plans.js";
 import { getSubscriptionStatusForUser } from "./subscriptions.js";
+import { RANKED_TOURNAMENT } from "./rankedGame.js";
 
 /**
  * GEO データベース(データベースタブ)の利用条件(オーナー確定)。トーナメントでインマネ(賞金圏で終える)した回数で段階的に解放する。
@@ -36,7 +37,7 @@ export function geoLevelForItm(itmCount: number): GeoAccessLevel {
 /** インマネした回数(終了済みのエントリーのうち賞金が出たもの)。 */
 export async function getItmCount(userId: string): Promise<number> {
   return prisma.tournamentEntry.count({
-    where: { userId, finishPosition: { not: null }, payout: { gt: 0 } },
+    where: { userId, finishPosition: { not: null }, payout: { gt: 0 }, tournament: RANKED_TOURNAMENT },
   });
 }
 
@@ -134,7 +135,7 @@ export async function getAdminGeoAccess(userIds: readonly string[]): Promise<Map
   const [counts, users] = await Promise.all([
     prisma.tournamentEntry.groupBy({
       by: ["userId"],
-      where: { userId: { in: [...userIds] }, finishPosition: { not: null }, payout: { gt: 0 } },
+      where: { userId: { in: [...userIds] }, finishPosition: { not: null }, payout: { gt: 0 }, tournament: RANKED_TOURNAMENT },
       _count: { _all: true },
     }),
     prisma.user.findMany({ where: { id: { in: [...userIds] } }, select: { id: true, geoAccessOverride: true } }),

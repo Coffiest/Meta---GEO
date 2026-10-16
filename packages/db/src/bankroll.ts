@@ -1,6 +1,7 @@
 import { type Card, computeAllInEquity, parseCard, sngPayouts } from "@meta-geo/engine";
 import { prisma } from "./client.js";
 import { RR_RATING_SHRINKAGE_K, computeRRRatingPopulationStats, ratingFromAdjustedRoi } from "./rrRating.js";
+import { RANKED_TOURNAMENT } from "./rankedGame.js";
 
 /**
  * 収支(バンクロール)はTenFourPokerと同様の「±方式」: 残高という疑似通貨を貯める仕組みではなく、
@@ -157,7 +158,7 @@ interface PreflopStats {
  */
 async function getPreflopStats(userId: string): Promise<PreflopStats> {
   const seats = await prisma.handSeat.findMany({
-    where: { userId },
+    where: { userId, hand: { tournament: RANKED_TOURNAMENT } },
     select: {
       seatIndex: true,
       isBigBlind: true,
@@ -218,7 +219,7 @@ async function getPreflopStats(userId: string): Promise<PreflopStats> {
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   const [entries, leaderboard, preflop] = await Promise.all([
     prisma.tournamentEntry.findMany({
-      where: { userId, finishPosition: { not: null } },
+      where: { userId, finishPosition: { not: null }, tournament: RANKED_TOURNAMENT },
       select: { payout: true, tournament: { select: { buyIn: true } } },
     }),
     getLeaderboard(100000),
@@ -272,7 +273,7 @@ export interface BankrollGraphPoint {
 export async function getBankrollGraph(userId: string, limit = 1000): Promise<BankrollGraphPoint[]> {
   // 「直近limitトーナメント」を対象にするため、新しい順に取得してから古い順へ並べ替える
   const entriesDesc = await prisma.tournamentEntry.findMany({
-    where: { userId, finishPosition: { not: null } },
+    where: { userId, finishPosition: { not: null }, tournament: RANKED_TOURNAMENT },
     orderBy: { tournament: { createdAt: "desc" } },
     take: limit,
     select: { payout: true, tournament: { select: { buyIn: true } } },
@@ -321,7 +322,7 @@ export interface TournamentHistoryPoint {
 export async function getTournamentHistory(userId: string, limit = 20): Promise<TournamentHistoryPoint[]> {
   const [entriesDesc, populationStats] = await Promise.all([
     prisma.tournamentEntry.findMany({
-      where: { userId, finishPosition: { not: null } },
+      where: { userId, finishPosition: { not: null }, tournament: RANKED_TOURNAMENT },
       orderBy: { tournament: { createdAt: "desc" } },
       take: limit,
       select: {
@@ -388,7 +389,7 @@ export async function getHandProfitGraph(userId: string, limit = 1000): Promise<
   // 直近limit件を対象にするため、いったん新しい順に取得してから古い順に並べ替える
   // (「直近1000ハンド」というボタンの意味を満たすため。全件分の累計を保持するわけではない)。
   const seatsDesc = await prisma.handSeat.findMany({
-    where: { userId },
+    where: { userId, hand: { tournament: RANKED_TOURNAMENT } },
     orderBy: { hand: { createdAt: "desc" } },
     take: limit,
     select: {
@@ -498,7 +499,7 @@ export interface LeaderboardRow {
 export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
   const entries = await prisma.tournamentEntry.findMany({
     // 退会したユーザーはランキング・偏差値の母集団から外す(表に一切出さない。オーナー指示)。
-    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null } },
+    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null }, tournament: RANKED_TOURNAMENT },
     select: {
       payout: true,
       tournament: { select: { buyIn: true } },
@@ -591,7 +592,9 @@ export async function getUserHandHistory(
     const seatCount = s.hand.tournament.seatCount;
     const offset = (((s.seatIndex - s.hand.buttonFixedPos) % seatCount) + seatCount) % seatCount;
     const tournamentStart = s.hand.tournament.createdAt;
-    const gameLabel = s.hand.tournament.gameType === "mtt" ? "MTT" : "Sit & Go";
+    // フレンド対戦のハンドも履歴と棋譜解析には残し、それと分かる名前を付ける(オーナー確定)。
+    const gameType = s.hand.tournament.gameType;
+    const gameLabel = gameType === "mtt" ? "MTT" : gameType === "private" ? "Friend Match" : "Sit & Go";
     return {
       handId: s.hand.id,
       playedAt: s.hand.createdAt,

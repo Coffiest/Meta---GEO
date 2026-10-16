@@ -40,3 +40,4 @@ export * from "./accountDeletion.js";
 export * from "./marketing.js";
 export { PREFLOP_BANDS, type Preflop100Pos } from "./data/preflop100.js";
 export * from "./avatars.js";
+export * from "./rankedGame.js";

@@ -1,4 +1,5 @@
 import { prisma } from "./client.js";
+import { RANKED_TOURNAMENT } from "./rankedGame.js";
 
 /**
  * 有料プラン(オーナー確定。月額のみ。年額は今は作らない)。
@@ -53,7 +54,7 @@ export function trialOfferMilestone(itmCount: number): number {
 export async function refreshTrialOffer(userId: string, now: Date = new Date()): Promise<Date | null> {
   const [user, itmCount] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { trialOfferMilestone: true, trialOfferUntil: true } }),
-    prisma.tournamentEntry.count({ where: { userId, finishPosition: { not: null }, payout: { gt: 0 } } }),
+    prisma.tournamentEntry.count({ where: { userId, finishPosition: { not: null }, payout: { gt: 0 }, tournament: RANKED_TOURNAMENT } }),
   ]);
   if (!user) return null;
   const milestone = trialOfferMilestone(itmCount);

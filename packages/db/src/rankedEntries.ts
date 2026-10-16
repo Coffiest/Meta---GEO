@@ -1,4 +1,5 @@
 import { prisma } from "./client.js";
+import { RANKED_TOURNAMENT } from "./rankedGame.js";
 
 /**
  * 偏差値(RRRating)とリーダーボードが共通して必要とする「順位が確定した実プレイヤーのエントリー」を
@@ -35,7 +36,7 @@ let inflight: Promise<RankedEntryRow[]> | null = null;
 async function fetchRows(): Promise<RankedEntryRow[]> {
   const entries = await prisma.tournamentEntry.findMany({
     // 退会したユーザーはランキング・偏差値の母集団から外す(表に一切出さない。オーナー指示)。
-    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null } },
+    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null }, tournament: RANKED_TOURNAMENT },
     select: {
       payout: true,
       tournament: { select: { buyIn: true, finishedAt: true, createdAt: true } },
