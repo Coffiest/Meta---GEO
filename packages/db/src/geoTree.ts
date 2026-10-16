@@ -320,6 +320,8 @@ function computeBubbleStage(hand: RawHand, tournaments: Map<string, TournamentIn
   const info = tournaments.get(hand.tournamentId);
   if (!info) return "normal";
   const { gameType, buyIn, entries } = info;
+  // フレンド対戦には賞金が無いので、バブル(インマネまでの距離)の段階は無い。
+  if (gameType === "private") return "normal";
   const alive = aliveCountAtHand(entries, hand.handNumber);
   const paidPlaces = gameType === "sng" ? SNG_PAYOUTS.length : computeMttPrizeStructure(entries.length, buyIn).places.length;
   const remainingUntilMoney = Math.max(0, alive - paidPlaces);

@@ -112,7 +112,9 @@ export async function countQualifiedTournaments(userId: string, cap = REFERRAL_Q
     SELECT COUNT(*)::bigint AS n FROM (
       SELECT te."tournamentId"
       FROM "TournamentEntry" te
-      WHERE te."userId" = ${userId} AND te."finishPosition" IS NOT NULL
+      JOIN "Tournament" tt ON tt."id" = te."tournamentId"
+      -- フレンド対戦は招待の成立に数えない(rankedGame.ts)。
+      WHERE te."userId" = ${userId} AND te."finishPosition" IS NOT NULL AND tt."gameType" <> 'private'
         AND (
           SELECT COUNT(*) FROM "HandAction" ha
           JOIN "Hand" h ON h."id" = ha."handId"

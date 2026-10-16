@@ -1,5 +1,6 @@
 import { prisma } from "./client.js";
 import { getRankedEntries } from "./rankedEntries.js";
+import { RANKED_TOURNAMENT } from "./rankedGame.js";
 
 /**
  * 「トナメ偏差値」(RRRating)。RRPokerの `app/home/store/PrizeDistributeModal.tsx` にある
@@ -28,7 +29,7 @@ export interface RRRatingPopulationStats {
 export async function computeRRRatingPopulationStats(): Promise<RRRatingPopulationStats> {
   const entries = await prisma.tournamentEntry.findMany({
     // 退会したユーザーはランキング・偏差値の母集団から外す(表に一切出さない。オーナー指示)。
-    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null } },
+    where: { finishPosition: { not: null }, user: { isBot: false, deletedAt: null }, tournament: RANKED_TOURNAMENT },
     select: { payout: true, tournament: { select: { buyIn: true } }, userId: true },
   });
 
