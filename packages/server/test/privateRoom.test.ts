@@ -2,11 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Server, Socket } from "socket.io";
 
 // 卓そのもの(DB に書く TableSession)は偽物に差し替え、ルームの出入りだけを確かめる。
-const sessions: { config: { humans: { userId: string }[]; private: { autoSeats: number; startingStack: number; levelDurationMs: number; onFinished: (s: unknown[]) => void } }; left: string[] }[] = [];
+const sessions: {
+  config: { humans: { userId: string }[]; private: { autoSeats: number; startingStack: number; levelDurationMs: number; onFinished: (s: unknown[]) => void } };
+  left: string[];
+  seatRequests: string[];
+}[] = [];
 vi.mock("../src/gameServer.js", () => ({
   SNG_SEAT_COUNT: 6,
   TableSession: class {
     left: string[] = [];
+    seatRequests: string[] = [];
+    requestSeat(player: { userId: string }) {
+      this.seatRequests.push(player.userId);
+      return true;
+    }
+    reattach() {}
     constructor(public config: never) {
       sessions.push(this as never);
     }
@@ -127,15 +137,25 @@ describe("ルームの出入り", () => {
     expect(host.lastRoom()!.phase).toBe("playing");
   });
 
-  it("違うコード・満員・始まった後は入れない", async () => {
+  it("違うコード・満員の待合には入れない", async () => {
     const { connect } = setup();
     const host = connect("h");
     const { code } = await host.call("privateCreate", { settings: { maxPlayers: 2 } });
     expect(await connect("x").call("privateJoin", { code: "999999" === code ? "999998" : "999999" })).toMatchObject({ error: "NOT_FOUND" });
     await connect("g").call("privateJoin", { code });
     expect(await connect("z").call("privateJoin", { code })).toMatchObject({ error: "FULL" });
+  });
+
+  it("始まった後にコードで来た人は、卓に任せる(レイトインで座るか観戦)", async () => {
+    const { connect } = setup();
+    const host = connect("h");
+    const { code } = await host.call("privateCreate", { settings: { maxPlayers: 2 } });
+    await connect("g").call("privateJoin", { code });
     await host.call("privateStart");
-    expect(await connect("y").call("privateJoin", { code })).toMatchObject({ error: "STARTED" });
+    const late = connect("y");
+    expect(await late.call("privateJoin", { code })).toMatchObject({ ok: true, code });
+    expect(sessions[0]!.seatRequests).toEqual(["y"]);
+    expect(late.lastRoom()).toMatchObject({ phase: "playing" });
   });
 
   it("間違ったコードを続けて入れると、しばらく入力できなくなる", async () => {
