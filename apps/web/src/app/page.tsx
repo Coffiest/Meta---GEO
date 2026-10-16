@@ -36,6 +36,8 @@ import {
   PrivateSettingsSheet,
   PrivateReentryPrompt,
   PrivateWatchBar,
+  PrivateBustedSheet,
+  PrivateStandingsSheet,
 } from "@/components/friend/PrivateLobby";
 import { BLIND_SPEEDS, rememberedRoomCode, type PrivateIntent } from "@/lib/privateRoom";
 
@@ -792,11 +794,11 @@ function GameScreen({
           <LeaveTableButton
             onLeave={() => {
               // フレンド対戦の待合では、チップを放棄するのではなくルームから出るだけ。
-              if (privateLobby) {
+              // フレンド対戦はルームから出る(対局中ならチップを放棄して抜けるのと同じ。サーバーが処理する)。
+              if (isPrivate) {
                 void privateActions.leave().then(onExit);
                 return;
               }
-              if (isPrivate) void privateActions.leave();
               // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
               setLeftResult({
                 winnerPlayerId: null,
@@ -1104,7 +1106,8 @@ function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {((tournamentOver && resultReady && !(isPrivate && resultDismissed)) || leftResult) && (
+        {/* フレンド対戦は偏差値・収支が動かないので、この結果画面は使わない(下の専用のシートを出す)。 */}
+        {!isPrivate && ((tournamentOver && resultReady) || leftResult) && (
           <TournamentResultScreen
             info={(tournamentOver ?? leftResult)!}
             accessToken={accessToken}
@@ -1180,6 +1183,29 @@ function GameScreen({
         )}
       </AnimatePresence>
       {isPrivate && privateClosed && privateClosed !== "LEFT" && <PrivateClosedNotice reason={privateClosed} onHome={onExit} />}
+      {/* フレンド対戦: 飛んだら順位と「観戦する / リエントリー」、優勝が決まったら全員に順位表。 */}
+      <AnimatePresence>
+        {isPrivate && tournamentOver && resultReady && !resultDismissed && privateRoom?.phase === "playing" && (
+          <PrivateBustedSheet
+            place={tournamentOver.yourFinishPosition}
+            canReEntry={Boolean(tournamentOver.canReEntry)}
+            onWatch={() => setResultDismissed(true)}
+            onReEntry={reEntry}
+          />
+        )}
+      </AnimatePresence>
+      {isPrivate && privateRoom?.phase === "finished" && (
+        <PrivateStandingsSheet
+          room={privateRoom}
+          onRematch={privateActions.rematch}
+          onDisband={async () => {
+            const res = await privateActions.disband();
+            if (res.ok) onExit();
+            return res;
+          }}
+          onLeave={() => void privateActions.leave().then(onExit)}
+        />
+      )}
       {/* 最後の1人が残り、まだリエントリーできる人へ: 15秒以内に選ぶ。 */}
       {isPrivate && reentryWaitEndsAt && tournamentOver?.canReEntry && reentryWaitEndsAt > Date.now() && (
         <PrivateReentryPrompt endsAt={reentryWaitEndsAt} onYes={reEntry} onNo={declineReEntry} />
