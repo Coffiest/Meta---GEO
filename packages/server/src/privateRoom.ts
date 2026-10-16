@@ -273,8 +273,15 @@ export class PrivateRoomManager {
       return;
     }
     if (this.hooks.isBusyElsewhere(player.userId)) return this.fail(ack, "BUSY");
-    // 始まった後の参加(レイトイン・観戦)は次の段階で足す。今は待合のルームにだけ入れる。
-    if (room.phase === "playing") return this.fail(ack, "STARTED");
+    // 始まった後に来た人: レイトインの受付中で席が空いていれば次のハンドから座り(TDA)、そうでなければ観戦。
+    if (room.phase === "playing" && room.session) {
+      this.leaveCurrentRoom(player.userId);
+      this.addMember(room, player, socket);
+      room.session.requestSeat(player, socket);
+      ack({ ok: true, code });
+      this.broadcast(room);
+      return;
+    }
     if (room.members.size >= room.settings.maxPlayers) return this.fail(ack, "FULL");
 
     this.leaveCurrentRoom(player.userId);
@@ -332,7 +339,7 @@ export class PrivateRoomManager {
     if (seated.length < 2) return this.fail(ack, "NOT_ENOUGH");
 
     const preset = BLIND_PRESETS[room.settings.blind];
-    const session = new TableSession({
+    const session: TableSession = new TableSession({
       io: this.io,
       seatCount: SNG_SEAT_COUNT,
       humans: seated.map((m) => ({ userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey })),
@@ -343,7 +350,13 @@ export class PrivateRoomManager {
         chat: room.settings.chat,
         timeBank: room.settings.timeBank,
         autoSeats: Math.max(0, Math.min(room.settings.autoSeats, room.settings.maxPlayers - seated.length)),
-        onFinished: (standings) => this.onGameFinished(room, session, standings),
+        maxPlayers: room.settings.maxPlayers,
+        lateEntry: room.settings.lateEntry,
+        lateEntryUntilLevel: room.settings.lateEntryUntilLevel,
+        reentry: room.settings.reentry,
+        reentryLimit: room.settings.reentryLimit,
+        onFinished: (standings: PrivateStanding[]): void => this.onGameFinished(room, session, standings),
+        onSeated: (userId: string): void => this.hooks.onSessionStarted(session, [userId]),
       },
     });
     room.session = session;
@@ -449,10 +462,8 @@ export class PrivateRoomManager {
       clearTimeout(member.graceTimer);
       member.graceTimer = null;
     }
-    // ゲーム中なら卓へ戻す(手札・手番の時計も送り直される)。
-    if (room.phase === "playing" && room.session && !room.session.isUserDone(userId)) {
-      room.session.attachHuman(socket, userId);
-    }
+    // ゲーム中なら卓へ戻す(席があれば手札・手番の時計も送り直され、無ければ観戦に戻る)。
+    if (room.phase === "playing" && room.session) room.session.reattach(userId, socket);
   }
 
   private removeMember(room: Room, userId: string): void {

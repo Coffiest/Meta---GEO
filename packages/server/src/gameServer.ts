@@ -384,9 +384,23 @@ export interface PrivateGameOptions {
   readonly timeBank: boolean;
   /** 空席を自動で埋める席の数(ホストが選ぶ)。 */
   readonly autoSeats: number;
+  /** 最大人数(途中から座れるのはこの人数まで)。 */
+  readonly maxPlayers: number;
+  /** レイトイン(途中参加)。リエントリーもこの期間だけ。 */
+  readonly lateEntry: boolean;
+  /** レイトインはこのレベルの終わりまで。 */
+  readonly lateEntryUntilLevel: number;
+  readonly reentry: boolean;
+  /** リエントリーの回数。null は無制限。 */
+  readonly reentryLimit: number | null;
   /** 優勝が決まったとき(または全員が抜けて終わったとき)に、順位を添えて呼ぶ。 */
   readonly onFinished: (standings: PrivateStanding[]) => void;
+  /** 途中から席に着いたとき(ロビーが再接続の戻り先として覚える)。 */
+  readonly onSeated?: (userId: string) => void;
 }
+
+/** 最後の1人が残ったとき、まだリエントリーできる人を待つ時間(オーナー確定: 15秒)。 */
+export const PRIVATE_REENTRY_WAIT_MS = 15_000;
 
 export interface TableSessionConfig {
   readonly io: Server;
@@ -445,6 +459,16 @@ export class TableSession implements GameSession {
   private readonly privateOptions: PrivateGameOptions | null;
   /** 席とボタンを決める乱数。フレンド対戦は暗号学的な乱数を使う。 */
   private readonly random: () => number;
+  /** フレンド対戦: 次のハンドの前に座らせる人(レイトイン・リエントリー)。 */
+  private readonly pendingSeats: { player: HumanPlayer; socket: Socket | null }[] = [];
+  /** フレンド対戦: 観戦している人(席の無い人)。userId → ソケット。 */
+  private readonly spectators = new Map<string, Socket>();
+  /** フレンド対戦: リエントリーした回数。 */
+  private readonly reentriesUsed = new Map<string, number>();
+  /** フレンド対戦: 「リエントリーしない」を選んだ人。 */
+  private readonly declinedReentry = new Set<string>();
+  /** フレンド対戦: 最後の1人が残ったあと、リエントリーを待っている間のタイマー。 */
+  private reentryWaitTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly tierConfig: SngTierConfig;
   readonly buyIn: number;
   /** 1位から順の賞金(参加費×4 / ×2)。 */
@@ -531,6 +555,8 @@ export class TableSession implements GameSession {
   }
 
   private allHumansDone(): boolean {
+    // フレンド対戦では、飛んだ人がまだリエントリーできる間は終わらせない(自動の席どうしで畳まない)。
+    if (this.privateOptions && (this.reentryCandidates().length > 0 || this.pendingSeats.length > 0)) return false;
     return [...this.humansBySeat.values()].every((h) => h.done || h.left);
   }
 
@@ -618,6 +644,14 @@ export class TableSession implements GameSession {
     socket.removeAllListeners("sitOut");
     socket.removeAllListeners("chat");
     socket.removeAllListeners("showCards");
+    socket.removeAllListeners("reEntry");
+    socket.removeAllListeners("declineReEntry");
+    if (this.privateOptions) {
+      socket.on("reEntry", () => {
+        this.requestSeat({ userId: human.userId, displayName: human.displayName, avatarKey: human.avatarKey }, socket);
+      });
+      socket.on("declineReEntry", () => this.declineReentry(human.userId));
+    }
     socket.on("action", (action: PlayerAction, ack?: unknown) => {
       // 自分でアクションしたら連続タイムアウトをリセット。タイムアウトで離席状態になっていた
       // 場合は自動的に復帰させる(全員の画面の「離席中」も解除)。
@@ -704,6 +738,233 @@ export class TableSession implements GameSession {
         socket.emit("turnTimer", this.lastTurn);
       }
     }
+  }
+
+  // ---- フレンド対戦: 途中参加(レイトイン)・リエントリー・観戦 ------------------------------------
+
+  /** レイトイン(とリエントリー)の受付中か。レベル〇の終わりまで(オーナー確定)。 */
+  private lateEntryOpen(): boolean {
+    const o = this.privateOptions;
+    if (!o || !o.lateEntry || this.finished) return false;
+    const level = this.tournament?.getCurrentLevel().level ?? 1;
+    return level <= o.lateEntryUntilLevel;
+  }
+
+  /** 生きて座っている人と、座るのを待っている人の数が最大人数に届いていないか。 */
+  private hasFreeSeat(): boolean {
+    const o = this.privateOptions;
+    if (!o) return false;
+    const alive = this.tournament ? this.tournament.getSeats().filter((s) => s.bustedAtHand === null).length : this.players.size;
+    return alive + this.pendingSeats.length < o.maxPlayers;
+  }
+
+  /** この人の最新の参加(同じ人が席を移ることがあるので、後から入れた方が最新)。 */
+  private latestHumanOf(userId: string): HumanSeat | null {
+    let found: HumanSeat | null = null;
+    for (const h of this.humansBySeat.values()) if (h.userId === userId) found = h;
+    return found;
+  }
+
+  /** 飛んだこの人が、いまリエントリーできるか。 */
+  canReenter(userId: string): boolean {
+    const o = this.privateOptions;
+    if (!o || !o.reentry || !this.lateEntryOpen() || this.declinedReentry.has(userId)) return false;
+    const human = this.latestHumanOf(userId);
+    if (!human || !human.done || human.left) return false;
+    if (this.pendingSeats.some((p) => p.player.userId === userId)) return false;
+    const used = this.reentriesUsed.get(userId) ?? 0;
+    if (o.reentryLimit !== null && used >= o.reentryLimit) return false;
+    return this.hasFreeSeat();
+  }
+
+  /** 飛んでいて、まだリエントリーできる人(断った人は除く)。 */
+  private reentryCandidates(): string[] {
+    const ids = new Set<string>();
+    for (const h of this.humansBySeat.values()) if (h.done && !h.left) ids.add(h.userId);
+    return [...ids].filter((id) => this.canReenter(id));
+  }
+
+  /** この人が、これから卓に座る見込みがまだあるか(あるうちは観戦で手札を見せない。オーナー確定)。 */
+  private couldStillSit(userId: string): boolean {
+    // 座る予約をした人(次のハンドから座る)は、もちろんまだ座る。
+    if (this.pendingSeats.some((p) => p.player.userId === userId)) return true;
+    if (this.latestHumanOf(userId)) return this.canReenter(userId);
+    return this.lateEntryOpen() && this.hasFreeSeat();
+  }
+
+  /**
+   * コードで入ってきた人・リエントリーする人を、次のハンドの前に座らせる予約をする。
+   * 座れない(受付の終わり・満席)なら観戦にする。戻り値は「座る予約をした」か。
+   */
+  requestSeat(player: HumanPlayer, socket: Socket | null): boolean {
+    if (!this.privateOptions || this.finished) return false;
+    const existing = this.latestHumanOf(player.userId);
+    if (existing && !existing.done && !existing.left) {
+      if (socket) this.attachHuman(socket, player.userId);
+      return true;
+    }
+    if (this.pendingSeats.some((p) => p.player.userId === player.userId)) return true;
+    const ok = existing ? this.canReenter(player.userId) : this.lateEntryOpen() && this.hasFreeSeat();
+    if (!ok) {
+      if (socket) this.addSpectator(player.userId, socket);
+      return false;
+    }
+    if (existing) this.reentriesUsed.set(player.userId, (this.reentriesUsed.get(player.userId) ?? 0) + 1);
+    this.pendingSeats.push({ player, socket });
+    // 座るまでの間も卓は見える(手札は見せない)。
+    if (socket) this.addSpectator(player.userId, socket);
+    // 最後の1人のところでリエントリーを待っていたなら、待たずに次のハンドへ。
+    if (this.reentryWaitTimer) {
+      this.clearReentryWait();
+      this.beginNextHand();
+    }
+    return true;
+  }
+
+  /** 飛んだ人が「リエントリーしない」を選んだ。待っている人がいなくなれば、その場で優勝を決める。 */
+  declineReentry(userId: string): void {
+    if (!this.privateOptions) return;
+    this.declinedReentry.add(userId);
+    if (this.reentryWaitTimer && this.reentryCandidates().length === 0) {
+      this.clearReentryWait();
+      void this.finishTournament();
+    }
+  }
+
+  /** 席の無い人として卓を見せる(観戦)。もう座る見込みの無い人には、全員の手札も見せる。 */
+  addSpectator(userId: string, socket: Socket): void {
+    if (!this.privateOptions) return;
+    this.spectators.set(userId, socket);
+    void socket.join(this.roomId);
+    socket.emit("spectating", { canSeeCards: !this.couldStillSit(userId) });
+    if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
+    if (this.tournament) socket.emit("levelUp", { level: this.currentLevel(), endsAt: this.levelEndsAt });
+    this.broadcastTournamentInfo();
+    if (this.hand) {
+      socket.emit("state", this.hand.getPublicState());
+      this.sendSpectatorCards(userId, socket);
+    }
+    socket.removeAllListeners("reEntry");
+    socket.removeAllListeners("declineReEntry");
+    socket.on("disconnect", () => {
+      if (this.spectators.get(userId) === socket) this.spectators.delete(userId);
+    });
+  }
+
+  /** 卓につなぎ直す(ルームへの再接続)。席があれば卓へ、無ければ観戦へ。 */
+  reattach(userId: string, socket: Socket): void {
+    const human = this.latestHumanOf(userId);
+    if (human) this.attachHuman(socket, userId);
+    else if (this.pendingSeats.some((p) => p.player.userId === userId)) {
+      const p = this.pendingSeats.find((x) => x.player.userId === userId)!;
+      p.socket = socket;
+      this.addSpectator(userId, socket);
+    } else this.addSpectator(userId, socket);
+  }
+
+  /** 観戦している人(と、飛んだあと卓を見ている人)のうち、もう座る見込みの無い人へ全員の手札を送る。 */
+  private sendSpectatorCards(userId: string, socket: Socket): void {
+    if (!this.hand || this.couldStillSit(userId)) return;
+    // getAllHoleCards はハンドが終わってからしか使えないので、配られている席を1つずつ引く。
+    const holeCards: Record<number, string[]> = {};
+    for (const seat of this.hand.getPublicState().seats) {
+      holeCards[seat.seatIndex] = this.hand.getSeatHoleCards(seat.seatIndex).map(cardToString);
+    }
+    socket.emit("spectatorCards", { holeCards });
+  }
+
+  private broadcastSpectatorCards(): void {
+    if (!this.privateOptions || !this.hand) return;
+    const sent = new Set<string>();
+    for (const [userId, socket] of this.spectators) {
+      sent.add(userId);
+      this.sendSpectatorCards(userId, socket);
+    }
+    for (const h of this.humansBySeat.values()) {
+      if (!h.done || !h.socket || sent.has(h.userId)) continue;
+      sent.add(h.userId);
+      this.sendSpectatorCards(h.userId, h.socket);
+    }
+  }
+
+  /** 予約された人を空いている席(ランダム)に座らせる。ハンドとハンドの間にだけ呼ぶ。 */
+  private seatPendingPlayers(): void {
+    const t = this.tournament;
+    const o = this.privateOptions;
+    if (!t || !o || this.pendingSeats.length === 0) return;
+    const occupied = new Set(t.getSeats().filter((s) => s.bustedAtHand === null).map((s) => s.seatIndex));
+    let changed = false;
+    while (this.pendingSeats.length > 0) {
+      const { player, socket } = this.pendingSeats.shift()!;
+      const free = Array.from({ length: this.seatCount }, (_, i) => i).filter((i) => !occupied.has(i));
+      if (occupied.size >= o.maxPlayers || free.length === 0) {
+        if (socket) this.addSpectator(player.userId, socket);
+        continue;
+      }
+      const seatIndex = free[Math.floor(this.random() * free.length)]!;
+      // 同じ人の前の参加(飛んだ席)は、着順を記録済みなので外す(1人1席)。
+      for (const [idx, h] of [...this.humansBySeat]) {
+        if (h.userId !== player.userId) continue;
+        this.humansBySeat.delete(idx);
+        if (this.players.get(idx)?.userId === player.userId) this.players.delete(idx);
+      }
+      t.addPlayer({ playerId: player.userId, displayName: player.displayName, seatIndex });
+      occupied.add(seatIndex);
+      changed = true;
+      this.players.set(seatIndex, { seatIndex, userId: player.userId, displayName: player.displayName, avatarKey: player.avatarKey, isBot: false });
+      this.humansBySeat.set(seatIndex, {
+        userId: player.userId,
+        displayName: player.displayName,
+        avatarKey: player.avatarKey,
+        socket: null,
+        timeBankCards: this.tierConfig.timeBank ? SNG_TIME_BANK_CARDS : 0,
+        timeBankArmed: false,
+        away: false,
+        left: false,
+        done: false,
+        consecutiveTimeouts: 0,
+      });
+      this.spectators.delete(player.userId);
+      if (this.dbTournamentId) {
+        void prisma.tournamentEntry
+          .create({ data: { tournamentId: this.dbTournamentId, userId: player.userId, seatIndex }, select: { id: true } })
+          .catch((err) => console.error("[private] tournamentEntry create failed:", err));
+      }
+      o.onSeated?.(player.userId);
+      activeGames.setActive(player.userId, "private");
+      if (socket) this.attachHuman(socket, player.userId);
+    }
+    if (changed) {
+      this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
+      this.broadcastTournamentInfo();
+    }
+  }
+
+  /**
+   * 最後の1人が残ったとき、まだリエントリーできる人がいれば15秒待つ(オーナー確定)。
+   * 待つことにしたら true(呼び出し側は終わらせない)。
+   */
+  private waitForReentry(): boolean {
+    if (!this.privateOptions || this.reentryWaitTimer) return Boolean(this.reentryWaitTimer);
+    if (this.pendingSeats.length > 0) {
+      setTimeout(() => this.beginNextHand(), NEXT_HAND_DELAY_MS);
+      return true;
+    }
+    const candidates = this.reentryCandidates();
+    if (candidates.length === 0) return false;
+    const endsAt = Date.now() + PRIVATE_REENTRY_WAIT_MS;
+    this.io.to(this.roomId).emit("privateReentryWait", { endsAt });
+    this.reentryWaitTimer = setTimeout(() => {
+      this.reentryWaitTimer = null;
+      if (this.pendingSeats.length > 0) this.beginNextHand();
+      else void this.finishTournament();
+    }, PRIVATE_REENTRY_WAIT_MS);
+    return true;
+  }
+
+  private clearReentryWait(): void {
+    if (this.reentryWaitTimer) clearTimeout(this.reentryWaitTimer);
+    this.reentryWaitTimer = null;
   }
 
   leave(userId: string): void {
@@ -807,6 +1068,10 @@ export class TableSession implements GameSession {
       return;
     }
     this.phase("nextHandStarting", { attempt });
+    // フレンド対戦: レイトイン・リエントリーで待っている人を、このハンドの前に座らせる(配るかどうかは
+    // エンジンが TDA どおりに決める)。終わりの判定より先に座らせる(最後の1人のところへ戻ってくる人がいる)。
+    this.clearReentryWait();
+    this.seatPendingPlayers();
     if (this.tournament.isTournamentOver()) {
       this.phase("tournamentFinishing", { from: "beginNextHand" });
       void this.finishTournament();
@@ -1149,6 +1414,7 @@ export class TableSession implements GameSession {
       }
     }
 
+    if (tournament.isTournamentOver() && this.waitForReentry()) return;
     if (tournament.isTournamentOver()) {
       this.phase("tournamentFinishing", { reason: "tournamentOver" });
       void this.finishTournament();
@@ -1298,8 +1564,9 @@ export class TableSession implements GameSession {
 
     // DB書き込みが失敗しても、本人への結果通知とゲーム進行は止めない。
     try {
+      // 同じ席に途中から別の人が座ることがある(フレンド対戦)ので、まだ着順の無い参加だけを更新する。
       await prisma.tournamentEntry.updateMany({
-        where: { tournamentId: this.dbTournamentId, seatIndex },
+        where: { tournamentId: this.dbTournamentId, seatIndex, finishPosition: null },
         data: { finishPosition: place, payout, bustedAtHandNumber: seat.bustedAtHand },
       });
       if (payout > 0) {
@@ -1317,6 +1584,8 @@ export class TableSession implements GameSession {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+      // フレンド対戦: まだリエントリーできるか(結果画面にボタンを出す)。
+      ...(this.privateOptions ? { canReEntry: place !== 1 && this.canReenter(human.userId), reEntryCost: 0 } : {}),
     });
     // フレンド対戦の結果はルームの画面で出すので、復帰時の結果のサジェストには載せない。
     if (this.privateOptions) {
@@ -1336,6 +1605,7 @@ export class TableSession implements GameSession {
     const tournament = this.tournament;
     if (!tournament || !this.dbTournamentId || this.finished) return;
     this.finished = true;
+    this.clearReentryWait();
     this.phase("sessionFinished");
     forgetPhaseScope(this.diagScope);
     if (this.turnTimer) clearTimeout(this.turnTimer);
@@ -1419,5 +1689,6 @@ export class TableSession implements GameSession {
       // ショーダウン前でも自分自身のホールカードだけは常に見える
       human.socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
     }
+    this.broadcastSpectatorCards();
   }
 }
