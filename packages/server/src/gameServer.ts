@@ -809,7 +809,11 @@ export class TableSession implements GameSession {
       if (socket) this.addSpectator(player.userId, socket);
       return false;
     }
-    if (existing) this.reentriesUsed.set(player.userId, (this.reentriesUsed.get(player.userId) ?? 0) + 1);
+    if (existing) {
+      this.reentriesUsed.set(player.userId, (this.reentriesUsed.get(player.userId) ?? 0) + 1);
+      // 結果画面を閉じて卓へ戻す(MTT のリエントリーと同じ合図)。座るのは次のハンドから。
+      socket?.emit("reEntered");
+    }
     this.pendingSeats.push({ player, socket });
     // 座るまでの間も卓は見える(手札は見せない)。
     if (socket) this.addSpectator(player.userId, socket);
