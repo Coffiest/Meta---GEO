@@ -143,7 +143,8 @@ type ErrorCode =
   | "NOT_ENOUGH"
   | "BUSY"
   | "TOO_MANY_TRIES"
-  | "NOT_IN_ROOM";
+  | "NOT_IN_ROOM"
+  | "INTERNAL";
 
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   AUTH: "ログインまたはプロフィール設定が完了していません",
@@ -155,6 +156,7 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   BUSY: "対局中のゲームがあります",
   TOO_MANY_TRIES: "しばらく待ってからもう一度入力してください",
   NOT_IN_ROOM: "ルームに入っていません",
+  INTERNAL: "サーバーで問題が起きました。もう一度お試しください",
 };
 
 type Ack = (res: { ok: true; code?: string } | { ok: false; error: ErrorCode; message: string }) => void;
@@ -191,9 +193,19 @@ export class PrivateRoomManager {
       <T>(fn: (socket: Socket, payload: T, ack: Ack) => Promise<void> | void) =>
       (payload: T, ack?: unknown) => {
         const reply: Ack = typeof ack === "function" ? (ack as Ack) : () => {};
-        Promise.resolve(fn.call(this, socket, payload ?? ({} as T), reply)).catch((err) => {
-          console.error("[private] handler failed:", err);
-        });
+        // 同期の例外も非同期の失敗も拾い、画面には必ず応答を返す(返さないと画面が待ちっぱなしになる)。
+        let replied = false;
+        const once: Ack = (res) => {
+          if (replied) return;
+          replied = true;
+          reply(res);
+        };
+        Promise.resolve()
+          .then(() => fn.call(this, socket, payload ?? ({} as T), once))
+          .catch((err) => {
+            console.error("[private] handler failed:", err);
+            once({ ok: false, error: "INTERNAL", message: "サーバーで問題が起きました。もう一度お試しください" });
+          });
       };
     socket.on("privateCreate", wrap<{ settings?: unknown }>(this.onCreate));
     socket.on("privateJoin", wrap<{ code?: unknown }>(this.onJoin));

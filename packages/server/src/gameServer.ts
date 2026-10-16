@@ -98,7 +98,8 @@ export function pickBotChatLine(kind: keyof typeof BOT_CHAT_LINES): string {
  * 疑われないよう、予測できない乱数にする)。
  */
 export function cryptoRandom(): number {
-  return randomInt(0, 2 ** 48) / 2 ** 48;
+  // randomInt の幅(max − min)は 2^48 未満でなければならない(2^48 ちょうどは例外になる)。
+  return randomInt(0, 2 ** 47) / 2 ** 47;
 }
 
 /** 配列をコピーしてFisher-Yatesでシャッフルした新配列を返す。 */
@@ -695,7 +696,9 @@ export class TableSession implements GameSession {
     if (this.tierConfig.timeBank) socket.emit("timeBank", { cards: human.timeBankCards, armed: human.timeBankArmed });
     if (this.hand) {
       socket.emit("state", this.hand.getPublicState());
-      socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      if (this.hand.getPublicState().seats.some((seat) => seat.seatIndex === seatIndex)) {
+        socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
+      }
       // 復帰後の手番クロックを正しく動かすため、まだ有効な手番タイマーを新ソケットへ再送する。
       if (this.lastTurn && this.lastTurn.endsAt > Date.now() && this.hand.getActingSeatIndex() === this.lastTurn.seatIndex) {
         socket.emit("turnTimer", this.lastTurn);
@@ -1407,8 +1410,12 @@ export class TableSession implements GameSession {
     if (!this.hand) return;
     this.io.to(this.roomId).emit("state", this.hand.getPublicState());
 
+    // このハンドで配られている席(飛んだ人・まだ配られていない人は含まない)。
+    const dealt = new Set(this.hand.getPublicState().seats.map((seat) => seat.seatIndex));
     for (const [seatIndex, human] of this.humansBySeat) {
-      if (!human.socket) continue;
+      // 飛んだあとも画面を開いたままの人(結果画面・観戦)には手札を送らない。送ろうとするとエンジンが
+      // 「その席は無い」で例外を投げ、次のハンドの開始がそこで止まって卓ごと固まっていた。
+      if (!human.socket || !dealt.has(seatIndex)) continue;
       // ショーダウン前でも自分自身のホールカードだけは常に見える
       human.socket.emit("yourCards", { seatIndex, cards: this.hand.getSeatHoleCards(seatIndex).map(cardToString) });
     }
