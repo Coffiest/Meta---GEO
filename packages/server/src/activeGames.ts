@@ -7,7 +7,7 @@
  *  - アプリ復帰/ログイン時に、そのユーザーが進行中のゲームを持っていれば強制的にそのゲームへ戻す。
  *  - 離席中にゲームが終了していた場合、復帰時に結果をサジェスト表示する(一度表示したら消す)。
  */
-export type ActiveGameKey = "sng" | "mtt";
+export type ActiveGameKey = "sng" | "mtt" | "private";
 
 export interface ActiveGameResult {
   yourFinishPosition: number | null;

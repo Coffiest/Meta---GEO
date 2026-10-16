@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import {
   HandEngine,
@@ -93,11 +93,19 @@ export function pickBotChatLine(kind: keyof typeof BOT_CHAT_LINES): string {
   return pool[Math.floor(Math.random() * pool.length)]!;
 }
 
+/**
+ * 暗号学的な乱数(0以上1未満)。フレンド対戦の席とボタンはこれで決める(友達同士で「仕組まれている」と
+ * 疑われないよう、予測できない乱数にする)。
+ */
+export function cryptoRandom(): number {
+  return randomInt(0, 2 ** 48) / 2 ** 48;
+}
+
 /** 配列をコピーしてFisher-Yatesでシャッフルした新配列を返す。 */
-function shuffled<T>(arr: readonly T[]): T[] {
+function shuffled<T>(arr: readonly T[], random: () => number = Math.random): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
@@ -355,12 +363,38 @@ interface SeatPlayer {
   readonly isBot: boolean;
 }
 
+/** フレンド対戦の最終順位の1行(1位から順)。 */
+export interface PrivateStanding {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly avatarKey: string | null;
+  readonly place: number;
+}
+
+/**
+ * フレンド対戦(ルームのホストが決めた設定で遊ぶ卓)。参加費・賞金は無く、成績(収支・偏差値・
+ * ランキング)には数えない。ハンドは GEO のデータベースのために記録する(`gameType: "private"`)。
+ */
+export interface PrivateGameOptions {
+  readonly roomCode: string;
+  readonly startingStack: number;
+  readonly levelDurationMs: number;
+  readonly chat: boolean;
+  readonly timeBank: boolean;
+  /** 空席を自動で埋める席の数(ホストが選ぶ)。 */
+  readonly autoSeats: number;
+  /** 優勝が決まったとき(または全員が抜けて終わったとき)に、順位を添えて呼ぶ。 */
+  readonly onFinished: (standings: PrivateStanding[]) => void;
+}
+
 export interface TableSessionConfig {
   readonly io: Server;
   readonly seatCount: number;
   readonly humans: HumanPlayer[];
   /** SNG の階層(参加費・初期スタック・レベル時間・チャット/タイムバンクの有無)。省略時は参加費1,000の卓。 */
   readonly tier?: SngTier;
+  /** フレンド対戦の卓として動かす(階層の設定の代わりにホストの設定を使う)。 */
+  readonly private?: PrivateGameOptions;
 }
 
 /** ロビーが扱うゲームセッションの共通インターフェース(SNG/MTT)。 */
@@ -405,8 +439,11 @@ export class TableSession implements GameSession {
    */
   private recordQueue: Promise<void> = Promise.resolve();
 
-  readonly gameType = "sng";
+  readonly gameType: "sng" | "private";
   readonly tier: SngTier;
+  private readonly privateOptions: PrivateGameOptions | null;
+  /** 席とボタンを決める乱数。フレンド対戦は暗号学的な乱数を使う。 */
+  private readonly random: () => number;
   private readonly tierConfig: SngTierConfig;
   readonly buyIn: number;
   /** 1位から順の賞金(参加費×4 / ×2)。 */
@@ -427,19 +464,33 @@ export class TableSession implements GameSession {
     this.seatCount = config.seatCount;
     this.configHumans = config.humans;
     this.tier = config.tier ?? "regular";
-    this.tierConfig = SNG_TIERS[this.tier];
+    this.privateOptions = config.private ?? null;
+    this.gameType = this.privateOptions ? "private" : "sng";
+    this.random = this.privateOptions ? cryptoRandom : Math.random;
+    this.tierConfig = this.privateOptions
+      ? {
+          ...SNG_TIERS.regular,
+          buyIn: 0,
+          startingStack: this.privateOptions.startingStack,
+          levelDurationMs: this.privateOptions.levelDurationMs,
+          autoFill: false,
+          chat: this.privateOptions.chat,
+          timeBank: this.privateOptions.timeBank,
+          requirement: null,
+        }
+      : SNG_TIERS[this.tier];
     this.buyIn = this.tierConfig.buyIn;
-    this.payouts = sngPayouts(this.buyIn);
+    this.payouts = this.privateOptions ? [] : sngPayouts(this.buyIn);
 
     // 席割当はシャッフルする。人間を常にseat 0から詰めると、数戦見ただけで「自分の後ろは全部
     // 自動プレイヤー」と分かってしまう。全席をランダムに並べ替え、先頭から人間、残りをBOT席とする。
-    const seatOrder = Array.from({ length: this.seatCount }, (_, i) => i);
-    for (let i = seatOrder.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [seatOrder[i], seatOrder[j]] = [seatOrder[j]!, seatOrder[i]!];
-    }
+    // フレンド対戦は自動で埋める席の数をホストが決めるので、残りの席は空けたままにする。
+    const seatOrder = shuffled(Array.from({ length: this.seatCount }, (_, i) => i), this.random);
     const humanSeats = seatOrder.slice(0, this.configHumans.length);
-    this.botSeats = seatOrder.slice(this.configHumans.length);
+    const autoSeats = this.privateOptions
+      ? Math.max(0, Math.min(this.privateOptions.autoSeats, this.seatCount - this.configHumans.length))
+      : this.seatCount - this.configHumans.length;
+    this.botSeats = seatOrder.slice(this.configHumans.length, this.configHumans.length + autoSeats);
 
     // 人間の席とHumanSeatはコンストラクタで同期的に確保する(start()を待つとattachHumanが
     // start()より先に呼ばれた場合に無視されてしまうため)。BOT席とトーナメント作成は
@@ -452,8 +503,8 @@ export class TableSession implements GameSession {
         displayName: h.displayName,
         avatarKey: h.avatarKey,
         socket: null,
-        // タイムバンクは High Roller / Super High Roller の卓だけ。
-        timeBankCards: SNG_TIERS[config.tier ?? "regular"].timeBank ? SNG_TIME_BANK_CARDS : 0,
+        // タイムバンクは High Roller / Super High Roller の卓と、ホストがオンにしたフレンド対戦だけ。
+        timeBankCards: this.tierConfig.timeBank ? SNG_TIME_BANK_CARDS : 0,
         timeBankArmed: false,
         away: false,
         left: false,
@@ -496,8 +547,8 @@ export class TableSession implements GameSession {
   }
 
   private async startInternal(): Promise<void> {
-    const botCount = this.seatCount - this.configHumans.length;
-    const botUsers = await ensureBotUsers(botCount);
+    const botCount = this.botSeats.length;
+    const botUsers = botCount > 0 ? await ensureBotUsers(botCount) : [];
     botUsers.forEach((u, i) => {
       // 人間の席をシャッフルで決めた残り(botSeats)へBOTを座らせる。人間が常にseat 0という
       // 固定パターンを作らないため。
@@ -509,6 +560,8 @@ export class TableSession implements GameSession {
       seatCount: this.seatCount,
       players: [...this.players.values()].map((p) => ({ playerId: p.userId, displayName: p.displayName, seatIndex: p.seatIndex })),
       startingStack: this.tierConfig.startingStack,
+      // フレンド対戦は1ハンド目のボタンも乱数で決める(公正さのため)。
+      ...(this.privateOptions ? { random: this.random } : {}),
     });
     try {
       this.frames = await getEliteFrames([...this.players.values()].map((p) => p.userId));
@@ -523,7 +576,7 @@ export class TableSession implements GameSession {
         status: "running",
         gameType: this.gameType,
         buyIn: this.buyIn,
-        tier: this.tier,
+        tier: this.privateOptions ? "private" : this.tier,
         payouts: this.payouts.map((p) => p.amount),
       },
     });
@@ -532,8 +585,11 @@ export class TableSession implements GameSession {
       data: [...this.players.values()].map((p) => ({ tournamentId: dbTournament.id, userId: p.userId, seatIndex: p.seatIndex })),
     });
 
-    for (const h of this.configHumans) {
-      await recordBuyIn({ userId: h.userId, tournamentId: dbTournament.id, amount: this.buyIn });
+    // フレンド対戦は参加費を取らない(バンクロールは一切動かさない)。
+    if (!this.privateOptions) {
+      for (const h of this.configHumans) {
+        await recordBuyIn({ userId: h.userId, tournamentId: dbTournament.id, amount: this.buyIn });
+      }
     }
 
     this.io.to(this.roomId).emit("players", { players: this.playersPayload() });
@@ -1248,7 +1304,8 @@ export class TableSession implements GameSession {
       }
       // 着順が確定したので、偏差値/リーダーボードの共有キャッシュを破棄する。
       // 結果画面が偏差値と全国順位の増減を出すため、ここは必ず最新値にする必要がある。
-      invalidateRankedEntries();
+      // (フレンド対戦は成績に数えないので捨てなくてよい)
+      if (!this.privateOptions) invalidateRankedEntries();
     } catch (err) {
       console.error("[sng] recordHumanFinish db write failed:", err);
     }
@@ -1258,6 +1315,11 @@ export class TableSession implements GameSession {
       yourFinishPosition: place,
       yourPayout: payout,
     });
+    // フレンド対戦の結果はルームの画面で出すので、復帰時の結果のサジェストには載せない。
+    if (this.privateOptions) {
+      activeGames.clearActive(human.userId);
+      return;
+    }
     // 離席/切断中に終了した場合に備えて結果を保存(復帰時に結果サジェスト表示)。
     activeGames.recordResult(human.userId, {
       winnerPlayerId: place === 1 ? human.userId : null,
@@ -1307,6 +1369,23 @@ export class TableSession implements GameSession {
       where: { id: this.dbTournamentId },
       data: { status: "finished", finishedAt: new Date() },
     });
+
+    if (this.privateOptions) {
+      const standings: PrivateStanding[] = seats.map((seat, index) => {
+        const p = this.players.get(seat.seatIndex);
+        return {
+          userId: seat.playerId,
+          displayName: p?.displayName ?? seat.displayName,
+          avatarKey: p?.avatarKey ?? null,
+          place: index + 1,
+        };
+      });
+      try {
+        this.privateOptions.onFinished(standings);
+      } catch (err) {
+        console.error("[private] onFinished failed:", err);
+      }
+    }
   }
 
   /** ハンド終了時のBotの一言。オーナー指示によりBotのチャット発言は全面無効化(no-op)。 */

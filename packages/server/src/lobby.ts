@@ -8,6 +8,7 @@ import { MttScheduler } from "./mttScheduler.js";
 import { activeGames } from "./activeGames.js";
 import { touchPresence } from "./presence.js";
 import { isValidUnlockCode } from "./adminAuth.js";
+import { PrivateRoomManager } from "./privateRoom.js";
 
 /** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。 */
 export type GameKey = "sng" | "sng_hr" | "sng_shr" | "mtt";
@@ -45,6 +46,8 @@ export class Lobby {
   /** 階層ごとのマッチング待合室。 */
   private readonly sngMatchmakers: Map<SngTier, SngMatchmaker>;
   private readonly mttScheduler: MttScheduler;
+  /** フレンド対戦のルーム(6桁のコード)。 */
+  private readonly privateRooms: PrivateRoomManager;
 
   constructor(io: Server) {
     this.io = io;
@@ -58,6 +61,27 @@ export class Lobby {
       (["regular", "highRoller", "superHighRoller"] as const).map((tier) => [tier, new SngMatchmaker(io, onSessionReady, tier)]),
     );
     this.mttScheduler = new MttScheduler(io);
+    this.privateRooms = new PrivateRoomManager(
+      io,
+      async (socket) => {
+        const resolved = await this.resolveUser(socket);
+        if (!resolved || (await isUserBanned(resolved.userId))) return null;
+        touchPresence(resolved.userId, resolved.displayName);
+        return resolved;
+      },
+      {
+        onSessionStarted: (session, userIds) => {
+          for (const userId of userIds) {
+            this.activeSessions.set(userId, session);
+            activeGames.setActive(userId, "private");
+          }
+        },
+        isBusyElsewhere: (userId) => {
+          const session = this.activeSessions.get(userId);
+          return Boolean(session && !session.isFinished() && !session.isUserDone(userId));
+        },
+      },
+    );
     // 終了済みセッションを activeSessions から掃除する(H9: 放置するとセッション実体を永久保持し、
     // 512MB VMでメモリが枯渇する)。start()失敗で finished=true になった卓もここで除去される(H5)。
     const timer = setInterval(() => this.pruneFinishedSessions(), 60_000);
@@ -87,6 +111,7 @@ export class Lobby {
   }
 
   handleConnection(socket: Socket): void {
+    this.privateRooms.handleConnection(socket);
     socket.on("joinGame", (payload: { gameKey?: string; unlockCode?: string }) => {
       this.handleJoinGame(socket, payload ?? {}).catch((err) => {
         console.error(`[lobby] joinGame failed for ${socket.id}:`, err);
@@ -179,6 +204,8 @@ export class Lobby {
     }
 
     const player: HumanPlayer = { userId: resolved.userId, displayName: resolved.displayName, avatarKey: resolved.avatarKey };
+    // フレンド対戦の待合にいたら抜けてから参加する(1人が同時に2つの場所に居ないように)。
+    this.privateRooms.releaseFromLobby(resolved.userId);
 
     if (payload.gameKey !== "mtt") {
       const tier = SNG_TIER_BY_KEY[payload.gameKey];

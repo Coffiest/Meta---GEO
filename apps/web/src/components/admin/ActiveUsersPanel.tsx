@@ -12,7 +12,7 @@ interface ActiveUser {
   userId: string;
   displayName: string;
   lastSeenAt: string | null;
-  playing: "sng" | "mtt" | null;
+  playing: "sng" | "mtt" | "private" | null;
 }
 
 interface Snapshot {
@@ -96,7 +96,7 @@ export function ActiveUsersPanel({ passcode, accessToken }: { passcode: string; 
               <li key={u.userId} className="flex items-center gap-2 py-2">
                 <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-fg">{u.displayName}</span>
                 <span className="shrink-0 text-[10.5px] font-bold text-fg-2">
-                  {u.playing ? (u.playing === "mtt" ? "MTT 対局中" : "SNG 対局中") : "ロビー"}
+                  {u.playing ? (u.playing === "mtt" ? "MTT 対局中" : u.playing === "private" ? "フレンド対戦中" : "SNG 対局中") : "ロビー"}
                 </span>
                 <span className="w-14 shrink-0 text-right text-[10px] tabular-nums text-fg-3">{ago(u.lastSeenAt)}</span>
               </li>
