@@ -33,16 +33,20 @@ export function PrivateLobbyBar({
   return (
     <div className="safe-area-bottom px-3 pb-2 pt-1">
       <div className="mx-auto flex h-[132px] max-w-md flex-col justify-between gap-[5px] px-3 py-2">
-        <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-fg-2">
-          <span className="tabular-nums text-fg">{t("friend.members", { n: room.members.length, max: room.settings.maxPlayers })}</span>
-          <span className="text-fg-faint">·</span>
-          <span>{t(`friend.blind.${room.settings.blind}`)}</span>
-          <span className="text-fg-faint">·</span>
-          <span className="tabular-nums">{t("friend.blind.meta", { min: speed.minutes, bb: speed.bb })}</span>
+        {/* 上の段: 左に人数と設定、右(画面の右下)にルームコード(オーナー指示: 右下にコードとコピー)。
+            卓の上に置くと自分の席に重なるので、卓の外のこの段に置く。 */}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-bold tabular-nums text-fg">
+              {t("friend.members", { n: room.members.length, max: room.settings.maxPlayers })}
+              <span className="font-semibold text-fg-2"> · {t(`friend.blind.${room.settings.blind}`)}</span>
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-fg-3" aria-live="polite">
+              {error ?? (room.isHost ? (canStart ? t("friend.blind.meta", { min: speed.minutes, bb: speed.bb }) : t("friend.needTwo")) : t("friend.waitHost"))}
+            </p>
+          </div>
+          <RoomCodeChip code={room.code} />
         </div>
-        <p className="text-center text-[12px] font-semibold text-fg-3" aria-live="polite">
-          {error ?? (room.isHost ? (canStart ? "" : t("friend.needTwo")) : t("friend.waitHost"))}
-        </p>
         <div className="flex gap-2">
           {room.isHost ? (
             <>
@@ -113,13 +117,13 @@ export function RoomCodeChip({ code }: { code: string }) {
       type="button"
       onClick={copy}
       aria-label={`${t("friend.code")} ${code} ${t("friend.copy")}`}
-      className="pressable pointer-events-auto flex items-center gap-2.5 rounded-2xl glass-panel py-2 pl-3 pr-2.5 shadow-e2"
+      className="pressable flex shrink-0 items-center gap-2 rounded-2xl bg-white/[0.05] py-1.5 pl-3 pr-1.5 ring-1 ring-inset ring-white/10"
     >
       <span className="text-left">
-        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-fg-3">{t("friend.code")}</span>
-        <span className="block text-[20px] font-black leading-none tabular-nums tracking-[0.12em] text-fg">{code}</span>
+        <span className="block text-[9px] font-black tracking-[0.12em] text-fg-3">{t("friend.code")}</span>
+        <span className="block text-[18px] font-black leading-none tabular-nums tracking-[0.12em] text-fg">{code}</span>
       </span>
-      <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-accent/15 text-accent">
+      <span className="relative grid h-8 w-8 place-items-center rounded-xl bg-accent/15 text-accent">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
             key={copied ? "done" : "copy"}
@@ -129,7 +133,7 @@ export function RoomCodeChip({ code }: { code: string }) {
             transition={SPRING_SNAPPY}
             className="grid place-items-center"
           >
-            <Icon name={copied ? "check" : "copy"} className="h-[18px] w-[18px]" />
+            <Icon name={copied ? "check" : "copy"} className="h-4 w-4" />
           </motion.span>
         </AnimatePresence>
       </span>
