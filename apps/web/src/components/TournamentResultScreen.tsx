@@ -272,7 +272,7 @@ export function TournamentResultScreen({
   const doReEntry = () => {
     if (reEntering || !onReEntry) return;
     setReEntering(true);
-    setTimeout(() => onReEntry(), 900); // -2,000演出を見せてから復帰
+    setTimeout(() => onReEntry(), (reEntryCost ?? 2000) > 0 ? 900 : 0); // -2,000演出を見せてから復帰
   };
 
   useEffect(() => {
@@ -489,7 +489,8 @@ export function TournamentResultScreen({
               disabled={reEntering}
               className="flex items-center justify-center gap-1.5 rounded-2xl bg-n-5 py-3.5 text-[14px] font-black text-white pressable disabled:opacity-90"
             >
-              {reEntering ? (
+              {/* フレンド対戦は無料(参加費0)なので、引かれる額の演出は出さない。 */}
+              {reEntering && (reEntryCost ?? 2000) > 0 ? (
                 <span className="tabular-nums">−{(reEntryCost ?? 2000).toLocaleString()}</span>
               ) : (
                 <>

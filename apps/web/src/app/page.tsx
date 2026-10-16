@@ -34,6 +34,8 @@ import {
   PrivateLobbyBar,
   PrivateMemberSheet,
   PrivateSettingsSheet,
+  PrivateReentryPrompt,
+  PrivateWatchBar,
 } from "@/components/friend/PrivateLobby";
 import { BLIND_SPEEDS, rememberedRoomCode, type PrivateIntent } from "@/lib/privateRoom";
 
@@ -429,6 +431,10 @@ function GameScreen({
     privateRoom,
     privateClosed,
     privateActions,
+    spectatorCanSeeCards,
+    spectatorCards,
+    reentryWaitEndsAt,
+    declineReEntry,
   } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode, privateIntent });
   const { t } = useI18n();
   /** チャットは High Roller / Super High Roller の卓だけ(サーバーが卓ごとに可否を送る)。 */
@@ -440,6 +446,10 @@ function GameScreen({
   const privateLobby = isPrivate && privateRoom !== null && privateRoom.phase === "lobby";
   const [privateSettingsOpen, setPrivateSettingsOpen] = useState(false);
   const [kickTarget, setKickTarget] = useState<SeatPlayerInfo | null>(null);
+  // フレンド対戦で飛んだあと、結果を閉じて卓を見ている(観戦)。新しい結果が来たら開き直す。
+  const [resultDismissed, setResultDismissed] = useState(false);
+  useEffect(() => setResultDismissed(false), [tournamentOver]);
+  const watching = isPrivate && !privateLobby && (spectating || (Boolean(tournamentOver) && resultDismissed));
   const lobbySeating = useMemo(() => {
     if (!privateLobby || !privateRoom) return null;
     const players: Record<number, SeatPlayerInfo> = {};
@@ -819,7 +829,7 @@ function GameScreen({
       <BlindLevelBanner handBigBlind={state?.bigBlind} level={level} top="calc(env(safe-area-inset-top) + 46px)" />
 
       <main className="flex-1 min-h-0 overflow-hidden px-2">
-        {spectating ? (
+        {spectating && !isPrivate ? (
           <div className="text-center text-fg-2 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
           </div>
@@ -829,7 +839,7 @@ function GameScreen({
             yourSeatIndex={lobbySeating ? lobbySeating.yourSeatIndex : yourSeatIndex}
             yourCards={yourCards}
             seatCount={SEAT_COUNT}
-            revealedHoleCards={revealedHoleCards}
+            revealedHoleCards={revealedHoleCards ?? (watching && spectatorCards ? spectatorCards : null)}
             muckedSeats={muckedSeats}
             outSeats={outSeats}
             players={lobbySeating ? lobbySeating.players : players}
@@ -1094,7 +1104,7 @@ function GameScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {((tournamentOver && resultReady) || leftResult) && (
+        {((tournamentOver && resultReady && !(isPrivate && resultDismissed)) || leftResult) && (
           <TournamentResultScreen
             info={(tournamentOver ?? leftResult)!}
             accessToken={accessToken}
@@ -1104,9 +1114,10 @@ function GameScreen({
             totalEntrants={tournamentInfo?.total ?? null}
             displayName={displayName}
             eventName={gameLabel}
-            onExit={onExit}
-            onPlayAgain={gameKey === "mtt" || leftResult ? undefined : onPlayAgain}
-            canReEntry={gameKey === "mtt" && !leftResult && Boolean(tournamentOver?.canReEntry)}
+            // フレンド対戦は、結果を閉じても卓に残って観戦する(ルームから出るのは観戦のバーから)。
+            onExit={isPrivate && tournamentOver && !leftResult ? () => setResultDismissed(true) : onExit}
+            onPlayAgain={gameKey === "mtt" || isPrivate || leftResult ? undefined : onPlayAgain}
+            canReEntry={(gameKey === "mtt" || isPrivate) && !leftResult && Boolean(tournamentOver?.canReEntry)}
             reEntryCost={tournamentOver?.reEntryCost ?? 2000}
             onReEntry={reEntry}
           />
@@ -1169,6 +1180,10 @@ function GameScreen({
         )}
       </AnimatePresence>
       {isPrivate && privateClosed && privateClosed !== "LEFT" && <PrivateClosedNotice reason={privateClosed} onHome={onExit} />}
+      {/* 最後の1人が残り、まだリエントリーできる人へ: 15秒以内に選ぶ。 */}
+      {isPrivate && reentryWaitEndsAt && tournamentOver?.canReEntry && reentryWaitEndsAt > Date.now() && (
+        <PrivateReentryPrompt endsAt={reentryWaitEndsAt} onYes={reEntry} onNo={declineReEntry} />
+      )}
       {isPrivate && !privateRoom && !privateClosed && joinError && (
         <PrivateClosedNotice reason="DISBANDED" message={joinError} onHome={onExit} />
       )}
@@ -1194,6 +1209,15 @@ function GameScreen({
             room={privateRoom}
             onStart={privateActions.start}
             onOpenSettings={() => setPrivateSettingsOpen(true)}
+            onLeave={() => void privateActions.leave().then(onExit)}
+          />
+        </div>
+      ) : watching ? (
+        <div className="shrink-0">
+          <PrivateWatchBar
+            canSeeCards={spectatorCanSeeCards}
+            canReEntry={Boolean(tournamentOver?.canReEntry)}
+            onReEntry={reEntry}
             onLeave={() => void privateActions.leave().then(onExit)}
           />
         </div>

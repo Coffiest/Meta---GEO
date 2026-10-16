@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SPRING_SNAPPY } from "@/lib/motion";
 import { useI18n } from "@/lib/i18n";
@@ -252,6 +252,89 @@ export function PrivateClosedNotice({ reason, message, onHome }: { reason: Priva
         >
           {t("friend.dismiss")}
         </button>
+      </motion.div>
+    </div>
+  );
+}
+
+/**
+ * 観戦中のバー(アクションバーの場所。高さは同じ 132px)。席の無い人・飛んだ人が卓を見ている間に出す。
+ * まだリエントリーできる人にはリエントリーのボタンも出す。
+ */
+export function PrivateWatchBar({
+  canSeeCards,
+  canReEntry,
+  onReEntry,
+  onLeave,
+}: {
+  canSeeCards: boolean;
+  canReEntry: boolean;
+  onReEntry: () => void;
+  onLeave: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="safe-area-bottom px-3 pb-2 pt-1">
+      <div className="mx-auto flex h-[132px] max-w-md flex-col justify-between gap-[5px] px-3 py-2">
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <span className="flex items-center gap-1.5 text-[13px] font-bold text-fg">
+            <Icon name="eye" className="h-4 w-4 text-fg-2" />
+            {t("friend.watching")}
+          </span>
+          <span className="mt-1 text-[11px] font-semibold text-fg-3">{canSeeCards ? t("friend.watchingCards") : t("friend.watchingWait")}</span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onLeave}
+            className="pressable flex h-[50px] flex-1 items-center justify-center rounded-2xl bg-white/[0.05] text-[13px] font-bold text-fg-2 shadow-e1 ring-1 ring-inset ring-white/10"
+          >
+            {t("friend.leave")}
+          </button>
+          {canReEntry && (
+            <button
+              type="button"
+              onClick={onReEntry}
+              className="pressable flex h-[50px] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent text-[14px] font-black text-on-accent shadow-glow"
+            >
+              <Icon name="refresh" className="h-4 w-4" />
+              {t("friend.reentry.yes")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 最後の1人が残ったときの「リエントリーしますか?」(15秒で優勝が決まる)。 */
+export function PrivateReentryPrompt({ endsAt, onYes, onNo }: { endsAt: number; onYes: () => void; onNo: () => void }) {
+  const { t } = useI18n();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+  const left = Math.max(0, Math.ceil((endsAt - now) / 1000));
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={SPRING_SNAPPY}
+        role="alertdialog"
+        className="w-full max-w-[320px] rounded-2xl glass-sheet p-5 text-center shadow-e4"
+      >
+        <p className="text-[16px] font-black text-fg">{t("friend.reentry.ask")}</p>
+        <p className="mt-1 text-[12px] font-semibold tabular-nums text-fg-2">{t("friend.reentry.left", { n: left })}</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onNo} className="pressable h-11 rounded-xl bg-white/[0.06] text-[13px] font-bold text-fg-2 ring-1 ring-inset ring-white/10">
+            {t("friend.reentry.no")}
+          </button>
+          <button type="button" onClick={onYes} className="pressable h-11 rounded-xl bg-accent text-[14px] font-black text-on-accent shadow-glow">
+            {t("friend.reentry.yes")}
+          </button>
+        </div>
       </motion.div>
     </div>
   );

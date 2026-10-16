@@ -269,6 +269,12 @@ export interface PokerSocketState {
   privateRoom: PrivateRoomInfo | null;
   /** ルームから外れた(キックされた・解散された・時間切れ)。画面はホームへ戻す。 */
   privateClosed: PrivateClosedReason | null;
+  /** フレンド対戦の観戦で、全員の手札が見えるか(もう卓に座る見込みが無い人だけ)。 */
+  spectatorCanSeeCards: boolean;
+  /** フレンド対戦の観戦で見える、いまのハンドの全員の手札(席 → 2枚)。 */
+  spectatorCards: Record<number, string[]> | null;
+  /** フレンド対戦: 最後の1人が残り、リエントリーを待っている締切(ms epoch)。 */
+  reentryWaitEndsAt: number | null;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -350,6 +356,9 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     diag: null,
     privateRoom: null,
     privateClosed: null,
+    spectatorCanSeeCards: false,
+    spectatorCards: null,
+    reentryWaitEndsAt: null,
   });
 
   // ショウダウン後フリーズの監視タイマー。handEndedから一定時間ハンドが進まなければ
@@ -588,12 +597,21 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       setData((d) => ({
         ...d,
         privateRoom: room,
+        // 優勝が決まったら、リエントリーの待ちは終わり。
+        ...(room.phase !== "playing" ? { reentryWaitEndsAt: null } : {}),
         // 「もう一度」で待合に戻ったら、前のゲームの盤面と結果を消す。
         ...(room.phase === "lobby" && d.privateRoom?.phase !== "lobby"
           ? { state: null, tournamentOver: null, lastHandEnded: null, yourCards: [], lastHandDeltaBySeat: null, turnTimer: null, players: {} }
           : {}),
       }));
     });
+    socket.on("spectating", (payload: { canSeeCards?: boolean }) =>
+      setData((d) => ({ ...d, spectating: true, spectatorCanSeeCards: Boolean(payload?.canSeeCards), spectatorCards: payload?.canSeeCards ? d.spectatorCards : null })),
+    );
+    socket.on("spectatorCards", (payload: { holeCards: Record<number, string[]> }) =>
+      setData((d) => ({ ...d, spectatorCanSeeCards: true, spectatorCards: payload.holeCards })),
+    );
+    socket.on("privateReentryWait", (payload: { endsAt: number }) => setData((d) => ({ ...d, reentryWaitEndsAt: payload.endsAt })));
     socket.on("privateRoomClosed", (payload: { reason?: PrivateClosedReason }) => {
       rememberRoomCode(null);
       setData((d) => ({ ...d, privateRoom: null, privateClosed: payload?.reason ?? "DISBANDED" }));
@@ -646,8 +664,14 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       });
     });
     socket.on("yourCards", (payload: { seatIndex: number; cards: string[] }) => {
-      liveStateRef.current = { ...liveStateRef.current, yourSeatIndex: payload.seatIndex };
-      setData((d) => ({ ...d, yourSeatIndex: payload.seatIndex, yourCards: payload.cards }));
+      liveStateRef.current = { ...liveStateRef.current, yourSeatIndex: payload.seatIndex, over: false };
+      // 手札が届いた=席に着いている。観戦(フレンド対戦のレイトイン待ち・リエントリー後)はここで終わる。
+      setData((d) => ({
+        ...d,
+        yourSeatIndex: payload.seatIndex,
+        yourCards: payload.cards,
+        ...(d.spectating ? { spectating: false, spectatorCards: null, spectatorCanSeeCards: false, tournamentOver: null } : {}),
+      }));
     });
     socket.on(
       "players",
@@ -903,9 +927,15 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     socketRef.current?.emit("showCards", { cardIndex, show });
   }, []);
 
-  /** MTTリエントリ: バスト済みからレジクローズ前に-2,000で復帰する。 */
+  /** MTTリエントリ: バスト済みからレジクローズ前に-2,000で復帰する。フレンド対戦は無料で、次のハンドから座る。 */
   const reEntry = useCallback(() => {
     socketRef.current?.emit("reEntry");
+    setData((d) => ({ ...d, reentryWaitEndsAt: null }));
+  }, []);
+  /** フレンド対戦: 最後の1人が残ったときの「リエントリーしない」。 */
+  const declineReEntry = useCallback(() => {
+    socketRef.current?.emit("declineReEntry");
+    setData((d) => ({ ...d, reentryWaitEndsAt: null }));
   }, []);
 
   /** フレンド対戦の操作(ホストのスタート・キック・設定・もう一度・解散、全員の退室)。応答を待って返す。 */
@@ -938,5 +968,5 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     [privateEmit],
   );
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry, resync, privateActions };
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry, declineReEntry, resync, privateActions };
 }
