@@ -1,4 +1,4 @@
-import { activeGames } from "./activeGames.js";
+import { activeGames, type ActiveGameKey } from "./activeGames.js";
 
 /**
  * 管理者画面の「いまアクティブなユーザー」。サーバーのメモリにだけ持つ(再起動で消えてよい情報)。
@@ -28,7 +28,7 @@ export interface PresenceRow {
   /** 最後に見えた時刻(ISO)。卓で遊んでいるだけで一度も見えていなければ null。 */
   lastSeenAt: string | null;
   /** いま遊んでいるゲーム(無ければ null)。 */
-  playing: "sng" | "mtt" | null;
+  playing: ActiveGameKey | null;
 }
 
 export interface PresenceSnapshot {
