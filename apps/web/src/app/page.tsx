@@ -34,7 +34,6 @@ import {
   PrivateLobbyBar,
   PrivateMemberSheet,
   PrivateSettingsSheet,
-  RoomCodeChip,
 } from "@/components/friend/PrivateLobby";
 import { BLIND_SPEEDS, rememberedRoomCode, type PrivateIntent } from "@/lib/privateRoom";
 
@@ -819,7 +818,7 @@ function GameScreen({
       {/* ブラインドが上がったら、新しい額の最初のハンドでヘッダーの下にカプセルを出す(オーナー指示)。 */}
       <BlindLevelBanner handBigBlind={state?.bigBlind} level={level} top="calc(env(safe-area-inset-top) + 46px)" />
 
-      <main className="relative flex-1 min-h-0 overflow-hidden px-2">
+      <main className="flex-1 min-h-0 overflow-hidden px-2">
         {spectating ? (
           <div className="text-center text-fg-2 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
@@ -877,12 +876,6 @@ function GameScreen({
               </>
             )}
           />
-        )}
-        {/* フレンド対戦の待合: 右下にルームコード(押すとコピー)。 */}
-        {privateLobby && privateRoom && (
-          <div className="pointer-events-none absolute bottom-2 right-3 z-20">
-            <RoomCodeChip code={privateRoom.code} />
-          </div>
         )}
       </main>
 
