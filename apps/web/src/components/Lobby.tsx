@@ -27,6 +27,8 @@ import { InviteCouponCard } from "./InviteCouponCard";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { PushOptInCard } from "./PushOptInCard";
 import { EliteTierCards, type EliteInfo } from "./EliteTierCards";
+import { FriendMatchButton } from "./friend/FriendMatch";
+import type { PrivateIntent } from "@/lib/privateRoom";
 import { fetchGeoAccess } from "@/lib/geoApi";
 import { InstallAppCard } from "./InstallAppCard";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
@@ -1016,6 +1018,7 @@ export function Lobby({
   userId,
   accessToken,
   onJoin,
+  onFriend,
   onEditProfile,
   onSignOut,
   onAccountDeleted,
@@ -1027,6 +1030,8 @@ export function Lobby({
   userId?: string | null;
   accessToken?: string;
   onJoin: (gameKey: GameKey, unlockCode?: string) => void;
+  /** フレンド対戦のルームを作る / コードで入る。 */
+  onFriend?: (intent: PrivateIntent) => void;
   onEditProfile: () => void;
   onSignOut?: () => void;
   /** 退会完了時。呼び出し側でサインアウトしてログイン画面へ戻す。 */
@@ -1244,7 +1249,8 @@ export function Lobby({
                 </span>
               </span>
               <span className="mt-0.5 block truncate text-[11px] text-fg-2">
-                {activeGameKey === "mtt" ? t("lobby.resume.mtt") : t("lobby.resume.sng")} ・ {t("lobby.resume.desc")}
+                {activeGameKey === "mtt" ? t("lobby.resume.mtt") : activeGameKey === "private" ? t("friend.title") : t("lobby.resume.sng")} ・{" "}
+                {t("lobby.resume.desc")}
               </span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-3.5 py-2 text-[12px] font-bold text-on-accent">
@@ -1271,6 +1277,8 @@ export function Lobby({
             <div data-tour="elite">
               <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
             </div>
+            {/* フレンド対戦。仕上がるまでは `?friend=dev` のときだけ出す(段階的に出荷している途中)。 */}
+            {onFriend && searchParams.get("friend") === "dev" && <FriendMatchButton onEnter={onFriend} />}
             {/* Xでシェアしてゴールド GET(オーナー指示)。Play・High Roller と同じ意匠のボタン。 */}
             {accessToken && <ShareCampaignButton accessToken={accessToken} />}
 

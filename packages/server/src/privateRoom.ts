@@ -115,6 +115,8 @@ interface Room {
 export interface PrivateRoomPayload {
   code: string;
   hostUserId: string;
+  /** 受け取った本人の userId(画面が自分の席を決めるため)。 */
+  youUserId: string;
   isHost: boolean;
   phase: RoomPhase;
   settings: PrivateRoomSettings;
@@ -521,6 +523,7 @@ export class PrivateRoomManager {
     return {
       code: room.code,
       hostUserId: room.hostUserId,
+      youUserId: userId,
       isHost: room.hostUserId === userId,
       phase: room.phase,
       settings: room.settings,

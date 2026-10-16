@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { PlayerAction, PublicHandState } from "@meta-geo/engine";
+import {
+  rememberRoomCode,
+  type PrivateAck,
+  type PrivateClosedReason,
+  type PrivateIntent,
+  type PrivateRoomInfo,
+  type PrivateRoomSettings,
+} from "./privateRoom";
 
 export interface HandEndedPayload {
   result: {
@@ -257,6 +265,10 @@ export interface PokerSocketState {
   stalled: boolean;
   /** フリーズ原因特定用の通信診断スナップショット(停止検知時・再同期のたびに更新)。 */
   diag: SocketDiag | null;
+  /** フレンド対戦のルームの状態(待合・対局中・終了後)。フレンド対戦以外は null。 */
+  privateRoom: PrivateRoomInfo | null;
+  /** ルームから外れた(キックされた・解散された・時間切れ)。画面はホームへ戻す。 */
+  privateClosed: PrivateClosedReason | null;
 }
 
 const SOCKET_URL = process.env["NEXT_PUBLIC_SERVER_URL"] ?? "http://localhost:4000";
@@ -275,8 +287,8 @@ const ACTION_ACK_MESSAGES: Record<string, string> = {
   HANDLER_ERROR: "サーバー内部エラーでアクションを処理できませんでした",
 };
 
-/** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。 */
-export type GameKey = "sng" | "sng_hr" | "sng_shr" | "mtt";
+/** "sng" は参加費1,000、"sng_hr" は High Roller、"sng_shr" は Super High Roller。"private" はフレンド対戦。 */
+export type GameKey = "sng" | "sng_hr" | "sng_shr" | "mtt" | "private";
 
 export interface PokerSocketParams {
   displayName: string;
@@ -286,9 +298,11 @@ export interface PokerSocketParams {
   accessToken?: string;
   /** MTT解錠パスコード(準備中モードのサーバーゲート通過用)。SNGでは不要。 */
   unlockCode?: string;
+  /** フレンド対戦の入り方(ルームを作る / コードで入る / 入っているルームへ戻る)。gameKey が "private" のときだけ使う。 */
+  privateIntent?: PrivateIntent;
 }
 
-export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode }: PokerSocketParams) {
+export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode, privateIntent }: PokerSocketParams) {
   const socketRef = useRef<Socket | null>(null);
   // 一度でも joinGame(新規参加)を送ったか。再接続時は resumeGame にして新規ゲームを作らせない。
   const hasJoinedRef = useRef(false);
@@ -303,6 +317,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
   accessTokenRef.current = accessToken;
   const unlockCodeRef = useRef(unlockCode);
   unlockCodeRef.current = unlockCode;
+  // フレンド対戦の入り方。最初の接続でだけ使い(作る/入る)、以降の再接続は「入っているルームへ戻る」にする。
+  const privateIntentRef = useRef(privateIntent);
   const [data, setData] = useState<PokerSocketState>({
     connected: false,
     spectating: false,
@@ -332,6 +348,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     tableNotice: null,
     stalled: false,
     diag: null,
+    privateRoom: null,
+    privateClosed: null,
   });
 
   // ショウダウン後フリーズの監視タイマー。handEndedから一定時間ハンドが進まなければ
@@ -431,7 +449,8 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
         s.connect();
         return;
       }
-      if (hasStartedRef.current) s.emit("resumeGame");
+      if (gameKey === "private") s.emit("privateResume", {});
+      else if (hasStartedRef.current) s.emit("resumeGame");
       else s.emit("joinGame", { gameKey, unlockCode: unlockCodeRef.current });
       clearResyncFallback();
       resyncFallbackRef.current = setTimeout(() => {
@@ -518,7 +537,23 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       armWatchdog();
       // 初回は joinGame(新規参加)。以降の再接続は、対局開始後なら resumeGame(進行中の卓へ復帰。
       // 新しいSNG卓を勝手に立てない)、まだマッチング中ならもう一度 joinGame でキューへ再参加する。
-      if (!hasJoinedRef.current) {
+      if (gameKey === "private") {
+        // フレンド対戦: 最初だけ作る/入る。以降(再接続)は入っているルームへ戻る(卓が進行中なら卓にも戻る)。
+        const intent = hasJoinedRef.current ? ({ mode: "resume" } as const) : privateIntentRef.current ?? { mode: "resume" };
+        hasJoinedRef.current = true;
+        const onAck = (res: PrivateAck) => {
+          if (res.ok) {
+            if (res.code) rememberRoomCode(res.code);
+            return;
+          }
+          // 入れなかった・戻れなかった(ルームが消えた)ときは、覚えていたコードを捨ててホームへ戻す。
+          rememberRoomCode(null);
+          setData((d) => ({ ...d, joinError: res.message }));
+        };
+        if (intent.mode === "create") socket.emit("privateCreate", { settings: intent.settings }, onAck);
+        else if (intent.mode === "join") socket.emit("privateJoin", { code: intent.code }, onAck);
+        else socket.emit("privateResume", {}, onAck);
+      } else if (!hasJoinedRef.current) {
         hasJoinedRef.current = true;
         socket.emit("joinGame", { gameKey, unlockCode: unlockCodeRef.current });
       } else if (hasStartedRef.current) {
@@ -547,6 +582,21 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
       const transient = reason === "AUTH_FAILED" || reason === "RESUME_ERROR";
       const showNow = !transient || count >= 4;
       setData((d) => ({ ...d, gameGone: showNow ? true : d.gameGone, diag: { ...dg } }));
+    });
+    socket.on("privateRoom", (room: PrivateRoomInfo) => {
+      rememberRoomCode(room.code);
+      setData((d) => ({
+        ...d,
+        privateRoom: room,
+        // 「もう一度」で待合に戻ったら、前のゲームの盤面と結果を消す。
+        ...(room.phase === "lobby" && d.privateRoom?.phase !== "lobby"
+          ? { state: null, tournamentOver: null, lastHandEnded: null, yourCards: [], lastHandDeltaBySeat: null, turnTimer: null, players: {} }
+          : {}),
+      }));
+    });
+    socket.on("privateRoomClosed", (payload: { reason?: PrivateClosedReason }) => {
+      rememberRoomCode(null);
+      setData((d) => ({ ...d, privateRoom: null, privateClosed: payload?.reason ?? "DISBANDED" }));
     });
     socket.on("joinGameError", (payload: { message: string; code?: string }) =>
       setData((d) => ({ ...d, joinError: payload.code === "TIER_LOCKED" ? "TIER_LOCKED" : payload.message })),
@@ -858,5 +908,35 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
     socketRef.current?.emit("reEntry");
   }, []);
 
-  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry, resync };
+  /** フレンド対戦の操作(ホストのスタート・キック・設定・もう一度・解散、全員の退室)。応答を待って返す。 */
+  const privateEmit = useCallback((event: string, payload: Record<string, unknown> = {}) => {
+    return new Promise<PrivateAck>((resolve) => {
+      const s = socketRef.current;
+      if (!s || !s.connected) {
+        resolve({ ok: false, error: "OFFLINE", message: "サーバーに接続していません" });
+        return;
+      }
+      s.timeout(8000).emit(event, payload, (err: Error | null, res?: PrivateAck) => {
+        if (err || !res) resolve({ ok: false, error: "TIMEOUT", message: "サーバーが応答しません" });
+        else resolve(res);
+      });
+    });
+  }, []);
+  const privateActions = useMemo(
+    () => ({
+      start: () => privateEmit("privateStart"),
+      kick: (userId: string) => privateEmit("privateKick", { userId }),
+      updateSettings: (settings: PrivateRoomSettings) => privateEmit("privateSettings", { settings }),
+      rematch: () => privateEmit("privateRematch"),
+      disband: () => privateEmit("privateDisband"),
+      leave: async () => {
+        const res = await privateEmit("privateLeave");
+        rememberRoomCode(null);
+        return res;
+      },
+    }),
+    [privateEmit],
+  );
+
+  return { ...data, sendAction, leaveGame, armTimeBank, setAway, sendChat, showCards, reEntry, resync, privateActions };
 }

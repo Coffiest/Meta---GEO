@@ -29,6 +29,14 @@ import { Icon } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 import { TermPrompt } from "@/components/Header";
 import { AdsAllowedProvider } from "@/components/AdSlot";
+import {
+  PrivateClosedNotice,
+  PrivateLobbyBar,
+  PrivateMemberSheet,
+  PrivateSettingsSheet,
+  RoomCodeChip,
+} from "@/components/friend/PrivateLobby";
+import { BLIND_SPEEDS, rememberedRoomCode, type PrivateIntent } from "@/lib/privateRoom";
 
 const SEAT_COUNT = 6;
 
@@ -368,6 +376,7 @@ function GameScreen({
   gameKey,
   accessToken,
   unlockCode,
+  privateIntent,
   onExit,
   onPlayAgain,
 }: {
@@ -376,6 +385,8 @@ function GameScreen({
   gameKey: GameKey;
   accessToken?: string;
   unlockCode?: string;
+  /** フレンド対戦の入り方(作る / コードで入る / 入っているルームへ戻る)。 */
+  privateIntent?: PrivateIntent;
   onExit: () => void;
   /** 同じ種類のトーナメントにもう一度参加する(結果のポップアップの「もう一度プレイ」)。 */
   onPlayAgain?: () => void;
@@ -416,12 +427,30 @@ function GameScreen({
     chatLog,
     seatBubbles,
     gameHandHistory,
-  } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode });
+    privateRoom,
+    privateClosed,
+    privateActions,
+  } = usePokerSocket({ displayName, avatarKey, gameKey, accessToken, unlockCode, privateIntent });
   const { t } = useI18n();
   /** チャットは High Roller / Super High Roller の卓だけ(サーバーが卓ごとに可否を送る)。 */
   const chatEnabled = tournamentInfo?.chat === true;
   /** 自動で卓を埋めない卓(6人そろったら開始)。 */
   const isEliteGame = gameKey === "sng_hr" || gameKey === "sng_shr";
+  // フレンド対戦の待合(スタート前)。盤面がまだ無い間は、参加者を入った順に卓へ座らせて見せる。
+  const isPrivate = gameKey === "private";
+  const privateLobby = isPrivate && privateRoom !== null && privateRoom.phase === "lobby";
+  const [privateSettingsOpen, setPrivateSettingsOpen] = useState(false);
+  const [kickTarget, setKickTarget] = useState<SeatPlayerInfo | null>(null);
+  const lobbySeating = useMemo(() => {
+    if (!privateLobby || !privateRoom) return null;
+    const players: Record<number, SeatPlayerInfo> = {};
+    privateRoom.members.forEach((m, i) => {
+      players[i] = { userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, away: false, frame: null };
+    });
+    const mine = privateRoom.members.findIndex((m) => m.userId === privateRoom.youUserId);
+    const speed = BLIND_SPEEDS.find((b) => b.key === privateRoom.settings.blind)!;
+    return { players, yourSeatIndex: mine >= 0 ? mine : null, startingStack: speed.bb * 200 };
+  }, [privateLobby, privateRoom]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -607,7 +636,9 @@ function GameScreen({
     : null;
 
   const gameLabel =
-    gameKey === "mtt"
+    gameKey === "private"
+      ? t("friend.title")
+      : gameKey === "mtt"
       ? "MTT トーナメント"
       : tierLabel(tournamentInfo?.tier ?? (gameKey === "sng_shr" ? "superHighRoller" : gameKey === "sng_hr" ? "highRoller" : "regular"));
 
@@ -751,6 +782,12 @@ function GameScreen({
         <div className="flex shrink-0 items-center gap-1.5">
           <LeaveTableButton
             onLeave={() => {
+              // フレンド対戦の待合では、チップを放棄するのではなくルームから出るだけ。
+              if (privateLobby) {
+                void privateActions.leave().then(onExit);
+                return;
+              }
+              if (isPrivate) void privateActions.leave();
               // その場で敗退とみなす: 着順=現在の残り人数(自分を含む)、賞金なし。
               setLeftResult({
                 winnerPlayerId: null,
@@ -782,7 +819,7 @@ function GameScreen({
       {/* ブラインドが上がったら、新しい額の最初のハンドでヘッダーの下にカプセルを出す(オーナー指示)。 */}
       <BlindLevelBanner handBigBlind={state?.bigBlind} level={level} top="calc(env(safe-area-inset-top) + 46px)" />
 
-      <main className="flex-1 min-h-0 overflow-hidden px-2">
+      <main className="relative flex-1 min-h-0 overflow-hidden px-2">
         {spectating ? (
           <div className="text-center text-fg-2 text-sm py-20">
             現在このテーブルは満席です。観戦モードで状況を確認できます。
@@ -790,19 +827,20 @@ function GameScreen({
         ) : (
           <PokerTable
             state={state}
-            yourSeatIndex={yourSeatIndex}
+            yourSeatIndex={lobbySeating ? lobbySeating.yourSeatIndex : yourSeatIndex}
             yourCards={yourCards}
             seatCount={SEAT_COUNT}
             revealedHoleCards={revealedHoleCards}
             muckedSeats={muckedSeats}
             outSeats={outSeats}
-            players={players}
+            players={lobbySeating ? lobbySeating.players : players}
+            waitingRoom={lobbySeating ? { startingStack: lobbySeating.startingStack, bigBlind: 200 } : null}
             bigBlind={bigBlind}
             lastActionBySeat={lastActionBySeat}
             lastHandDeltaBySeat={lastHandDeltaBySeat}
             showOrder={lastHandEnded?.showOrder ?? null}
             turnTimer={turnTimer}
-            onPlayerTap={(info) => setTappedPlayer(info)}
+            onPlayerTap={(info) => (privateLobby ? privateRoom?.isHost && setKickTarget(info) : setTappedPlayer(info))}
             markingBySeat={markingBySeat}
             seatBubbles={chatEnabled ? filteredSeatBubbles : undefined}
             onHeroChatClick={chatEnabled ? () => setChatInputOpen(true) : undefined}
@@ -811,7 +849,7 @@ function GameScreen({
             displayMode={amountDisplayMode}
             onToggleDisplayMode={toggleAmountDisplayMode}
             view3d={tableView3d}
-            heroAside={
+            heroAside={privateLobby ? undefined : (
               <>
                 {timeBank && (
                   <SeatAsideToggle
@@ -837,8 +875,14 @@ function GameScreen({
                   <span className="text-[10px] font-bold">{t("action.checkFoldShort")}</span>
                 </SeatAsideToggle>
               </>
-            }
+            )}
           />
+        )}
+        {/* フレンド対戦の待合: 右下にルームコード(押すとコピー)。 */}
+        {privateLobby && privateRoom && (
+          <div className="pointer-events-none absolute bottom-2 right-3 z-20">
+            <RoomCodeChip code={privateRoom.code} />
+          </div>
         )}
       </main>
 
@@ -1115,6 +1159,27 @@ function GameScreen({
         )}
       </AnimatePresence>
 
+      {/* フレンド対戦: ホストの設定・参加者を外す・ルームから外れたときの案内。 */}
+      <AnimatePresence>
+        {privateSettingsOpen && privateRoom && (
+          <PrivateSettingsSheet
+            settings={privateRoom.settings}
+            onSave={privateActions.updateSettings}
+            onDisband={privateActions.disband}
+            onClose={() => setPrivateSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {kickTarget && privateLobby && (
+          <PrivateMemberSheet member={kickTarget} onKick={() => privateActions.kick(kickTarget.userId)} onClose={() => setKickTarget(null)} />
+        )}
+      </AnimatePresence>
+      {isPrivate && privateClosed && privateClosed !== "LEFT" && <PrivateClosedNotice reason={privateClosed} onHome={onExit} />}
+      {isPrivate && !privateRoom && !privateClosed && joinError && (
+        <PrivateClosedNotice reason="DISBANDED" message={joinError} onHome={onExit} />
+      )}
+
       {/* 相手タップで開くプレイヤー詳細モーダル(スタッツ+偏差値+5色マーキング+メモ)。 */}
       <AnimatePresence>
         {tappedPlayer && (
@@ -1130,7 +1195,16 @@ function GameScreen({
 
       {/* 終了後もアクションバーの場所は残す(見えなくして触れなくする)。消すと空いた高さのぶん
           3Dの卓が縦に伸びて、飛んだ直後に卓が急に縦長になっていた。 */}
-      {!spectating && (
+      {privateLobby && privateRoom ? (
+        <div className="shrink-0">
+          <PrivateLobbyBar
+            room={privateRoom}
+            onStart={privateActions.start}
+            onOpenSettings={() => setPrivateSettingsOpen(true)}
+            onLeave={() => void privateActions.leave().then(onExit)}
+          />
+        </div>
+      ) : !spectating && (
         <div
           className={`shrink-0 ${tournamentOver ? "invisible pointer-events-none" : ""}`}
           aria-hidden={tournamentOver ? true : undefined}
@@ -1280,6 +1354,8 @@ export default function Page() {
   // MTTは通常「準備中」でサーバー側もゲートしている。解錠パスコードを入れて入室した場合のみ、
   // その値をソケットのjoinGameに載せてサーバーのゲートを通す(SNGでは undefined)。
   const [unlockCode, setUnlockCode] = useState<string | undefined>(undefined);
+  // フレンド対戦の入り方(ルームを作る / コードで入る / 入っているルームへ戻る)。
+  const [privateIntent, setPrivateIntent] = useState<PrivateIntent | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // 直近の復帰チェック確定時刻(visibilitychangeでの再チェックを間引くため)。
@@ -1345,6 +1421,15 @@ export default function Page() {
         if (data.gameKey === "sng" || data.gameKey === "mtt") {
           // 進行中ゲームがある → 強制的にそのゲーム画面へ戻す。
           setGameKey(data.gameKey);
+        } else if (data.gameKey === "private") {
+          // フレンド対戦の卓が進行中 → そのルームへ戻す。
+          setPrivateIntent({ mode: "resume" });
+          setGameKey("private");
+        } else if (rememberedRoomCode()) {
+          // フレンド対戦の待合(スタート前)にいたまま再読み込みした → 同じコードで入り直す
+          // (ルームが閉じていれば、その旨を出してホームへ戻す)。
+          setPrivateIntent({ mode: "join", code: rememberedRoomCode()! });
+          setGameKey("private");
         } else if (data.result) {
           // 同じ内容を前回すでに見せていれば出さない(再マウント+visibilitychangeの
           // 再チェックが重なって同じ結果が繰り返し出てしまう不具合の再発防止)。
@@ -1541,6 +1626,7 @@ export default function Page() {
           gameKey={gameKey}
           accessToken={accessToken}
           unlockCode={unlockCode}
+          privateIntent={gameKey === "private" ? privateIntent : undefined}
           onExit={() => setGameKey(null)}
           onPlayAgain={() => setGameRound((n) => n + 1)}
         />
@@ -1590,7 +1676,13 @@ export default function Page() {
         accessToken={accessToken}
         onJoin={(key, code) => {
           setUnlockCode(code);
+          if (key === "private") setPrivateIntent({ mode: "resume" });
           setGameKey(key);
+        }}
+        onFriend={(intent) => {
+          setPrivateIntent(intent);
+          setGameRound((n) => n + 1);
+          setGameKey("private");
         }}
         onEditProfile={() => setEditingProfile(true)}
         onSignOut={() => {
