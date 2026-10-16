@@ -339,3 +339,134 @@ export function PrivateReentryPrompt({ endsAt, onYes, onNo }: { endsAt: number; 
     </div>
   );
 }
+
+/**
+ * 飛んだとき(フレンド対戦)。偏差値や収支は動かないので、順位だけを出し、観戦かリエントリーを選ぶ。
+ */
+export function PrivateBustedSheet({
+  place,
+  canReEntry,
+  onWatch,
+  onReEntry,
+}: {
+  place: number | null;
+  canReEntry: boolean;
+  onWatch: () => void;
+  onReEntry: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Sheet onClose={onWatch} label={t("friend.result.title")}>
+      <p className="text-center text-[11px] font-black tracking-[0.14em] text-fg-3">{t("friend.title")}</p>
+      <p className="mt-2 text-center text-[22px] font-black tracking-tight text-fg">
+        {place === 1 ? t("friend.result.won") : place ? t("friend.result.busted", { n: place }) : t("friend.result.title")}
+      </p>
+      <div className={`mt-5 grid gap-2 ${canReEntry ? "grid-cols-2" : "grid-cols-1"}`}>
+        <button
+          type="button"
+          onClick={onWatch}
+          className="pressable flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-white/[0.06] text-[14px] font-bold text-fg ring-1 ring-inset ring-white/10"
+        >
+          <Icon name="eye" className="h-4 w-4" />
+          {t("friend.watch")}
+        </button>
+        {canReEntry && (
+          <button
+            type="button"
+            onClick={onReEntry}
+            className="pressable flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-accent text-[14px] font-black text-on-accent shadow-glow"
+          >
+            <Icon name="refresh" className="h-4 w-4" />
+            {t("friend.reentry.yes")}
+          </button>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * 優勝が決まったあとの順位表。ホストは「もう一度」(同じコードの待合へ)か「解散」を選ぶ。
+ * ほかの人はホストの選択を待つ(いつでもルームを出られる)。
+ */
+export function PrivateStandingsSheet({
+  room,
+  onRematch,
+  onDisband,
+  onLeave,
+}: {
+  room: PrivateRoomInfo;
+  onRematch: () => Promise<PrivateAck>;
+  onDisband: () => Promise<PrivateAck>;
+  onLeave: () => void;
+}) {
+  const { t } = useI18n();
+  const [error, setError] = useState<string | null>(null);
+  const standings = room.standings ?? [];
+  const run = async (fn: () => Promise<PrivateAck>) => {
+    setError(null);
+    const res = await fn();
+    if (!res.ok) setError(res.message);
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
+      <motion.div
+        role="dialog"
+        aria-label={t("friend.result.title")}
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        transition={SPRING_SNAPPY}
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto glass-sheet rounded-t-sheet p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-e4"
+      >
+        <p className="text-[11px] font-black tracking-[0.14em] text-fg-3">{t("friend.title")}</p>
+        <h2 className="mt-1 text-[20px] font-black tracking-tight text-fg">{t("friend.result.title")}</h2>
+        <ol className="mt-3">
+          {standings.map((s) => (
+            <li
+              key={`${s.userId}-${s.place}`}
+              className={`list-row flex items-center gap-3 py-2.5 ${s.userId === room.youUserId ? "bg-accent/10" : ""}`}
+              style={{ ["--row-inset" as string]: "84px" }}
+            >
+              <span className={`w-9 shrink-0 text-right text-[15px] font-black tabular-nums ${s.place === 1 ? "text-accent" : "text-fg-2"}`}>
+                {t("friend.result.place", { n: s.place })}
+              </span>
+              <Avatar avatarKey={s.avatarKey} displayName={s.displayName} size={32} />
+              <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-fg">{s.displayName}</span>
+            </li>
+          ))}
+        </ol>
+        {error && <p className="mt-3 text-center text-[12px] text-crimson-300">{error}</p>}
+        {room.isHost ? (
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void run(onDisband)}
+              className="pressable h-12 rounded-2xl bg-white/[0.06] text-[14px] font-bold text-fg-2 ring-1 ring-inset ring-white/10"
+            >
+              {t("friend.disband")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void run(onRematch)}
+              className="pressable flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-accent text-[15px] font-black text-on-accent shadow-glow"
+            >
+              <Icon name="refresh" className="h-4 w-4" />
+              {t("friend.rematch")}
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="mt-5 text-center text-[12px] font-semibold text-fg-3">{t("friend.hostChoosing")}</p>
+            <button
+              type="button"
+              onClick={onLeave}
+              className="pressable mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-white/[0.06] text-[14px] font-bold text-fg-2 ring-1 ring-inset ring-white/10"
+            >
+              {t("friend.leave")}
+            </button>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+}
