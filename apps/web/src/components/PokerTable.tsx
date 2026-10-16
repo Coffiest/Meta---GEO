@@ -361,6 +361,7 @@ export function PokerTable({
   view3d = true,
   muckedSeats = null,
   outSeats = null,
+  waitingRoom = null,
 }: {
   state: PublicHandState | null;
   yourSeatIndex: number | null;
@@ -398,6 +399,11 @@ export function PokerTable({
   muckedSeats?: ReadonlySet<number> | null;
   /** トーナメントから飛んだ席(「PLAYER OUT」を貼る)。 */
   outSeats?: ReadonlySet<number> | null;
+  /**
+   * ハンドが始まる前の待合(フレンド対戦)。盤面(state)が無い間、`players` の席を開始スタックで座っている
+   * ように描く(手札・ボタン・ポジションは出さない)。
+   */
+  waitingRoom?: { startingStack: number; bigBlind: number } | null;
 }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
@@ -634,7 +640,8 @@ export function PokerTable({
         if (slot === 0 && !isHero && yourSeatIndex !== null) return null;
         const seat = seatsByIndex.get(seatIndex);
         const player = players[seatIndex];
-        const status = seat?.status ?? "empty";
+        const waiting = !state && waitingRoom && player;
+        const status = seat?.status ?? (waiting ? "active" : "empty");
         if (!player && !seat) return null;
         const revealed = revealedHoleCards?.[seatIndex];
         const timerForSeat =
@@ -691,13 +698,13 @@ export function PokerTable({
             chatBubble={seatBubbles?.[seatIndex]?.text ?? null}
             onChatClick={isHero ? onHeroChatClick : undefined}
             position={positionLabels?.get(seatIndex) ?? ""}
-            stack={seat?.stack ?? 0}
+            stack={seat?.stack ?? (waiting ? waitingRoom.startingStack : 0)}
             streetContribution={seat?.streetContribution ?? 0}
-            bigBlind={bigBlind}
+            bigBlind={waiting ? waitingRoom.bigBlind : bigBlind}
             status={status}
             isActingSeat={state?.actingSeatIndex === seatIndex}
             isHero={isHero}
-            holeCards={isHero ? (yourCards.length ? yourCards : [null, null]) : revealed ? revealed : [null, null]}
+            holeCards={waiting ? [] : isHero ? (yourCards.length ? yourCards : [null, null]) : revealed ? revealed : [null, null]}
             revealCards={isHero || Boolean(revealed)}
             timer={timerForSeat}
             size={isHero ? "lg" : "sm"}
