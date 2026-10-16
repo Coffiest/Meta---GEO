@@ -1277,8 +1277,8 @@ export function Lobby({
             <div data-tour="elite">
               <EliteTierCards elite={elite} onJoin={(key) => onJoin(key)} />
             </div>
-            {/* フレンド対戦。仕上がるまでは `?friend=dev` のときだけ出す(段階的に出荷している途中)。 */}
-            {onFriend && searchParams.get("friend") === "dev" && <FriendMatchButton onEnter={onFriend} />}
+            {/* フレンド対戦(6桁のコードで友達と遊ぶ卓)。Play / High Roller と同じ意匠(オーナー指示)。 */}
+            {onFriend && <FriendMatchButton onEnter={onFriend} />}
             {/* Xでシェアしてゴールド GET(オーナー指示)。Play・High Roller と同じ意匠のボタン。 */}
             {accessToken && <ShareCampaignButton accessToken={accessToken} />}
 
