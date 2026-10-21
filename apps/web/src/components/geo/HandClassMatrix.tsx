@@ -75,12 +75,6 @@ const TOOLTIP_HALF_WIDTH = TOOLTIP_WIDTH / 2;
 const TOOLTIP_EDGE_GUTTER = 12;
 
 /**
- * これより少ないサンプルのマスは薄く描く。1〜2件の「100%」「50%」は偶然の値なのに、
- * 他のマスと同じ濃さだと確かな傾向に見えてしまう(オーナー指摘「データが使い物にならない」)。
- */
-const LOW_SAMPLE = 3;
-
-/**
  * GTO Wizard型の169ハンドクラス・マトリクス。各セルは実測アクション頻度の色分け帯(アグレッション順、
  * 左=強いアクション(濃い色)→右=弱いアクション(薄い色、Foldは常に右端))で塗り、
  * 最頻出アクションの頻度%だけを数字表示する
@@ -152,7 +146,7 @@ export function HandClassMatrix({
                 onBlur={hideCell}
                 className={`pressable aspect-square flex flex-col items-center justify-center text-[8px] sm:text-[9px] lg:text-[11px] font-bold text-white transition-all duration-150 focus:outline-none hover:z-10 hover:scale-110 hover:ring-1 hover:ring-white lg:hover:scale-100 lg:hover:ring-2 ${
                   isHovered ? "z-10 scale-110 ring-1 ring-white" : ""
-                } ${cell.count > 0 && cell.count < LOW_SAMPLE ? "opacity-45" : ""}`}
+                }`}
                 title={`${cell.label}: ${cell.count} サンプル`}
               >
                 {/* セルは複数のアクション色が横に並ぶ帯なので、文字の下だけ色を選ぶことができない。
@@ -220,7 +214,7 @@ export function HandClassMatrix({
       </AnimatePresence>
 
       <div className="h-9 mt-2 text-[11px] text-n-9 flex items-center font-mono lg:hidden">
-        {!hover && <span className="text-fg-3">{"// "}セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます。薄いマスはサンプルが{LOW_SAMPLE - 1}件以下</span>}
+        {!hover && <span className="text-fg-3">{"// "}セルにカーソルを合わせる(タップする)と頻度の内訳が表示されます</span>}
         {hover && hover.cell.count === 0 && <span className="text-fg-3">{"// "}{hover.cell.label} — サンプルなし</span>}
       </div>
     </div>
