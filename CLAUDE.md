@@ -30,6 +30,7 @@
 - **Supabase の転送量(egress)を使い切らない。** 2026-10-08、デプロイのたびに約49MBの事前計算の解を upsert して行ごと読み戻していたせいで無料枠を超え、ログインを含む全サービスが止まった(Pro プランへ移行して復旧)。DB から大きな行を読み戻す処理(`select` の無い upsert/create、全件の findMany)を足さない。解のバンドルの投入は `deploy.yml` でバンドルが変わったときだけ。
 - **変更は小さく分けて、1つずつ出荷・デプロイする(オーナー指示)。** 依頼が複数あっても1つのPRにまとめず、変更ごとにバージョンを上げてmainへマージし、少しずつ変化が分かるようにする。
 
+- **「バーチャルチップ」「仮想チップ」という語を一切使わない(オーナー指示 2026-10-21)。** 画面・i18n・文書・チャットすべて。「お金を賭けない」「換金できない」など普通の表現にする。
 - **「アンテ」ではなく必ず「アンティ」と書く(オーナー指示)。** 画面・解説・ドキュメントすべて。アンティの無いブラインドレベルは無い。
 - **料金(プラン選び)はページ移動ではなく、どこからでも下から出るシートで開く(オーナー指示)。** `usePricingSheet().openPricing(plan?)`(`components/PricingSheet.tsx`、ルートの layout に Provider)。`/pricing` のページは URL 直打ち・Stripe の戻り先・クロール用の内部リンク(ログイン画面の下部・コンテンツページ・特商法)のために残す。
 
@@ -108,7 +109,7 @@
 
 # このリポジトリについて
 
-Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参考にしたバーチャルチップ専用NLHトーナメント(SNG+MTT)+GEO戦略DB(GTO Wizard風レンジ分析)。
+Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参考にした、お金を賭けない無料のNLHトーナメント(SNG+MTT)+GEO戦略DB(GTO Wizard風レンジ分析)。
 
 - `packages/engine` — ポーカールールエンジン(DB非依存)
 - `packages/db` — Prisma/Postgresスキーマ・集計クエリ
