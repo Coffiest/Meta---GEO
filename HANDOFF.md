@@ -1,21 +1,14 @@
 # PokerART 引き継ぎ
 
 ## 更新日時
-2026-10-09 17:50
+2026-10-21
 
 ## 現在地
-- 本番は v4.188.0(main 507d4ee)。URL: https://meta-geo-poker.vercel.app
-- GTO Wizard のプリフロップ表を 70bb で73場面、数値にした。**アプリにはまだ使っていない。**
-  - 置き場所:ブランチ `claude/gtow-70bb-data`(main には未マージ)。
-    - データ:`packages/db/src/data/gtow/70/<場面>.json`(1ファイル = 1場面)。中身は `{format, stack, scene, source, hands}`。`hands` は169手それぞれ `{"raise","call","fold","allIn","weight"}`。頻度の合計は1。`weight` はそのハンドがレンジに入っている割合(0 ならその局面に来ない手)。
-    - 読み取りの道具:`scripts/gtow/`(`parse.py` `run.py` `README.md`)。
-  - 形式:MTT・ChipEV・8max の解を、LJ 以降の6人(LJ/HJ/CO/BTN/SB/BB)として使う。アンティあり。スタックは全員 70bb。サイズ(70bb):オープン 2.1bb(BTN 2.2、SB 3.5 または 8.25 / 8.4)、3bet 7.35〜11bb、4bet 16.17〜23.1bb。
-  - 場面の名前:`RFI_<席>`(オープン。SB は call=リンプ)/ `vsOpen_<自分>_vs_<オープナー>` / `vs3bet_<オープナー>_vs_<3ベッター>`(allIn = 4bet オールイン、raise = 4bet)/ `vs4bet_<3ベッター>_vs_<オープナー>`(4bet がレイズ。allIn = 5bet オールイン)/ `vs4betAI_<3ベッター>_vs_<オープナー>`(4bet がオールイン。call か fold)/ `vs5bet_<オープナー>_vs_<3ベッター>`(5bet オールインへの対応)。
-  - そろっていないもの:SB 対 BB の全場面(`vsOpen_BB_vs_SB`、`vs3bet_SB_vs_BB`、`vs4bet_BB_vs_SB`、`vs5bet_SB_vs_BB`、`vs4betAI_BB_vs_SB`)、`vs4bet_BB_vs_LJ`、`vs5bet_LJ_vs_BB`。7/10/14/20/30bb は未着手。
-  - 精度:ハンドごとの頻度は画面と一致(目で照合済み。例:vs3bet_BTN_vs_SB の AA レイズ 23%)。レンジがとても狭い場面(vs5bet など)は `weight` の誤差が大きく、場面全体の割合は画面とずれる(例:vs5bet_BTN_vs_SB コール 画面57% / 計算70%)。判定には頻度だけを使い、`weight` は「0 かどうか」程度にとどめるのが安全。
-- GTO Wizard の無料プランは1日100場面まで(帯に「n/100」)。途中で通るだけの場面も1つと数えられる。
-- スクショの原画(73枚・15MB)と UI/UX の記録(`GTOWizard-UIUX.md`)は、**一時的に独立ブランチ `claude/gtow-raw`(main と履歴を共有しない orphan)に置いた。** 中身:`gtow_raw/MTT_ChipEV_8max/70/<場面>.jpg`、`GTOWizard-UIUX.md`、`README.md`。取り出すときは `git fetch --depth=1 origin claude/gtow-raw` → `git show FETCH_HEAD:GTOWizard-UIUX.md` など。ブランチを切り替えない。
-  - 本来の置き場所は Mac の `~/Documents/PokerART/gtow_raw/` と Obsidian(フォルダ未接続のため未移動)。移したら `claude/gtow-raw` は消してよい。
+- このチャットで出したもの(2026-10-09〜10、デプロイ success 確認済み):v4.189 GTO Wizard 70bb の解でプリフロップ(オープン〜5betオールイン、ES 50bb以上)を頻度で判定 / v4.190 解説の「詳しく見る」に 13×13 のレンジ表 / v4.191 ES を相手の残りも見て計算 / v4.192 コールの解説はレイズ判定→オッズの順 / v4.193 GEO で「後ろの人数」が同じポジションを統合・プリフロップのオールイン以外のレイズを1つに / v4.194 ホームに「シェアしてゴールド GET」(X 投稿→URLかスクショ送信→管理者画面の「ご意見」で「ゴールド1週間を付与」)。
+- GTO Wizard のデータは `packages/engine/data/gtow/70/<場面>.json`(サーバーの判定と web の表の両方が読む)。判定は `packages/db/src/gtowPreflop.ts`。
+- GEO の統合は集計テーブルを作り直さず、読み出し時に読み替え(`packages/db/src/geoTree.ts` の normalizePosition / expandLineKey)。
+- 2026-10-21 時点で main は別チャットの作業(フレンド対戦)でバージョン表記が v1.12.x になっている(経緯は未確認。docs/HANDOFF_friend_match.md 参照)。
+- 実機の見た目は全て未確認。
 
 ## 決定事項
 - 「アンティ」と書く。料金はシート(usePricingSheet)。
@@ -30,14 +23,11 @@
 - GTO Wizard の UI は、並べ方・操作・色の役割だけ参考にし、名前・ロゴ・見た目そのものはまねしない。
 
 ## 次にやること
-1. 取ったデータをアプリに適用する(オーナー指示。このチャットの担当)。
-   - `claude/gtow-70bb-data` を取り込む。`packages/db/src/reviewGto.ts` の `openGtoActions` / `defenseGtoActions` と同じ形(GtoActionEV[])を返す関数を足し、今は「3bet-line」「reopened-line」で対象外のプリフロップ(`packages/db/src/review.ts` の `detectPreflopSpot`)をこのデータで判定する。スタックが 70bb 帯の局面だけに使う(他の帯は未取得)。
-   - 注意:`packages/db/src/data/` が変わると、デプロイでサーバー入れ替えと解の投入の判定が走る(`deploy.yml` 95〜104行)。このデータは DB に入れずリポジトリの JSON のまま読む案。Supabase の転送量に注意(CLAUDE.md)。
-   - JSON は計 880KB。web に載せるなら必要な場面だけ読む。
-   - 自動の席の判断(`packages/server/src/botStrategy/`)にも使えるか後で検討。
-2. 残りのデータ(別のチャット・Mac につないだもの。1日100場面まで):70bb の SB 対 BB と LJ 対 BB の残り → 30/20/14/10/7bb。手順は `scripts/gtow/README.md`。
-3. Mac の `~/Documents` をチャットにつなぎ、`claude/gtow-raw` の原画を `~/Documents/PokerART/gtow_raw/` へ、`GTOWizard-UIUX.md` を Obsidian へ入れる。済んだら `claude/gtow-raw` を消す。
-4. 未回答の質問: ラフくんの吹き出しに「〇〇(SB)の手番」と書き、文中の「きみ」を相手の席名に置き換えるか / トーナメント履歴の RR レートの詳細表示を戻すか。
-5. 実機確認(オーナー): v4.172 以降の解説・バッジの出方、履歴の収支の位置、飛んだ直後の卓。
-6. ショーダウン順(packages/server/src/showdown.ts の showdownOrder)のテストを書く。
-7. オーナーの To-Do(docs/TODO.md): Stripe のポータルでプラン切り替えを許可、GitHub リポジトリを非公開に。
+1. BvB(SB 対 BB)の Excel(オーナー支給 SB.xlsx。10/15/20/25/30bb・deep・50bb の SB のレンジ、vs limp・vs raise の BB のレンジ)をアプリの判定と解説の表に入れる。未回答の質問:①セルの色の意味(紫・濃い緑・薄い緑2段・オレンジ濃淡・黄・白)②112〜165行の見出しの無い表4つは何bbのどの場面か ③解説文はオーナーが書くか、こちらが下書きするか。
+2. 残りの GTO Wizard データ(70bb の SB 対 BB と LJ 対 BB の残り → 30/20/14/10/7bb)。Mac につないだチャットで(1日100場面まで)。手順は scripts/gtow/README.md。
+3. 未回答: ラフくんの吹き出しに「〇〇(SB)の手番」と書くか / トーナメント履歴の RR レートの詳細表示を戻すか。
+4. ショーダウン順(showdownOrder)のテスト。書いたが出していない(オーナーが途中で止めた)。
+5. オーナーの To-Do(docs/TODO.md): Stripe のポータルでプラン切り替えを許可、GitHub リポジトリを非公開に。
+
+- GEO の統合(オーナー確定 2026-10-10): 後ろの人数で数える・オールイン以外のレイズは1つ。20bb以上への拡大はしない。少ないマスを GTO の表とまぜて埋めるのは禁止。bot のデータは入れない。
+- シェアキャンペーンの付与はオーナーが投稿を目で確認して手動(自動付与しない)。
