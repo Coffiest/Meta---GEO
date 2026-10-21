@@ -345,7 +345,7 @@ const SLIDES: Slide[] = [
     ),
     body: (
       <>
-        GEO = General Exploit Optimal(大衆エクスプロイト戦略)。このアプリで打たれた
+        GEO = General Exploitative Optimal(大衆エクスプロイト戦略)。このアプリで打たれた
         <b className="text-fg"> 実際のアクションをすべて記録 </b>
         し、169マスのレンジ表にして見せるデータベースです。
       </>
