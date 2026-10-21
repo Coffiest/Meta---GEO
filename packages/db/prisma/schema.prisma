@@ -87,7 +87,7 @@ model PushSubscription {
 
 /// 招待コードの成立記録(招待した人 × 招待された人)。
 /// 特典は「棋譜解析プラン1ヶ月無料クーポン」を1招待につき1枚発行(PremiumCouponCode)。
-/// バーチャルチップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が出るため。
+/// チップは一切動かさない —— チップを配ると自己招待による増殖と射幸性の問題が出るため。
 /// 招待される側は生涯1回だけ(inviteeUserIdが一意)。
 model Referral {
   id            String   @id @default(uuid())
@@ -250,7 +250,7 @@ model PlayerBlock {
   @@index([blockedUserId])
 }
 
-/// バンクロール(バーチャルチップの持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
+/// バンクロール(ゲーム内の持ち点)の増減台帳。残高はこの台帳のamount合計で常に導出する
 /// (別に「現在残高」フィールドをキャッシュしない。導出元は常にこの台帳の1本にする)。
 model BankrollTransaction {
   id           String      @id @default(uuid())

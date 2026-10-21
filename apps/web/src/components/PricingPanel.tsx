@@ -345,7 +345,7 @@ export function PricingPanel({ initialPlan, onClose }: { initialPlan?: PlanId; o
 
         <p className="mt-4 text-[11px] leading-relaxed text-fg-2">
           決済はStripeを通じて安全に処理され、期限日に自動で更新(課金)されます。お支払いができなかった場合は自動的に解約となります。解約・支払い方法の変更はいつでも契約管理ページから行えます。
-          本アプリはバーチャルチップ専用で、チップの購入・換金や実際の金銭を賭けることは一切できません。
+          本アプリはお金を賭けないゲームで、チップの購入・換金や実際の金銭を賭けることは一切できません。
         </p>
         <Link href="/legal/tokushoho" className="mt-2 inline-block text-[11px] text-fg-2 underline decoration-dotted underline-offset-2">
           特定商取引法に基づく表記

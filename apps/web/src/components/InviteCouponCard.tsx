@@ -18,7 +18,7 @@ function isCouponCode(code: string): boolean {
  * - 招待した人数と持っているクーポンの数は1行
  * - 使えるクーポンがあるときだけ一覧(使う / コピー)
  * - コードの入力欄は1つ。クーポンコード(GEO…)か招待コードかを見分けて適用する
- * 特典は棋譜解析の無料期間だけで、バーチャルチップは配らない(以前の InviteCard と同じ設計)。
+ * 特典は棋譜解析の無料期間だけで、チップは配らない(以前の InviteCard と同じ設計)。
  */
 export function InviteCouponCard({ accessToken }: { accessToken: string }) {
   const { t } = useI18n();
