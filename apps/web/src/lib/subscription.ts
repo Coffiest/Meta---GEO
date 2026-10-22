@@ -241,3 +241,26 @@ export function useSubscriptionStatus(accessToken: string | undefined) {
 
   return { status, loading, reload };
 }
+
+export interface CancelState {
+  /** Stripe の契約があり、アプリ内で解除できるか。 */
+  cancelable: boolean;
+  /** 解除の予定が入っているか(期限まで使え、その後は更新されない)。 */
+  cancelAtPeriodEnd: boolean;
+  periodEnd: string | null;
+}
+
+/** サブスク解除の状態を読む(resume 未指定)/ 解除する(resume=false)/ 解除を取り消す(resume=true)。 */
+export async function subscriptionCancel(accessToken: string, resume?: boolean): Promise<CancelState> {
+  const res = await fetch(`${SERVER_URL}/api/subscriptions/cancel`, {
+    method: resume === undefined ? "GET" : "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: resume === undefined ? undefined : JSON.stringify({ resume }),
+    cache: "no-store",
+  });
+  if (res.status === 503) throw new SubscriptionUnavailableError();
+  if (!res.ok) throw new Error("サブスクの解除に失敗しました");
+  const body = (await res.json()) as CancelState;
+  if (resume !== undefined) window.dispatchEvent(new Event(SUBSCRIPTION_CHANGED_EVENT));
+  return body;
+}

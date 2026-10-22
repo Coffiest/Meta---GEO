@@ -24,7 +24,7 @@ import { resolvePriceId } from "./stripePlans.js";
 import { attributePartnerSubscription, recordPartnerDispute, recordPartnerInvoicePaid, recordPartnerRefunds } from "./partnerStripe.js";
 import { verifyAccessToken, type VerifiedUser } from "./auth.js";
 import { readJsonBodyLimited, readRawBody as readRawBodyLimited } from "./httpBody.js";
-import { cancelForPaymentFailure, reconcileSubscription, syncSubscription } from "./subscriptionReconciler.js";
+import { applyCancelAtPeriodEnd, cancelForPaymentFailure, reconcileSubscription, syncSubscription } from "./subscriptionReconciler.js";
 
 let stripeClient: Stripe | null | undefined;
 
@@ -463,6 +463,34 @@ export async function handleSubscriptionApiRequest(req: IncomingMessage, res: Se
         console.error("[subscriptionApi] change-plan portal failed:", err);
         sendJson(res, 409, { error: "portal_update_disabled" });
       }
+      return true;
+    }
+
+    // アプリ内のサブスク解除(オーナー指示)。期間末で止める(cancel_at_period_end)ので、払った期間は最後まで使える。
+    // GET: いまの解除予定 / POST { resume?: true }: 解除する(resume なら解除の予定を取り消す)。
+    if (url.pathname === "/api/subscriptions/cancel" && (req.method === "GET" || req.method === "POST")) {
+      const stripe = getStripeClient();
+      if (!stripe) {
+        sendJson(res, 503, { error: "subscriptions_unavailable" });
+        return true;
+      }
+      const verified = await verifyAccessToken(extractBearerToken(req));
+      if (!verified) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return true;
+      }
+      const user = await resolveDbUser(verified);
+      const row = await prisma.subscription.findUnique({
+        where: { userId: user.id },
+        select: { stripeCustomerId: true, stripeSubscriptionId: true, status: true, currentPeriodEnd: true },
+      });
+      if (!row?.stripeCustomerId || !hasLiveStripeSubscription(row)) {
+        sendJson(res, 200, { cancelable: false, cancelAtPeriodEnd: false, periodEnd: null });
+        return true;
+      }
+      const resume = req.method === "POST" ? (await readJsonBody(req))["resume"] === true : null;
+      const state = await applyCancelAtPeriodEnd(stripe, row as typeof row & { stripeSubscriptionId: string }, resume);
+      sendJson(res, 200, { cancelable: true, ...state });
       return true;
     }
 

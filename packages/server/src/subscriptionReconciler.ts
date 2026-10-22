@@ -49,6 +49,24 @@ export async function syncSubscription(stripeCustomerId: string, subscription: S
 }
 
 /**
+ * アプリ内のサブスク解除。期間末で止める(cancel_at_period_end)ので、払った期間は最後まで使える。
+ * resume: null はいまの状態を読むだけ / false は解除する / true は解除の予定を取り消す。何度呼んでも同じ結果になる。
+ */
+export async function applyCancelAtPeriodEnd(
+  stripe: Stripe,
+  row: { stripeCustomerId: string; stripeSubscriptionId: string; currentPeriodEnd: Date | null },
+  resume: boolean | null,
+): Promise<{ cancelAtPeriodEnd: boolean; periodEnd: string | null }> {
+  let sub = await stripe.subscriptions.retrieve(row.stripeSubscriptionId);
+  if (resume !== null && sub.cancel_at_period_end === resume) {
+    sub = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: !resume });
+    await syncSubscription(row.stripeCustomerId, sub);
+  }
+  const periodEnd = sub.cancel_at ? new Date(sub.cancel_at * 1000) : periodEndOf(sub) ?? row.currentPeriodEnd;
+  return { cancelAtPeriodEnd: sub.cancel_at_period_end, periodEnd: periodEnd ? periodEnd.toISOString() : null };
+}
+
+/**
  * 引き落とし失敗による自動解約。サブスクを即時解約し、払われなかった請求を無効化してから DB を同期する。
  * 何度呼んでも同じ結果になる(すでに解約済みなら同期だけ)。
  */
