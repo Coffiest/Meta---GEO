@@ -5,8 +5,8 @@ import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import type { HandClassMatrixResult } from "@/lib/geoApi";
 
 /**
- * GTO Wizard の解(70bb)のレンジ表を、解説の「詳しく見る」に出す(オーナー指示: 実際のレンジとほぼ同じ見た目の表)。
- * データはサーバーの判定と同じ `packages/engine/data/gtow/70/<場面>.json`。場面ごとに分けて必要なときだけ読む。
+ * GTO Wizard の解のレンジ表を、解説の「詳しく見る」に出す(オーナー指示: 実際のレンジとほぼ同じ見た目の表)。
+ * データはサーバーの判定と同じ `packages/engine/data/gtow/<スタック>/<場面>.json`。場面ごとに分けて必要なときだけ読む。
  * 描画は GEO タブの 13×13 の表(HandClassMatrix)をそのまま使う(色はアクションの意味の配色)。
  */
 type Freq = { raise: number; call: number; fold: number; allIn: number; weight: number };
@@ -46,12 +46,12 @@ function raiseName(scene: string): string {
   return kind === "RFI" ? "オープン" : kind === "vsOpen" ? "3bet" : kind === "vs3bet" ? "4bet" : kind === "vs4bet" ? "5bet" : "レイズ";
 }
 
-export function GtowRangeTable({ scene, hand }: { scene: string; hand?: string }) {
+export function GtowRangeTable({ scene, stack = 70, hand }: { scene: string; stack?: number; hand?: string }) {
   const [hands, setHands] = useState<Record<string, Freq> | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let alive = true;
-    import(`@meta-geo/engine/data/gtow/70/${scene}.json`)
+    import(`@meta-geo/engine/data/gtow/${stack}/${scene}.json`)
       .then((m: { default?: { hands: Record<string, Freq> }; hands?: Record<string, Freq> }) => {
         if (alive) setHands((m.default ?? m).hands ?? null);
       })
@@ -59,7 +59,7 @@ export function GtowRangeTable({ scene, hand }: { scene: string; hand?: string }
     return () => {
       alive = false;
     };
-  }, [scene]);
+  }, [scene, stack]);
 
   if (failed) return null;
   if (!hands) return <div className="h-[220px] rounded-lg bg-white/[0.04]" />;
@@ -92,7 +92,7 @@ export function GtowRangeTable({ scene, hand }: { scene: string; hand?: string }
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-bold text-fg-2">{gtowSceneTitle(scene)}(GTO・70bb)</p>
+      <p className="mb-1.5 text-[11px] font-bold text-fg-2">{gtowSceneTitle(scene)}(GTO・{stack}bb)</p>
       <HandClassMatrix matrix={matrix} bucketLabels={labels} />
       {hand && mine && (
         <p className="mt-1.5 text-[11px] font-semibold tabular-nums text-fg-2">
