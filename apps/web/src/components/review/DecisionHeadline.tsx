@@ -8,6 +8,8 @@ import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { DecisionInfoRow } from "@/components/review/DecisionInfoRow";
 import { PowerNumberTable } from "@/components/review/PowerNumberTable";
 import { GtowRangeTable } from "@/components/review/GtowRangeTable";
+import { TermSegments, TermText } from "@/components/review/TermText";
+import { splitTermsMany } from "@/lib/reviewGlossary";
 import { REVIEW_KNOWLEDGE } from "@/data/reviewKnowledge";
 import { useSpeaker } from "@/lib/speakerContext";
 import { articleRuleById, fillTemplate, isFallbackRule, type TemplateVars } from "@/lib/articleRules";
@@ -348,13 +350,14 @@ function KnowledgeBody({
             type="button"
             onClick={() => expandable && setOpen(true)}
             aria-haspopup={expandable ? "dialog" : undefined}
-            disabled={!expandable}
+            // disabled にはしない(disabled のボタンの中では用語のタップも届かなくなる)。
+            aria-disabled={!expandable}
             className={`flex w-full items-start gap-2 px-3 py-2 text-left ${expandable ? "pressable" : "cursor-default"}`}
           >
             {!speaker && <Icon name="info" className="mt-[2px] h-3.5 w-3.5 shrink-0 text-accent" />}
             <span className="min-w-0 flex-1">
               {speaker && <span className="mb-0.5 block text-[10px] font-black text-accent">{speaker.name}</span>}
-              <span className="block text-[12px] font-semibold leading-[1.6] text-fg">{summary}</span>
+              <span className="block text-[12px] font-semibold leading-[1.6] text-fg"><TermText text={summary} /></span>
               {expandable && <span className="mt-1 block text-[10px] font-bold text-accent">詳しく見る</span>}
             </span>
             {expandable && <Icon name="chevron-right" className="mt-[2px] h-3 w-3 shrink-0 text-fg-3" />}
@@ -413,6 +416,13 @@ function KnowledgeSheet({
   if (!mounted) return null;
   const speaker = voice.speaker;
   const say = voice.say;
+  // 台詞・要点・本文で、同じ用語は最初の1回だけ下線を引く。
+  const pointTexts = (points ?? []).map((p) => say(p.text));
+  // 画面の並び(台詞 → 要点 → 本文)の順に分ける。
+  const segs = splitTermsMany([summary, ...pointTexts, body ? say(body) : ""]);
+  const summarySeg = segs[0]!;
+  const pointSegs = segs.slice(1, 1 + pointTexts.length);
+  const bodySeg = segs[segs.length - 1]!;
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -455,13 +465,13 @@ function KnowledgeSheet({
               </button>
             </div>
             <div className="safe-area-bottom flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-4">
-              <p className="text-[15px] font-bold leading-[1.75] text-fg">{summary}</p>
+              <p className="text-[15px] font-bold leading-[1.75] text-fg"><TermSegments segments={summarySeg} /></p>
               {points && (
                 <div className="mt-4 space-y-2 rounded-2xl bg-surface-2 p-3.5">
-                  {points.map((p) => (
+                  {points.map((p, i) => (
                     <div key={p.label} className="flex gap-3 text-[14px] leading-[1.7]">
                       <span className="w-[5em] shrink-0 font-black text-fg-3">{p.label}</span>
-                      <span className="min-w-0 flex-1 text-fg-2">{say(p.text)}</span>
+                      <span className="min-w-0 flex-1 text-fg-2"><TermSegments segments={pointSegs[i] ?? []} /></span>
                     </div>
                   ))}
                 </div>
@@ -469,7 +479,7 @@ function KnowledgeSheet({
               {extra && <div className="mt-4">{extra}</div>}
               {body && (
                 // オーナーの文章は改行も含めてそのまま出す(整形しない)。
-                <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2">{say(body)}</p>
+                <p className="mt-4 whitespace-pre-wrap text-[14px] leading-[1.85] text-fg-2"><TermSegments segments={bodySeg} /></p>
               )}
               {sourceUrl && (
                 <a
