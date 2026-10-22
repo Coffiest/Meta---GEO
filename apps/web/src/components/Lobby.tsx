@@ -31,6 +31,7 @@ import { FriendMatchButton } from "./friend/FriendMatch";
 import type { PrivateIntent } from "@/lib/privateRoom";
 import { fetchGeoAccess } from "@/lib/geoApi";
 import { InstallAppCard } from "./InstallAppCard";
+import { SubscriptionCancelRow } from "./SubscriptionCancelRow";
 import { ChartSkeleton, ListSkeleton } from "./Skeleton";
 import { SegmentedTabs } from "./ui/SegmentedTabs";
 import { EmptyState } from "./EmptyState";
@@ -948,6 +949,7 @@ function HamburgerMenu({
             <span>{t("common.language")}</span>
             <LanguageSwitcher />
           </div>
+          {!isGuest && accessToken && <SubscriptionCancelRow accessToken={accessToken} />}
           {onSignOut && (
             <button onClick={onSignOut} className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-crimson-300">
               {t("menu.logout")} <span className="text-n-9">›</span>
