@@ -209,6 +209,8 @@ export interface ReviewedDecision {
   actionTaken: { kind: string; bucket: string; toAmount: number | null };
   /** GTO Wizard の解で判定した場面(例 "vs3bet_BTN_vs_SB")。解説の 13×13 の表を出すのに使う。 */
   gtowScene?: string | null;
+  /** gtowScene のデータのスタック(bb)。無ければ 70。 */
+  gtowStack?: number | null;
   gtoActions: GtoActionEV[] | null;
   evLossBb: number | null;
   classification: Classification | null;
@@ -366,6 +368,7 @@ function analyzeDecisions(hand: ExtractHand, heroSeat: number, decisions: HeroDe
       effStackBb: d.effStackBb,
       potBb: d.potBb,
       gtowScene: gtowResult?.scene ?? null,
+      gtowStack: gtowResult?.stack ?? null,
       facingSizeBb: d.facingSizeBb,
       actionTaken: d.actionTaken,
       gtoActions,

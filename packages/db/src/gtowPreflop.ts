@@ -9,13 +9,24 @@ import type { GtoActionEV } from "./reviewClassify.js";
  * プリフロップの決定を判定する(オーナー確定 2026-10-09)。
  *
  *  - データは MTT・ChipEV・8max の解を LJ 以降の6人として使う。アプリの「UTG」はデータの「LJ」。
- *  - 有効スタック 50bb 以上の局面に 70bb のデータを使う。それ未満・データの無い場面は従来どおり。
+ *  - スタックの段階(`GTOW_TIERS`)ごとにデータを持つ。有効スタックの入る段階のうち、その場面のデータがあるものを使う
+ *    (70bb は全場面、50/40/30/25/20bb は BB のディフェンスだけ。50〜60bb で 50bb のデータが無ければ 70bb)。どれにも無ければ従来どおり。
  *  - データに EV は無いので、選んだアクションの GTO の頻度で格付けする(GTOW_BANDS)。
  *  - レイズはサイズを問わずレイズとして扱う。オールインは別のアクション。
  *  - DB には入れずリポジトリの JSON を読む(Supabase の転送量を使わない)。
  */
 
-export const GTOW_MIN_STACK_BB = 50;
+export const GTOW_MIN_STACK_BB = 18;
+/** データのスタックと、それを使う有効スタックの範囲 [下限, 上限)。上から順に当てはめる。 */
+export const GTOW_TIERS: readonly { stack: number; min: number; max: number }[] = [
+  { stack: 70, min: 60, max: Infinity },
+  { stack: 50, min: 45, max: 60 },
+  { stack: 70, min: 50, max: 60 },
+  { stack: 40, min: 35, max: 45 },
+  { stack: 30, min: 27.5, max: 35 },
+  { stack: 25, min: 22.5, max: 27.5 },
+  { stack: 20, min: 18, max: 22.5 },
+];
 /** 頻度による格付けの境目。これ以上(またはいちばん多いアクション)は定石手、未満は悪手、NEVER 未満は大悪手。 */
 export const GTOW_BANDS = { book: 0.2, never: 0.02 } as const;
 
@@ -73,6 +84,8 @@ export function gtowSceneOf(hand: ExtractHand, heroSeat: number, decisionSeq: nu
 
 export interface GtowJudgement {
   scene: string;
+  /** 使ったデータのスタック(bb)。画面の表も同じファイルを読む。 */
+  stack: number;
   gtoActions: GtoActionEV[];
   chosenFreq: number;
   classification: "book" | "mistake" | "blunder";
@@ -90,7 +103,16 @@ export function judgeGtow(params: {
   chosenBucket: string;
 }): GtowJudgement | null {
   if (params.effStackBb < GTOW_MIN_STACK_BB) return null;
-  const hands = loadScene(70, params.scene);
+  let stack = 0;
+  let hands: Record<string, Freq> | null = null;
+  for (const t of GTOW_TIERS) {
+    if (params.effStackBb < t.min || params.effStackBb >= t.max) continue;
+    hands = loadScene(t.stack, params.scene);
+    if (hands) {
+      stack = t.stack;
+      break;
+    }
+  }
   const f = hands?.[params.handClass];
   if (!f) return null;
   const total = f.raise + f.call + f.fold + f.allIn;
@@ -112,5 +134,5 @@ export function judgeGtow(params: {
       : chosenFreq >= GTOW_BANDS.never
         ? "mistake"
         : "blunder";
-  return { scene: params.scene, gtoActions, chosenFreq, classification };
+  return { scene: params.scene, stack, gtoActions, chosenFreq, classification };
 }

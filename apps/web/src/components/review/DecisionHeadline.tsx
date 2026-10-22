@@ -129,7 +129,7 @@ export function DecisionHeadline({
   // GTO Wizard の解で判定したプリフロップは、そのレンジの 13×13 の表を「詳しく見る」に出す(オーナー指示)。
   const gtowTable =
     decision.gtowScene && note && !note.extra ? (
-      <GtowRangeTable scene={decision.gtowScene} hand={handLabel(context?.heroHoleCards ?? []) ?? undefined} />
+      <GtowRangeTable scene={decision.gtowScene} stack={decision.gtowStack ?? 70} hand={handLabel(context?.heroHoleCards ?? []) ?? undefined} />
     ) : undefined;
   const points = note && "points" in note ? note.points : undefined;
   const meta = c ? CLASSIFICATION_META[c] : null;
