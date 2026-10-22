@@ -1,7 +1,7 @@
 # PokerART 引き継ぎ
 
 ## 更新日時
-2026-10-22
+2026-10-22 11:40
 
 ## 現在地
 - このチャットで出したもの(2026-10-09〜10、デプロイ success 確認済み):v4.189 GTO Wizard 70bb の解でプリフロップ(オープン〜5betオールイン、ES 50bb以上)を頻度で判定 / v4.190 解説の「詳しく見る」に 13×13 のレンジ表 / v4.191 ES を相手の残りも見て計算 / v4.192 コールの解説はレイズ判定→オッズの順 / v4.193 GEO で「後ろの人数」が同じポジションを統合・プリフロップのオールイン以外のレイズを1つに / v4.194 ホームに「シェアしてゴールド GET」(X 投稿→URLかスクショ送信→管理者画面の「ご意見」で「ゴールド1週間を付与」)。
@@ -24,12 +24,17 @@
 - GTO Wizard の UI は、並べ方・操作・色の役割だけ参考にし、名前・ロゴ・見た目そのものはまねしない。
 
 ## 次にやること
-1. BvB(SB 対 BB)の Excel(オーナー支給 SB.xlsx。10/15/20/25/30bb・deep・50bb の SB のレンジ、vs limp・vs raise の BB のレンジ)をアプリの判定と解説の表に入れる。未回答の質問:①セルの色の意味(紫・濃い緑・薄い緑2段・オレンジ濃淡・黄・白)②112〜165行の見出しの無い表4つは何bbのどの場面か ③解説文はオーナーが書くか、こちらが下書きするか。
-2. 残りの GTO Wizard データ。オーナーの最新の希望(2026-10-21):**各スタックの BB のディフェンス(LJ/HJ/CO/BTN/SB のオープンレイズに対して)を大量に**。
-   - 状況(2026-10-21):Mac の GTO Wizard デスクトップ版(Chrome アプリ版)は、コンピューター操作で「ブラウザ」扱い(見るだけ・クリック不可)になった。10-09 は操作できた。回り込まない。全部自動にするには Claude in Chrome(普段の Chrome に拡張+GTO Wizard にログイン)か、Claude アプリ内ブラウザ(サイトの許可+オーナーがログイン)が必要。どちらも未準備(Chrome 拡張は未接続、アプリ内ブラウザのサイト許可はオーナーが拒否)。デスクトップ版のまま「オーナーが画面を開く→Claude がスクショで読む」は可能。オーナーは「全部自動」を希望していて未決。
-   - 取れたもの:50bb の BB vs HJ(1場面。画面の合計と一致)。ブランチ `claude/gtow-70bb-data` の `packages/db/src/data/gtow/50/vsOpen_BB_vs_HJ.json`(main のデータ置き場 `packages/engine/data/gtow/` へ移すこと)、原画は `claude/gtow-raw` の `gtow_raw/MTT_ChipEV_8max/50/`。
-   - 読み取りは新しい `scripts/gtow/grid.py`(`claude/gtow-70bb-data` ブランチ。窓の大きさに依存せず表の線を自動検出)を使う。画面は 1382×868、Strategy + EV 表示でよい。右の行動の箱は押さない(表が暗くなる)。
-   - 残り:70bb の SB 対 BB と LJ 対 BB の残り、7/10/14/20/30bb、ほか 50bb の BB ディフェンス(LJ/CO/BTN/SB)。1日100場面まで。
+1. **【最優先・オーナー指示 2026-10-22】GTO Wizard の BB のディフェンスレンジを各スタックで大量に取る。「PokerARTの続き」と言われたらこれから始める。**
+   - 取るもの:各スタック(7/10/14/20/30/50/70bb。ライブラリにある値)で、LJ / HJ / CO / BTN / SB のオープンレイズに対する BB の行動(Raise / Call / Fold / Allin)。浅いスタックでオープンにオールインがあれば、それに対する BB(Call / Fold)も取る。形式は MTT・ChipEV・8max(LJ 以降を6人として使う)。
+   - 進め方(この順に自分で確かめ、オーナーに方法を聞き直さない):
+     a. Mac につながっていれば `computer_resolve_access` で GTO Wizard(`com.google.Chrome.app.boiilclkkfeebffcopfldjipcjddoeno`)の tier を見る。`full` なら 10-09 と同じく、デスクトップ版をコンピューター操作で全部自動で取る。
+     b. `read`(2026-10-21 はこれ。ブラウザ扱いで見るだけ。回り込まない)なら、Claude in Chrome(`mcp__claude-in-chrome__tabs_context_mcp`)がつながっているか試す。つながっていれば、それで app.gtowizard.com を開いて全部自動で取る。
+     c. どちらもダメなときだけ、オーナーに1回だけ「普段の Chrome に Claude 拡張(https://claude.ai/chrome)を入れ、同じ Chrome で GTO Wizard にログインして」と頼む。オーナーは「全部自動」を希望している。オーナーが画面を開いて Claude が読む方法は、オーナーが望んでいない。
+   - 1日100場面まで(画面上部の「n/100」)。途中で通るだけの場面も1つと数えられる。BB の場面だけ欲しいので、オープナー Raise →残り Fold → BB の画面で撮る。
+   - 読み取り:ブランチ `claude/gtow-70bb-data` の `scripts/gtow/grid.py <画像> <出力.json>`(窓の大きさに依存しない。画面の合計と一致を確認済み)。右の行動の箱は押さない(表が暗くなる)。
+   - 取れたもの:50bb の BB vs HJ(`claude/gtow-70bb-data` の `packages/db/src/data/gtow/50/vsOpen_BB_vs_HJ.json`)。70bb は BB vs LJ/HJ/CO/BTN が取得済み・main 適用済み(`packages/engine/data/gtow/70/`)、BB vs SB は未取得。
+   - 保存:データは main のデータ置き場 `packages/engine/data/gtow/<スタック>/vsOpen_BB_vs_<席>.json`(既存の 70bb と同じ形)。原画は ブランチ `claude/gtow-raw` の `gtow_raw/MTT_ChipEV_8max/<スタック>/`(Mac の ~/Documents/PokerART/gtow_raw/ にも置けるなら置く)。アプリへの適用は、取り終えてからオーナーに確認。
+2. BvB(SB 対 BB)の Excel(オーナー支給 SB.xlsx。10/15/20/25/30bb・deep・50bb の SB のレンジ、vs limp・vs raise の BB のレンジ)をアプリの判定と解説の表に入れる。未回答の質問:①セルの色の意味(紫・濃い緑・薄い緑2段・オレンジ濃淡・黄・白)②112〜165行の見出しの無い表4つは何bbのどの場面か ③解説文はオーナーが書くか、こちらが下書きするか。
 3. 未回答: ラフくんの吹き出しに「〇〇(SB)の手番」と書くか / トーナメント履歴の RR レートの詳細表示を戻すか。
 4. ショーダウン順(showdownOrder)のテスト。書いたが出していない(オーナーが途中で止めた)。
 5. オーナーの To-Do(docs/TODO.md): Stripe のポータルでプラン切り替えを許可、GitHub リポジトリを非公開に。
