@@ -3,6 +3,7 @@
 棋譜解析の解説(バリィの台詞・「詳しく見る」の本文・知識ベースのルール)は、**ここにある日本語のポーカー用語で書く**。
 同じものを別の言い方で書かない(例: 「同じマークの2枚」とは書かず「スーテッド」と書く)。
 新しい解説を足すときも、この表にある言い方に揃えること。表に無い用語を使うなら、先にここへ足す。
+ここに足した用語は、画面で下線を引いて意味を出す辞書 `apps/web/src/lib/reviewGlossary.ts` にも足すこと(足さないとテストが落ちる)。
 
 参考: [ポーカー用語集(light-three)](https://light-three.com/pokerterms/) / [ギャッパーとは(RAQ MAGAZINE)](https://raq-hiphop.com/poker-word-gapper/) / [スーテッド・ギャッパーとは](https://raq-hiphop.com/poker-word-suited-gapper/)
 
