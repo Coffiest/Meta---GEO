@@ -11,6 +11,7 @@ import { handleAdminApiRequest } from "./adminApi.js";
 import { handlePartnerApiRequest } from "./partnerApi.js";
 import { handleErrorReportApiRequest } from "./errorReportApi.js";
 import { handleFeedbackApiRequest } from "./feedbackApi.js";
+import { handleLessonApiRequest } from "./lessonApi.js";
 import { handleResearchApiRequest } from "./researchApi.js";
 import { checkAdminAccess, warnIfDefaultAdminPasscode } from "./adminAuth.js";
 import { startPrimeTimeNotifier } from "./primeTimeNotifier.js";
@@ -136,8 +137,11 @@ const httpServer = createServer((req, res) => {
                     if (handled8) return;
                     return handlePartnerApiRequest(req, res).then((handled9) => {
                       if (handled9) return;
+                      return handleLessonApiRequest(req, res).then((handled10) => {
+                      if (handled10) return;
                       res.writeHead(404);
                       res.end();
+                      });
                     });
                   });
                 });

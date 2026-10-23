@@ -14,6 +14,7 @@ import { AdminVersionFooter } from "./AdminVersionFooter";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
 import { TopNav, type SideNavItem } from "./SideNav";
+import { LessonTab } from "./lesson/LessonTab";
 import { ReviewStarButton } from "./ReviewStarButton";
 import { SwipeFavoriteRow } from "./SwipeFavoriteRow";
 import { Icon } from "./Icon";
@@ -214,10 +215,10 @@ function GameStartButton({
   );
 }
 
-export type Tab = "home" | "stats" | "leaderboard" | "history" | "tournaments";
+export type Tab = "home" | "stats" | "leaderboard" | "history" | "tournaments" | "lesson";
 
 /** 下のナビの並び(左から)。タブを切り替えるとき、右のタブへ移るなら右から入り左へ抜ける(apple-design: 空間の一貫性)。 */
-const TAB_ORDER: Record<Tab, number> = { home: 0, stats: 1, history: 2, tournaments: 2, leaderboard: 3 };
+const TAB_ORDER: Record<Tab, number> = { home: 0, stats: 1, history: 2, tournaments: 2, leaderboard: 3, lesson: 4 };
 const TAB_VARIANTS = {
   enter: (dir: number) => ({ opacity: 0, x: 16 * dir }),
   center: { opacity: 1, x: 0 },
@@ -226,7 +227,7 @@ const TAB_VARIANTS = {
 
 /** URLの?tabクエリから有効なタブ名だけを取り出す(それ以外はnull)。/geo等の他画面からの遷移用。 */
 export function tabFromQuery(value: string | null): Tab | null {
-  return value === "home" || value === "stats" || value === "leaderboard" || value === "history" || value === "tournaments"
+  return value === "home" || value === "stats" || value === "leaderboard" || value === "history" || value === "tournaments" || value === "lesson"
     ? value
     : null;
 }
@@ -1206,6 +1207,7 @@ export function Lobby({
     { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
     { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
     { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
+    { key: "lesson", label: "Lesson", icon: "lesson", onClick: () => setTab("lesson") },
     { key: "database", label: "Database", icon: "db", href: "/geo" },
   ];
 
@@ -1698,6 +1700,20 @@ export function Lobby({
           </motion.div>
         )}
 
+        {tab === "lesson" && (
+          <motion.div
+            key="lesson"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={SPRING_MOVE}
+            className="pb-24"
+          >
+            <TabHeader command="./lesson --with bally" eyebrow="Learn with Bally" title="Lesson" />
+            <LessonTab accessToken={accessToken} />
+          </motion.div>
+        )}
+
         {tab === "tournaments" && (
           <motion.div
             key="tournaments"
@@ -1725,16 +1741,7 @@ export function Lobby({
 
       {/* 下部フッターナビはモバイル/タブレットのみ。lg以上はヘッダー中央の TopNav が担う。 */}
       <div className="lg:hidden">
-        <Footer
-          activeKey={tab}
-          centerHref="/geo"
-          items={[
-            { key: "home", label: "Home", icon: "home", onClick: () => setTab("home") },
-            { key: "stats", label: "Stats", icon: "stats", onClick: () => setTab("stats") },
-            { key: "history", label: "History", icon: "history", onClick: () => setTab("history") },
-            { key: "leaderboard", label: "Leaderboard", icon: "trophy", onClick: () => setTab("leaderboard") },
-          ]}
-        />
+        <Footer activeKey={tab} items={navItems} />
       </div>
 
       {stats && infoKey && <StatInfoModal info={buildStatInfo(infoKey, stats, t)} onClose={() => setInfoKey(null)} />}
