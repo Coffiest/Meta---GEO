@@ -416,7 +416,7 @@ export default function AdminPage() {
   }
 
   /** GEOプレイラインの除外(論理削除)。from/to未指定なら全期間。 */
-  async function startGeoBackfill() {
+  async function startGeoBackfill(onlyMissing = true) {
     if (!passcode || geoBackfillBusy) return;
     setGeoBackfillBusy(true);
     setNotice(null);
@@ -425,7 +425,7 @@ export default function AdminPage() {
       const res = await fetch(`${SERVER_URL}/api/admin/geo-backfill`, {
         method: "POST",
         headers: { "content-type": "application/json", ...adminHeaders(passcode, tokenRef.current) },
-        body: JSON.stringify({ onlyMissing: true }),
+        body: JSON.stringify({ onlyMissing }),
       });
       const data = (await res.json()) as GeoBackfillStatus & { alreadyRunning?: boolean };
       setGeoBackfill(data);
@@ -729,6 +729,15 @@ export default function AdminPage() {
                   className="shrink-0 rounded-lg bg-n-4 px-3 py-2 text-[12px] font-black text-white pressable disabled:opacity-40"
                 >
                   {geoBackfill?.running ? "実行中…" : "再構築"}
+                </button>
+                {/* 集計の対象を変えたとき(自動の席を含める等)は、展開済みのハンドも作り直す必要がある。 */}
+                <button
+                  type="button"
+                  onClick={() => void startGeoBackfill(false)}
+                  disabled={geoBackfillBusy || geoBackfill?.running}
+                  className="shrink-0 rounded-lg border border-line px-3 py-2 text-[12px] font-black text-fg-2 pressable disabled:opacity-40"
+                >
+                  全件
                 </button>
               </div>
             </div>

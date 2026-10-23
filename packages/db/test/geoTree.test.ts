@@ -103,7 +103,7 @@ describe("geoTree (integration, real Postgres)", () => {
     expect(emptyNode.sampleSize).toBe(0);
   });
 
-  it("excludes bot actions from GEO samples but keeps line integrity on a bot-mixed table", async () => {
+  it("counts every seat (including automatic seats) in GEO samples on a mixed table", async () => {
     // GEOは実プレイヤーの戦略DBなので、BOTのアクションはサンプルに計上しない。BBだけ人間・
     // 他5席がbotの卓では、root node(line=[])はUTG(bot)のオープンなのでサンプル0だが、ポジション名は
     // 正しくUTGを指す(BOT席はライン順の整合のためシーケンスに残す)。bot達のラインを辿った先の
@@ -172,10 +172,10 @@ describe("geoTree (integration, real Postgres)", () => {
     });
 
     // root node(line=[])は、たまたま最初に人間が座っていたBBではなく、正しくUTGを指す。
-    // ただしUTGはbotなのでサンプルは0(BOTのオープンレイズは計上されない)。
+    // 自動の席の決定も数える(オーナー指示 2026-10-23)ので、UTG のオープンもサンプルに入る。
     const { node: rootNode } = await getPreflopNode({ stackBucket: "10-15", bubbleStage: "normal", line: [] });
     expect(rootNode.position).toBe("UTG");
-    expect(rootNode.sampleSize).toBe(0);
+    expect(rootNode.sampleSize).toBe(1);
 
     // bot達の実際のアクションでラインを辿ってBBまで到達すると、人間(BB)の実測コールが見える。
     const { node: bbNode } = await getPreflopNode({
