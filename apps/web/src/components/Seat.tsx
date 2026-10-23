@@ -17,10 +17,8 @@ import { formatAmount, formatBb, formatChips, type AmountDisplayMode } from "@/l
  * 点数(chips)モードでは素の点数を表示する(100万点以上だけ "1.2M" に丸めて幅を守る)。
  */
 function compactStack(stack: number, bigBlind: number, mode: AmountDisplayMode): string {
-  if (mode === "chips") {
-    if (stack >= 1_000_000) return `${(stack / 1_000_000).toFixed(1)}M`;
-    return formatChips(stack);
-  }
+  // 点数表示は全部の桁を出す(オーナー指示)。名札が桁に合わせて広がるので、はみ出さない。
+  if (mode === "chips") return formatChips(stack);
   if (!bigBlind) return "0bb";
   const bb = stack / bigBlind;
   // 10bb以上は小数を落とす。深いスタックで0.1bbの差を読む場面は無く、
@@ -30,6 +28,12 @@ function compactStack(stack: number, bigBlind: number, mode: AmountDisplayMode):
 }
 import { useI18n } from "@/lib/i18n";
 import { Icon } from "./Icon";
+
+/** 席の下に出す参加率・レイズ率(0〜1)。 */
+export interface SeatHud {
+  vpip: number;
+  pfr: number;
+}
 
 /** 卓上バッジの種別。敗北を宣言するトーンは持たない(負けはスタックが語る)。 */
 export type SeatBadgeTone = "raise" | "call" | "fold" | "win";
@@ -174,6 +178,8 @@ export interface SeatViewProps {
   equity?: number | null;
   /** 卓の右側の席は、勝率を名前の左横に出す(右横だと画面の外へはみ出す)。 */
   equityOnLeft?: boolean;
+  /** 名札の下段に出す参加率・レイズ率。誰の席でも同じ見た目。 */
+  hud?: SeatHud | null;
 }
 
 export function Seat({
@@ -210,6 +216,7 @@ export function Seat({
   out = false,
   equity = null,
   equityOnLeft = false,
+  hud = null,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -351,22 +358,10 @@ export function Seat({
       <motion.div
         animate={{ scale: isActingSeat && !reducedMotion ? 1.06 : 1 }}
         transition={SPRING_SNAPPY}
-        className={`relative flex max-w-full items-center gap-1 rounded-full pr-2 pl-0.5 py-1 transition-[background-color,box-shadow] duration-200 ${
-          isEmpty
-            ? "bg-transparent"
-            : folded
-              ? "bg-surface/80 border border-line-strong/30"
-              : "glass-panel"
-        } ${isActingSeat ? "z-10 ring-2 ring-accent shadow-glow-sm" : ""}`}
+        className={`relative flex flex-col items-center ${isActingSeat ? "z-10" : ""}`}
       >
         {/* 手番の席の拡散リング。手番中ずっと回り続けるアニメーションなので、JS(framer-motion)ではなく
             CSSキーフレームで動かす(コンポジタで完結し、端末の発熱を抑える)。 */}
-        {isActingSeat && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 animate-acting-ring rounded-full ring-2 ring-accent"
-          />
-        )}
 
         {/* タイムバンク使用の告知。誰の席でも同じ条件・同じ見た目で出す
             (出方に差があると、それ自体が相手の種別を推測する手掛かりになってしまう)。
@@ -456,20 +451,21 @@ export function Seat({
         )}
         {!isEmpty && (
           <>
-            <div className="relative">
+            {/* アップルデザインの試作に合わせた形(オーナー指示 v1.23.0): 丸い顔の下に、すりガラスの名札を少し重ねる。
+                手番の席は、顔の残り時間の輪に加えて、ティールの光をにじませる。 */}
+            <div className={`relative z-20 rounded-full ${isActingSeat ? "shadow-glow" : "shadow-e3"}`}>
               <div className="relative z-10">
                 <Avatar
                   avatarKey={avatarKey}
                   displayName={name}
-                  size={size === "lg" ? 44 : 30}
+                  size={size === "lg" ? 46 : 36}
                   timer={isActingSeat ? timer : null}
                   frame={frame ?? null}
                 />
               </div>
-              {/* ポジションはアバターの下端に重ねる白いピル(以前は名前の下の 8px の灰色の札で、実機ではほぼ読めなかった)。
-                  文字の行から外したぶん、名前とスタックに幅を回せる。 */}
+              {/* ポジションは顔の左上に重ねる白いピル(下は名札と重なるため)。 */}
               {position && (
-                <span className="absolute -bottom-1.5 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-fg px-[5px] text-[9px] font-black leading-[13px] text-canvas ring-[1.5px] ring-canvas">
+                <span className="absolute -left-2 top-0 z-20 whitespace-nowrap rounded-full bg-fg px-[5px] text-[9px] font-black leading-[13px] text-canvas ring-[1.5px] ring-canvas">
                   {position}
                 </span>
               )}
@@ -481,16 +477,20 @@ export function Seat({
                 />
               )}
             </div>
-            <div className="text-left min-w-0">
+            {/* 名札。幅は席の幅を下限に、中身(点数表示の桁)に合わせて広がる。点数表示に切り替えても数字が枠からはみ出さない(オーナー指示)。 */}
+            <div
+              className={`relative -mt-2 flex min-w-full flex-col items-center whitespace-nowrap rounded-[14px] px-2 pb-1.5 pt-2.5 text-center transition-[box-shadow] duration-200 ${
+                folded ? "bg-surface/80 border border-line-strong/30" : "glass-panel"
+              } ${isActingSeat ? "ring-1 ring-accent/60" : ""}`}
+            >
               {/* 名前は小さく控えめに、スタックはいちばん大きく太く(卓で最も読む数字)。 */}
-              <div className={`${size === "lg" ? "text-[12px] max-w-[72px]" : "text-[10.5px] max-w-[52px]"} font-medium leading-tight truncate text-fg-2`}>
+              <div className={`${size === "lg" ? "text-[12px] max-w-[104px]" : "text-[10.5px] max-w-[84px]"} font-medium leading-tight truncate text-fg-2`}>
                 {name}
               </div>
               {(() => {
                 const label = compactStack(stack, bigBlind, displayMode);
                 // 点数表示で桁が多いときだけ一段小さくして、席の幅に収める。
-                const big = label.length <= (size === "lg" ? 7 : 5);
-                const cls = `${size === "lg" ? (big ? "text-[16px]" : "text-[13px]") : big ? "text-[14px]" : "text-[12px]"} block font-black leading-none tracking-[-0.01em] text-fg tabular-nums`;
+                const cls = `${size === "lg" ? "text-[16px]" : "text-[14px]"} block font-black leading-none tracking-[-0.02em] text-fg tabular-nums`;
                 return onStackTap ? (
                   // 自席のスタックはタップでbb表示⇄点数表示を切り替えられる(卓上の全金額に反映)。
                   <button
@@ -505,6 +505,16 @@ export function Seat({
                   <span className={`${cls} mt-[2px]`}>{label}</span>
                 );
               })()}
+              {hud && (
+                <div className="mt-1 flex gap-1.5 text-[9px] font-semibold leading-none tabular-nums text-fg-3">
+                  <span>
+                    VPIP <span className="text-fg-2">{Math.round(hud.vpip * 100)}</span>
+                  </span>
+                  <span>
+                    PFR <span className="text-fg-2">{Math.round(hud.pfr * 100)}</span>
+                  </span>
+                </div>
+              )}
               {away && status !== "allIn" && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-fg-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-n-5" />

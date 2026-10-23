@@ -11,7 +11,7 @@ import { cardToString } from "@meta-geo/engine/src/types/card.js";
 import { bestFiveCards, describeMadeHand } from "@/lib/handRank";
 import { useI18n } from "@/lib/i18n";
 import { PlayingCard } from "./PlayingCard";
-import { Seat, type SeatBadge } from "./Seat";
+import { Seat, type SeatBadge, type SeatHud } from "./Seat";
 import { positionLabelsForState } from "@/lib/position";
 import { formatAmount, formatSignedAmount, type AmountDisplayMode } from "@/lib/format";
 import type { SeatAction, SeatPlayerInfo, TurnTimerInfo } from "@/lib/socket";
@@ -352,6 +352,8 @@ export function PokerTable({
   turnTimer,
   onPlayerTap,
   markingBySeat,
+  hudByUser,
+  centerInfo,
   seatBubbles,
   onHeroChatClick,
   heroShowIntent = [false, false],
@@ -382,6 +384,10 @@ export function PokerTable({
   onPlayerTap?: (info: SeatPlayerInfo) => void;
   /** 席ごとのマーキング色(HEX)。プレイヤーメモで色付けした相手の席に小さなドットを出す。 */
   markingBySeat?: Record<string, string | null>;
+  /** 席の下に出す参加率・レイズ率(userId → 値)。誰の席でも同じ形で出す。 */
+  hudByUser?: Record<string, SeatHud>;
+  /** 卓の真ん中(ポットの上)に出す大会の情報(次のレベル・平均・入賞・順位など)。 */
+  centerInfo?: ReactNode;
   /** 座席ごとの直近チャット吹き出し。 */
   seatBubbles?: Record<number, { text: string; ts: number }>;
   /** 自分の席のチャット入力ボタンを押したとき。 */
@@ -543,6 +549,16 @@ export function PokerTable({
       >
       {!use3d && <TableFelt />}
 
+      {/* 大会の情報(アップルデザインの試作に合わせてポットの上に置く。オーナー指示 v1.25.0)。 */}
+      {centerInfo && (
+        <div
+          className={`pointer-events-none absolute inset-x-0 flex justify-center ${layout3d ? "" : "top-[22%]"}`}
+          style={layout3d ? { top: layout3d.pot.y, transform: "translateY(calc(-100% - 22px))" } : undefined}
+        >
+          {centerInfo}
+        </div>
+      )}
+
       {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
           カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
@@ -685,6 +701,7 @@ export function PokerTable({
 
         const seatNode = (
           <Seat
+            hud={player?.userId ? hudByUser?.[player.userId] ?? null : null}
             handRankLabel={heroHandLabel ?? oppHandLabel}
             highlightCards={winnerFive ? (seatIndex === winnerSeat ? winnerFive : null) : heroHandLabel ? heroBestFive : null}
             revealDelay={showOrder && showOrder.indexOf(seatIndex) >= 0 ? showOrder.indexOf(seatIndex) * 0.6 : 0}
