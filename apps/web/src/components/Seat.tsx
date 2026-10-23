@@ -170,8 +170,10 @@ export interface SeatViewProps {
   mucked?: boolean;
   /** トーナメントから飛んだ(スタックが0になった)。席ピルの上に「PLAYER OUT」を貼る。誰の席でも同じ条件・同じ見た目。 */
   out?: boolean;
-  /** オールインのランアウト中の勝率(0〜1)。ピルの右上に出す。誰の席でも同じ条件・同じ見た目。 */
+  /** オールインのランアウト中の勝率(0〜1)。ピルの右横に出す。誰の席でも同じ条件・同じ見た目。 */
   equity?: number | null;
+  /** 卓の右側の席は、勝率を名前の左横に出す(右横だと画面の外へはみ出す)。 */
+  equityOnLeft?: boolean;
 }
 
 export function Seat({
@@ -207,6 +209,7 @@ export function Seat({
   mucked = false,
   out = false,
   equity = null,
+  equityOnLeft = false,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -388,7 +391,8 @@ export function Seat({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={SPRING_SNAPPY}
-            className="pointer-events-none absolute -right-2 -top-3 z-40 rounded-full bg-canvas/90 px-1.5 py-[1px] text-[11px] font-black tabular-nums text-accent shadow-e1 ring-1 ring-accent/60"
+            data-table-obstacle
+            className={`pointer-events-none absolute top-1/2 z-40 -translate-y-1/2 ${equityOnLeft ? "right-full mr-1" : "left-full ml-1"} rounded-full bg-canvas/90 px-1.5 py-0.5 text-[12px] font-black tabular-nums text-accent shadow-e1 ring-1 ring-accent/60`}
           >
             {formatEquity(equity)}
           </motion.span>
