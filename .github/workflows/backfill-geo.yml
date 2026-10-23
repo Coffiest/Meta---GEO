@@ -1,0 +1,29 @@
+name: Backfill GEO
+
+# GEO の集計テーブル(GeoDecision)を、これまでの全ハンドから作り直す手動ワークフロー。
+# 集計の対象を変えたとき(2026-10-23 に自動の席の決定も含めるようにした等)に1回だけ流す。
+# 全ハンドを読み直すので Supabase の転送量を使う。むやみに何度も流さない。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/backfill-geo.yml"]
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @meta-geo/db run generate
+      - name: Rebuild GeoDecision for all hands
+        run: pnpm --filter @meta-geo/db exec tsx scripts/backfillGeoDecisions.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
