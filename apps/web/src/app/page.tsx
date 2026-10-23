@@ -28,7 +28,7 @@ import { tierLabel } from "@/lib/sngTiers";
 import { Icon } from "@/components/Icon";
 import { Loader } from "@/components/ui/Loader";
 import { TermPrompt } from "@/components/Header";
-import { useRunoutEquity } from "@/lib/runoutEquity";
+import { liveHands, useRunoutEquity } from "@/lib/runoutEquity";
 import { cardToString } from "@meta-geo/engine/src/types/card.js";
 import { AdsAllowedProvider } from "@/components/AdSlot";
 import {
@@ -649,12 +649,15 @@ function GameScreen({
     : null;
 
   // オールインで誰もアクションできなくなり、手札が先に開いたランアウトの間だけ勝率を出す。
+  // 観戦で全員の手札が見えているときは、オールインでなくても常に出す。
   const runoutHands = useMemo(() => {
-    if (lastHandEnded || !runoutHoleCards) return null;
+    if (lastHandEnded) return null;
+    if (watching && spectatorCards && !runoutHoleCards) return liveHands(state?.seats, spectatorCards);
+    if (!runoutHoleCards) return null;
     const hands: Record<number, (string | null)[]> = { ...runoutHoleCards };
     if (yourSeatIndex !== null && yourCards.length === 2) hands[yourSeatIndex] = yourCards;
     return hands;
-  }, [lastHandEnded, runoutHoleCards, yourSeatIndex, yourCards]);
+  }, [lastHandEnded, runoutHoleCards, yourSeatIndex, yourCards, watching, spectatorCards, state?.seats]);
   const equityBySeat = useRunoutEquity(runoutHands, (state?.board ?? []).map(cardToString));
 
   const gameLabel =

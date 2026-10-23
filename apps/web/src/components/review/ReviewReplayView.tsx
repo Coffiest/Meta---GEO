@@ -13,6 +13,8 @@ import { DecisionHeadline } from "@/components/review/DecisionHeadline";
 import { actionLabel, decisionInfo, STREET_EN } from "@/lib/actionNotation";
 import type { KnowledgeContext } from "@/lib/reviewKnowledge";
 import { PokerTable } from "@/components/PokerTable";
+import { liveHands, useRunoutEquity } from "@/lib/runoutEquity";
+import { cardToString } from "@meta-geo/engine/src/types/card.js";
 import { FitBox } from "@/components/review/FitBox";
 import { PlayingCard } from "@/components/PlayingCard";
 import { playersFromTimeline, revealedFromTimeline, type ReplayStep, type TournamentReplay } from "@/lib/replay";
@@ -258,6 +260,14 @@ export function ReviewReplayView({
   const heroSeat = currentHand?.timeline.seats.find((s) => s.userId === heroUserId);
   const heroSeatIndex = heroSeat?.seatIndex ?? null;
   const heroCards = useMemo(() => heroSeat?.holeCards ?? [], [heroSeat]);
+  // リプレイでは常に勝率を出す。見えている手札(自分+ショーダウンで開いた手)だけで計算する。
+  const replayHands = useMemo(() => {
+    if (!currentHand || !step) return null;
+    const known: Record<number, (string | null)[]> = { ...(revealedFromTimeline(currentHand.timeline) ?? {}) };
+    if (heroSeatIndex !== null && heroCards.length === 2) known[heroSeatIndex] = heroCards;
+    return liveHands(step.snapshot.seats, known);
+  }, [currentHand, step, heroSeatIndex, heroCards]);
+  const replayEquity = useRunoutEquity(replayHands, (step?.snapshot.board ?? []).map(cardToString));
   // 相手の決定(プラチナ)と、ぼかしの位置(プラチナ以外)。
   const oppBySeq = useMemo(
     () => new Map((currentHand?.opponentDecisions ?? []).map((d) => [d.sequenceNumber, d] as const)),
@@ -395,6 +405,7 @@ export function ReviewReplayView({
           lastActionBySeat={step.type === "action" ? { [step.actorSeat]: step.seatAction } : {}}
           lastHandDeltaBySeat={null}
           turnTimer={null}
+          equityBySeat={replayEquity}
         />
       </main>
 
