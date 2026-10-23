@@ -746,11 +746,9 @@ function GameScreen({
   );
 
   return (
-    <div className="circuit-bg relative isolate flex h-[100dvh] flex-col overflow-hidden">
-      {/* 卓の外側に広がるサーキット基板グリッド背景。卓画像は黒地をアルファとして焼き込んだ
-          透過版を使っているので、この背景が卓の内側まで途切れずに繋がり、卓の台紙が矩形として
-          見えることがない。 */}
-      <div aria-hidden className="circuit-bg-grid pointer-events-none absolute inset-0 -z-10" />
+    <div className="table-bg relative isolate flex h-[100dvh] flex-col overflow-hidden">
+      {/* 卓の画面の背景(光のにじみ+中央だけ見える細い格子。globals.css の .table-bg)。 */}
+      <div aria-hidden className="table-bg-grid pointer-events-none absolute inset-0 -z-10" />
       {/* トーナメントクロック。以前は縦4段(Lv / 26pxのカウントダウン / 残り人数 / BLIND・ANTE・AVE)で
           122px を占めていた。実機の実測ではヘッダーとアクションバーだけで画面の63%を使っており、
           そのぶん卓が小さく描かれていた。同じ情報量を1行に畳んで 46px に収める。
