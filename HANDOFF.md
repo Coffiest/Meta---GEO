@@ -1,7 +1,7 @@
 # PokerART 引き継ぎ
 
 ## 更新日時
-2026-10-23 15:10
+2026-10-23 15:15
 
 ## 現在地
 - このチャットで出したもの(2026-10-21〜23、mainマージ済み):v1.13.1 チップ表現の削除 / v1.17.0〜1.17.2 オールインのランアウト中・観戦(手札が見える人)・リプレイで各席の勝率表示(`lib/runoutEquity.ts`、Web Worker、名前の横。右側の席は左横) / v1.20.0 プレイヤー情報を中央の小さなカードにし、KKPoker と同じスタッツ追加(`packages/db/src/playerTendencies.ts`、直近3,000ハンド) / v1.20.1 GEO に自動の席の決定も含める / v1.20.2 全ハンドから GEO を作り直すワークフロー(`.github/workflows/backfill-geo.yml`)。
@@ -9,7 +9,10 @@
 - 勝率表示は試しのページで撮影確認済み。プレイヤー情報の新しい数字の本番表示は未確認。
 - GTO Wizard のデータは `packages/engine/data/gtow/70/<場面>.json`、判定は `packages/db/src/gtowPreflop.ts`。GEO の統合は読み出し時に読み替え(`geoTree.ts` の normalizePosition / expandLineKey)。
 
+- Lesson タブ(別チャット、2026-10-23):v1.18.0 6タブ化・カリキュラム一覧・1日3レッスン(`LessonProgress` / `/api/lessons`)/ v1.19.0「0. ルール説明」のレッスン(`apps/web/src/data/lessonRules.ts`、`components/lesson/LessonPlayer.tsx`)。どちらもデプロイ success 確認済み。[Coffiest/Meta---GEO#392](https://github.com/Coffiest/Meta---GEO/pull/392)(一覧で押せるレッスンをカード+再生ボタン+「はじめる」、準備中は錠)は main マージ済み。番号 v1.20.1 が #393 と重なった。その Deploy は cancelled で、v1.20.2 の Deploy に含まれる(結果は未確認)。実機は未確認。
+
 ## 決定事項
+- Lesson の仕様は CLAUDE.md の Lesson の節(1日3レッスン・ゴールド以上は無制限・ルール説明は無制限・出典は出さない・バリィはくだけた普通の口調、関西弁はラフくんだけ)。
 - 返答では日本語以外の表記を使わない(オーナー指示 2026-10-23)。英語の語や略語・英字の名前は、日本語に言い換えるか、カタカナで書く。
 - 「バーチャルチップ」「仮想チップ」は一切使わない(画面・文書・チャット)。「お金を賭けない」等にする(2026-10-21)。
 - 「アンティ」と書く。料金はシート(usePricingSheet)。
@@ -24,6 +27,7 @@
 - GTO Wizard の UI は、並べ方・操作・色の役割だけ参考にし、名前・ロゴ・見た目そのものはまねしない。
 
 ## 次にやること
+0. Lesson「1. トナメとキャッシュの違い」の中身をオーナーから受け取って作る。以後も1項目ずつ。
 0. GEO 作り直しワークフローの結果を確認し、オーナーに何ハンド入ったか報告する。
 1. **【最優先・オーナー指示 2026-10-22】GTO Wizard の BB のディフェンスレンジを各スタックで大量に取る。「PokerARTの続き」と言われたらこれから始める。**
    - 取るもの:各スタック(7/10/14/20/30/50/70bb。ライブラリにある値)で、LJ / HJ / CO / BTN / SB のオープンレイズに対する BB の行動(Raise / Call / Fold / Allin)。浅いスタックでオープンにオールインがあれば、それに対する BB(Call / Fold)も取る。形式は MTT・ChipEV・8max(LJ 以降を6人として使う)。
