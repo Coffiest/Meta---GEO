@@ -1,23 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { HandEngine, type PublicHandState } from "@meta-geo/engine/src/handEngine.js";
 import { decideBotAction, lastAggressorSeat } from "@meta-geo/engine/src/autoPlayer.js";
 import { cardToString, parseCard, type Card } from "@meta-geo/engine/src/types/card.js";
 import type { PlayerAction } from "@meta-geo/engine/src/types/action.js";
 import type { Lesson, LessonScene } from "@/data/lessons";
-import { REVIEW_SPEAKER } from "@/data/reviewSpeaker";
 import { completeLesson } from "@/lib/lessonApi";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
 import type { SeatAction, SeatPlayerInfo } from "@/lib/socket";
 import { Icon } from "@/components/Icon";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
+import { BallyBubble } from "@/components/BallyBubble";
+import { FitBox } from "@/components/review/FitBox";
+import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
 
 /**
- * 1レッスンを進める画面(全画面)。上に卓、下にバリィの吹き出し(棋譜解析の解説と同じ形)。
+ * 1レッスンを進める画面(全画面)。棋譜解析と同じ並び: 上にバリィの解説(高さ固定の箱)、真ん中に卓、下に操作(高さ固定)。
+ * 卓は段階が変わっても同じ1つを出し続ける(付け替えると読み込み直してちらつく)。上下の箱の高さも一定なので、卓の大きさは変わらない。
  *  - talk: 「次へ」で次のページ。ページごとに卓の場面(手札・バリィの手・ボード)を出す。
  *  - flip: 手札どうしの勝負を見せるだけ(配る → 「次へ」でボードを開けて勝ち負け)。
  *  - guided: バリィと決まった流れの1ハンド。言われたボタンを押す(チップの掛け方)。
@@ -92,21 +95,51 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
     });
   }, [lesson]);
 
+  // 棋譜解析と同じく、話の場面は「‹」で1つ前へ戻れる。ハンドを打つ段階(実際に押す・実践)の中へは戻らない。
+  const prev = useMemo(() => prevOf(lesson, phase), [lesson, phase]);
+  const back = useCallback(() => {
+    if (prev) setPhase(prev);
+  }, [prev]);
+
   useEffect(() => {
     if (phase.kind === "done") void completeLesson(accessToken, lesson.id, 0);
   }, [phase.kind, accessToken, lesson.id]);
 
   const stepIndex = phase.kind === "done" ? lesson.steps.length : phase.step;
 
+  // 3つの段階のどれでも、卓・台詞・下の操作を同じ形で返す(卓を同じ位置の同じ部品のまま描くため)。
+  const stat = useStaticScene(lesson, phase, phase.kind === "done" ? onClose : next, prev ? back : null);
+  const guided = useGuidedHand(phase.kind === "guided", next);
+  const practiceStep = phase.kind === "practice" ? lesson.steps[phase.step] : undefined;
+  const practice = usePracticeTable(phase.kind === "practice", practiceStep?.kind === "practice" ? practiceStep.hands : 6, next);
+  const view = phase.kind === "guided" ? guided : phase.kind === "practice" ? practice : stat;
+  const bubbleKey = `${stepIndex}:${phase.kind === "talk" ? phase.page : ""}:${view.text}`;
+
   return createPortal(
-    <motion.div className="fixed inset-0 z-[80] flex flex-col bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={FADE}>
-      <header className="flex shrink-0 items-center gap-3 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+10px)]">
-        <button type="button" onClick={onClose} aria-label="閉じる" className="pressable grid h-10 w-10 place-items-center rounded-full text-fg-2">
-          <Icon name="close" className="h-6 w-6" />
-        </button>
-        <p className="min-w-0 flex-1 truncate text-[15px] font-black text-fg">{lesson.title}</p>
+    <motion.div
+      className="fixed inset-0 z-[80] flex flex-col overflow-hidden"
+      style={{ background: SHEET_BG }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={FADE}
+    >
+      {/* すりガラスのナビゲーションバー(棋譜解析と同じ) */}
+      <header className="glass-header flex shrink-0 items-center gap-2.5 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)]">
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-fg"
+        >
+          <Icon name="close" className="h-4 w-4" />
+        </motion.button>
+        <p className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-tight text-fg">{lesson.title}</p>
+        <p className="ml-auto rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-fg-2">
+          {Math.min(stepIndex + 1, lesson.steps.length)}/{lesson.steps.length}
+        </p>
       </header>
-      <div className="h-1 shrink-0 bg-white/[0.06]">
+      <div className="h-[2px] shrink-0 bg-white/[0.06]">
         <motion.div
           className="h-full bg-accent"
           animate={{ width: `${(stepIndex / Math.max(1, lesson.steps.length)) * 100}%` }}
@@ -114,16 +147,66 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
         />
       </div>
 
-      {phase.kind === "guided" ? (
-        <GuidedHand onDone={next} />
-      ) : phase.kind === "practice" ? (
-        <PracticeTable hands={(lesson.steps[phase.step] as { hands: number }).hands} onDone={next} />
-      ) : (
-        <StaticScene lesson={lesson} phase={phase} onNext={phase.kind === "done" ? onClose : next} />
-      )}
+      {/* 上: バリィの解説。高さは一定(伸び縮みすると卓の大きさが変わってちらつく)。入りきらなければ FitBox が縮める。 */}
+      <div className="shrink-0 px-3 pt-2">
+        <motion.div
+          key={bubbleKey}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={SPRING_MOVE}
+          className="rounded-[20px] bg-surface shadow-e2"
+          style={{ border: `0.5px solid ${HAIRLINE}` }}
+        >
+          <FitBox className="h-[176px] px-3.5 py-3" contentKey={bubbleKey}>
+            <BallyBubble size="lg">
+              <span className={`block whitespace-pre-wrap text-[13px] ${view.tone === "hint" ? "text-accent" : ""}`}>{view.text}</span>
+            </BallyBubble>
+          </FitBox>
+        </motion.div>
+      </div>
+
+      {/* 真ん中: 卓(常に出す) */}
+      <main className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
+        <PokerTable {...view.table} />
+      </main>
+
+      {/* 下: 操作。高さはアクションバーと同じ 132px で一定。 */}
+      <div className="shrink-0 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+10px)] pt-1" style={{ borderColor: HAIRLINE }}>
+        <div className="flex h-[132px] flex-col justify-center">{view.bottom}</div>
+      </div>
     </motion.div>,
     document.body,
   );
+}
+
+type TableProps = ComponentProps<typeof PokerTable>;
+type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; bottom: ReactNode };
+
+/** 「次へ」など、下の箱に置く大きなボタン(1画面に1つだけの強いアクセント)。 */
+function NextButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="pressable-lg flex h-14 w-full items-center justify-center gap-1.5 rounded-2xl bg-accent text-[16px] font-black text-on-accent shadow-glow"
+    >
+      {label}
+      <Icon name="chevron-right" className="h-5 w-5" />
+    </button>
+  );
+}
+
+/** 1つ前の場面。話(talk)とフリップの中だけを戻る。前がハンドを打つ段階なら戻らない(null)。 */
+function prevOf(lesson: Lesson, p: Phase): Phase | null {
+  if (p.kind === "talk" && p.page > 0) return { ...p, page: p.page - 1 };
+  if (p.kind === "flip" && p.revealed) return { ...p, revealed: false };
+  if (p.kind === "guided" || p.kind === "practice") return null;
+  const step = p.kind === "done" ? lesson.steps.length : p.step;
+  const before = lesson.steps[step - 1];
+  if (!before) return null;
+  if (before.kind === "talk") return { kind: "talk", step: step - 1, page: before.pages.length - 1 };
+  if (before.kind === "flip") return { kind: "flip", step: step - 1, revealed: true };
+  return null;
 }
 
 function startOf(lesson: Lesson, step: number): Phase {
@@ -135,95 +218,63 @@ function startOf(lesson: Lesson, step: number): Phase {
   return { kind: "practice", step };
 }
 
-/** バリィの吹き出し。 */
-function Bubble({ text, tone = "normal" }: { text: string; tone?: "normal" | "hint" }) {
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={text}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -6 }}
-        transition={SPRING_MOVE}
-        className="glass-panel flex items-start gap-3 rounded-3xl p-3.5"
-      >
-        {REVIEW_SPEAKER && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={REVIEW_SPEAKER.avatarSrc} alt="" className="h-14 w-auto shrink-0" />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-bold text-accent">{REVIEW_SPEAKER?.name ?? ""}</p>
-          <p className={`mt-0.5 whitespace-pre-wrap text-[14px] leading-relaxed ${tone === "hint" ? "text-accent" : "text-fg"}`}>{text}</p>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
-/** talk / flip / done: 卓の場面と吹き出しと「次へ」。 */
-function StaticScene({ lesson, phase, onNext }: { lesson: Lesson; phase: Phase; onNext: () => void }) {
+/** talk / flip / done: 場面(手札・バリィの手・ボード)の卓と「次へ」。場面の無いページも、空の卓を出したままにする。 */
+function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack: (() => void) | null): LessonView {
   let text = "おつかれさま!このレッスンはおしまいだよ。";
   let scene: LessonScene | undefined;
-  let withBally = false;
   if (phase.kind === "talk") {
     const step = lesson.steps[phase.step];
     const page = step?.kind === "talk" ? step.pages[phase.page] : undefined;
     text = page?.text ?? "";
     scene = page?.scene;
-    withBally = Boolean(scene?.bally);
   } else if (phase.kind === "flip") {
     const step = lesson.steps[phase.step];
     if (step?.kind === "flip") {
-      withBally = true;
       text = phase.revealed ? step.result : step.intro;
       scene = phase.revealed ? { hero: step.hero, bally: step.bally, board: step.board } : { hero: step.hero, bally: step.bally };
       const heroWins = step.result.includes("きみの勝ち");
       if (phase.revealed) scene = { ...scene, winner: heroWins ? "hero" : "bally" };
     }
   }
-  const state = sceneState(scene, withBally || phase.kind === "flip");
-  const players: Record<number, SeatPlayerInfo> = { [HERO]: HERO_PLAYER };
-  if (state.seats.length > 1) players[BALLY] = BALLY_PLAYER;
+  // 卓にはいつもバリィも座らせる(ページごとに席が増えたり消えたりしない)。
+  const state = sceneState(scene, true);
+  const players: Record<number, SeatPlayerInfo> = { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER };
   const revealed = scene?.bally ? { [BALLY]: scene.bally } : null;
   const delta = scene?.winner ? { [scene.winner === "hero" ? HERO : BALLY]: 1 } : null;
+  const label = phase.kind === "done" ? "一覧へもどる" : phase.kind === "flip" && !phase.revealed ? "ボードを開ける" : "次へ";
 
-  return (
-    <>
-      <main className="relative min-h-0 flex-1">
-        {scene?.hero ? (
-          <PokerTable
-            state={state}
-            yourSeatIndex={HERO}
-            yourCards={scene.hero}
-            seatCount={SEAT_COUNT}
-            revealedHoleCards={revealed}
-            players={players}
-            bigBlind={BB}
-            lastActionBySeat={{}}
-            lastHandDeltaBySeat={delta}
-            turnTimer={null}
-          />
-        ) : (
-          <div className="grid h-full place-items-center">
-            {REVIEW_SPEAKER && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={REVIEW_SPEAKER.avatarSrc} alt="" className="h-40 w-auto opacity-90" />
-            )}
-          </div>
-        )}
-      </main>
-      <div className="shrink-0 px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-2">
-        <Bubble text={text} />
+  return {
+    table: {
+      state,
+      yourSeatIndex: HERO,
+      yourCards: scene?.hero ?? [],
+      seatCount: SEAT_COUNT,
+      revealedHoleCards: revealed,
+      players,
+      bigBlind: BB,
+      lastActionBySeat: {},
+      lastHandDeltaBySeat: delta,
+      turnTimer: null,
+    },
+    text,
+    bottom: (
+      // 棋譜解析と同じく、左に「‹」(前へ)、右へ進む。
+      <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onNext}
-          className="pressable mt-2.5 w-full rounded-2xl bg-accent py-3.5 text-[16px] font-black text-on-accent shadow-glow"
+          onClick={onBack ?? undefined}
+          disabled={!onBack}
+          aria-label="前へ"
+          className="pressable flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-fg disabled:opacity-30"
         >
-          {phase.kind === "done" ? "一覧へもどる" : phase.kind === "flip" && !phase.revealed ? "ボードを開ける" : "次へ"}
+          <Icon name="chevron-left" className="h-5 w-5" />
         </button>
+        <div className="min-w-0 flex-1">
+          <NextButton label={label} onClick={onNext} />
+        </div>
       </div>
-    </>
-  );
+    ),
+  };
 }
 
 /** 卓の状態から、自分の手番で使うアクションバーの値。 */
@@ -269,7 +320,7 @@ const GUIDE: { expect: PlayerAction["kind"]; label: string; text: string }[] = [
   { expect: "allIn", label: "オールイン", text: "最後は、持ってるチップを全部出す「オールイン」だよ。押してみよう。" },
 ];
 
-function GuidedHand({ onDone }: { onDone: () => void }) {
+function useGuidedHand(active: boolean, onDone: () => void): LessonView {
   const engineRef = useRef<HandEngine | null>(null);
   if (!engineRef.current) {
     engineRef.current = new HandEngine({
@@ -302,7 +353,7 @@ function GuidedHand({ onDone }: { onDone: () => void }) {
 
   // バリィの番は決まった手を打つ。
   useEffect(() => {
-    if (state.isComplete || state.actingSeatIndex !== BALLY) return;
+    if (!active || state.isComplete || state.actingSeatIndex !== BALLY) return;
     const id = window.setTimeout(() => {
       const turn = ballyTurn.current++;
       const s = engine.getPublicState();
@@ -316,7 +367,7 @@ function GuidedHand({ onDone }: { onDone: () => void }) {
       sync();
     }, 900);
     return () => window.clearTimeout(id);
-  }, [state, engine, sync]);
+  }, [active, state, engine, sync]);
 
   const onAction = (action: PlayerAction) => {
     const g = GUIDE[heroTurn];
@@ -344,57 +395,48 @@ function GuidedHand({ onDone }: { onDone: () => void }) {
       ? GUIDE[heroTurn]?.text ?? ""
       : "僕の番だよ…";
 
-  return (
-    <>
-      <main className="relative min-h-0 flex-1">
-        <PokerTable
-          state={state}
-          yourSeatIndex={HERO}
-          yourCards={heroCards}
-          seatCount={SEAT_COUNT}
-          revealedHoleCards={null}
-          players={{ [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER }}
-          bigBlind={BB}
-          lastActionBySeat={last}
-          lastHandDeltaBySeat={finished ? { [HERO]: 1 } : null}
-          turnTimer={null}
-        />
-      </main>
-      <div className="shrink-0 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-2">
-        <Bubble text={hint ?? text} tone={hint ? "hint" : "normal"} />
-        {finished ? (
-          <button type="button" onClick={onDone} className="pressable mt-2.5 w-full rounded-2xl bg-accent py-3.5 text-[16px] font-black text-on-accent shadow-glow">
-            次へ
-          </button>
-        ) : (
-          <div className="mt-2">
-            <ActionBar
-              isYourTurn={myTurn}
-              street={state.street}
-              canCheck={(bar?.toCall ?? 0) <= 0}
-              toCall={bar?.toCall ?? 0}
-              minRaiseToAmount={bar?.minRaiseTo ?? 0}
-              maxRaiseToAmount={bar?.maxRaiseTo ?? 0}
-              potTotal={state.potTotal}
-              streetContribution={bar?.streetContribution ?? 0}
-              canRaise={bar?.canRaise ?? false}
-              bigBlind={BB}
-              effectiveStackBehind={bar?.effective ?? 0}
-              onAction={onAction}
-              away={false}
-              onToggleAway={() => {}}
-              checkFoldArmed={false}
-              onToggleCheckFold={() => {}}
-            />
-          </div>
-        )}
-      </div>
-    </>
-  );
+  return {
+    table: {
+      state,
+      yourSeatIndex: HERO,
+      yourCards: heroCards,
+      seatCount: SEAT_COUNT,
+      revealedHoleCards: null,
+      players: { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER },
+      bigBlind: BB,
+      lastActionBySeat: last,
+      lastHandDeltaBySeat: finished ? { [HERO]: 1 } : null,
+      turnTimer: null,
+    },
+    text: hint ?? text,
+    tone: hint ? "hint" : "normal",
+    bottom: finished ? (
+      <NextButton label="次へ" onClick={onDone} />
+    ) : (
+      <ActionBar
+        isYourTurn={myTurn}
+        street={state.street}
+        canCheck={(bar?.toCall ?? 0) <= 0}
+        toCall={bar?.toCall ?? 0}
+        minRaiseToAmount={bar?.minRaiseTo ?? 0}
+        maxRaiseToAmount={bar?.maxRaiseTo ?? 0}
+        potTotal={state.potTotal}
+        streetContribution={bar?.streetContribution ?? 0}
+        canRaise={bar?.canRaise ?? false}
+        bigBlind={BB}
+        effectiveStackBehind={bar?.effective ?? 0}
+        onAction={onAction}
+        away={false}
+        onToggleAway={() => {}}
+        checkFoldArmed={false}
+        onToggleCheckFold={() => {}}
+      />
+    ),
+  };
 }
 
 /** 実践: 練習相手と6人卓を1周(ボタンが全員を1回ずつ回る)。100BB・ブラインドは上げない。 */
-function PracticeTable({ hands, onDone }: { hands: number; onDone: () => void }) {
+function usePracticeTable(active: boolean, hands: number, onDone: () => void): LessonView {
   const stacks = useRef<number[]>(Array.from({ length: SEAT_COUNT }, () => START_STACK));
   const [handNo, setHandNo] = useState(0);
   const engineRef = useRef<HandEngine | null>(null);
@@ -429,7 +471,10 @@ function PracticeTable({ hands, onDone }: { hands: number; onDone: () => void })
     setState(engine.getPublicState());
   }, []);
 
-  useEffect(() => startHand(0), [startHand]);
+  // 実践の段階に入ったときに最初のハンドを配る。
+  useEffect(() => {
+    if (active && !engineRef.current) startHand(0);
+  }, [active, startHand]);
 
   const sync = useCallback(() => {
     const engine = engineRef.current!;
@@ -461,7 +506,7 @@ function PracticeTable({ hands, onDone }: { hands: number; onDone: () => void })
   // 練習相手の番。
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || !state || state.isComplete || state.actingSeatIndex === null || state.actingSeatIndex === HERO) return;
+    if (!active || !engine || !state || state.isComplete || state.actingSeatIndex === null || state.actingSeatIndex === HERO) return;
     const seatIndex = state.actingSeatIndex;
     const id = window.setTimeout(() => {
       const s = engine.getPublicState();
@@ -493,9 +538,26 @@ function PracticeTable({ hands, onDone }: { hands: number; onDone: () => void })
       sync();
     }, 800);
     return () => window.clearTimeout(id);
-  }, [state, sync]);
+  }, [active, state, sync]);
 
-  if (!state || !engineRef.current) return <main className="flex-1" />;
+  if (!state || !engineRef.current) {
+    return {
+      table: {
+        state: sceneState(undefined, true),
+        yourSeatIndex: HERO,
+        yourCards: [],
+        seatCount: SEAT_COUNT,
+        revealedHoleCards: null,
+        players: { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER },
+        bigBlind: BB,
+        lastActionBySeat: {},
+        lastHandDeltaBySeat: null,
+        turnTimer: null,
+      },
+      text: "",
+      bottom: null,
+    };
+  }
   const engine = engineRef.current;
   const myTurn = !state.isComplete && state.actingSeatIndex === HERO;
   const bar = myTurn ? heroBarProps(engine, state, HERO) : null;
@@ -513,68 +575,57 @@ function PracticeTable({ hands, onDone }: { hands: number; onDone: () => void })
   }
   const lastHand = handNo + 1 >= hands;
 
-  return (
-    <>
-      <main className="relative min-h-0 flex-1">
-        <PokerTable
-          state={state}
-          yourSeatIndex={HERO}
-          yourCards={heroCards}
-          seatCount={SEAT_COUNT}
-          revealedHoleCards={result?.shown ?? null}
-          players={players}
-          bigBlind={BB}
-          lastActionBySeat={last}
-          lastHandDeltaBySeat={result?.delta ?? null}
-          turnTimer={null}
-        />
-      </main>
-      <div className="shrink-0 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pt-2">
-        <Bubble text={text} />
-        {result ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (lastHand) onDone();
-              else {
-                setHandNo(handNo + 1);
-                startHand(handNo + 1);
-              }
-            }}
-            className="pressable mt-2.5 w-full rounded-2xl bg-accent py-3.5 text-[16px] font-black text-on-accent shadow-glow"
-          >
-            {lastHand ? "おわる" : "次のハンドへ"}
-          </button>
-        ) : (
-          <div className="mt-2">
-            <ActionBar
-              isYourTurn={myTurn}
-              street={state.street}
-              canCheck={(bar?.toCall ?? 0) <= 0}
-              toCall={bar?.toCall ?? 0}
-              minRaiseToAmount={bar?.minRaiseTo ?? 0}
-              maxRaiseToAmount={bar?.maxRaiseTo ?? 0}
-              potTotal={state.potTotal}
-              streetContribution={bar?.streetContribution ?? 0}
-              canRaise={bar?.canRaise ?? false}
-              bigBlind={BB}
-              effectiveStackBehind={bar?.effective ?? 0}
-              onAction={(a) => {
-                try {
-                  engine.applyAction(HERO, a);
-                } catch {
-                  return;
-                }
-                sync();
-              }}
-              away={false}
-              onToggleAway={() => {}}
-              checkFoldArmed={false}
-              onToggleCheckFold={() => {}}
-            />
-          </div>
-        )}
-      </div>
-    </>
-  );
+  return {
+    table: {
+      state,
+      yourSeatIndex: HERO,
+      yourCards: heroCards,
+      seatCount: SEAT_COUNT,
+      revealedHoleCards: result?.shown ?? null,
+      players,
+      bigBlind: BB,
+      lastActionBySeat: last,
+      lastHandDeltaBySeat: result?.delta ?? null,
+      turnTimer: null,
+    },
+    text,
+    bottom: result ? (
+      <NextButton
+        label={lastHand ? "おわる" : "次のハンドへ"}
+        onClick={() => {
+          if (lastHand) onDone();
+          else {
+            setHandNo(handNo + 1);
+            startHand(handNo + 1);
+          }
+        }}
+      />
+    ) : (
+      <ActionBar
+        isYourTurn={myTurn}
+        street={state.street}
+        canCheck={(bar?.toCall ?? 0) <= 0}
+        toCall={bar?.toCall ?? 0}
+        minRaiseToAmount={bar?.minRaiseTo ?? 0}
+        maxRaiseToAmount={bar?.maxRaiseTo ?? 0}
+        potTotal={state.potTotal}
+        streetContribution={bar?.streetContribution ?? 0}
+        canRaise={bar?.canRaise ?? false}
+        bigBlind={BB}
+        effectiveStackBehind={bar?.effective ?? 0}
+        onAction={(a) => {
+          try {
+            engine.applyAction(HERO, a);
+          } catch {
+            return;
+          }
+          sync();
+        }}
+        away={false}
+        onToggleAway={() => {}}
+        checkFoldArmed={false}
+        onToggleCheckFold={() => {}}
+      />
+    ),
+  };
 }
