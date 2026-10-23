@@ -7,6 +7,7 @@ import {
   getLeaderboards,
   getOrCreateUserByAuthId,
   getPlayerStats,
+  getPlayerTendencies,
   getPlayerNote,
   getPlayerNotesForTargets,
   getReferralSummary,
@@ -440,17 +441,18 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         sendJson(res, 200, synthetic);
         return true;
       }
-      const [stats, rr, frames] = await Promise.all([
+      const [stats, rr, frames, tendencies] = await Promise.all([
         getPlayerStats(target.id),
         getRRRating(target.id),
         getEliteFrames([target.id]),
+        getPlayerTendencies(target.id),
       ]);
       sendJson(res, 200, {
         id: target.id,
         displayName: target.displayName,
         avatarKey: target.avatarKey,
         frame: frames.get(target.id) ?? null,
-        stats,
+        stats: { ...stats, ...tendencies },
         rrRating: rr,
       });
       return true;

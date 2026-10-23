@@ -54,6 +54,15 @@ export interface SyntheticProfile {
     threeBetCount: number;
     threeBetOpportunities: number;
     threeBetRate: number;
+    hands: number;
+    foldTo3BetRate: number;
+    cbetRate: number;
+    foldToCbetRate: number;
+    stealRate: number;
+    checkRaiseRate: number;
+    wtsdRate: number;
+    wsdRate: number;
+    titles: number;
   };
   rrRating: {
     rrRating: number | null;
@@ -115,6 +124,16 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
       threeBetCount: Math.round(threeBetOpportunities * threeBetRate),
       threeBetOpportunities,
       threeBetRate,
+      // 実プレイヤーと同じ項目・同じ形(TENDENCY_HAND_LIMIT と同じ上限)。
+      hands: Math.min(3000, vpipOpportunities + Math.round(vpipOpportunities * between(0.1, 0.25))),
+      foldTo3BetRate: between(0.4, 0.68),
+      cbetRate: between(0.45, 0.75),
+      foldToCbetRate: between(0.3, 0.55),
+      stealRate: between(0.28, 0.5),
+      checkRaiseRate: between(0.04, 0.14),
+      wtsdRate: between(0.22, 0.34),
+      wsdRate: between(0.45, 0.56),
+      titles: Math.round(itmCount * between(0.12, 0.3)),
     },
     rrRating: { rrRating, roi, tournamentsPlayed, nationalRank, totalRankedPlayers },
   };
