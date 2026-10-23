@@ -1079,16 +1079,7 @@ function GeoDatabase({
 
       {/* 下部フッターナビはモバイル/タブレットのみ。lg以上はヘッダー中央の TopNav が担う。 */}
       <div className="lg:hidden">
-        <Footer
-          activeKey={null}
-          centerActive
-          items={[
-            { key: "home", label: "Home", icon: "home", href: "/" },
-            { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
-            { key: "history", label: "History", icon: "history", href: "/?tab=history" },
-            { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-          ]}
-        />
+        <Footer activeKey="database" items={SIDE_NAV_ITEMS} />
       </div>
     </div>
   );

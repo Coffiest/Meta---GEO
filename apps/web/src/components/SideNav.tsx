@@ -67,6 +67,7 @@ export const SIDE_NAV_ITEMS: SideNavItem[] = [
   { key: "stats", label: "Stats", icon: "stats", href: "/?tab=stats" },
   { key: "history", label: "History", icon: "history", href: "/?tab=history" },
   { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
+  { key: "lesson", label: "Lesson", icon: "lesson", href: "/?tab=lesson" },
   { key: "database", label: "Database", icon: "db", href: "/geo" },
 ];
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { SIDE_NAV_ITEMS } from "@/components/SideNav";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -201,15 +202,8 @@ export default function ReviewHandPage() {
         ) : null}
       </div>
 
-      <Footer
-        activeKey={null}
-        items={[
-          { key: "home", label: "Home", icon: "home", href: "/" },
-          { key: "history", label: "History", icon: "history", href: "/?tab=history" },
-          { key: "database", label: "Database", icon: "db", href: "/geo" },
-          { key: "leaderboard", label: "Leaderboard", icon: "trophy", href: "/?tab=leaderboard" },
-        ]}
-      />
+      <Footer activeKey={null} items={SIDE_NAV_ITEMS} />
+
     </div>
   );
 }

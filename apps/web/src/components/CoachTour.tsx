@@ -44,7 +44,7 @@ const STEPS: TourStep[] = [
   { id: "rating", target: "rating" },
   { id: "stats", target: "tab-stats" },
   { id: "history", target: "tab-history" },
-  { id: "db", target: "tab-db" },
+  { id: "db", target: "tab-database" },
   { id: "leaderboard", target: "tab-leaderboard" },
   { id: "menu", target: "menu" },
   { id: "feedback", target: "feedback" },

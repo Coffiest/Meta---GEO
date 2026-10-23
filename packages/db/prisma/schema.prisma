@@ -936,3 +936,21 @@ model PromoCouponRedemption {
 
   @@unique([couponId, userId])
 }
+
+/// レッスン(Lesson タブ)の進み具合。1人1レッスン1行。
+/// 無料・シルバーは1日3レッスンまで(日本時間の日付。同じ日に同じレッスンをやり直しても数えない)。ゴールド以上は無制限。
+model LessonProgress {
+  id             String    @id @default(uuid())
+  userId         String
+  lessonId       String
+  /// 最後に開始した日(日本時間 "YYYY-MM-DD")。その日の開始数を数える。
+  lastStartedDay String
+  completedAt    DateTime?
+  /// 一発で正解した数に応じた星(0〜3)。最高記録。
+  bestStars      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId, lastStartedDay])
+}

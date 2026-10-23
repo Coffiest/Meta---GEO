@@ -18,6 +18,7 @@
  */
 import {
   AppleLogo,
+  GraduationCap,
   ArrowClockwise,
   ArrowLineUp,
   ArrowRight,
@@ -82,6 +83,7 @@ const REGISTRY = {
   seat: User,
   settings: Gear,
   db: Database,
+  lesson: GraduationCap,
   star: Star,
   menu: List,
   more: DotsThreeVertical,
