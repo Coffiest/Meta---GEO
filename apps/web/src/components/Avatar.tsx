@@ -110,7 +110,9 @@ export function Avatar({
    */
   frame?: "silver" | "gold" | null;
 }) {
-  const isPhoto = typeof avatarKey === "string" && avatarKey.startsWith("data:image/");
+  // レッスンのバリィの席だけ、キャラクターの絵を出す("char:bally")。
+  const charSrc = avatarKey === "char:bally" ? "/characters/bally_v1.png" : null;
+  const isPhoto = (typeof avatarKey === "string" && avatarKey.startsWith("data:image/")) || charSrc !== null;
   const animal = animalOf(avatarKey) ?? animalFromSeed(displayName ?? "");
   // タイマーリングの分だけ内側に余白を取る。絶対配置のimg(置換要素)はinset指定だけでは
   // width/heightがコンテナいっぱいのまま縮まらず(right/bottomのinsetが無視される)リングと
@@ -134,7 +136,7 @@ export function Avatar({
       {isPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={avatarKey}
+          src={charSrc ?? avatarKey ?? ""}
           alt=""
           draggable={false}
           className="absolute rounded-full object-cover select-none ring-1 ring-white/10"

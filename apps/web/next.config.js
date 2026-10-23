@@ -25,7 +25,13 @@ const nextConfig = {
       },
     ];
   },
-  webpack: (config) => {
+  webpack: (config, { isServer, webpack }) => {
+    if (!isServer) {
+      // engine の deck.ts が使う node:crypto を、ブラウザでは Web Crypto の置き換えに差し替える(レッスンの練習の卓)。
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:crypto$/, require("path").resolve(__dirname, "src/shims/nodeCrypto.js")),
+      );
+    }
     // @meta-geo/engine is consumed straight from its TypeScript source and uses
     // NodeNext-style ".js" specifiers for its own relative imports (they resolve
     // to the sibling ".ts" file at compile time). Webpack doesn't know that
