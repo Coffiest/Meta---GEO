@@ -43,3 +43,18 @@ export function useRunoutEquity(hands: Record<number, (string | null)[]> | null,
 export function formatEquity(v: number): string {
   return `${Math.round(v * 100)}%`;
 }
+
+/** 降りずに残っている席の、見えている手札だけを集める(観戦・リプレイの常時表示用)。 */
+export function liveHands(
+  seats: readonly { seatIndex: number; status: string }[] | undefined,
+  known: Record<number, (string | null)[]> | null,
+): Record<number, (string | null)[]> | null {
+  if (!seats || !known) return null;
+  const out: Record<number, (string | null)[]> = {};
+  for (const s of seats) {
+    if (s.status !== "active" && s.status !== "allIn") continue;
+    const cards = known[s.seatIndex];
+    if (cards) out[s.seatIndex] = cards;
+  }
+  return out;
+}
