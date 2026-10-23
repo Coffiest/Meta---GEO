@@ -3,8 +3,9 @@
 import { BlindLevelBanner } from "@/components/BlindLevelBanner";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { BLIND_STRUCTURE } from "@meta-geo/engine/src/blindStructure.js";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePokerSocket, type GameKey, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
+import { usePokerSocket, type GameKey, type LevelInfo, type TournamentInfo, type SeatPlayerInfo, type SocketDiag, type TournamentOverInfo } from "@/lib/socket";
 import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { useAuth } from "@/lib/useAuth";
@@ -20,7 +21,8 @@ import { ChatLogSheet } from "@/components/ChatLogSheet";
 import { PlayerDetailModal } from "@/components/PlayerDetailModal";
 import { CoachTour, hasTourBeenSeen } from "@/components/CoachTour";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
-import { fetchPlayerNotes, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
+import { fetchPlayerNotes, fetchPlayerProfile, PLAYER_NOTE_COLOR_HEX, type PlayerNoteColor } from "@/lib/playerNotes";
+import type { SeatHud } from "@/components/Seat";
 import { fetchBlockedUserIds } from "@/lib/playerModeration";
 import type { AmountDisplayMode } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -265,7 +267,7 @@ function LeaveTableButton({ onLeave }: { onLeave: () => void }) {
         type="button"
         onClick={() => setConfirming(true)}
         aria-label={t("settings.leave")}
-        className="pressable shrink-0 h-8 w-8 rounded-full glass-panel flex items-center justify-center text-crimson-300"
+        className="pressable shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-crimson-300"
       >
         <Icon name="chevron-left" className="h-4 w-4" />
       </button>
@@ -545,6 +547,23 @@ function GameScreen({
     [state, yourSeatIndex],
   );
 
+  // 席の下に出す参加率・レイズ率(オーナー指示 v1.24.0)。相手が誰でも同じ窓口から同じ形で取る
+  // (自動の席はサーバーが擬似スタッツを返す)。一度取った人は取り直さない。
+  const [hudByUser, setHudByUser] = useState<Record<string, SeatHud>>({});
+  const hudFetched = useRef(new Set<string>());
+  useEffect(() => {
+    if (!accessToken) return;
+    for (const p of Object.values(players)) {
+      if (!p.userId || hudFetched.current.has(p.userId)) continue;
+      hudFetched.current.add(p.userId);
+      const uid = p.userId;
+      void fetchPlayerProfile(accessToken, uid).then((prof) => {
+        if (!prof) return;
+        setHudByUser((prev) => ({ ...prev, [uid]: { vpip: prof.stats.vpipRate, pfr: prof.stats.pfrRate } }));
+      });
+    }
+  }, [accessToken, players]);
+
   // 着席中の相手のマーキングをまとめて取得し、テーブルの席ドットに反映する
   // (自動プレイヤーも通常プレイヤーと同様に扱い、マーキングを表示できるようにする)。
   const opponentUserIds = useMemo(
@@ -822,7 +841,7 @@ function GameScreen({
           />
           <button
             onClick={() => setSettingsOpen((v) => !v)}
-            className="shrink-0 h-8 w-8 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
+            className="shrink-0 h-9 w-9 rounded-full glass-panel flex items-center justify-center text-n-10 pressable transition-transform"
             aria-label={t("settings.title")}
           >
             <Icon name="settings" className="h-4 w-4" />
@@ -866,6 +885,15 @@ function GameScreen({
             turnTimer={turnTimer}
             onPlayerTap={(info) => (privateLobby ? privateRoom?.isHost && setKickTarget(info) : setTappedPlayer(info))}
             markingBySeat={markingBySeat}
+            hudByUser={hudByUser}
+            centerInfo={
+              <TableCenterInfo
+                level={level}
+                tournamentInfo={tournamentInfo}
+                bigBlind={bigBlind}
+                heroUserId={yourSeatIndex != null ? players[yourSeatIndex]?.userId ?? null : null}
+              />
+            }
             seatBubbles={chatEnabled ? filteredSeatBubbles : undefined}
             onHeroChatClick={chatEnabled ? () => setChatInputOpen(true) : undefined}
             heroShowIntent={heroShowIntent}
@@ -1766,5 +1794,42 @@ export default function Page() {
         )}
       </AnimatePresence>
     </AdsAllowedProvider>
+  );
+}
+
+/**
+ * 卓の真ん中(ポットの上)に出す大会の情報(オーナー指示 v1.25.0。アップルデザインの試作に合わせる)。
+ * 次のレベル / 平均スタック / 入賞の人数 / 自分の順位。今のブラインドと残り時間は右上のタイマーにあるので重ねない。
+ */
+function TableCenterInfo({
+  level,
+  tournamentInfo,
+  bigBlind,
+  heroUserId,
+}: {
+  level: LevelInfo | null;
+  tournamentInfo: TournamentInfo | null;
+  bigBlind: number;
+  heroUserId: string | null;
+}) {
+  const next = level ? BLIND_STRUCTURE[level.level] ?? null : null;
+  const avg = tournamentInfo && bigBlind > 0 && tournamentInfo.averageStack > 0 ? tournamentInfo.averageStack / bigBlind : null;
+  const itm = tournamentInfo?.prizePool?.length ?? 0;
+  const rank = heroUserId ? tournamentInfo?.standings?.find((r) => r.userId === heroUserId)?.rank ?? null : null;
+  if (!next && avg == null && !itm && rank == null) return null;
+  const item = (label: string, value: string) => (
+    <span className="whitespace-nowrap">
+      {label} <b className="font-semibold text-fg/90">{value}</b>
+    </span>
+  );
+  return (
+    <div className="flex flex-col items-center gap-0.5 text-center text-[10.5px] leading-snug text-fg/60 tabular-nums">
+      {next && item("次", `${next.smallBlind.toLocaleString()}/${next.bigBlind.toLocaleString()} (${next.bbAnte.toLocaleString()})`)}
+      <div className="flex gap-2">
+        {avg != null && item("平均", `${avg.toFixed(1)}BB`)}
+        {itm > 0 && item("入賞", `${itm}位まで`)}
+        {rank != null && tournamentInfo && item("順位", `${rank}/${tournamentInfo.remaining}`)}
+      </div>
+    </div>
   );
 }
