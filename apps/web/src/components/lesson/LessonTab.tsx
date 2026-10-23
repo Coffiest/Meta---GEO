@@ -77,12 +77,27 @@ export function LessonTab({ accessToken }: { accessToken: string | undefined }) 
                   type="button"
                   disabled={!ready}
                   onClick={() => void open(lesson)}
-                  className="list-row flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left disabled:opacity-45"
-                  style={{ ["--row-inset" as string]: "12px" }}
+                  className={
+                    ready
+                      ? "pressable mb-2 flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-3 text-left shadow-e1 ring-1 ring-accent/40"
+                      : "flex w-full items-center gap-3 px-3 py-2 text-left"
+                  }
                 >
+                  {/* 押せるものは丸い再生ボタン+「はじめる」、準備中は錠だけ(押せる/押せないを形で分ける) */}
+                  <span
+                    className={
+                      ready
+                        ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent"
+                        : "flex h-9 w-9 shrink-0 items-center justify-center text-fg-faint"
+                    }
+                  >
+                    <Icon name={ready ? "play" : "lock"} className="h-4 w-4" />
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-bold text-fg">{lesson.title}</span>
-                    {!ready && <span className="mt-0.5 block text-[11px] text-fg-3">準備中</span>}
+                    <span className={`block truncate text-[15px] font-bold ${ready ? "text-fg" : "text-fg-3"}`}>
+                      {lesson.title}
+                    </span>
+                    {!ready && <span className="mt-0.5 block text-[11px] text-fg-faint">準備中</span>}
                   </span>
                   {p && p.bestStars > 0 && (
                     <span className="flex shrink-0 gap-0.5 text-accent" aria-label={`星${p.bestStars}`}>
@@ -92,7 +107,12 @@ export function LessonTab({ accessToken }: { accessToken: string | undefined }) 
                     </span>
                   )}
                   {p?.completed && <Icon name="check" className="h-5 w-5 shrink-0 text-accent" />}
-                  {ready && <Icon name="chevron-right" className="h-4 w-4 shrink-0 text-fg-3" />}
+                  {ready && (
+                    <span className="flex shrink-0 items-center gap-0.5 text-[13px] font-bold text-accent">
+                      {p?.completed ? "もう一度" : "はじめる"}
+                      <Icon name="chevron-right" className="h-4 w-4" />
+                    </span>
+                  )}
                 </button>
               );
             })}
