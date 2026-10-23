@@ -39,6 +39,15 @@ export interface PlayerStatsSummary {
   vpipRate: number;
   pfrRate: number;
   threeBetRate: number;
+  hands: number;
+  foldTo3BetRate: number;
+  cbetRate: number;
+  foldToCbetRate: number;
+  stealRate: number;
+  checkRaiseRate: number;
+  wtsdRate: number;
+  wsdRate: number;
+  titles: number;
 }
 
 export interface RRRatingSummary {
@@ -106,7 +115,26 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
     id: userId,
     displayName,
     avatarKey,
-    stats: { tournamentsPlayed, itmRate, profit, roi, nationalRank, totalRankedPlayers, vpipRate, pfrRate, threeBetRate },
+    stats: {
+      tournamentsPlayed,
+      itmRate,
+      profit,
+      roi,
+      nationalRank,
+      totalRankedPlayers,
+      vpipRate,
+      pfrRate,
+      threeBetRate,
+      hands: Math.min(3000, Math.round(tournamentsPlayed * between(20, 50))),
+      foldTo3BetRate: between(0.4, 0.68),
+      cbetRate: between(0.45, 0.75),
+      foldToCbetRate: between(0.3, 0.55),
+      stealRate: between(0.28, 0.5),
+      checkRaiseRate: between(0.04, 0.14),
+      wtsdRate: between(0.22, 0.34),
+      wsdRate: between(0.45, 0.56),
+      titles: Math.round(tournamentsPlayed * itmRate * between(0.12, 0.3)),
+    },
     rrRating: { rrRating, nationalRank, totalRankedPlayers, tournamentsPlayed },
   };
 }

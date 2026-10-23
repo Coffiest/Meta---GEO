@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { SPRING_SHEET } from "@/lib/motion";
+import { SPRING_SNAPPY } from "@/lib/motion";
+import { Icon } from "./Icon";
 import { Avatar } from "./Avatar";
 import {
   PLAYER_NOTE_COLORS,
@@ -26,7 +27,7 @@ import {
 import { LoaderBlock } from "./ui/Loader";
 
 /** 対戦相手をタップしたときに開くプレイヤー詳細モーダル。
- * 公開スタッツ(収支/ROI/インマネ率/VPIP/PFR/3bet/偏差値/全国順位)+ 5色マーキング + 自由メモ。
+ * 公開スタッツ(KKPoker のプレイヤー情報と同じ項目+収支/ROI/偏差値/全国順位)+ 5色マーキング + 自由メモ。
  * ダークテーマ、アイコンは全てSVG(絵文字不使用)。 */
 export function PlayerDetailModal({
   target,
@@ -127,8 +128,7 @@ export function PlayerDetailModal({
 
   const s = profile?.stats;
   const rr = profile?.rrRating;
-  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-  const roiPct = (v: number) => `${(v * 100).toFixed(0)}%`;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
   const chips = (v: number) => v.toLocaleString("ja-JP");
 
   return (
@@ -137,32 +137,28 @@ export function PlayerDetailModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
     >
+      {/* 卓の上に浮く小さなカード(KKPoker のプレイヤー情報と同じ大きさ)。中央から膨らんで出る。 */}
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={SPRING_SHEET}
+        initial={{ opacity: 0, scale: 0.94 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.94 }}
+        transition={SPRING_SNAPPY}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md max-h-[88vh] overflow-y-auto glass-sheet rounded-t-sheet p-4 pb-8 shadow-e4"
+        className="w-full max-w-sm max-h-[86vh] overflow-y-auto rounded-[22px] glass-sheet shadow-e4"
       >
-        {/* ヘッダー: アバター+名前+偏差値 */}
-        <div className="mb-4 flex items-center gap-3">
-          <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={48} frame={profile?.frame ?? null} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Player</p>
-            <h2 className="truncate text-lg font-extrabold tracking-tight text-fg">{target.displayName}</h2>
-          </div>
-          <div className="shrink-0 rounded-xl border border-line-strong px-3 py-1.5 text-center">
-            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-fg-3">偏差値</p>
-            {/* 偏差値。値が取れない相手でも枠・ラベルは必ず残し、値だけ「--」にする。 */}
-            <p className="text-lg font-black leading-none tabular-nums text-fg">
-              {loading || !rr || rr.rrRating == null ? "--" : rr.rrRating.toFixed(1)}
-            </p>
-          </div>
-          <button onClick={onClose} className="pressable shrink-0 self-start text-[12px] font-semibold text-fg-2">
-            閉じる
+        {/* ヘッダー: アバター+名前+閉じる */}
+        <div className="flex items-center gap-3 px-4 pb-3 pt-4">
+          <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={44} frame={profile?.frame ?? null} />
+          <h2 className="min-w-0 flex-1 truncate text-[17px] font-extrabold tracking-tight text-fg">{target.displayName}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-fg-2"
+          >
+            <Icon name="close" className="h-4 w-4" />
           </button>
         </div>
 
@@ -173,34 +169,57 @@ export function PlayerDetailModal({
         ) : !profile || !s || !rr ? (
           <p className="py-10 text-center text-sm text-fg-2">スタッツを取得できませんでした。</p>
         ) : (
-          <>
-            {/* 主要指標。どのプレイヤーでも同じ項目・同じ枠を必ず並べる。
+          <div className="px-4 pb-4">
+            {/* スタッツ。どのプレイヤーでも同じ項目・同じ枠を必ず並べる。
                 収支・偏差値・全国順位は値が取れない相手があり、その場合も枠は残して「--」にする。 */}
-            <div className="grid grid-cols-2 gap-2">
-              <Metric
-                label="収支"
-                value={s.profit == null ? "--" : `${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`}
-                accent={s.profit == null ? "flat" : s.profit >= 0 ? "up" : s.profit < 0 ? "down" : "flat"}
+            <div className="overflow-hidden rounded-2xl bg-surface/70">
+              <StatRow
+                cells={[
+                  { label: "ハンド数", value: chips(s.hands) },
+                  { label: "VPIP", value: pct(s.vpipRate) },
+                  { label: "PFR", value: pct(s.pfrRate) },
+                ]}
               />
-              <Metric label="ROI(還元率)" value={roiPct(s.roi)} />
-              <Metric label="インマネ率" value={pct(s.itmRate)} />
-              <Metric
-                label="全国順位"
-                value={rr.nationalRank == null ? "--" : `${rr.nationalRank} / ${rr.totalRankedPlayers}`}
+              <StatRow
+                cells={[
+                  { label: "3-Bet", value: pct(s.threeBetRate) },
+                  { label: "Fold to 3-Bet", value: pct(s.foldTo3BetRate) },
+                  { label: "C-Bet", value: pct(s.cbetRate) },
+                  { label: "Fold to C-Bet", value: pct(s.foldToCbetRate) },
+                ]}
+              />
+              <StatRow
+                cells={[
+                  { label: "Steal", value: pct(s.stealRate) },
+                  { label: "Check-Raise", value: pct(s.checkRaiseRate) },
+                  { label: "WTSD", value: pct(s.wtsdRate) },
+                  { label: "W$SD", value: pct(s.wsdRate) },
+                ]}
+              />
+              <StatRow
+                cells={[
+                  { label: "参加数", value: chips(s.tournamentsPlayed) },
+                  { label: "ITM", value: pct(s.itmRate) },
+                  { label: "優勝", value: chips(s.titles) },
+                ]}
+              />
+              <StatRow
+                cells={[
+                  {
+                    label: "収支",
+                    value: s.profit == null ? "--" : `${s.profit >= 0 ? "+" : ""}${chips(s.profit)}`,
+                    tone: s.profit == null ? "flat" : s.profit >= 0 ? "up" : "down",
+                  },
+                  { label: "ROI", value: pct(s.roi) },
+                  { label: "偏差値", value: rr.rrRating == null ? "--" : rr.rrRating.toFixed(1) },
+                  { label: "全国順位", value: rr.nationalRank == null ? "--" : `${rr.nationalRank}` },
+                ]}
               />
             </div>
-
-            {/* プリフロップ傾向 */}
-            <p className="mb-2 mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Preflop tendency</p>
-            <div className="grid grid-cols-3 gap-2">
-              <Metric label="VPIP" value={pct(s.vpipRate)} compact />
-              <Metric label="PFR" value={pct(s.pfrRate)} compact />
-              <Metric label="3BET" value={pct(s.threeBetRate)} compact />
-            </div>
-            <p className="mt-2 text-[11px] text-fg-3 tabular-nums">参加トーナメント数: {s.tournamentsPlayed}</p>
+            <p className="mt-1.5 text-[10px] text-fg-3">ハンドの数字は直近3,000ハンドまでで集計しています。</p>
 
             {/* マーキング */}
-            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Marking</p>
+            <p className="mb-1.5 mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Marking</p>
             <div className="flex items-center gap-2">
               {PLAYER_NOTE_COLORS.map((c) => {
                 const active = color === c;
@@ -210,7 +229,7 @@ export function PlayerDetailModal({
                     type="button"
                     aria-label={PLAYER_NOTE_COLOR_LABEL[c]}
                     onClick={() => setColor(active ? null : c)}
-                    className={`pressable h-8 w-8 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-line-strong ring-offset-2" : "ring-1 ring-line"}`}
+                    className={`pressable h-8 w-7 rounded-full transition-transform ${active ? "scale-110 ring-2 ring-line-strong ring-offset-2" : "ring-1 ring-line"}`}
                     style={{ backgroundColor: PLAYER_NOTE_COLOR_HEX[c] }}
                   />
                 );
@@ -218,7 +237,7 @@ export function PlayerDetailModal({
               <button
                 type="button"
                 onClick={() => setColor(null)}
-                className={`pressable ml-1 flex h-8 items-center rounded-full border px-3 text-[11px] font-bold ${
+                className={`pressable ml-1 flex h-7 items-center rounded-full border px-3 text-[11px] font-bold ${
                   color === null ? "border-line-strong text-fg" : "border-line text-fg-3"
                 }`}
               >
@@ -227,12 +246,12 @@ export function PlayerDetailModal({
             </div>
 
             {/* メモ */}
-            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Note</p>
+            <p className="mb-1.5 mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Note</p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
-              rows={3}
+              rows={2}
               placeholder="この相手の傾向・読みをメモ(自分だけに表示)"
               className="w-full resize-none rounded-xl glass-panel p-3 text-sm text-fg outline-none placeholder:text-fg-faint focus:ring-2 focus:ring-line-strong"
             />
@@ -241,7 +260,7 @@ export function PlayerDetailModal({
               type="button"
               onClick={handleSave}
               disabled={saving || !accessToken}
-              className="pressable mt-3 w-full rounded-xl bg-accent py-3 text-sm font-black text-on-accent shadow-glow disabled:opacity-50"
+              className="pressable mt-2 w-full rounded-xl bg-accent py-2.5 text-sm font-black text-on-accent shadow-glow disabled:opacity-50"
             >
               {saving ? "保存中…" : savedTick ? "保存しました" : "メモ・マーキングを保存"}
             </button>
@@ -250,7 +269,7 @@ export function PlayerDetailModal({
             )}
 
             {/* ブロック・通報。全プレイヤーに同一のUIを出す(相手の種別で分岐させない)。 */}
-            <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Safety</p>
+            <p className="mb-1.5 mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-fg-3">Safety</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -325,29 +344,29 @@ export function PlayerDetailModal({
               </div>
             )}
             {reportSent && <p className="mt-2 text-[11px] text-fg-3">通報を受け付けました。ご協力ありがとうございます。</p>}
-          </>
+          </div>
         )}
       </motion.div>
     </motion.div>
   );
 }
 
-function Metric({
-  label,
-  value,
-  accent = "flat",
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  accent?: "up" | "down" | "flat";
-  compact?: boolean;
-}) {
-  const accentClass = accent === "up" ? "text-mint-400" : accent === "down" ? "text-crimson-300" : "text-fg";
+/** スタッツの1行。値を大きく、名前を小さく。セルの間は細い縦線、行の間は細い横線。 */
+function StatRow({ cells }: { cells: { label: string; value: string; tone?: "up" | "down" | "flat" }[] }) {
   return (
-    <div className="rounded-xl border border-line px-3 py-2.5">
-      <p className="text-[10px] font-black uppercase tracking-[0.15em] text-fg-3">{label}</p>
-      <p className={`${compact ? "text-base" : "text-lg"} font-black leading-tight tabular-nums ${accentClass}`}>{value}</p>
+    <div className={`grid border-b border-line/60 last:border-b-0 ${cells.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
+      {cells.map((c) => (
+        <div key={c.label} className="flex flex-col items-center justify-center border-r border-line/60 px-1 py-2 last:border-r-0">
+          <span
+            className={`text-[17px] font-black leading-none tabular-nums tracking-tight ${
+              c.tone === "up" ? "text-mint-400" : c.tone === "down" ? "text-crimson-300" : "text-fg"
+            }`}
+          >
+            {c.value}
+          </span>
+          <span className="mt-1 whitespace-nowrap text-[9px] font-semibold leading-none text-fg-3">{c.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
