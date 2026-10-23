@@ -348,6 +348,7 @@ export function PokerTable({
   lastActionBySeat,
   lastHandDeltaBySeat,
   showOrder = null,
+  equityBySeat = null,
   turnTimer,
   onPlayerTap,
   markingBySeat,
@@ -374,6 +375,8 @@ export function PokerTable({
   lastHandDeltaBySeat: Record<number, number> | null;
   /** ショーダウンで手を開く順番(TDA)。この順に 0.6 秒ずつめくる。 */
   showOrder?: number[] | null;
+  /** オールインで手札が開いたあとの、いまのボードからの勝率(0〜1)。 */
+  equityBySeat?: Record<number, number> | null;
   turnTimer: TurnTimerInfo | null;
   /** 相手(自分以外・非BOT)の席タップ時に呼ばれる。プレイヤー詳細モーダルを開く。 */
   onPlayerTap?: (info: SeatPlayerInfo) => void;
@@ -686,6 +689,7 @@ export function PokerTable({
             highlightCards={winnerFive ? (seatIndex === winnerSeat ? winnerFive : null) : heroHandLabel ? heroBestFive : null}
             revealDelay={showOrder && showOrder.indexOf(seatIndex) >= 0 ? showOrder.indexOf(seatIndex) * 0.6 : 0}
             winDelay={winDelay}
+            equity={status !== "folded" ? equityBySeat?.[seatIndex] ?? null : null}
             shown={shown}
             mucked={muckedSeats?.has(seatIndex) ?? false}
             out={outSeats?.has(seatIndex) ?? false}

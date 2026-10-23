@@ -11,6 +11,8 @@ export interface EquityInput {
   readonly contenders: readonly EquityContender[];
   /** ショーダウンの時点で既に開いていたボード(0〜5枚)。残りはランダムに決着したものとして扱う。 */
   readonly knownBoard: readonly Card[];
+  /** モンテカルロの試行回数(未知カードが3枚以上のとき)。省略時は200。 */
+  readonly samples?: number;
 }
 
 /** 未知カードが2枚以下なら全通り厳密列挙、それ以上はモンテカルロで近似する。 */
@@ -87,7 +89,7 @@ export function computeAllInEquity(input: EquityInput): Map<string, number> {
       samples++;
     }
   } else {
-    for (let i = 0; i < MONTE_CARLO_SAMPLES; i++) {
+    for (let i = 0; i < (input.samples ?? MONTE_CARLO_SAMPLES); i++) {
       const shuffled = [...pool];
       for (let j = shuffled.length - 1; j > 0; j--) {
         const k = Math.floor(Math.random() * (j + 1));

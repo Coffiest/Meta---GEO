@@ -1,5 +1,6 @@
 "use client";
 
+import { formatEquity } from "@/lib/runoutEquity";
 import type { ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SPRING_MOVE, SPRING_SNAPPY, SPRING_THROW } from "@/lib/motion";
@@ -169,6 +170,8 @@ export interface SeatViewProps {
   mucked?: boolean;
   /** トーナメントから飛んだ(スタックが0になった)。席ピルの上に「PLAYER OUT」を貼る。誰の席でも同じ条件・同じ見た目。 */
   out?: boolean;
+  /** オールインのランアウト中の勝率(0〜1)。ピルの右上に出す。誰の席でも同じ条件・同じ見た目。 */
+  equity?: number | null;
 }
 
 export function Seat({
@@ -203,6 +206,7 @@ export function Seat({
   aside = null,
   mucked = false,
   out = false,
+  equity = null,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -375,6 +379,19 @@ export function Seat({
               {t("seat.timeBankUsed")}
             </span>
           </span>
+        )}
+
+        {/* オールインのランアウト中の勝率。ボードが開くたびに書き換わる。 */}
+        {equity != null && (
+          <motion.span
+            key={formatEquity(equity)}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={SPRING_SNAPPY}
+            className="pointer-events-none absolute -right-2 -top-3 z-40 rounded-full bg-canvas/90 px-1.5 py-[1px] text-[11px] font-black tabular-nums text-accent shadow-e1 ring-1 ring-accent/60"
+          >
+            {formatEquity(equity)}
+          </motion.span>
         )}
 
         {/* 飛んだ席に貼る「PLAYER OUT」のスタンプ(オーナー指示。ピルの上から斜めに押す)。 */}
