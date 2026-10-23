@@ -724,49 +724,26 @@ textarea:focus-visible,
 }
 
 
-/* ── プレイ画面の背景(サーキット基板グリッド) ───────────────────────
-   出典: uiverse.io by Gautammsharma。原案は#0f0f0f地に緑(green-500/emerald-500)の
-   グリッド線+交点のドットだったが、アクセントは1色のみ運用というこのアプリのきまりに
-   合わせ、ティール(アクセント)へ配色を差し替えた。基板の縦横グリッド線+交点のドット
-   というモチーフは、周りの画面で使っているコンソール/ハッカー演出(term-cursor等)と
-   相性がよい(星空.starfieldから置き換え)。透明度を抑えたCSSグラデーションだけで
-   組んだ静止パターンなので、DOMも1要素で済み、常時アニメーションする卓画面でガラスを
-   使わないというきまり(発熱対策)にも抵触しない。 */
-.circuit-bg {
-  background-color: rgb(var(--n-0));
+/* ── 卓の画面の背景(オーナー指示 2026-10-23: アップルデザインで作り直した試作に置き換え) ──
+   深い黒の地に、卓の位置(画面の中ほど)から広がるティールの光と、左上の青い光・右下のティールの光を重ね、
+   その上に細い格子を、中央だけ見えて端で消えるように薄く敷く。どれも静止したグラデーションなので
+   描き直しが起きず、常時動く卓の画面でも発熱しない。プレイ画面と棋譜解析の再生で同じものを使う。 */
+.table-bg {
+  background-color: rgb(var(--n-1));
+  background-image:
+    radial-gradient(120% 60% at 50% 42%, rgb(var(--accent) / 0.2), transparent 60%),
+    radial-gradient(80% 40% at 12% 0%, rgb(90 110 255 / 0.16), transparent 70%),
+    radial-gradient(70% 40% at 100% 100%, rgb(var(--accent) / 0.12), transparent 70%);
   overflow: hidden;
 }
-.circuit-bg-grid {
+.table-bg-grid {
   background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 19px,
-      rgb(var(--accent) / 0.22) 19px,
-      rgb(var(--accent) / 0.22) 20px,
-      transparent 20px,
-      transparent 39px,
-      rgb(var(--accent) / 0.22) 39px,
-      rgb(var(--accent) / 0.22) 40px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 19px,
-      rgb(var(--accent) / 0.22) 19px,
-      rgb(var(--accent) / 0.22) 20px,
-      transparent 20px,
-      transparent 39px,
-      rgb(var(--accent) / 0.22) 39px,
-      rgb(var(--accent) / 0.22) 40px
-    ),
-    radial-gradient(circle at 20px 20px, rgb(var(--accent-hi) / 0.32) 2.5px, transparent 2.5px),
-    radial-gradient(circle at 40px 40px, rgb(var(--accent-hi) / 0.32) 2.5px, transparent 2.5px);
-  background-size:
-    40px 40px,
-    40px 40px,
-    40px 40px,
-    40px 40px;
+    linear-gradient(rgb(255 255 255 / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center center;
+  -webkit-mask-image: radial-gradient(70% 55% at 50% 45%, #000 30%, transparent 80%);
+  mask-image: radial-gradient(70% 55% at 50% 45%, #000 30%, transparent 80%);
 }
 
 /* ── チェックボックス(レ点を描き進める) ───────────────────────────
