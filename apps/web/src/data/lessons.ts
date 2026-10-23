@@ -1,3 +1,5 @@
+import { RULES_STEPS } from "./lessonRules";
+
 /**
  * Lesson タブのカリキュラム(オーナー指定の項目と順番)。中身はオーナーと1項目ずつ決めて足していく。
  * 中身(steps)が空のレッスンは「準備中」として一覧に出し、押せない(回数にも数えない)。
@@ -9,17 +11,25 @@
  *  - 一発で正解した数で星(0〜3)を付ける。
  * バリィの口調は普段どおり(くだけた話し方。関西弁はラフくんだけ)。出典はアプリに出さない。
  */
+/** 卓に出す場面(手札・バリィの手・ボード)。カードは "Ah" "10s" の形。 */
+export interface LessonScene {
+  hero?: string[];
+  /** バリィの手札(表で見せる)。 */
+  bally?: string[];
+  board?: string[];
+  /** 勝った側(「Win !」と勝者の5枚の枠を出す)。 */
+  winner?: "hero" | "bally";
+}
+
 export type LessonStep =
-  | { kind: "talk"; pages: string[] }
-  | {
-      kind: "quiz";
-      /** 問題文(バリィの台詞)。 */
-      prompt: string;
-      /** 正解のときの説明。 */
-      correct: string;
-      /** 間違えたときの説明(答えを見る)。 */
-      answer: string;
-    };
+  /** バリィが話す(「次へ」で次のページ)。ページごとに卓の場面を変えられる。 */
+  | { kind: "talk"; pages: { text: string; scene?: LessonScene }[] }
+  /** 手札どうしの勝負を見せるだけ(配る → ボードを開けて勝ち負け)。 */
+  | { kind: "flip"; hero: string[]; bally: string[]; board: string[]; intro: string; result: string }
+  /** バリィと1ハンドを決まった流れで打ち、あなたが言われたボタンを押す(チップの掛け方)。 */
+  | { kind: "guided" }
+  /** 練習相手と卓を1周(6ハンド)打つ。 */
+  | { kind: "practice"; hands: number };
 
 export interface Lesson {
   id: string;
@@ -35,7 +45,7 @@ export interface LessonSection {
 }
 
 export const CURRICULUM: LessonSection[] = [
-  { title: "0. ルール説明", lessons: [{ id: "rules", title: "ルール説明", free: true, steps: [] }] },
+  { title: "0. ルール説明", lessons: [{ id: "rules", title: "ルール説明", free: true, steps: RULES_STEPS }] },
   { title: "1. トナメとキャッシュ", lessons: [{ id: "tourney-vs-cash", title: "トナメとキャッシュの違いを知る", steps: [] }] },
   {
     title: "2. 基礎編: やってはいけないこと",

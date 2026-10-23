@@ -14,6 +14,7 @@ export * from "./tournament.js";
 export * from "./tableBalancer.js";
 export * from "./multiTableTournament.js";
 export * from "./equity.js";
+export * from "./autoPlayer.js";
 export * from "./solver/cfrPostflop.js";
 export {
   solvePostflopHu,
