@@ -95,6 +95,12 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
     });
   }, [lesson]);
 
+  // 棋譜解析と同じく、話の場面は「‹」で1つ前へ戻れる。ハンドを打つ段階(実際に押す・実践)の中へは戻らない。
+  const prev = useMemo(() => prevOf(lesson, phase), [lesson, phase]);
+  const back = useCallback(() => {
+    if (prev) setPhase(prev);
+  }, [prev]);
+
   useEffect(() => {
     if (phase.kind === "done") void completeLesson(accessToken, lesson.id, 0);
   }, [phase.kind, accessToken, lesson.id]);
@@ -102,7 +108,7 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
   const stepIndex = phase.kind === "done" ? lesson.steps.length : phase.step;
 
   // 3つの段階のどれでも、卓・台詞・下の操作を同じ形で返す(卓を同じ位置の同じ部品のまま描くため)。
-  const stat = useStaticScene(lesson, phase, phase.kind === "done" ? onClose : next);
+  const stat = useStaticScene(lesson, phase, phase.kind === "done" ? onClose : next, prev ? back : null);
   const guided = useGuidedHand(phase.kind === "guided", next);
   const practiceStep = phase.kind === "practice" ? lesson.steps[phase.step] : undefined;
   const practice = usePracticeTable(phase.kind === "practice", practiceStep?.kind === "practice" ? practiceStep.hands : 6, next);
@@ -190,6 +196,19 @@ function NextButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
+/** 1つ前の場面。話(talk)とフリップの中だけを戻る。前がハンドを打つ段階なら戻らない(null)。 */
+function prevOf(lesson: Lesson, p: Phase): Phase | null {
+  if (p.kind === "talk" && p.page > 0) return { ...p, page: p.page - 1 };
+  if (p.kind === "flip" && p.revealed) return { ...p, revealed: false };
+  if (p.kind === "guided" || p.kind === "practice") return null;
+  const step = p.kind === "done" ? lesson.steps.length : p.step;
+  const before = lesson.steps[step - 1];
+  if (!before) return null;
+  if (before.kind === "talk") return { kind: "talk", step: step - 1, page: before.pages.length - 1 };
+  if (before.kind === "flip") return { kind: "flip", step: step - 1, revealed: true };
+  return null;
+}
+
 function startOf(lesson: Lesson, step: number): Phase {
   const s = lesson.steps[step];
   if (!s) return { kind: "done" };
@@ -200,7 +219,7 @@ function startOf(lesson: Lesson, step: number): Phase {
 }
 
 /** talk / flip / done: 場面(手札・バリィの手・ボード)の卓と「次へ」。場面の無いページも、空の卓を出したままにする。 */
-function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void): LessonView {
+function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack: (() => void) | null): LessonView {
   let text = "おつかれさま!このレッスンはおしまいだよ。";
   let scene: LessonScene | undefined;
   if (phase.kind === "talk") {
@@ -238,7 +257,23 @@ function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void): Lesso
       turnTimer: null,
     },
     text,
-    bottom: <NextButton label={label} onClick={onNext} />,
+    bottom: (
+      // 棋譜解析と同じく、左に「‹」(前へ)、右へ進む。
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack ?? undefined}
+          disabled={!onBack}
+          aria-label="前へ"
+          className="pressable flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-fg disabled:opacity-30"
+        >
+          <Icon name="chevron-left" className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <NextButton label={label} onClick={onNext} />
+        </div>
+      </div>
+    ),
   };
 }
 
