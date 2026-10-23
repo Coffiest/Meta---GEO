@@ -171,8 +171,8 @@ function useDecisionTable(): boolean {
   return process.env["GEO_USE_DECISION_TABLE"] === "1";
 }
 
-/** BOTのみの卓は人間のサンプルを1つも生まないので、取得段階で落とす。 */
-const HUMAN_SEATED = { seats: { some: { user: { isBot: false } } } } as const;
+/** GEO の対象にするハンド。自動の席の決定も含めて全員分を数える(オーナー指示 2026-10-23)。 */
+const HUMAN_SEATED = {} as const;
 
 /**
  * 明示的に古い順で固定する。expectedPosition(下記参照)は「最初に一致したハンド」の値を
@@ -616,11 +616,11 @@ export async function getPreflopNode(params: {
   await forEachRawHand(HUMAN_SEATED, (hand) => {
     if (params.playerCount !== undefined && hand.seats.length !== params.playerCount) return;
     if (!bubbleStageMatches(computeBubbleStage(hand, tournaments), params.bubbleStage)) return;
-    // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
+    // 自動の席も含めて集計する。離席中(wasAway)・管理者が除外(論理削除)した席・
     // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
       hand.seats
-        .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
+        .filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
         .map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) return;
@@ -804,11 +804,11 @@ export async function getPostflopNode(params: {
     // hasEvery は順序を保証しないため、街ごとの厳密一致はここで確認する。
     if (hand.board.slice(0, requiredBoardLen).join(",") !== params.board.join(",")) return;
 
-    // 実プレイヤーのみを集計対象にする。BOT・離席中(wasAway)・管理者が除外(論理削除)した席・
+    // 自動の席も含めて集計する。離席中(wasAway)・管理者が除外(論理削除)した席・
     // 偏差値レンジ外のプレイヤーはGEO集計から除外する(BOT席はライン順の整合のためシーケンスには残す)。
     const countedSeats = new Map(
       hand.seats
-        .filter((s) => !s.user.isBot && !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
+        .filter((s) => !s.wasAway && !s.excludedFromGeo && ratingOk(s.userId))
         .map((s) => [s.seatIndex, s.holeCards]),
     );
     if (countedSeats.size === 0) return;
@@ -968,10 +968,10 @@ export function buildGeoDecisionRows(hand: RawHand, tournaments: Map<string, Tou
   const playerCount = hand.seats.length;
   const rows: GeoDecisionRow[] = [];
 
-  /** その席の意思決定を行として書き出す対象か(自動プレイヤー・離席中は書かない)。 */
+  /** その席の意思決定を行として書き出す対象か(離席中は書かない。自動の席も書く)。 */
   const writable = (seatIndex: number): boolean => {
     const seat = seatById.get(seatIndex);
-    return Boolean(seat && !seat.user.isBot && !seat.wasAway);
+    return Boolean(seat && !seat.wasAway);
   };
 
   const push = (

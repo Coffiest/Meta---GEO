@@ -6,7 +6,7 @@ import { ContentAd } from "@/components/content/ContentAd";
 export const metadata: Metadata = {
   title: "GEO戦略とGTOの解説",
   description:
-    "GTO(ゲーム理論的最適戦略)とは何か、そしてPoker ART独自の「GEO戦略」= 実プレイヤー母集団のデータから最適化する考え方をわかりやすく解説。ポジション別のRFIレンジ、3ベット、ポストフロップ、エクスプロイトの基礎までを扱います。",
+    "GTO(ゲーム理論的最適戦略)とは何か、そしてPoker ART独自の「GEO戦略」= 実際に打たれたハンドのデータから最適化する考え方をわかりやすく解説。ポジション別のRFIレンジ、3ベット、ポストフロップ、エクスプロイトの基礎までを扱います。",
   alternates: { canonical: "/strategy" },
 };
 
