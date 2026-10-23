@@ -1335,14 +1335,27 @@ export async function getGeoBackfillStatus(): Promise<{ totalHands: number; miss
 export async function backfillGeoDecisions(options?: {
   onlyMissing?: boolean;
   onProgress?: (progress: GeoBackfillProgress) => void;
+  /** 先頭(id 順)から飛ばすハンド数。時間切れで止まった全件の作り直しを続きから再開する。 */
+  skip?: number;
+  /** 同時に作り直すハンド数。1ハンドごとに DB と何度も往復するので、並べると速い。 */
+  concurrency?: number;
 }): Promise<GeoBackfillProgress> {
   const onlyMissing = options?.onlyMissing ?? false;
   const where = backfillWhere(onlyMissing);
   const total = await prisma.hand.count({ where });
+  const concurrency = Math.max(1, options?.concurrency ?? 1);
 
   let processed = 0;
   let rows = 0;
   let cursor: string | undefined;
+
+  const skip = Math.max(0, options?.skip ?? 0);
+  if (skip > 0) {
+    const last = await prisma.hand.findMany({ where, orderBy: { id: "asc" }, skip: skip - 1, take: 1, select: { id: true } });
+    if (last.length === 0) return { total, processed: skip, rows };
+    cursor = last[0]!.id;
+    processed = skip;
+  }
 
   for (;;) {
     const batch = await prisma.hand.findMany({
@@ -1354,9 +1367,10 @@ export async function backfillGeoDecisions(options?: {
     });
     if (batch.length === 0) break;
 
-    for (const h of batch) {
-      rows += await rebuildGeoDecisionsForHand(h.id);
-      processed += 1;
+    for (let i = 0; i < batch.length; i += concurrency) {
+      const counts = await Promise.all(batch.slice(i, i + concurrency).map((h) => rebuildGeoDecisionsForHand(h.id)));
+      for (const c of counts) rows += c;
+      processed += counts.length;
     }
     cursor = batch[batch.length - 1]!.id;
     options?.onProgress?.({ total, processed, rows });

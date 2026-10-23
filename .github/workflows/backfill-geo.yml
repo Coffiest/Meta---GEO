@@ -6,6 +6,10 @@ name: Backfill GEO
 
 on:
   workflow_dispatch:
+    inputs:
+      skip:
+        description: "先頭から飛ばすハンド数(時間切れで止まったときの続き)"
+        default: "0"
   push:
     branches: [main]
     paths: [".github/workflows/backfill-geo.yml"]
@@ -13,7 +17,7 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,3 +31,6 @@ jobs:
         run: pnpm --filter @meta-geo/db exec tsx scripts/backfillGeoDecisions.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # 1回目(2026-10-23)は5時間で 12,800 / 43,493 ハンドまで進んで時間切れ。続きから8並びで流す。
+          SKIP: ${{ inputs.skip || '12800' }}
+          CONCURRENCY: "8"
