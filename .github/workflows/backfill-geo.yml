@@ -28,9 +28,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @meta-geo/db run generate
       - name: Rebuild GeoDecision for all hands
-        run: pnpm --filter @meta-geo/db exec tsx scripts/backfillGeoDecisions.ts
+        # 接続の枠(Supabase のセッション方式は同時15本まで)は本番のサーバーと分け合う。
+        # ここで使うのは3本までにして、サーバーの接続を奪わない。
+        run: |
+          case "$DATABASE_URL" in *\?*) sep="&";; *) sep="?";; esac
+          export DATABASE_URL="${DATABASE_URL}${sep}connection_limit=3"
+          pnpm --filter @meta-geo/db exec tsx scripts/backfillGeoDecisions.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # 1回目(2026-10-23)は5時間で 12,800 / 43,493 ハンドまで進んで時間切れ。続きから8並びで流す。
+          # 1回目(2026-10-23)は5時間で 12,800 / 43,493 ハンドまで進んで時間切れ。続きから3並びで流す。
           SKIP: ${{ inputs.skip || '12800' }}
-          CONCURRENCY: "8"
+          CONCURRENCY: "3"
