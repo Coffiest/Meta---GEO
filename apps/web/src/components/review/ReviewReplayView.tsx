@@ -301,9 +301,10 @@ export function ReviewReplayView({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-[70] flex flex-col overflow-hidden"
-      style={{ background: SHEET_BG }}
+      className="table-bg fixed inset-0 z-[70] isolate flex flex-col overflow-hidden"
     >
+      {/* 背景はプレイ画面と同じ(オーナー指示)。 */}
+      <div aria-hidden className="table-bg-grid pointer-events-none absolute inset-0 -z-10" />
       {/* すりガラスのナビゲーションバー */}
       <header className="glass-header shrink-0 flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5">
         <motion.button

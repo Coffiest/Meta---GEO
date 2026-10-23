@@ -90,9 +90,10 @@ function makeFeltTexture(shape: TableShape): CanvasTexture {
 
   // 中央が明るく、縁へ沈むフェルト(スポットライトの陰影とは別に、布の色そのものの濃淡)。
   const grad = g.createRadialGradient(W / 2, H * 0.48, W * 0.05, W / 2, H / 2, H * 0.62);
-  grad.addColorStop(0, "#1f5249");
-  grad.addColorStop(0.55, "#163d37");
-  grad.addColorStop(1, "#0b221f");
+  // 色はアップルデザインの試作に合わせる(オーナー指示 v1.22.0): 中央の明るいティールから縁の深い緑へ。
+  grad.addColorStop(0, "#127a67");
+  grad.addColorStop(0.45, "#0b5547");
+  grad.addColorStop(1, "#06302a");
   g.fillStyle = grad;
   g.fillRect(0, 0, W, H);
 
@@ -222,7 +223,7 @@ function Table({ shape }: { shape: TableShape }) {
       <mesh geometry={geos.railGeo} rotation-x={-Math.PI / 2} castShadow receiveShadow>
         {/* 両面を描く。ExtrudeGeometry の穴の内壁は面の向きが裏返っていて、片面だと奥のレールの内壁が描かれず、
             そこから背景が透けていた(オーナー指摘「卓の上部に隙間があって背景が見える」)。 */}
-        <meshPhysicalMaterial color="#070708" roughness={0.58} clearcoat={0.35} clearcoatRoughness={0.5} envMapIntensity={0.6} side={DoubleSide} />
+        <meshPhysicalMaterial color="#020203" roughness={0.78} clearcoat={0.15} clearcoatRoughness={0.6} envMapIntensity={0.2} side={DoubleSide} />
       </mesh>
       {/* 脚台(卓の下の厚み。手前の縁で少し見える)。上面をフェルトと同じ高さにすると z-fighting で縞が出るので、少し下げる。 */}
       <mesh geometry={geos.apronGeo} rotation-x={-Math.PI / 2} position-y={-0.19} castShadow>
