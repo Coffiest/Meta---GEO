@@ -690,6 +690,7 @@ export function PokerTable({
             revealDelay={showOrder && showOrder.indexOf(seatIndex) >= 0 ? showOrder.indexOf(seatIndex) * 0.6 : 0}
             winDelay={winDelay}
             equity={status !== "folded" ? equityBySeat?.[seatIndex] ?? null : null}
+            equityOnLeft={slot === 4 || slot === 5}
             shown={shown}
             mucked={muckedSeats?.has(seatIndex) ?? false}
             out={outSeats?.has(seatIndex) ?? false}
