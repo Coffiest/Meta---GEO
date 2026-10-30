@@ -417,7 +417,7 @@ export const BB_POLAR_STEPS: LessonStep[] = [
 
 // ───────── 8. BvB ─────────
 // あなた = SB(席0)、バリィ = BB(席1)。ボタンは席5(降りた)。
-const BVB = (hero: string[], heroBet = 0.5, heroAct?: "raise" | "fold", extra: Partial<LessonScene> = {}): LessonScene => ({
+const BVB = (hero: string[], heroBet = 0.5, heroAct?: "raise" | "fold" | "call", extra: Partial<LessonScene> = {}): LessonScene => ({
   hero,
   table: six(5, [{ bet: heroBet, act: heroAct, folded: heroAct === "fold", stack: 40 - heroBet }, { name: "バリィ", bet: 1, stack: 39 }, F, F, F, F], 1),
   ...extra,
@@ -427,30 +427,31 @@ export const BVB_STEPS: LessonStep[] = [
   {
     kind: "talk",
     pages: [
-      { text: "**BvB(ブラインドバトル)**は、みんな降りて**SBとBBの2人だけ**になった勝負だよ。", scene: BVB(["Kd", "9c"]) },
-      { text: "特徴は3つ。**SBは前の席(OOP)**、**アンティでポットが大きい**、**お互いの手がとても広い**。", scene: BVB(["Kd", "9c"], 0.5, undefined, { focus: [0] }) },
-      { text: "SBは**OOPで戦いにくい**から、オープンは**4分の1くらい(25%)**に絞るよ(40BBくらいのとき)。", scene: BVB(["Kd", "9c"], 2.5, "raise", { badge: "best", focus: [0] }) },
-      { text: "サイズは**2.3〜3BB**。少し大きめにして、BBに降りてもらおう。", scene: BVB(["Kd", "9c"], 2.5, "raise", { focus: [0] }) },
-      { text: "弱い手は!!フォールド!!。**J4o**みたいな手で無理に入らなくていいよ。", scene: BVB(["Jd", "4c"], 0.5, "fold", { focus: [0] }) },
-      { text: "BBの側は反対に**広く戦う**。後ろの席(IP)を活かして、**たくさんコール**、ときどき**3bet**だよ。", scene: BVB(["Kd", "9c"], 2.5, "raise", { focus: [1] }) },
+      { text: "**BvB(ブラインドバトル)**は、みんな降りて**SBとBBの2人だけ**になった勝負だよ。", scene: BVB(["Jd", "4c"]) },
+      { text: "復習!プリフロップでは**コールで参加しない**、**レイズかフォールド**って教えたよね。", scene: BVB(["Jd", "4c"], 2.5, "raise") },
+      { text: "でも**BvBのSBだけは例外**。SBは**リンプ(コール)をたくさんしてOK**なんだ!", scene: BVB(["Jd", "4c"], 1, "call", { badge: "best", focus: [0] }) },
+      { text: "理由は2つ。SBは**もう0.5BB払っている**から、あと**0.5BB足すだけ**で参加できる。しかも相手は**BBの1人だけ**。", scene: BVB(["Jd", "4c"], 1, "call", { focus: [0] }) },
+      { text: "表を見て。SBは**ほとんどの手でリンプ**(緑)。**J4o**みたいな手もリンプでいいんだ。", scene: BVB(["Jd", "4c"], 1, "call", { range: { scene: "RFI_SB" } }) },
+      { text: "**レイズ**(赤)は**AJs・ATs・KQs**のような手が中心。**AAやKKでもリンプを混ぜる**んだよ。", scene: BVB(["Ks", "Qs"], 2.5, "raise", { badge: "best", focus: [0] }) },
+      { text: "降りるのは**72o・92o・83o**みたいな、**本当に弱い手だけ**!", scene: BVB(["7d", "2c"], 0.5, "fold", { focus: [0] }) },
+      { text: "まとめ!**BvBのSBは、リンプをたくさん**。弱すぎる手だけフォールド。ほかの席ではこれまでどおり**レイズかフォールド**だよ。", scene: BVB(["Jd", "4c"], 1, "call") },
     ],
   },
   {
     kind: "spot",
-    scene: BVB(["Kd", "9c"]),
-    prompt: "みんな降りてBvB。SBのきみは**K9o**(40BB)。どうする?",
-    expect: "raise",
-    size: [2.2, 3.1],
-    hint: "K9oはオープンしていい手。**2.3〜3BB**で打とう。",
-    explain: "正解!SBは**2.3〜3BB**でオープン。",
+    scene: BVB(["Jd", "4c"]),
+    prompt: "みんな降りてBvB。SBのきみは**J4o**。どうする?",
+    expect: "call",
+    hint: "BvBのSBだけは例外。**あと0.5BBで参加**できるよ。",
+    explain: "正解!BvBのSBは**リンプ(コール)**をたくさんしてOK。",
   },
   {
     kind: "spot",
-    scene: BVB(["Jd", "4c"]),
-    prompt: "今度は**J4o**。どうする?",
+    scene: BVB(["7d", "2c"]),
+    prompt: "今度は**72o**。どうする?",
     expect: "fold",
-    hint: "SBはOOP。**25%くらいに絞る**んだったね。",
-    explain: "正解!弱い手は**フォールド**。SBは絞って戦おう。",
+    hint: "SBでも、**本当に弱い手**は降りるんだったね。",
+    explain: "正解!**72o**は**フォールド**。降りるのはこういう手だけだよ。",
   },
 ];
 
