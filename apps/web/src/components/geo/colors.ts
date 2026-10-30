@@ -80,5 +80,5 @@ export function bucketTextColor(hex: string): string {
     .map((i) => parseInt(hex.substr(i, 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   const luminance = 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
-  return luminance > 0.35 ? "#101012" : "#FFFFFF";
+  return luminance > 0.35 ? "#101012" : "#E8E4D3";
 }

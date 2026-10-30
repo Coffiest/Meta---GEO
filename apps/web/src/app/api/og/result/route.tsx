@@ -52,11 +52,11 @@ async function loadGoogleFont(family: string, weight: number, text: string): Pro
   }
 }
 
-const ACCENT = "#26c2a3";
-const ACCENT_HI = "#5fe0c6";
-const FG = "#f5f5f7";
+const ACCENT = "#00AEBB";
+const ACCENT_HI = "#5FD3DC";
+const FG = "#E8E4D3";
 const FG_MUTED = "#8e8e93";
-const BG = "#0A0A0B";
+const BG = "#031211";
 
 export async function GET(req: Request): Promise<ImageResponse> {
   const { searchParams } = new URL(req.url);
@@ -100,7 +100,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
         }}
       >
         {/* 上端のアクセント帯 */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5FD3DC, #00AEBB 55%, #00939E)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + アプリ名 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
@@ -134,7 +134,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
                 marginTop: "28px",
                 padding: "12px 34px",
                 borderRadius: "999px",
-                background: "rgba(38,194,163,0.16)",
+                background: "rgba(0,174,187,0.16)",
                 color: ACCENT_HI,
                 fontSize: "40px",
                 fontWeight: 700,

@@ -35,9 +35,9 @@ import { Icon } from "@/components/Icon";
  */
 
 /** iOSのグループリスト背景(systemGroupedBackground)。 */
-export const SHEET_BG = "#101012";
+export const SHEET_BG = "#071A19";
 /** iOSのヘアライン分割線。 */
-export const HAIRLINE = "rgba(255,255,255,0.10)";
+export const HAIRLINE = "rgba(232,228,211,0.10)";
 
 /**
  * mergeOpenRaiseOptions(geoApi.ts)は件数(count)を持つ本来のActionOption向けで、
@@ -437,7 +437,7 @@ export function ReviewReplayView({
                     cy="5"
                     r="4"
                     fill={CLASSIFICATION_META[pin.classification as Classification]?.color ?? "#999"}
-                    stroke="#ffffff"
+                    stroke="#E8E4D3"
                     strokeWidth="1.2"
                   />
                 </svg>

@@ -373,7 +373,7 @@ export function ActionBar({
                 }}
                 aria-label={t("action.betAmount")}
                 className="bet-slider min-w-0 flex-1"
-                style={{ background: `linear-gradient(to right, rgb(var(--accent)) ${sliderPct}%, rgb(255 255 255 / 0.14) ${sliderPct}%)` }}
+                style={{ background: `linear-gradient(to right, rgb(var(--accent)) ${sliderPct}%, rgb(232 228 211 / 0.14) ${sliderPct}%)` }}
               />
               <button
                 type="button"

@@ -88,7 +88,7 @@ export function LessonTab({ accessToken }: { accessToken: string | undefined }) 
               <h3 className={`text-[16px] font-black tracking-tight ${readyCount > 0 ? "text-fg" : "text-fg-2"}`}>{title}</h3>
             </div>
             {/* 1つのセクションを1枚の板にまとめ、行は細い線で区切る */}
-            <div className="overflow-hidden rounded-2xl bg-surface shadow-e1" style={{ border: "0.5px solid rgba(255,255,255,0.10)" }}>
+            <div className="overflow-hidden rounded-2xl bg-surface shadow-e1" style={{ border: "0.5px solid rgba(232,228,211,0.10)" }}>
               {section.lessons.map((lesson, i) => {
                 const ready = lesson.steps.length > 0;
                 const p = progress.get(lesson.id);

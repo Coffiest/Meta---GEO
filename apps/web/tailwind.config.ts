@@ -43,8 +43,8 @@ const config: Config = {
         },
 
         /* ── アクセント ────────────────────────────────────────────
-           アクセント面に乗る文字は必ず `text-on-accent`(黒)。白は #26C2A3 上で
-           2.25:1 と不合格、この黒は 8.79:1 で合格する。 */
+           アクセント面に乗る文字は必ず `text-on-accent`(黒)。アイボリーは #00AEBB 上で
+           2.1:1 と不合格、Ink Black は 7.1:1 で合格する。 */
         accent: {
           DEFAULT: v("accent"),
           hi: v("accent-hi"),
@@ -52,6 +52,10 @@ const config: Config = {
           lo: v("accent-lo"),
         },
         "on-accent": v("on-accent"),
+
+        /* 白と黒もテーマの色に揃える(オーナー指定 2026-10-30)。`text-white` などはそのまま Warm Ivory / Ink Black になる。 */
+        white: v("n-11"),
+        black: v("n-0"),
 
         /* ── データ可視化の意味色 ──────────────────────────────────
            テーマの一部ではなく「意味を持つ色」。棋譜解析の9段階分類やGEOのアクション色と
@@ -101,11 +105,11 @@ const config: Config = {
          (=面が光を拾っている表現)を必ず一緒に持たせる。大きい面ほど影を深く、
          ハイライトを強くして「厚みがある」と読ませる。 */
       boxShadow: {
-        e0: "inset 0 1px 0 rgb(255 255 255 / 0.05)",
-        e1: "0 1px 2px rgb(0 0 0 / 0.40), inset 0 1px 0 rgb(255 255 255 / 0.06)",
-        e2: "0 4px 16px -4px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.07)",
-        e3: "0 12px 32px -8px rgb(0 0 0 / 0.65), inset 0 1px 0 rgb(255 255 255 / 0.08)",
-        e4: "0 24px 64px -12px rgb(0 0 0 / 0.75), inset 0 1px 0 rgb(255 255 255 / 0.10)",
+        e0: "inset 0 1px 0 rgb(232 228 211 / 0.05)",
+        e1: "0 1px 2px rgb(0 0 0 / 0.40), inset 0 1px 0 rgb(232 228 211 / 0.06)",
+        e2: "0 4px 16px -4px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(232 228 211 / 0.07)",
+        e3: "0 12px 32px -8px rgb(0 0 0 / 0.65), inset 0 1px 0 rgb(232 228 211 / 0.08)",
+        e4: "0 24px 64px -12px rgb(0 0 0 / 0.75), inset 0 1px 0 rgb(232 228 211 / 0.10)",
         // アクセントの発光。1画面に1つだけ置く「主役」の合図として使う。
         glow: "0 0 0 1px rgb(var(--accent) / 0.35), 0 10px 36px -8px rgb(var(--accent) / 0.45)",
         "glow-sm": "0 0 16px -4px rgb(var(--accent) / 0.50)",

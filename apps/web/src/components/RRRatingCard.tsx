@@ -85,8 +85,8 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
   return (
     <div className="overflow-x-auto no-scrollbar -mx-1 px-1" onScroll={closeTooltip}>
       <svg width={width} height={CHART_HEIGHT + 22} className="block" style={{ overflow: "visible" }}>
-        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#323235" strokeWidth={1} strokeDasharray="3,3" />
-        <path d={linePath} fill="none" stroke="#26C2A3" strokeWidth={1.6} />
+        <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#1E3B39" strokeWidth={1} strokeDasharray="3,3" />
+        <path d={linePath} fill="none" stroke="#00AEBB" strokeWidth={1.6} />
         {points.map((p, i) => {
           const cx = xFor(i);
           const cy = yFor(p.pnl);
@@ -120,8 +120,8 @@ function TournamentHistoryChart({ points }: { points: TournamentHistoryPoint[] }
                 cx={cx}
                 cy={cy}
                 r={selected === i ? 11 : 9}
-                fill={itm ? "#26C2A3" : "#0A0A0B"}
-                stroke={itm ? "#04211B" : "#26C2A3"}
+                fill={itm ? "#00AEBB" : "#031211"}
+                stroke={itm ? "#031211" : "#00AEBB"}
                 strokeWidth={1.5}
                 style={{ transition: "r 0.15s" }}
               />

@@ -13,7 +13,7 @@ import type { PlanId } from "@/lib/subscription";
 const GLIDER: Record<PlanId, { background: string; boxShadow: string }> = {
   silver: {
     background: "linear-gradient(135deg, #c0c0c055, #e0e0e0)",
-    boxShadow: "0 0 18px rgba(192, 192, 192, 0.5), 0 0 10px rgba(255, 255, 255, 0.4) inset",
+    boxShadow: "0 0 18px rgba(192, 192, 192, 0.5), 0 0 10px rgba(232,228,211, 0.4) inset",
   },
   gold: {
     background: "linear-gradient(135deg, #ffd70055, #ffcc00)",
@@ -47,9 +47,9 @@ export function PlanToggle({
       aria-label="プラン"
       className="relative mx-auto flex w-full overflow-hidden rounded-2xl backdrop-blur-md"
       style={{
-        background: "rgba(255, 255, 255, 0.06)",
+        background: "rgba(232,228,211, 0.06)",
         boxShadow:
-          "inset 1px 1px 4px rgba(255, 255, 255, 0.2), inset -1px -1px 6px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15)",
+          "inset 1px 1px 4px rgba(232,228,211, 0.2), inset -1px -1px 6px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15)",
       }}
     >
       <motion.span

@@ -35,16 +35,16 @@ function ReviewArt() {
         </pattern>
       </defs>
       <rect x="50" y="20" width="120" height="120" rx="8" fill="url(#rp-board)" />
-      <circle cx="104" cy="74" r="34" fill="#0A0A0B" stroke="#d9d9de" strokeWidth="7" />
-      <circle cx="104" cy="74" r="25" fill="#26c2a3" />
-      <path d="M104 58l5 10 11 1.6-8 7.8 1.9 11L104 83l-9.9 5.4L96 77.4l-8-7.8 11-1.6z" fill="#04211B" />
+      <circle cx="104" cy="74" r="34" fill="#031211" stroke="#d9d9de" strokeWidth="7" />
+      <circle cx="104" cy="74" r="25" fill="#00AEBB" />
+      <path d="M104 58l5 10 11 1.6-8 7.8 1.9 11L104 83l-9.9 5.4L96 77.4l-8-7.8 11-1.6z" fill="#031211" />
       <rect x="126" y="98" width="12" height="34" rx="6" transform="rotate(-45 132 115)" fill="#8e8e93" />
-      <circle cx="46" cy="30" r="20" fill="#26c2a3" />
-      <text x="46" y="37" textAnchor="middle" fontSize="20" fontWeight="900" fill="#04211B">!!</text>
+      <circle cx="46" cy="30" r="20" fill="#00AEBB" />
+      <text x="46" y="37" textAnchor="middle" fontSize="20" fontWeight="900" fill="#031211">!!</text>
       <circle cx="178" cy="62" r="18" fill="#f5b70a" />
       <text x="178" y="69" textAnchor="middle" fontSize="18" fontWeight="900" fill="#1c1400">?!</text>
       <circle cx="56" cy="140" r="20" fill="#e5484d" />
-      <text x="56" y="147" textAnchor="middle" fontSize="20" fontWeight="900" fill="#fff">??</text>
+      <text x="56" y="147" textAnchor="middle" fontSize="20" fontWeight="900" fill="#E8E4D3">??</text>
     </svg>
   );
 }

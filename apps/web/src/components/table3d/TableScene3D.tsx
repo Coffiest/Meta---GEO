@@ -39,7 +39,7 @@ function makeTableCamera(spec: TableSpec): PerspectiveCamera {
  *  - 影は最初の1回だけ焼く(`shadowMap.autoUpdate = false`)。
  *  - 解像度は端末の DPR の2倍まで。
  *
- * 色: 卓面は深いティールのフェルト(アクセント #26c2a3 と同じ系統を暗く落としたもの)、レールは黒い革。
+ * 色: 卓面は深いティールのフェルト(アクセント #00AEBB と同じ系統を暗く落としたもの)、レールは黒い革。
  */
 
 /** スーパー楕円の輪郭を Shape に(XZ → 形の XY。y = -z にして、X 軸で -90° 回すと元の向きに戻る)。 */
@@ -91,9 +91,9 @@ function makeFeltTexture(shape: TableShape): CanvasTexture {
   // 中央が明るく、縁へ沈むフェルト(スポットライトの陰影とは別に、布の色そのものの濃淡)。
   const grad = g.createRadialGradient(W / 2, H * 0.48, W * 0.05, W / 2, H / 2, H * 0.62);
   // 色はアップルデザインの試作に合わせる(オーナー指示 v1.22.0): 中央の明るいティールから縁の深い緑へ。
-  grad.addColorStop(0, "#127a67");
-  grad.addColorStop(0.45, "#0b5547");
-  grad.addColorStop(1, "#06302a");
+  grad.addColorStop(0, "#0a7880");
+  grad.addColorStop(0.45, "#065157");
+  grad.addColorStop(1, "#032f31");
   g.fillStyle = grad;
   g.fillRect(0, 0, W, H);
 
@@ -223,7 +223,7 @@ function Table({ shape }: { shape: TableShape }) {
       <mesh geometry={geos.railGeo} rotation-x={-Math.PI / 2} castShadow receiveShadow>
         {/* 両面を描く。ExtrudeGeometry の穴の内壁は面の向きが裏返っていて、片面だと奥のレールの内壁が描かれず、
             そこから背景が透けていた(オーナー指摘「卓の上部に隙間があって背景が見える」)。 */}
-        <meshPhysicalMaterial color="#020203" roughness={0.78} clearcoat={0.15} clearcoatRoughness={0.6} envMapIntensity={0.2} side={DoubleSide} />
+        <meshPhysicalMaterial color="#010909" roughness={0.78} clearcoat={0.15} clearcoatRoughness={0.6} envMapIntensity={0.2} side={DoubleSide} />
       </mesh>
       {/* 脚台(卓の下の厚み。手前の縁で少し見える)。上面をフェルトと同じ高さにすると z-fighting で縞が出るので、少し下げる。 */}
       <mesh geometry={geos.apronGeo} rotation-x={-Math.PI / 2} position-y={-0.19} castShadow>
@@ -273,7 +273,7 @@ export default function TableScene3D({ height }: { height: number }) {
     >
       <CameraRig spec={spec} />
       <SceneSetup />
-      <hemisphereLight args={["#d7e6e2", "#050506", 0.32]} />
+      <hemisphereLight args={["#d7e6e2", "#010909", 0.32]} />
       <spotLight
         position={[0, 4.4, 0.7]}
         angle={spotAngle}
@@ -291,7 +291,7 @@ export default function TableScene3D({ height }: { height: number }) {
         shadow-camera-far={8}
       />
       {/* 奥からの弱い逆光。レールの縁が光って立体が読める。 */}
-      <directionalLight position={[0, 2.2, -4]} intensity={0.9} color="#9fe8d8" />
+      <directionalLight position={[0, 2.2, -4]} intensity={0.9} color="#8fdde3" />
       <Table shape={spec.shape} />
     </Canvas>
   );

@@ -58,7 +58,7 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
   return (
     <>
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(232,228,211,0.14)" strokeWidth={stroke} />
         <circle
           ref={arcRef}
           cx={size / 2}
@@ -79,7 +79,7 @@ function CountdownRing({ endsAt, durationMs, size }: { endsAt: number; durationM
         style={{
           fontSize: Math.round(size * 0.42),
           color: "#1fae70",
-          textShadow: "0 1px 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.9)",
+          textShadow: "0 1px 2px rgba(232,228,211,0.9), 0 0 3px rgba(232,228,211,0.9)",
         }}
       >
         {initialSeconds}

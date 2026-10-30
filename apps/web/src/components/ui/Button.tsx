@@ -16,7 +16,7 @@ import type { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode } from "reac
  * 起こしたもので、この集約自体は視覚的に no-op になるようにしてある。
  *
  * v4.2.0のダークテーマ刷新(#217)で色トークンが ink/gold から canvas/surface/line/fg/accent
- * (テーマカラーはteal系の#26C2A3)へ全面的に置き換わり、押下フィードバックも各所バラバラの
+ * (テーマカラーはteal系の#00AEBB)へ全面的に置き換わり、押下フィードバックも各所バラバラの
  * active:scale/opacity から `.pressable`(globals.css)へ一本化された。ここもそれに追従する。
  */
 

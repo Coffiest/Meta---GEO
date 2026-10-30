@@ -73,7 +73,7 @@ function RangePaint({ reduce }: { reduce: boolean }) {
               <motion.div
                 key={`${r}-${c}`}
                 className="flex aspect-square items-center justify-center rounded-[3px] text-[6px] font-black text-white/85"
-                initial={reduce ? false : { opacity: 0, scale: 0.4, backgroundColor: "rgb(50 50 53)" }}
+                initial={reduce ? false : { opacity: 0, scale: 0.4, backgroundColor: "rgb(30 59 57)" }}
                 animate={{ opacity: 1, scale: 1, backgroundColor: bucketColor(demoBucket(r, c)) }}
                 transition={{ ...SPRING_SNAPPY, delay: reduce ? 0 : 0.15 + (r + c) * 0.028 }}
               >

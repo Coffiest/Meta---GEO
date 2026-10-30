@@ -44,11 +44,11 @@ function PlanMark({ plan, active }: { plan: PlanId; active: boolean }) {
   const fill = plan === "platinum" ? "#c7d2dc" : plan === "gold" ? "#f5b70a" : "#9aa3ad";
   return (
     <svg viewBox="0 0 48 48" className={`h-11 w-11 transition-opacity ${active ? "opacity-100" : "opacity-40"}`} aria-hidden>
-      {plan === "platinum" && <path d="M6 16l9 8 9-14 9 14 9-8-4 22H10z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />}
+      {plan === "platinum" && <path d="M6 16l9 8 9-14 9 14 9-8-4 22H10z" fill={fill} stroke="#031211" strokeWidth="1.5" strokeLinejoin="round" />}
       {plan === "gold" && (
-        <path d="M24 5l5.9 12 13.1 1.9-9.5 9.3 2.2 13.1L24 35.1 12.3 41.3l2.2-13.1L5 18.9 18.1 17z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M24 5l5.9 12 13.1 1.9-9.5 9.3 2.2 13.1L24 35.1 12.3 41.3l2.2-13.1L5 18.9 18.1 17z" fill={fill} stroke="#031211" strokeWidth="1.5" strokeLinejoin="round" />
       )}
-      {plan === "silver" && <path d="M24 5l16 6v12c0 10-7 17-16 20C15 40 8 33 8 23V11z" fill={fill} stroke="#0A0A0B" strokeWidth="1.5" strokeLinejoin="round" />}
+      {plan === "silver" && <path d="M24 5l16 6v12c0 10-7 17-16 20C15 40 8 33 8 23V11z" fill={fill} stroke="#031211" strokeWidth="1.5" strokeLinejoin="round" />}
     </svg>
   );
 }

@@ -37,12 +37,12 @@ async function loadGoogleFont(family: string, weight: number, text: string): Pro
   }
 }
 
-const ACCENT = "#26c2a3";
-const ACCENT_HI = "#5fe0c6";
-const FG = "#f5f5f7";
+const ACCENT = "#00AEBB";
+const ACCENT_HI = "#5FD3DC";
+const FG = "#E8E4D3";
 const FG_MUTED = "#8e8e93";
 const CRIMSON = "#f0595e";
-const BG = "#0A0A0B";
+const BG = "#031211";
 
 /** 4色デッキ(スペード=黒, ハート=赤, ダイヤ=青, クラブ=緑)。アプリ内のカード配色に合わせる。 */
 /** カードは暗い地の上でも白いままにする(アプリのカード画像と同じ意匠)。
@@ -87,7 +87,7 @@ function Card({ code, w }: { code: string; w: number }) {
         height: `${Math.round(w * 1.4)}px`,
         padding: `${Math.round(w * 0.09)}px`,
         borderRadius: `${Math.round(w * 0.1)}px`,
-        background: "#ffffff",
+        background: "#E8E4D3",
         border: "2px solid #040405",
         boxShadow: "0 14px 30px -14px rgba(0,0,0,0.75)",
       }}
@@ -156,7 +156,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
         }}
       >
         {/* 上端のアクセント帯 */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5fe0c6, #26c2a3 55%, #1ea88c)", display: "flex" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, width: "1200px", height: "10px", background: "linear-gradient(90deg, #5FD3DC, #00AEBB 55%, #00939E)", display: "flex" }} />
 
         {/* ヘッダー: 表示名 + アクセントのスペードマーク */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
@@ -203,7 +203,7 @@ export async function GET(req: Request): Promise<ImageResponse> {
                   marginTop: "18px",
                   padding: "10px 24px",
                   borderRadius: "999px",
-                  background: "rgba(38,194,163,0.16)",
+                  background: "rgba(0,174,187,0.16)",
                   color: ACCENT_HI,
                   fontSize: "24px",
                   fontWeight: 700,
