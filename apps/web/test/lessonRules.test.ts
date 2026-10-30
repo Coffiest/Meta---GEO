@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { describe, it, test, expect } from "vitest";
 import { HandEngine } from "@meta-geo/engine/src/handEngine.js";
 import { decideBotAction } from "@meta-geo/engine/src/autoPlayer.js";
 import { parseCard } from "@meta-geo/engine/src/types/card.js";
@@ -50,4 +50,19 @@ test("practice autoplay", () => {
     }
     expect(e.isHandComplete()).toBe(true);
   }
+});
+
+describe("選択肢の問題", () => {
+  it("どのレッスンの問題も、正解が選択肢の中にあり、選択肢が重ならない", async () => {
+    const { ALL_LESSONS } = await import("../src/data/lessons");
+    for (const lesson of ALL_LESSONS) {
+      for (const step of lesson.steps) {
+        if (step.kind !== "quiz") continue;
+        expect(step.answer).toBeGreaterThanOrEqual(0);
+        expect(step.answer).toBeLessThan(step.choices.length);
+        expect(new Set(step.choices).size).toBe(step.choices.length);
+        expect(step.choices.length).toBeLessThanOrEqual(4);
+      }
+    }
+  });
 });

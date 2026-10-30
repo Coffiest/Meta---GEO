@@ -1,4 +1,5 @@
 import { RULES_STEPS } from "./lessonRules";
+import { TOURNEY_VS_CASH_STEPS } from "./lessonTourneyCash";
 
 /**
  * Lesson タブのカリキュラム(オーナー指定の項目と順番)。中身はオーナーと1項目ずつ決めて足していく。
@@ -19,6 +20,10 @@ export interface LessonScene {
   board?: string[];
   /** 勝った側(「Win !」と勝者の5枚の枠を出す)。 */
   winner?: "hero" | "bally";
+  /** 真ん中のポット(確定済みの額)。ページごとに変えると、増えたり減ったりして見える。 */
+  pot?: number;
+  /** 席の前に出ているチップ(あなた = SB、バリィ = BB)。 */
+  bets?: { hero?: number; bally?: number };
 }
 
 export type LessonStep =
@@ -29,7 +34,9 @@ export type LessonStep =
   /** バリィと1ハンドを決まった流れで打ち、あなたが言われたボタンを押す(チップの掛け方)。 */
   | { kind: "guided" }
   /** 練習相手と卓を1周(6ハンド)打つ。 */
-  | { kind: "practice"; hands: number };
+  | { kind: "practice"; hands: number }
+  /** 選択肢から1つ選ぶ問題。一発で正解した数で星が付く。 */
+  | { kind: "quiz"; question: string; choices: string[]; answer: number; hint: string; explain: string; scene?: LessonScene };
 
 export interface Lesson {
   id: string;
@@ -46,7 +53,7 @@ export interface LessonSection {
 
 export const CURRICULUM: LessonSection[] = [
   { title: "0. ルール説明", lessons: [{ id: "rules", title: "ルール説明", free: true, steps: RULES_STEPS }] },
-  { title: "1. トナメとキャッシュ", lessons: [{ id: "tourney-vs-cash", title: "トナメとキャッシュの違いを知る", steps: [] }] },
+  { title: "1. トナメとキャッシュ", lessons: [{ id: "tourney-vs-cash", title: "トナメとキャッシュの違いを知る", steps: TOURNEY_VS_CASH_STEPS }] },
   {
     title: "2. 基礎編: やってはいけないこと",
     lessons: [
