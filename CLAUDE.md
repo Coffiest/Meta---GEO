@@ -177,6 +177,7 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 ## Lesson タブ(バリィ先生のレッスン)
 
 - 一覧は `components/lesson/LessonTab.tsx`、中身は `data/lessons.ts`(カリキュラム)と `data/lessonRules.ts` など、画面は `components/lesson/LessonPlayer.tsx`。無料・シルバーは1日3レッスン(開始時に数える。同じ日のやり直しは数えない。日本時間0時に戻る)、ゴールド以上は無制限、「ルール説明」は無制限。進み具合はサーバー(`LessonProgress`、`/api/lessons`)。アプリ内に出典・引用は出さない。バリィはくだけた普通の口調(関西弁はラフくんだけ)。
+- 問題は2種類: 卓で実際に押す(guided)と、選択肢から選ぶ(`quiz`。間違えたら「答えを見る」か「もう一度解く」。一発で正解した割合で星0〜3)。チップの動き(レーキ・アンティ)は場面の `pot` と `bets` を変えて見せる。
 - **レッスンの画面は棋譜解析と同じ並び(オーナー指示)**: 上にバリィの解説(高さ 176px 固定の箱+`FitBox`)、真ん中に卓を常に出す、下は 132px 固定(アクションバーか「次へ」)。卓は段階が変わっても同じ1つの `PokerTable` のまま描く(段階ごとの部品に分けると付け替わって読み込み直し、ちらつく)。そのため各段階はフック(`useStaticScene` / `useGuidedHand` / `usePracticeTable`)で卓の値を返す。
 
 ## 管理者画面(セキュリティ)
