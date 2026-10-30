@@ -119,7 +119,7 @@ describe("コーチのルール", () => {
     expect(v.grade).toBe("best");
   });
 
-  it("4-3. IP のリバー: トップペアでチェックされたら、コールされても勝てるので 50% ベットは最善", () => {
+  it("4-3. IP のリバー: トップペアでチェックされたら、コールされても勝てるので 75% 以上のベットは最善", () => {
     const b = srp({ 0: ["Kd", "Js"] }, ["Kh", "8c", "4d", "2s", "7h"]);
     b.act(2, "check", null);
     b.act(0, "check", null);
@@ -128,7 +128,7 @@ describe("コーチのルール", () => {
     b.act(0, "check", null);
     b.street("river");
     b.act(2, "check", null);
-    const v = judgeCoach(b.hand, b.act(0, "bet", 275))!;
+    const v = judgeCoach(b.hand, b.act(0, "bet", 450))!;
     expect(v.id).toBe("thinValue");
     expect(v.equity!).toBeGreaterThanOrEqual(0.5);
     expect(v.grade).toBe("best");

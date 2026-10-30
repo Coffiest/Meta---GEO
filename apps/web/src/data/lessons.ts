@@ -1,5 +1,26 @@
 import { RULES_STEPS } from "./lessonRules";
 import { TOURNEY_VS_CASH_STEPS } from "./lessonTourneyCash";
+import { ODDS_STEPS } from "./lessonOdds";
+import { BB_DEFENSE_STEPS, PREFLOP_RANGE_STEPS } from "./lessonPreflop";
+import { CB_BMCB_STEPS } from "./lessonCb";
+import { BARREL_STEPS } from "./lessonBarrel";
+import {
+  BB_POLAR_STEPS,
+  BLUFF_CATCH_STEPS,
+  BVB_STEPS,
+  CHECK_RAISE_STEPS,
+  CHECK_RANGE_STEPS,
+  EXPLOIT_PRACTICE_STEPS,
+  EXPLOIT_WHAT_STEPS,
+  ICM_STEPS,
+  LIGHT_3BET_STEPS,
+  NASH_STEPS,
+  PROBE_STEPS,
+  SHORT_STACK_STEPS,
+  SQUEEZE_STEPS,
+  THIN_VALUE_STEPS,
+  WHAT_IS_GTO_STEPS,
+} from "./lessonAdvanced";
 import { COMMIT_STEPS, DONK_STEPS, LIMP_STEPS, MARGINAL_STEPS } from "./lessonBasics";
 
 /**
@@ -27,10 +48,20 @@ export interface LessonScene {
   bets?: { hero?: number; bally?: number };
   /** 6人卓の局面(額はすべて BB 単位)。あると pot / bets より優先する。席0が「あなた」。 */
   table?: LessonTable;
+  /** 卓の上に重ねて出す、色分けした覚える表(例外の一覧など)。 */
+  chart?: LessonChart;
+  /** 卓の上に重ねて出すレンジ表(計算済みの表の場面名。例 "RFI_BTN"。70BB)。 */
+  range?: { scene: string };
   /** 光らせて目立たせる席(最初の1つ)。 */
   focus?: number[];
   /** 解説の箱に出す評価のバッジ(棋譜解析と同じ見た目)。 */
   badge?: "best" | "blunder";
+}
+
+export interface LessonChart {
+  title: string;
+  /** tone: accent = 基本・打つ / warn = 例外・注意 / danger = 打たない。 */
+  rows: { label: string; value: string; tone: "accent" | "warn" | "danger" }[];
 }
 
 export type LessonAct = "check" | "bet" | "call" | "raise" | "fold" | "allIn";
@@ -97,54 +128,54 @@ export const CURRICULUM: LessonSection[] = [
       { id: "marginal-bet", title: "マージナルベット", steps: MARGINAL_STEPS },
     ],
   },
-  { title: "3. オッズ", lessons: [{ id: "odds", title: "オッズと必要勝率、勝率計算", steps: [] }] },
+  { title: "3. オッズ", lessons: [{ id: "odds", title: "オッズと必要勝率、勝率計算", steps: ODDS_STEPS }] },
   {
     title: "4. プリフロップ基礎編",
     lessons: [
-      { id: "preflop-ranges", title: "オープン・3bet・コールドコールのレンジとレイズサイズ", steps: [] },
-      { id: "bb-defense", title: "BBディフェンス", steps: [] },
+      { id: "preflop-ranges", title: "オープン・3bet・コールドコールのレンジとレイズサイズ", steps: PREFLOP_RANGE_STEPS },
+      { id: "bb-defense", title: "BBディフェンス", steps: BB_DEFENSE_STEPS },
     ],
   },
   {
     title: "5. IP(インポジション)戦略",
     lessons: [
-      { id: "cb-bmcb", title: "CB と BMCB(スタブ)", steps: [] },
-      { id: "barrels", title: "ターンバレル・リバーバレルとポラライズ", steps: [] },
-      { id: "thin-value", title: "シンバリューベット", steps: [] },
-      { id: "check-range", title: "チェックレンジを強くする", steps: [] },
-      { id: "what-is-gto", title: "GTOとは?", steps: [] },
+      { id: "cb-bmcb", title: "CB と BMCB(スタブ)", steps: CB_BMCB_STEPS },
+      { id: "barrels", title: "ターンバレル・リバーバレルとポラライズ", steps: BARREL_STEPS },
+      { id: "thin-value", title: "シンバリューベット", steps: THIN_VALUE_STEPS },
+      { id: "check-range", title: "チェックレンジを強くする", steps: CHECK_RANGE_STEPS },
+      { id: "what-is-gto", title: "GTOとは?", steps: WHAT_IS_GTO_STEPS },
     ],
   },
   {
     title: "6. OOP戦略",
     lessons: [
-      { id: "check-raise", title: "チェックレイズと CB 頻度の調整", steps: [] },
-      { id: "probe-bet", title: "ターンとリバーのプローブベット", steps: [] },
-      { id: "bluff-catch", title: "ブラフキャッチとリバーのブラフレイズ", steps: [] },
+      { id: "check-raise", title: "チェックレイズと CB 頻度の調整", steps: CHECK_RAISE_STEPS },
+      { id: "probe-bet", title: "ターンとリバーのプローブベット", steps: PROBE_STEPS },
+      { id: "bluff-catch", title: "ブラフキャッチとリバーのブラフレイズ", steps: BLUFF_CATCH_STEPS },
     ],
   },
   {
     title: "7. トナメ戦略",
     lessons: [
-      { id: "short-stack", title: "ショートスタック戦術", steps: [] },
-      { id: "icm", title: "ICM", steps: [] },
+      { id: "short-stack", title: "ショートスタック戦術", steps: SHORT_STACK_STEPS },
+      { id: "icm", title: "ICM", steps: ICM_STEPS },
     ],
   },
   {
     title: "8. プリフロップ応用編",
     lessons: [
-      { id: "light-3bet", title: "ライト3bet", steps: [] },
-      { id: "squeeze", title: "スクイーズ", steps: [] },
-      { id: "bb-polar-3bet", title: "BBからのポラーな3bet", steps: [] },
-      { id: "bvb", title: "BvB", steps: [] },
+      { id: "light-3bet", title: "ライト3bet", steps: LIGHT_3BET_STEPS },
+      { id: "squeeze", title: "スクイーズ", steps: SQUEEZE_STEPS },
+      { id: "bb-polar-3bet", title: "BBからのポラーな3bet", steps: BB_POLAR_STEPS },
+      { id: "bvb", title: "BvB", steps: BVB_STEPS },
     ],
   },
   {
     title: "9. GTO戦略とエクスプロイト戦略",
     lessons: [
-      { id: "nash-gto", title: "ナッシュ均衡とGTO", steps: [] },
-      { id: "exploit-what", title: "エクスプロイト戦略とは", steps: [] },
-      { id: "exploit-practice", title: "実際のエクスプロイト戦略", steps: [] },
+      { id: "nash-gto", title: "ナッシュ均衡とGTO", steps: NASH_STEPS },
+      { id: "exploit-what", title: "エクスプロイト戦略とは", steps: EXPLOIT_WHAT_STEPS },
+      { id: "exploit-practice", title: "実際のエクスプロイト戦略", steps: EXPLOIT_PRACTICE_STEPS },
     ],
   },
 ];

@@ -9,7 +9,7 @@ import type { LessonScene, LessonSeat, LessonStep } from "./lessons";
 const N = ["ミナト", "ソラ", "ハル", "リク", "ユイ"];
 
 /** 6人卓を作る。others は席1〜5の上書き(名前は既定で練習相手)。 */
-function six(button: number, seats: Partial<LessonSeat>[], pot?: number): LessonScene["table"] {
+export function six(button: number, seats: Partial<LessonSeat>[], pot?: number): LessonScene["table"] {
   const all: LessonSeat[] = [0, 1, 2, 3, 4, 5].map((seat) => ({ seat, name: seat === 0 ? undefined : N[seat - 1], ...(seats[seat] ?? {}) }));
   return { button, seats: all, pot };
 }

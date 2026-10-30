@@ -7,7 +7,7 @@ import { HandEngine, type PublicHandState } from "@meta-geo/engine/src/handEngin
 import { decideBotAction, lastAggressorSeat } from "@meta-geo/engine/src/autoPlayer.js";
 import { cardToString, parseCard, type Card } from "@meta-geo/engine/src/types/card.js";
 import type { PlayerAction } from "@meta-geo/engine/src/types/action.js";
-import type { Lesson, LessonAct, LessonScene } from "@/data/lessons";
+import type { Lesson, LessonAct, LessonChart, LessonScene } from "@/data/lessons";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { CLASSIFICATION_META } from "@/lib/classification";
 import { completeLesson } from "@/lib/lessonApi";
@@ -18,6 +18,7 @@ import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { BallyBubble } from "@/components/BallyBubble";
 import { FitBox } from "@/components/review/FitBox";
+import { GtowRangeTable } from "@/components/review/GtowRangeTable";
 import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
 
 /**
@@ -300,8 +301,23 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
       </div>
 
       {/* 真ん中: 卓(常に出す) */}
-      <main className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
+      <main className="relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
         <PokerTable {...view.table} />
+        {/* レンジ表は卓の上に重ねる(卓は付け替えない)。 */}
+        {view.chart && !view.range && <ChartOverlay chart={view.chart} />}
+        {view.range && (
+          <div className="absolute inset-0 z-30 flex items-center px-3 py-2">
+            <motion.div
+              key={view.range}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={SPRING_MOVE}
+              className="glass-panel max-h-full w-full overflow-y-auto rounded-3xl p-3"
+            >
+              <GtowRangeTable scene={view.range} stack={70} />
+            </motion.div>
+          </div>
+        )}
       </main>
 
       {/* 下: 操作。高さはアクションバーと同じ 132px で一定。 */}
@@ -314,7 +330,7 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
 }
 
 type TableProps = ComponentProps<typeof PokerTable>;
-type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; badge?: "best" | "blunder"; bottom: ReactNode };
+type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; badge?: "best" | "blunder"; range?: string; chart?: LessonChart; bottom: ReactNode };
 
 /** 「次へ」など、下の箱に置く大きなボタン(1画面に1つだけの強いアクセント)。 */
 function NextButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -401,17 +417,19 @@ function useQuizView(
     turnTimer: null,
   };
   if (phase.kind !== "quiz" || !q) return { table, text: "", bottom: null };
+  const range = q.scene?.range?.scene;
   const at = phase.step;
   const set = (status: "ask" | "wrong" | "right" | "shown") => setPhase({ kind: "quiz", step: at, status });
 
   if (phase.status === "right" || phase.status === "shown") {
     const text =
       phase.status === "right" ? `正解!\n${q.explain}` : `答えは「${q.choices[q.answer]}」だよ。\n${q.explain}`;
-    return { table, text, bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
+    return { table, text, range, bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
   }
   if (phase.status === "wrong") {
     return {
       table,
+      range,
       text: `ちがうよ。\n${q.hint}`,
       tone: "hint",
       bottom: (
@@ -436,6 +454,7 @@ function useQuizView(
   }
   return {
     table,
+    range,
     text: `問題: ${q.question}`,
     bottom: (
       <div className={`grid gap-2 ${q.choices.length > 2 ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -498,6 +517,8 @@ function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack
     },
     text,
     badge: scene?.badge,
+    range: scene?.range?.scene,
+    chart: scene?.chart,
     bottom: (
       // 棋譜解析と同じく、左に「‹」(前へ)、右へ進む。
       <div className="flex items-center gap-2">
@@ -970,4 +991,37 @@ function useSpotView(
       />
     ),
   };
+}
+
+/** 覚える表(例外の一覧など)を卓の上に重ねる。行ごとに色の枠で、基本・例外・打たないを分ける。 */
+function ChartOverlay({ chart }: { chart: LessonChart }) {
+  const color = (tone: LessonChart["rows"][number]["tone"]) =>
+    tone === "accent" ? "rgb(var(--accent))" : tone === "warn" ? CLASSIFICATION_META.inaccuracy.color : CLASSIFICATION_META.blunder.color;
+  return (
+    <div className="absolute inset-0 z-30 flex items-center px-3 py-2">
+    <motion.div
+      key={chart.title}
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={SPRING_MOVE}
+      className="glass-panel max-h-full w-full overflow-y-auto rounded-3xl p-3"
+    >
+      <p className="mb-2 text-[13px] font-black text-fg">{chart.title}</p>
+      <div className="flex flex-col gap-1.5">
+        {chart.rows.map((r) => (
+          <div
+            key={r.label}
+            className="rounded-xl bg-surface px-3 py-2"
+            style={{ border: `1.5px solid ${color(r.tone)}` }}
+          >
+            <p className="text-[11px] font-bold leading-snug text-fg-2">{r.label}</p>
+            <p className="text-[13px] font-black leading-snug" style={{ color: color(r.tone) }}>
+              {r.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+    </div>
+  );
 }
