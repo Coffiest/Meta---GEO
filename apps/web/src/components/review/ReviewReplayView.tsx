@@ -407,6 +407,16 @@ export function ReviewReplayView({
           lastHandDeltaBySeat={null}
           turnTimer={null}
           equityBySeat={replayEquity}
+          focusSeat={
+            step.type === "action"
+              ? {
+                  seatIndex: step.actorSeat,
+                  classification: step.actorIsHero
+                    ? (step.decision?.classification ?? null)
+                    : (oppBySeq.get(step.sequenceNumber)?.classification ?? null),
+                }
+              : null
+          }
         />
       </main>
 

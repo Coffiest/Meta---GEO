@@ -349,6 +349,7 @@ export function PokerTable({
   lastHandDeltaBySeat,
   showOrder = null,
   equityBySeat = null,
+  focusSeat = null,
   turnTimer,
   onPlayerTap,
   markingBySeat,
@@ -379,6 +380,8 @@ export function PokerTable({
   showOrder?: number[] | null;
   /** オールインで手札が開いたあとの、いまのボードからの勝率(0〜1)。 */
   equityBySeat?: Record<number, number> | null;
+  /** 棋譜解析で、いま解説している決定の席と評価。その席を太い枠で囲む。 */
+  focusSeat?: { seatIndex: number; classification: string | null } | null;
   turnTimer: TurnTimerInfo | null;
   /** 相手(自分以外・非BOT)の席タップ時に呼ばれる。プレイヤー詳細モーダルを開く。 */
   onPlayerTap?: (info: SeatPlayerInfo) => void;
@@ -708,6 +711,7 @@ export function PokerTable({
             winDelay={winDelay}
             equity={status !== "folded" ? equityBySeat?.[seatIndex] ?? null : null}
             equityOnLeft={slot === 4 || slot === 5}
+            focus={focusSeat && focusSeat.seatIndex === seatIndex ? { classification: focusSeat.classification } : null}
             shown={shown}
             mucked={muckedSeats?.has(seatIndex) ?? false}
             out={outSeats?.has(seatIndex) ?? false}

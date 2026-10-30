@@ -1,6 +1,13 @@
 "use client";
 
 import { formatEquity } from "@/lib/runoutEquity";
+import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { CLASSIFICATION_META, type Classification } from "@/lib/classification";
+
+/** 解説中の席の枠の色。評価のバッジと同じ色にする(評価が無ければアクセント)。 */
+function focusColor(classification: string | null): string {
+  return (classification && CLASSIFICATION_META[classification as Classification]?.color) || "rgb(var(--accent))";
+}
 import type { ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SPRING_MOVE, SPRING_SNAPPY, SPRING_THROW } from "@/lib/motion";
@@ -178,6 +185,8 @@ export interface SeatViewProps {
   equity?: number | null;
   /** 卓の右側の席は、勝率を名前の左横に出す(右横だと画面の外へはみ出す)。 */
   equityOnLeft?: boolean;
+  /** 棋譜解析で、いま解説している決定の席。太い光る枠で囲み、枠の右上に評価のバッジを出す。 */
+  focus?: { classification: string | null } | null;
   /** 名札の下段に出す参加率・レイズ率。誰の席でも同じ見た目。 */
   hud?: SeatHud | null;
 }
@@ -217,6 +226,7 @@ export function Seat({
   equity = null,
   equityOnLeft = false,
   hud = null,
+  focus = null,
 }: SeatViewProps) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
@@ -238,6 +248,27 @@ export function Seat({
         folded && !isHero ? "opacity-55" : "opacity-100"
       }`}
     >
+      {/* 棋譜解析: いま解説している席を太い枠で囲む。枠の色は評価の色(評価が無ければアクセント)。 */}
+      {focus && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0, scale: 1.12 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={SPRING_SNAPPY}
+          className="pointer-events-none absolute -inset-x-2.5 -inset-y-2 z-[35] rounded-2xl border-4"
+          style={{
+            borderColor: focusColor(focus.classification),
+            boxShadow: `inset 0 0 0 1.5px rgb(var(--n-11) / 0.85), 0 0 0 1.5px rgb(var(--n-11) / 0.85), 0 0 18px 4px ${focusColor(focus.classification)}, 0 0 44px 10px ${focusColor(focus.classification)}`,
+          }}
+        >
+          {focus.classification && (
+            <span className="absolute -right-4 -top-4 rounded-full shadow-e3 ring-2 ring-n-11">
+              <ClassificationBadge classification={focus.classification as Classification} size={32} />
+            </span>
+          )}
+        </motion.div>
+      )}
+
       {/* 同卓チャットの吹き出し。自分の手札の真上にふわっと浮かせ、尻尾(菱形)を下=手札方向へ。
           黒縁ではなくヘアライン+柔らかいドロップシャドウでApple的な浮遊感を出す。数秒表示。 */}
       <AnimatePresence>
