@@ -66,3 +66,36 @@ describe("選択肢の問題", () => {
     }
   });
 });
+
+describe("レッスンの決まり(オーナー指示: 全ページに手札・局面を出す)", () => {
+  it("すべての話のページに卓の場面(手札か6人卓)があり、カードが読める", async () => {
+    const { ALL_LESSONS } = await import("../src/data/lessons");
+    const missing: string[] = [];
+    for (const lesson of ALL_LESSONS) {
+      if (lesson.id === "rules") continue; // ルール説明は先に作ったもの(役の一覧など)
+      lesson.steps.forEach((step, i) => {
+        if (step.kind !== "talk") return;
+        step.pages.forEach((p, j) => {
+          if (!p.scene || (!p.scene.hero && !p.scene.table)) missing.push(`${lesson.id} ${i}-${j}`);
+          for (const c of [...(p.scene?.hero ?? []), ...(p.scene?.board ?? [])]) expect(parseCard(c), c).not.toBeNull();
+        });
+      });
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("卓の問題の正解が、その局面で押せるボタンになっている", async () => {
+    const { ALL_LESSONS } = await import("../src/data/lessons");
+    for (const lesson of ALL_LESSONS) {
+      for (const step of lesson.steps) {
+        if (step.kind !== "spot") continue;
+        const t = step.scene.table!;
+        expect(t.seats.find((s) => s.seat === 0)).toBeTruthy();
+        const top = Math.max(0, ...t.seats.map((s) => s.bet ?? 0));
+        const mine = t.seats.find((s) => s.seat === 0)!.bet ?? 0;
+        if (step.expect === "check" || step.expect === "bet") expect(top - mine).toBe(0);
+        if (step.expect === "call" || step.expect === "raise") expect(top - mine).toBeGreaterThan(0);
+      }
+    }
+  });
+});

@@ -7,7 +7,9 @@ import { HandEngine, type PublicHandState } from "@meta-geo/engine/src/handEngin
 import { decideBotAction, lastAggressorSeat } from "@meta-geo/engine/src/autoPlayer.js";
 import { cardToString, parseCard, type Card } from "@meta-geo/engine/src/types/card.js";
 import type { PlayerAction } from "@meta-geo/engine/src/types/action.js";
-import type { Lesson, LessonScene } from "@/data/lessons";
+import type { Lesson, LessonAct, LessonScene } from "@/data/lessons";
+import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { CLASSIFICATION_META } from "@/lib/classification";
 import { completeLesson } from "@/lib/lessonApi";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
 import type { SeatAction, SeatPlayerInfo } from "@/lib/socket";
@@ -75,6 +77,107 @@ function sceneState(scene: LessonScene | undefined, withBally: boolean): PublicH
   };
 }
 
+/** 場面を卓の値(状態・席の人・表の手札・席のアクション)にする。6人卓の局面(table)があればそれを使う。 */
+function sceneTable(scene: LessonScene | undefined): {
+  state: PublicHandState;
+  players: Record<number, SeatPlayerInfo>;
+  revealed: Record<number, string[]> | null;
+  lastAction: Record<number, SeatAction>;
+} {
+  const t = scene?.table;
+  if (!t) {
+    const base = sceneState(scene, true);
+    const state: PublicHandState = scene?.focus?.length ? { ...base, actingSeatIndex: scene.focus[0]! } : base;
+    return {
+      state,
+      players: { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER },
+      revealed: scene?.bally ? { [BALLY]: scene.bally } : null,
+      lastAction: {},
+    };
+  }
+  const board = cards(scene?.board);
+  const street = board.length >= 5 ? "river" : board.length === 4 ? "turn" : board.length === 3 ? "flop" : "preflop";
+  const bets = t.seats.map((x) => (x.bet ?? 0) * BB);
+  const pot = (t.pot ?? 0) * BB;
+  const state: PublicHandState = {
+    street,
+    board,
+    potTotal: pot + bets.reduce((a, b) => a + b, 0),
+    currentBetToMatch: Math.max(0, ...bets),
+    lastFullRaiseSize: BB,
+    actingSeatIndex: scene?.focus?.[0] ?? null,
+    buttonFixedPos: t.button,
+    smallBlindSeat: (t.button + 1) % SEAT_COUNT,
+    bigBlindSeat: (t.button + 2) % SEAT_COUNT,
+    collectedPot: pot,
+    pots: [],
+    seats: t.seats.map((x) => ({
+      seatIndex: x.seat,
+      playerId: `s${x.seat}`,
+      stack: (x.stack ?? 100) * BB,
+      status: x.folded ? ("folded" as const) : ("active" as const),
+      streetContribution: (x.bet ?? 0) * BB,
+      handContribution: (x.bet ?? 0) * BB,
+      hasActedThisStreet: false,
+    })),
+    isComplete: false,
+    bigBlind: BB,
+  };
+  const players: Record<number, SeatPlayerInfo> = {};
+  const revealed: Record<number, string[]> = {};
+  const lastAction: Record<number, SeatAction> = {};
+  for (const x of t.seats) {
+    if (x.seat === HERO) players[x.seat] = HERO_PLAYER;
+    else if (x.name === "バリィ") players[x.seat] = { ...BALLY_PLAYER, userId: `lesson-bally-${x.seat}` };
+    else {
+      const i = Math.max(0, PRACTICE_NAMES.indexOf(x.name ?? ""));
+      players[x.seat] = { userId: `lesson-s${x.seat}`, displayName: x.name ?? PRACTICE_NAMES[i]!, avatarKey: PRACTICE_AVATARS[i]!, away: false, frame: null };
+    }
+    if (x.cards) revealed[x.seat] = x.cards;
+    if (x.act) lastAction[x.seat] = { kind: x.act, toAmount: (x.bet ?? 0) * BB };
+  }
+  return { state, players, revealed: Object.keys(revealed).length ? revealed : null, lastAction };
+}
+
+/** 卓の局面から、自分(席0)のアクションバーの値。 */
+function spotBar(state: PublicHandState) {
+  const me = state.seats.find((x) => x.seatIndex === HERO)!;
+  const bets = state.seats.map((x) => x.streetContribution).sort((a, b) => b - a);
+  const top = bets[0] ?? 0;
+  const second = bets[1] ?? 0;
+  const maxRaiseTo = me.streetContribution + me.stack;
+  const active = state.seats.filter((x) => x.status !== "folded").map((x) => x.stack + x.streetContribution);
+  return {
+    toCall: Math.max(0, top - me.streetContribution),
+    minRaiseTo: Math.min(maxRaiseTo, top > 0 ? top + Math.max(BB, top - second) : BB),
+    maxRaiseTo,
+    streetContribution: me.streetContribution,
+    effective: Math.min(...active),
+  };
+}
+
+/** 解説の文。**…** は色付きの太字(アクセント)、!!…!! は赤い太字(大悪手の色)。 */
+function RichText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|!![^!]+!!)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.startsWith("**") && p.endsWith("**") ? (
+          <strong key={i} className="font-black text-accent">
+            {p.slice(2, -2)}
+          </strong>
+        ) : p.startsWith("!!") && p.endsWith("!!") ? (
+          <strong key={i} className="font-black" style={{ color: CLASSIFICATION_META.blunder.color }}>
+            {p.slice(2, -2)}
+          </strong>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 type Phase =
   | { kind: "talk"; step: number; page: number }
   | { kind: "flip"; step: number; revealed: boolean }
@@ -82,6 +185,8 @@ type Phase =
   | { kind: "practice"; step: number }
   /** 選択肢の問題。ask = 答える前 / wrong = 間違えた(答えを見るか、もう一度解くか)/ right = 正解 / shown = 答えを見た */
   | { kind: "quiz"; step: number; status: "ask" | "wrong" | "right" | "shown" }
+  /** 卓の局面の問題(アクションバーで答える)。status は quiz と同じ。 */
+  | { kind: "spot"; step: number; status: "ask" | "wrong" | "right" | "shown" }
   | { kind: "done" };
 
 export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson; accessToken: string; onClose: () => void }) {
@@ -108,7 +213,7 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
 
   // 一発で正解できなかった問題(星の計算に使う)。
   const missed = useRef(new Set<number>());
-  const quizCount = lesson.steps.filter((s) => s.kind === "quiz").length;
+  const quizCount = lesson.steps.filter((s) => s.kind === "quiz" || s.kind === "spot").length;
 
   useEffect(() => {
     if (phase.kind !== "done") return;
@@ -124,8 +229,17 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
   const practiceStep = phase.kind === "practice" ? lesson.steps[phase.step] : undefined;
   const practice = usePracticeTable(phase.kind === "practice", practiceStep?.kind === "practice" ? practiceStep.hands : 6, next);
   const quiz = useQuizView(lesson, phase, setPhase, (step) => missed.current.add(step), next, prev ? back : null);
+  const spot = useSpotView(lesson, phase, setPhase, (step) => missed.current.add(step), next, prev ? back : null);
   const view =
-    phase.kind === "guided" ? guided : phase.kind === "practice" ? practice : phase.kind === "quiz" ? quiz : stat;
+    phase.kind === "guided"
+      ? guided
+      : phase.kind === "practice"
+        ? practice
+        : phase.kind === "quiz"
+          ? quiz
+          : phase.kind === "spot"
+            ? spot
+            : stat;
   const bubbleKey = `${stepIndex}:${phase.kind === "talk" ? phase.page : ""}:${view.text}`;
 
   return createPortal(
@@ -172,7 +286,14 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
         >
           <FitBox className="h-[176px] px-3.5 py-3" contentKey={bubbleKey}>
             <BallyBubble size="lg">
-              <span className={`block whitespace-pre-wrap text-[13px] ${view.tone === "hint" ? "text-accent" : ""}`}>{view.text}</span>
+              {view.badge && (
+                <span className="mb-1 flex">
+                  <ClassificationBadge classification={view.badge} size={20} showLabel />
+                </span>
+              )}
+              <span className="block whitespace-pre-wrap text-[13px]">
+                <RichText text={view.text} />
+              </span>
             </BallyBubble>
           </FitBox>
         </motion.div>
@@ -193,7 +314,7 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
 }
 
 type TableProps = ComponentProps<typeof PokerTable>;
-type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; bottom: ReactNode };
+type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; badge?: "best" | "blunder"; bottom: ReactNode };
 
 /** 「次へ」など、下の箱に置く大きなボタン(1画面に1つだけの強いアクセント)。 */
 function NextButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -220,6 +341,7 @@ function prevOf(lesson: Lesson, p: Phase): Phase | null {
   if (before.kind === "talk") return { kind: "talk", step: step - 1, page: before.pages.length - 1 };
   if (before.kind === "flip") return { kind: "flip", step: step - 1, revealed: true };
   if (before.kind === "quiz") return { kind: "quiz", step: step - 1, status: "ask" };
+  if (before.kind === "spot") return { kind: "spot", step: step - 1, status: "ask" };
   return null;
 }
 
@@ -230,6 +352,7 @@ function startOf(lesson: Lesson, step: number): Phase {
   if (s.kind === "flip") return { kind: "flip", step, revealed: false };
   if (s.kind === "guided") return { kind: "guided", step };
   if (s.kind === "quiz") return { kind: "quiz", step, status: "ask" };
+  if (s.kind === "spot") return { kind: "spot", step, status: "ask" };
   return { kind: "practice", step };
 }
 
@@ -264,15 +387,16 @@ function useQuizView(
 ): LessonView {
   const step = phase.kind === "quiz" ? lesson.steps[phase.step] : undefined;
   const q = step?.kind === "quiz" ? step : null;
+  const qt = sceneTable(q?.scene);
   const table: TableProps = {
-    state: sceneState(q?.scene, true),
+    state: qt.state,
     yourSeatIndex: HERO,
     yourCards: q?.scene?.hero ?? [],
     seatCount: SEAT_COUNT,
-    revealedHoleCards: q?.scene?.bally ? { [BALLY]: q.scene.bally } : null,
-    players: { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER },
+    revealedHoleCards: qt.revealed,
+    players: qt.players,
     bigBlind: BB,
-    lastActionBySeat: {},
+    lastActionBySeat: qt.lastAction,
     lastHandDeltaBySeat: null,
     turnTimer: null,
   };
@@ -355,9 +479,7 @@ function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack
     }
   }
   // 卓にはいつもバリィも座らせる(ページごとに席が増えたり消えたりしない)。
-  const state = sceneState(scene, true);
-  const players: Record<number, SeatPlayerInfo> = { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER };
-  const revealed = scene?.bally ? { [BALLY]: scene.bally } : null;
+  const { state, players, revealed, lastAction } = sceneTable(scene);
   const delta = scene?.winner ? { [scene.winner === "hero" ? HERO : BALLY]: 1 } : null;
   const label = phase.kind === "done" ? "一覧へもどる" : phase.kind === "flip" && !phase.revealed ? "ボードを開ける" : "次へ";
 
@@ -370,11 +492,12 @@ function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack
       revealedHoleCards: revealed,
       players,
       bigBlind: BB,
-      lastActionBySeat: {},
+      lastActionBySeat: lastAction,
       lastHandDeltaBySeat: delta,
       turnTimer: null,
     },
     text,
+    badge: scene?.badge,
     bottom: (
       // 棋譜解析と同じく、左に「‹」(前へ)、右へ進む。
       <div className="flex items-center gap-2">
@@ -739,6 +862,107 @@ function usePracticeTable(active: boolean, hands: number, onDone: () => void): L
           }
           sync();
         }}
+        away={false}
+        onToggleAway={() => {}}
+        checkFoldArmed={false}
+        onToggleCheckFold={() => {}}
+      />
+    ),
+  };
+}
+
+/** 卓の局面の問題。本物のアクションバーで答える。間違えたら大悪手のバッジとヒント、「答えを見る」か「もう一度解く」。 */
+function useSpotView(
+  lesson: Lesson,
+  phase: Phase,
+  setPhase: (p: Phase) => void,
+  onMiss: (step: number) => void,
+  onNext: () => void,
+  onBack: (() => void) | null,
+): LessonView {
+  const step = phase.kind === "spot" ? lesson.steps[phase.step] : undefined;
+  const q = step?.kind === "spot" ? step : null;
+  const t = sceneTable(q?.scene);
+  const table: TableProps = {
+    state: { ...t.state, actingSeatIndex: phase.kind === "spot" && phase.status === "ask" ? HERO : t.state.actingSeatIndex },
+    yourSeatIndex: HERO,
+    yourCards: q?.scene.hero ?? [],
+    seatCount: SEAT_COUNT,
+    revealedHoleCards: t.revealed,
+    players: t.players,
+    bigBlind: BB,
+    lastActionBySeat: t.lastAction,
+    lastHandDeltaBySeat: null,
+    turnTimer: null,
+  };
+  if (phase.kind !== "spot" || !q) return { table, text: "", bottom: null };
+  const at = phase.step;
+  const set = (status: "ask" | "wrong" | "right" | "shown") => setPhase({ kind: "spot", step: at, status });
+  const ACT_LABEL: Record<LessonAct, string> = { check: "チェック", bet: "ベット", call: "コール", raise: "レイズ", fold: "フォールド", allIn: "オールイン" };
+
+  if (phase.status === "right" || phase.status === "shown") {
+    const size = q.size ? `(${q.size[0]}〜${q.size[1]}BB)` : "";
+    const text = phase.status === "right" ? q.explain : `答えは「${ACT_LABEL[q.expect]}」${size}だよ。\n${q.explain}`;
+    return { table, text, badge: "best", bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
+  }
+  if (phase.status === "wrong") {
+    return {
+      table,
+      text: `ちがうよ。\n${q.hint}`,
+      badge: "blunder",
+      bottom: (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => set("shown")}
+            className="pressable-lg h-14 rounded-2xl bg-white/[0.06] text-[15px] font-black text-fg ring-1 ring-white/10"
+          >
+            答えを見る
+          </button>
+          <button
+            type="button"
+            onClick={() => set("ask")}
+            className="pressable-lg h-14 rounded-2xl bg-accent text-[15px] font-black text-on-accent shadow-glow"
+          >
+            もう一度解く
+          </button>
+        </div>
+      ),
+    };
+  }
+  const bar = spotBar(t.state);
+  const onAction = (a: PlayerAction) => {
+    const to = "toAmount" in a ? (a.toAmount ?? 0) : 0;
+    const isAllIn = a.kind === "allIn" || ((a.kind === "raise" || a.kind === "bet") && to >= bar.maxRaiseTo);
+    let ok: boolean;
+    if (q.expect === "allIn") ok = isAllIn;
+    else if (q.expect === "raise" || q.expect === "bet") {
+      ok = (a.kind === "raise" || a.kind === "bet") && !isAllIn;
+      if (ok && q.size) ok = to / BB >= q.size[0] - 1e-9 && to / BB <= q.size[1] + 1e-9;
+    } else ok = a.kind === q.expect;
+    if (ok) set("right");
+    else {
+      onMiss(at);
+      set("wrong");
+    }
+  };
+  return {
+    table,
+    text: q.prompt,
+    bottom: (
+      <ActionBar
+        isYourTurn
+        street={t.state.street}
+        canCheck={bar.toCall <= 0}
+        toCall={bar.toCall}
+        minRaiseToAmount={bar.minRaiseTo}
+        maxRaiseToAmount={bar.maxRaiseTo}
+        potTotal={t.state.potTotal}
+        streetContribution={bar.streetContribution}
+        canRaise
+        bigBlind={BB}
+        effectiveStackBehind={bar.effective}
+        onAction={onAction}
         away={false}
         onToggleAway={() => {}}
         checkFoldArmed={false}
