@@ -24,7 +24,7 @@ function act(seatIndex: number, street: string, kind: string, toAmount: number |
 }
 
 /** BTN(席0)がレイズ、BB(席2)がコール。リバーで BTN が 60(ポット100の60%)をベット。 */
-function riverBetHand(btnHole: string[], bbHole: string[]): { hand: ExtractHand; betSeq: number } {
+function riverBetHand(btnHole: string[], bbHole: string[], betAmount = 60): { hand: ExtractHand; betSeq: number } {
   seq = 0;
   const actions = [
     act(1, "preflop", "postBlind", 50, 0),
@@ -41,7 +41,7 @@ function riverBetHand(btnHole: string[], bbHole: string[]): { hand: ExtractHand;
     act(0, "turn", "check"),
     act(2, "river", "check"),
   ];
-  const bet = act(0, "river", "bet", 60, 100);
+  const bet = act(0, "river", "bet", betAmount, 100);
   actions.push(bet);
   const hand: ExtractHand = {
     buttonFixedPos: 0,
@@ -286,8 +286,8 @@ describe("applyNotionGrades", () => {
   });
 
   it("シンバリューは絶妙手に上書きされる", () => {
-    // BTN が A♥Q♦ でトップペア・グッドキッカー、リバーを60%(IPの許容内)で打つ。
-    const { hand, betSeq } = riverBetHand(["Ah", "Qd"], ["8h", "9d"]);
+    // BTN が A♥Q♦ でトップペア・グッドキッカー、リバーを80%(IP は 75% 以上ならシンバリュー)で打つ。
+    const { hand, betSeq } = riverBetHand(["Ah", "Qd"], ["8h", "9d"], 80);
     const d = decision({ sequenceNumber: betSeq, seatIndex: 0, classification: "good" });
     attachStrategies(hand, [d]);
     applyNotionGrades([d]);

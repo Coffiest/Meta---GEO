@@ -17,7 +17,7 @@ import type { NotionGrade } from "./strategyVerdict.js";
  *                                                      チェックレイズでもよい場面ならそれも言う。
  *  4-1. BMCB(IP。相手の CB のチェックを見て)       → スライド「BMCB簡易戦略」で打つべきか・サイズを判定(bmcb.ts)。
  *  4-2. IP のダブル/トリプルバレルが 40% 以下         → 大悪手。ポラライズの解説。
- *  4-3. IP のリバーのシンバリュー                      → 75% 前後が主流だと解説(40% 以下のバレルは 4-2 が優先)。
+ *  4-3. IP のリバーのシンバリュー                      → 75% 以上ならサイズは何でもよい(オーナー指定。OOP は 20〜33%)(40% 以下のバレルは 4-2 が優先)。
  *  5-2. OOP のブロックベット(SRP)                    → セミナッツ/ガチナッツを 33〜50% で打てたら絶妙手。打てなければ緩手。
  *  5-3. リバーでベットに直面                           → MDF を示す。相手のナッツ級の代表3つをブロックしてコールしたら絶妙手。
  *  5-4. リバーのブラフレイズ                           → ナッツ級をブロックした A ハイ/ボードとのワンペアでレイズしたら絶妙手。
@@ -943,7 +943,7 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
 
   // 4-3. IP のリバーのシンバリュー(ワンペアでのベット/チェック)。出典: ポーカーアカデミー・gametrainer・ydpoker。
   //   相手がコールしてくるレンジ(相手のレンジの上位 MDF%)に対して 50% 以上勝てるならベット。
-  //   サイズは 1/3〜2/3 ポット。勝率 55% 以上でチェックしたら緩手(迷ったらベット)。
+  //   サイズは 75% 以上なら何でもよい(オーナー指定 2026-10-30)。勝率 55% 以上でチェックしたら緩手(迷ったらベット)。
   //   フロップ・ターンと打ってきたリバー(トリプルバレルの場面)は、バレルの表が判定するので対象外。
   const barrelLine = heroBetOn(r.byStreet, "flop", r.hero) && heroBetOn(r.byStreet, "turn", r.hero);
   if (street === "river" && ip && !barrelLine && r.facing === 0 && (kind === "bet" || kind === "check") && made?.rank.category === HAND_CATEGORY.onePair) {
@@ -965,7 +965,7 @@ export function judgeCoach(hand: CoachHand, sequenceNumber: number): CoachVerdic
       const grade: NotionGrade =
         kind === "bet"
           ? eq >= 0.5
-            ? sizePct >= 0.3 && sizePct <= 0.75
+            ? sizePct >= 0.74
               ? "best"
               : "good"
             : "mistake"

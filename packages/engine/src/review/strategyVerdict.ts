@@ -179,10 +179,11 @@ export interface VerdictExtra {
 
 /** 判定のしきい値。ポット比。 */
 export const VERDICT_LIMITS = {
-  /** シンバリュー: OOP はこれ以下(=小さく)。Notion「ポジションがない時は小さく」。 */
-  thinValueOopMax: 0.6,
-  /** シンバリュー: IP はこれ以下。Notion「ポジションがある時は大きくても良い」。 */
-  thinValueIpMax: 0.85,
+  /** シンバリュー: OOP は 20〜33%(オーナー指定 2026-10-30)。これより大きいとマージナル。 */
+  thinValueOopMin: 0.2,
+  thinValueOopMax: 0.34,
+  /** シンバリュー: IP は 75% 以上ならサイズは何でもよい(オーナー指定 2026-10-30)。 */
+  thinValueIpMin: 0.74,
   /** マージナル: これを超えるベットは、強い手でも「より強い手しかコールしない」サイズ。 */
   bigBetMin: 0.85,
   /** ブロック(約1/3)。この以下なら弱い手でも「安く打つ」ベットとして咎めない。 */
@@ -326,16 +327,16 @@ const riverValue: Rule = (c) => {
   if (!MEDIUM_MADE.includes(hand.made)) return null;
 
   if (tex.flushPossible && !isBlock) return marginal("marginalFlushBoard");
-  // オーバーペアは強めのバリューハンドなので、サイズで咎めるのはトップペア/ミドルペアだけ。
-  if (hand.made !== "overPair") {
-    const lowKicker = hand.made === "topPair" && hand.kicker === "low";
-    if (f > VERDICT_LIMITS.bigBetMin || (lowKicker && f > VERDICT_LIMITS.thinValueOopMax)) {
-      return marginal("marginalSizeTooBig");
+  // シンバリューのサイズ(オーナー指定 2026-10-30): OOP は 20〜33%、IP は 75% 以上なら何でもよい。
+  // オーバーペアは強めのバリューハンドなので、OOP のサイズで咎めるのはトップペア/ミドルペアだけ。
+  if (c.info.position === "OOP") {
+    if (hand.made !== "overPair" && f > VERDICT_LIMITS.thinValueOopMax) return marginal("marginalSizeTooBig");
+    if (!tex.flushPossible && f >= VERDICT_LIMITS.thinValueOopMin && f <= VERDICT_LIMITS.thinValueOopMax) {
+      return { tag: "thinValue", reason: "thinValueTarget", grade: "artistic" };
     }
-    if (c.info.position === "OOP" && f > VERDICT_LIMITS.thinValueOopMax) return marginal("marginalSizeTooBig");
+    return null;
   }
-  const limit = c.info.position === "IP" ? VERDICT_LIMITS.thinValueIpMax : VERDICT_LIMITS.thinValueOopMax;
-  if (!tex.flushPossible && f <= limit) {
+  if (!tex.flushPossible && f >= VERDICT_LIMITS.thinValueIpMin) {
     return { tag: "thinValue", reason: "thinValueTarget", grade: "artistic" };
   }
   return null;

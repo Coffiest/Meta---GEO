@@ -38,15 +38,19 @@ const DRY = ["As", "7h", "2d", "Kc", "3s"];
 const FLUSH = ["9s", "8s", "2d", "Kc", "3s"];
 
 describe("シンバリューベット → 絶妙手", () => {
-  it("トップペア・グッドキッカーで、OOP から小さく打てばシンバリュー", () => {
-    const v = judgeBet(info({ potFraction: 0.4, position: "OOP" }), ["Ah", "Qd"], DRY);
+  it("トップペア・グッドキッカーで、OOP から 20〜33% で打てばシンバリュー", () => {
+    const v = judgeBet(info({ potFraction: 0.3, position: "OOP" }), ["Ah", "Qd"], DRY);
     expect(v.tag).toBe("thinValue");
     expect(v.grade).toBe("artistic");
   });
 
-  it("IP なら大きめ(〜85%)でもシンバリュー", () => {
-    const v = judgeBet(info({ potFraction: 0.75, position: "IP" }), ["Ah", "Qd"], DRY);
-    expect(v.tag).toBe("thinValue");
+  it("IP なら 75% 以上はサイズに関係なくシンバリュー", () => {
+    expect(judgeBet(info({ potFraction: 0.75, position: "IP" }), ["Ah", "Qd"], DRY).tag).toBe("thinValue");
+    expect(judgeBet(info({ potFraction: 1.5, position: "IP" }), ["Ah", "Qd"], DRY).tag).toBe("thinValue");
+  });
+
+  it("OOP の 33% 超はシンバリューにしない(マージナル)", () => {
+    expect(judgeBet(info({ potFraction: 0.4, position: "OOP" }), ["Ah", "Qd"], DRY).tag).toBe("marginalBet");
   });
 
   it("ミドルペアの安いベットもシンバリュー(セカンドヒットの激安ベット)", () => {
@@ -77,8 +81,8 @@ describe("マージナルベット → 大悪手", () => {
     expect(v.grade).toBeNull();
   });
 
-  it("トップペアでポットサイズを打てば、より強い手しかコールしない → マージナル", () => {
-    const v = judgeBet(info({ potFraction: 1.0, position: "IP" }), ["Ah", "Qd"], DRY);
+  it("OOP のトップペアでポットサイズを打てば、より強い手しかコールしない → マージナル", () => {
+    const v = judgeBet(info({ potFraction: 1.0, position: "OOP" }), ["Ah", "Qd"], DRY);
     expect(v.tag).toBe("marginalBet");
     expect(v.reason).toBe("marginalSizeTooBig");
   });
