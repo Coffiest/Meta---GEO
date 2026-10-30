@@ -29,7 +29,7 @@ function GemMark() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
       <path d="M6 3h12l4 6-10 12L2 9z" fill="currentColor" />
-      <path d="M2 9h20M9 3l3 6 3-6M12 9v12" stroke="#26c2a3" strokeWidth="1.2" fill="none" opacity="0.55" />
+      <path d="M2 9h20M9 3l3 6 3-6M12 9v12" stroke="#00AEBB" strokeWidth="1.2" fill="none" opacity="0.55" />
     </svg>
   );
 }

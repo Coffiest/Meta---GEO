@@ -18,7 +18,7 @@ export interface SideNavItem {
  * (JSのUA判定はしない = SSRとクライアントで表示がズレない)。
  */
 /* 現在地はアクセント面で示す。アクセント面の上の文字は必ず on-accent(黒) ―
-   白は #26C2A3 に対して 2.25:1 で読めない。 */
+   白は #00AEBB に対して 2.25:1 で読めない。 */
 const ACTIVE_CLASS = "bg-accent text-on-accent shadow-glow-sm";
 const INACTIVE_CLASS = "text-fg-2 hover:bg-white/[0.06] hover:text-fg";
 

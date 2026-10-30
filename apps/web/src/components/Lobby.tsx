@@ -1443,7 +1443,7 @@ export function Lobby({
                           <div className="space-y-6">
                             <SingleLineChart
                               title={t("stat.roi")}
-                              color="#26C2A3" /* テーマのアクセント。1画面に1つだけ置く「主役」の色 */
+                              color="#00AEBB" /* テーマのアクセント。1画面に1つだけ置く「主役」の色 */
                               points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: Math.round(p.roi * 1000) / 10 }))}
                               baseline={100}
                               formatValue={(v) => `${v.toFixed(1)}%`}
@@ -1452,7 +1452,7 @@ export function Lobby({
                             />
                             <SingleLineChart
                               title={t("stat.profit")}
-                              color="#F5F5F7"
+                              color="#E8E4D3"
                               points={bankrollGraph.map((p) => ({ x: p.tournamentIndex, y: p.cumulativeProfit }))}
                               baseline={0}
                               formatValue={(v) => formatSigned(v)}

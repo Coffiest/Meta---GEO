@@ -14,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0A0A0B",
-    theme_color: "#0A0A0B",
+    background_color: "#031211",
+    theme_color: "#031211",
     lang: "ja",
     // アイコンはオーナー支給のクラブのスプラッター(黒地+ティール)。scripts/app-icons.py で
     // 1枚の原画から書き出す。`any` は原画の構図のままフルブリード、`maskable` は絵柄を

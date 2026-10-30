@@ -11,7 +11,7 @@
  *   この移植元でデフォルト自体を直す(Tailwindはユーティリティクラスの勝敗を並び順ではなく
  *   生成CSS順で決めるため、後から className で色を上書きできる保証が無い。詳細は
  *   components/ui/Button.tsx 参照)。
- * - 既定のスポットライト色を白からアクセント(teal, #26C2A3)の淡い光に変更。
+ * - 既定のスポットライト色を白からアクセント(teal, #00AEBB)の淡い光に変更。
  */
 import { useRef, useState } from "react";
 import type { MouseEventHandler, PropsWithChildren } from "react";
@@ -29,7 +29,7 @@ interface SpotlightCardProps extends PropsWithChildren {
 export function SpotlightCard({
   children,
   className = "",
-  spotlightColor = "rgba(38, 194, 163, 0.20)",
+  spotlightColor = "rgba(0,174,187, 0.20)",
 }: SpotlightCardProps) {
   const divRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);

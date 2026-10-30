@@ -254,7 +254,7 @@ export function Seat({
             <span
               aria-hidden
               className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 rounded-br-[3px] border-b border-r border-line-strong/[0.06] bg-surface/80"
-              style={{ boxShadow: "4px 4px 8px -4px rgba(10,10,10,0.24)" }}
+              style={{ boxShadow: "4px 4px 8px -4px rgba(3,18,17,0.24)" }}
             />
           </motion.div>
         )}

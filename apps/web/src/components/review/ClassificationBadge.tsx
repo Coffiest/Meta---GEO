@@ -28,14 +28,14 @@ export function ClassificationBadge({
           dominantBaseline="central"
           fontSize={meta.glyph.length >= 2 ? 13 : 17}
           fontWeight="900"
-          fill="#ffffff"
+          fill="#E8E4D3"
           fontFamily="ui-sans-serif, system-ui, sans-serif"
         >
           {meta.glyph}
         </text>
       ) : classification === "book" ? (
         // 定石手(Book)は本(開いた書物)のアイコン。中央の綴じ線と左右のページ。
-        <g fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <g fill="none" stroke="#E8E4D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16 10.5c-1.8-1.3-4-2-6.5-2H8v13h1.5c2.5 0 4.7.7 6.5 2 1.8-1.3 4-2 6.5-2H24v-13h-1.5c-2.5 0-4.7.7-6.5 2Z" />
           <path d="M16 10.5v13" />
         </g>
@@ -44,7 +44,7 @@ export function ClassificationBadge({
         <path
           d="M10 16.5l4 4 8-8.5"
           fill="none"
-          stroke="#ffffff"
+          stroke="#E8E4D3"
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"

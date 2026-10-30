@@ -78,8 +78,8 @@ function ScoreRing({ score }: { score: number | null }) {
         )}
         <defs>
           <linearGradient id="gto-ring-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#5FE0C6" />
-            <stop offset="100%" stopColor="#1EA88C" />
+            <stop offset="0%" stopColor="#5FD3DC" />
+            <stop offset="100%" stopColor="#00939E" />
           </linearGradient>
         </defs>
       </svg>

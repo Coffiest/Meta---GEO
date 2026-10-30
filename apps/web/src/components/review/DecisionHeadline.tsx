@@ -157,7 +157,7 @@ export function DecisionHeadline({
       <div className="flex items-center gap-2">
         {c === "artistic" ? (
           // key で決定ごとに作り直し、絶妙手の手に来るたびに1回だけ演出する。
-          <ArtisticPop key={decision.sequenceNumber} color={meta?.color ?? "#14b8a6"}>
+          <ArtisticPop key={decision.sequenceNumber} color={meta?.color ?? "#00AEBB"}>
             <ClassificationBadge classification={c} size={24} />
           </ArtisticPop>
         ) : c ? (

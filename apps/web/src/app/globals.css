@@ -6,35 +6,35 @@
    デザイントークン(色の実体)
    Tailwind側(tailwind.config.ts)はここを参照するだけで、色の値を持たない。
    `<alpha-value>` を効かせるためスペース区切りのRGB成分で持つ。
-   ダークテーマ固定。ベースは純黒に近い深い黒 #0A0A0B(オーナー指示で #1C1C1E から暗くした)。
+   ダークテーマ固定。ベースは純黒に近い深い黒 #031211(オーナー指示で #1C1C1E から暗くした)。
    純黒 #000 にはせず、その上に少しずつ明るい面を重ねて奥行きを作る(純黒だと重ねた面の
    明度差が付けにくく、有機ELでの黒つぶれも出る)。
    ============================================================================ */
 :root {
-  --n-0: 4 4 5; /* #040405 沈み面・スクリムの下地 */
-  --n-1: 10 10 11; /* #0A0A0B アプリ背景(canvas) */
-  --n-2: 16 16 19; /* #101013 極薄フィル */
-  --n-3: 24 24 28; /* #18181C カード面 L1(surface)。Apple のダークの灰色と同じく、ごくわずかに青みへ寄せる */
-  --n-4: 36 36 41; /* #242429 カード面 L2 / ヘアライン */
-  --n-5: 50 50 56; /* #323238 カード面 L3 / 強めの罫 */
-  --n-6: 110 110 115; /* #6E6E73 マイクロラベル */
-  --n-7: 142 142 147; /* #8E8E93 補助テキスト */
-  --n-8: 174 174 178; /* #AEAEB2 副次テキスト */
-  --n-9: 199 199 204; /* #C7C7CC */
-  --n-10: 229 229 234; /* #E5E5EA */
-  --n-11: 245 245 247; /* #F5F5F7 本文・見出し */
+  --n-0: 1 9 9; /* #010909 沈み面・スクリムの下地 */
+  --n-1: 3 18 17; /* #031211 Ink Black。アプリ背景(canvas)(オーナー指定 2026-10-30) */
+  --n-2: 7 26 25; /* #071A19 極薄フィル */
+  --n-3: 12 35 34; /* #0C2322 カード面 L1(surface)。地の Ink Black と同じ色相で明るさだけ上げる */
+  --n-4: 20 46 45; /* #142E2D カード面 L2 / ヘアライン */
+  --n-5: 30 59 57; /* #1E3B39 カード面 L3 / 強めの罫 */
+  --n-6: 118 123 114; /* #767B72 マイクロラベル(地に 4.4:1) */
+  --n-7: 140 144 133; /* #8C9085 補助テキスト(5.9:1) */
+  --n-8: 174 175 162; /* #AEAFA2 副次テキスト */
+  --n-9: 198 197 183; /* #C6C5B7 */
+  --n-10: 220 217 202; /* #DCD9CA */
+  --n-11: 232 228 211; /* #E8E4D3 Warm Ivory。本文・見出し(オーナー指定 2026-10-30) */
 
-  --accent-hi: 95 224 198; /* #5FE0C6 */
-  --accent-400: 58 211 180; /* #3AD3B4 */
-  --accent: 38 194 163; /* #26C2A3 テーマカラー。#0A0A0B 上で 8.79:1 */
-  --accent-lo: 30 168 140; /* #1EA88C */
-  --on-accent: 4 33 27; /* #04211B アクセント面に乗せる文字。白(2.25:1)は使えない */
+  --accent-hi: 95 211 220; /* #5FD3DC */
+  --accent-400: 46 195 206; /* #2EC3CE */
+  --accent: 0 174 187; /* #00AEBB Electric Teal。テーマカラー(オーナー指定 2026-10-30)。#031211 上で 7.1:1 */
+  --accent-lo: 0 147 158; /* #00939E */
+  --on-accent: 3 18 17; /* #031211 アクセント面に乗せる文字(7.1:1)。アイボリー(2.1:1)は使えない */
 
   /* 環境光の差し色(Apple のシステムカラー: Indigo #5E5CE6 / Purple #BF5AF2)。
      黒とテーマカラーだけだと空間がのっぺりするため、オーラにだけごく薄く混ぜる。
      UI のアクセントには使わない(アクセントは --accent の1色のまま)。 */
-  --ambient-indigo: 94 92 230;
-  --ambient-purple: 191 90 242;
+  --ambient-indigo: 0 120 132;
+  --ambient-purple: 232 228 211;
 
   /* アイコンの資格者枠(High Roller = 銀 / Super High Roller = 金)。オーナー指定の装飾で、UIのアクセントではない
      (ゴールドをアクセントに使わない、のきまりの対象外)。ここ以外で使わない。 */
@@ -138,7 +138,7 @@ body {
 .glass-header {
   background: rgb(var(--n-1) / var(--glass-alpha));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    inset 0 1px 0 rgb(232 228 211 / var(--glass-edge)),
     0 12px 24px -16px rgb(0 0 0 / 0.65);
 }
 
@@ -146,7 +146,7 @@ body {
 .glass-footer {
   background: rgb(var(--n-1) / var(--glass-alpha));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / var(--glass-edge)),
+    inset 0 1px 0 rgb(232 228 211 / var(--glass-edge)),
     0 -12px 32px -16px rgb(0 0 0 / 0.7);
 }
 
@@ -155,9 +155,9 @@ body {
 .glass-bar {
   background: rgb(var(--n-2) / 0.55);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 1px 0 rgb(232 228 211 / 0.22),
     inset 0 -1px 0 rgb(0 0 0 / 0.30),
-    0 0 0 0.5px rgb(255 255 255 / 0.10),
+    0 0 0 0.5px rgb(232 228 211 / 0.10),
     0 18px 40px -14px rgb(0 0 0 / 0.75);
 }
 
@@ -168,8 +168,8 @@ body {
   backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
   -webkit-backdrop-filter: blur(18px) saturate(170%) brightness(1.06);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.08);
+    inset 0 1px 0 rgb(232 228 211 / 0.14),
+    inset 0 0 0 0.5px rgb(232 228 211 / 0.08);
 }
 
 /* 下から出るシート。面が最も大きいので最も厚く見せる(強いぼかし+深い影)。 */
@@ -178,7 +178,7 @@ body {
   backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
   -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.08);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.20),
+    inset 0 1px 0 rgb(232 228 211 / 0.20),
     0 -20px 60px -20px rgb(0 0 0 / 0.8);
 }
 
@@ -197,8 +197,8 @@ body {
   backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
   -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.24),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.12),
+    inset 0 1px 0 rgb(232 228 211 / 0.24),
+    inset 0 0 0 0.5px rgb(232 228 211 / 0.12),
     inset 0 -1px 0 rgb(0 0 0 / 0.28),
     0 8px 22px -14px rgb(0 0 0 / 0.75);
 }
@@ -207,7 +207,7 @@ body {
   backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
   -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.08);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 1px 0 rgb(232 228 211 / 0.3),
     inset 0 0 0 0.5px rgb(var(--tile-tint) / 0.6),
     inset 0 -1px 0 rgb(0 0 0 / 0.28),
     0 8px 22px -14px rgb(0 0 0 / 0.75);
@@ -234,9 +234,9 @@ body {
 /* ガラスの上を滑る選択インジケータ(タブバーの現在地など)。面ではなく
    「光の当たっている部分」として描くので、塗りではなく明るいアルファで作る。 */
 .glass-indicator {
-  background: rgb(255 255 255 / 0.16);
+  background: rgb(232 228 211 / 0.16);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 1px 0 rgb(232 228 211 / 0.28),
     inset 0 -1px 0 rgb(0 0 0 / 0.18),
     0 2px 8px -2px rgb(0 0 0 / 0.45);
 }
@@ -296,14 +296,14 @@ body {
   height: 1px;
   transform: scaleY(0.5);
   transform-origin: bottom;
-  background: rgb(255 255 255 / 0.12);
+  background: rgb(232 228 211 / 0.12);
   pointer-events: none;
 }
 .list-row:last-child::after {
   display: none;
 }
 .list-row:active {
-  background-color: rgb(255 255 255 / 0.06);
+  background-color: rgb(232 228 211 / 0.06);
 }
 /* 子をそのまま行として並べる箱(メニューなど)。子それぞれに .list-row と同じ線と押下を付ける。 */
 .list-rows > * {
@@ -320,7 +320,7 @@ body {
   height: 1px;
   transform: scaleY(0.5);
   transform-origin: bottom;
-  background: rgb(255 255 255 / 0.12);
+  background: rgb(232 228 211 / 0.12);
   pointer-events: none;
 }
 .list-rows > *:last-child::after {
@@ -328,7 +328,7 @@ body {
 }
 .list-rows > button:active,
 .list-rows > a:active {
-  background-color: rgb(255 255 255 / 0.06);
+  background-color: rgb(232 228 211 / 0.06);
 }
 
 /* ============================================================================
@@ -355,18 +355,18 @@ textarea:focus-visible,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.16);
+  background: rgb(232 228 211 / 0.16);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 0.28);
+  background: rgb(232 228 211 / 0.28);
   background-clip: content-box;
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+  scrollbar-color: rgb(232 228 211 / 0.18) transparent;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -599,7 +599,7 @@ textarea:focus-visible,
   .glass-panel,
   .glass-sheet,
   .glass-tile {
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32);
+    box-shadow: inset 0 0 0 1px rgb(232 228 211 / 0.32);
   }
   /* 色の面は、輪郭を同色の不透明線ではっきり描いてから塗りを濃くする。 */
   .glass-tile-tint {
@@ -692,8 +692,8 @@ textarea:focus-visible,
   border-radius: 99px;
   background: rgb(var(--n-1) / 0.5);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    inset 0 1px 0 rgb(232 228 211 / 0.08),
+    inset 0 0 0 0.5px rgb(232 228 211 / 0.08),
     inset 0 -1px 0 rgb(0 0 0 / 0.3);
   backdrop-filter: blur(18px) saturate(170%);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
@@ -714,11 +714,11 @@ textarea:focus-visible,
   left: 0.3rem;
   z-index: 1;
   border-radius: 99px;
-  background: rgb(255 255 255 / 0.14);
+  background: rgb(232 228 211 / 0.14);
   backdrop-filter: blur(10px) saturate(180%);
   -webkit-backdrop-filter: blur(10px) saturate(180%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 1px 0 rgb(232 228 211 / 0.35),
     inset 0 -1px 0 rgb(0 0 0 / 0.2),
     0 2px 8px -2px rgb(0 0 0 / 0.5);
 }
@@ -732,14 +732,14 @@ textarea:focus-visible,
   background-color: rgb(var(--n-1));
   background-image:
     radial-gradient(120% 60% at 50% 42%, rgb(var(--accent) / 0.2), transparent 60%),
-    radial-gradient(80% 40% at 12% 0%, rgb(90 110 255 / 0.16), transparent 70%),
+    radial-gradient(80% 40% at 12% 0%, rgb(0 174 187 / 0.10), transparent 70%),
     radial-gradient(70% 40% at 100% 100%, rgb(var(--accent) / 0.12), transparent 70%);
   overflow: hidden;
 }
 .table-bg-grid {
   background-image:
-    linear-gradient(rgb(255 255 255 / 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+    linear-gradient(rgb(232 228 211 / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(232 228 211 / 0.03) 1px, transparent 1px);
   background-size: 28px 28px;
   background-position: center center;
   -webkit-mask-image: radial-gradient(70% 55% at 50% 45%, #000 30%, transparent 80%);
@@ -1174,7 +1174,7 @@ textarea:focus-visible,
 .premium-btn-stars-inner::after {
   content: "";
   position: absolute;
-  background-image: radial-gradient(#ffffff 1px, transparent 1%);
+  background-image: radial-gradient(#E8E4D3 1px, transparent 1%);
   background-size: 50px 50px;
 }
 .premium-btn-stars-inner::after {

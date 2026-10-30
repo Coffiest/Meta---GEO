@@ -19,7 +19,7 @@ const BAND_BG: Record<PnBand, string> = {
   red: "#DAC1BC",
   blue: "#98B1D9",
   yellow: "#FCEE73",
-  white: "#FFFFFF",
+  white: "#E8E4D3",
 };
 
 export function PowerNumberTable({ highlight }: { highlight?: string }) {
@@ -47,7 +47,7 @@ export function PowerNumberTable({ highlight }: { highlight?: string }) {
                   <td
                     key={ci}
                     className="relative h-[22px] border border-[#9a9a9a] p-0 text-center text-[10.5px] leading-none"
-                    style={{ backgroundColor: v === null ? "#FFFFFF" : BAND_BG[pnBand(v)] }}
+                    style={{ backgroundColor: v === null ? "#E8E4D3" : BAND_BG[pnBand(v)] }}
                   >
                     {v === null ? "" : v === Infinity ? <span className="text-[14px] leading-none">∞</span> : v}
                     {on && <span aria-hidden className="pointer-events-none absolute -inset-[2px] z-10 rounded-[3px] ring-[2.5px] ring-black" />}
