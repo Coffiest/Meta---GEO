@@ -8,7 +8,7 @@ export const FEEDBACK_MAX_IMAGES = 3;
 const TARGET_BYTES = 1_000_000;
 const MAX_SIDE = 1600;
 
-export type FeedbackResult = "ok" | "rate" | "error";
+export type FeedbackResult = "ok" | "rate" | "already" | "error";
 
 /**
  * 写真を端末側で縮小して JPEG にする(長辺 1600px、1MB 以下になるまで画質を下げる)。
@@ -64,8 +64,22 @@ export async function sendFeedback(
       }),
     });
     if (res.status === 429) return "rate";
+    if (res.status === 409) return "already";
     return res.ok ? "ok" : "error";
   } catch {
     return "error";
+  }
+}
+
+/** 「Xでシェアしてゴールド GET」の自分の状態。取れなければ null(ボタンは出したままにする)。 */
+export type ShareCampaignStatus = "none" | "pending" | "granted";
+export async function fetchShareCampaignStatus(accessToken: string): Promise<ShareCampaignStatus | null> {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/feedback/share-status`, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { status?: ShareCampaignStatus };
+    return j.status ?? null;
+  } catch {
+    return null;
   }
 }

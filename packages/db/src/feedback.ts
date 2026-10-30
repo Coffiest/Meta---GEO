@@ -64,6 +64,7 @@ export interface FeedbackListItem {
   appVersion: string | null;
   userAgent: string | null;
   readAt: Date | null;
+  grantedAt: Date | null;
   user: { id: string; displayName: string; email: string | null };
   images: { id: string; mime: string; bytes: number }[];
 }
@@ -81,6 +82,7 @@ export async function listFeedback(params: { limit?: number; unreadOnly?: boolea
       appVersion: true,
       userAgent: true,
       readAt: true,
+      grantedAt: true,
       user: { select: { id: true, displayName: true, email: true } },
       images: { select: { id: true, mime: true, bytes: true }, orderBy: { position: "asc" } },
     },
@@ -104,4 +106,25 @@ export async function setFeedbackRead(id: string, read: boolean): Promise<void> 
 /** この時刻以降にこのユーザーが送った件数(連投の制限に使う)。 */
 export async function countRecentFeedback(userId: string, since: Date): Promise<number> {
   return prisma.feedback.count({ where: { userId, createdAt: { gte: since } } });
+}
+
+/** 「Xでシェアしてゴールド GET」の状態。1人1回だけ申請できる。 */
+export type ShareCampaignStatus = "none" | "pending" | "granted";
+
+export async function getShareCampaignStatus(userId: string): Promise<ShareCampaignStatus> {
+  const rows = await prisma.feedback.findMany({
+    where: { userId, kind: "shareX" },
+    select: { grantedAt: true },
+    take: 5,
+  });
+  if (rows.length === 0) return "none";
+  return rows.some((r) => r.grantedAt) ? "granted" : "pending";
+}
+
+/** 管理者がゴールドを付与した申請に印を付ける。 */
+export async function markShareCampaignGranted(feedbackId: string): Promise<void> {
+  await prisma.feedback.updateMany({
+    where: { id: feedbackId, kind: "shareX" },
+    data: { grantedAt: new Date(), readAt: new Date() },
+  });
 }

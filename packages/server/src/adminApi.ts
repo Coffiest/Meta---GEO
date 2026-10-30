@@ -19,6 +19,7 @@ import {
   upsertSocialAccount,
   recordAccountSnapshot,
   grantCompSubscription,
+  markShareCampaignGranted,
   restoreGeoData,
   revokeCompSubscription,
   prisma,
@@ -330,6 +331,8 @@ export async function handleAdminApiRequest(req: IncomingMessage, res: ServerRes
         return true;
       }
       const { currentPeriodEnd } = await grantCompSubscription({ userId, unit, amount, plan });
+      // 「Xでシェアしてゴールド GET」の申請から付与したときは、申請に付与済みの印を付ける。
+      if (typeof body["feedbackId"] === "string") await markShareCampaignGranted(body["feedbackId"]);
       clearGeoAccessCache();
       sendJson(res, 200, { ok: true, currentPeriodEnd: currentPeriodEnd.toISOString() });
       return true;

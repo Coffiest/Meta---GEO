@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { BallyBubble } from "./BallyBubble";
 import { Icon } from "./Icon";
 import { FADE, SPRING_MOVE, SPRING_SHEET, SPRING_SNAPPY } from "@/lib/motion";
-import { compressImage, sendFeedback, type FeedbackResult } from "@/lib/feedbackApi";
+import { compressImage, fetchShareCampaignStatus, sendFeedback, type FeedbackResult, type ShareCampaignStatus } from "@/lib/feedbackApi";
 
 /**
  * 「Xでシェアしてゴールドを GET」キャンペーン(オーナー指示 2026-10-10)。
@@ -16,35 +16,71 @@ import { compressImage, sendFeedback, type FeedbackResult } from "@/lib/feedback
  *  2. 投稿の URL かスクショを送る
  * 送ったものは管理者画面の「ご意見」に「Xシェア」として届き、オーナーが確認して手動でゴールド1週間を付与する。
  * 送信は「ご意見フォーム」と同じ口(kind: "shareX")を使う。
+ * 1人1回だけ。申請済みなら「確認中」、付与されたらボタンごと出さない(状態はサーバーの `/api/feedback/share-status`)。
+ * 置き場所はホームの遊ぶボタン群の下(主役の Play と同じ並びに置くと、遊ぶ入口が埋もれるため)。
  */
 const APP_URL = "https://meta-geo-poker.vercel.app/";
 const HASHTAG = "#PokerART";
 
 export function ShareCampaignButton({ accessToken }: { accessToken: string }) {
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<ShareCampaignStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetchShareCampaignStatus(accessToken).then((s) => alive && setStatus(s));
+    return () => {
+      alive = false;
+    };
+  }, [accessToken]);
+  // 付与済みの人には出さない(1人1回)。
+  if (status === "granted") return null;
+  const pending = status === "pending";
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING_MOVE, delay: 0.15 }} className="pressable-lg w-full">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="line-fill-btn flex w-full items-center gap-4 px-5 py-4 text-left"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block text-[19px] font-black leading-none tracking-[-0.02em]">シェアしてゴールド GET!</span>
-            <span className="mt-1.5 block truncate text-[12px] font-bold uppercase tracking-[0.08em] opacity-70">
-              X に投稿でゴールドプラン 1 週間
-            </span>
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...SPRING_MOVE, delay: 0.15 }}
+        onClick={() => setOpen(true)}
+        className="pressable-lg flex w-full items-center gap-3.5 rounded-card bg-surface px-4 py-3.5 text-left shadow-e1 ring-1 ring-accent/40"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+          <Icon name="logo-x" className="h-[18px] w-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-black leading-tight tracking-[-0.01em] text-fg">シェアしてゴールド GET!</span>
+          <span className="mt-1 block truncate text-[11.5px] font-semibold text-fg-2">
+            {pending ? "申請を確認中。付与されたらゴールドになります" : "X に投稿でゴールドプラン 1 週間"}
           </span>
-          <Icon name="arrow-right" className="line-fill-arrow h-5 w-5 shrink-0" />
-        </button>
-      </motion.div>
-      <ShareSheet open={open} onClose={() => setOpen(false)} accessToken={accessToken} />
+        </span>
+        <Icon name={pending ? "clock" : "chevron-right"} className="h-4 w-4 shrink-0 text-fg-3" />
+      </motion.button>
+      <ShareSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        accessToken={accessToken}
+        pending={pending}
+        onApplied={() => setStatus("pending")}
+      />
     </>
   );
 }
 
-function ShareSheet({ open, onClose, accessToken }: { open: boolean; onClose: () => void; accessToken: string }) {
+function ShareSheet({
+  open,
+  onClose,
+  accessToken,
+  pending,
+  onApplied,
+}: {
+  open: boolean;
+  onClose: () => void;
+  accessToken: string;
+  /** 申請済み(確認中)。送信のフォームではなく、確認中の案内だけを出す。 */
+  pending: boolean;
+  onApplied: () => void;
+}) {
   const [mounted, setMounted] = useState(false);
   const [comment, setComment] = useState("");
   const [postUrl, setPostUrl] = useState("");
@@ -69,6 +105,7 @@ function ShareSheet({ open, onClose, accessToken }: { open: boolean; onClose: ()
     const r = await sendFeedback(accessToken, { kind: "shareX", body, images: shot ? [shot] : [] });
     setSending(false);
     setResult(r);
+    if (r === "ok" || r === "already") onApplied();
   }
 
   if (!mounted) return null;
@@ -95,10 +132,10 @@ function ShareSheet({ open, onClose, accessToken }: { open: boolean; onClose: ()
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
               <AnimatePresence mode="wait" initial={false}>
-                {result === "ok" ? (
+                {result === "ok" || (pending && result === null) || result === "already" ? (
                   <motion.div key="done" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={SPRING_SNAPPY}>
                     <BallyBubble size="lg" className="mt-2">
-                      <span className="block text-[14px] font-black text-fg">受け付けたよ、ありがとう!</span>
+                      <span className="block text-[14px] font-black text-fg">{result === "ok" ? "受け付けたよ、ありがとう!" : "申請は受け付け済みだよ!"}</span>
                       <span className="mt-1 block">運営が投稿を確認したら、ゴールドプラン 1 週間をプレゼントするね。</span>
                     </BallyBubble>
                     <button

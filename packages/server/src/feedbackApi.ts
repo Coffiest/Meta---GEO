@@ -5,6 +5,7 @@ import {
   FEEDBACK_MAX_IMAGES,
   countRecentFeedback,
   createFeedback,
+  getShareCampaignStatus,
   isFeedbackKind,
   prisma,
   type FeedbackImageInput,
@@ -86,6 +87,7 @@ export function parseFeedbackImages(raw: unknown): FeedbackImageInput[] | string
 
 export async function handleFeedbackApiRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? "/", "http://localhost");
+  if (url.pathname === "/api/feedback/share-status") return handleShareStatus(req, res);
   if (url.pathname !== "/api/feedback") return false;
 
   if (req.method === "OPTIONS") {
@@ -140,6 +142,11 @@ export async function handleFeedbackApiRequest(req: IncomingMessage, res: Server
     send(res, 400, { error: "empty" });
     return true;
   }
+  // 「Xでシェアしてゴールド GET」は1人1回だけ。
+  if (kind === "shareX" && (await getShareCampaignStatus(user.id)) !== "none") {
+    send(res, 409, { error: "already applied", code: "SHARE_ALREADY" });
+    return true;
+  }
   const appVersion = typeof body["appVersion"] === "string" ? body["appVersion"] : null;
   const ua = req.headers["user-agent"];
   const created = await createFeedback({
@@ -151,5 +158,34 @@ export async function handleFeedbackApiRequest(req: IncomingMessage, res: Server
     images,
   });
   send(res, 201, { ok: true, id: created.id });
+  return true;
+}
+
+/** `GET /api/feedback/share-status`: 「Xでシェアしてゴールド GET」の自分の状態(none / pending / granted)。 */
+async function handleShareStatus(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "access-control-allow-origin": process.env["WEB_ORIGIN"] ?? "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "content-type, authorization",
+    });
+    res.end();
+    return true;
+  }
+  if (!authAvailable()) {
+    send(res, 503, { error: "auth unavailable" });
+    return true;
+  }
+  const verified = await verifyAccessToken(bearer(req));
+  if (!verified) {
+    send(res, 401, { error: "unauthorized" });
+    return true;
+  }
+  const user = await prisma.user.findUnique({ where: { authId: verified.authId }, select: { id: true } });
+  if (!user) {
+    send(res, 401, { error: "unauthorized" });
+    return true;
+  }
+  send(res, 200, { status: await getShareCampaignStatus(user.id) });
   return true;
 }
