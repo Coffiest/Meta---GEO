@@ -1,5 +1,6 @@
 import { RULES_STEPS } from "./lessonRules";
 import { TOURNEY_VS_CASH_STEPS } from "./lessonTourneyCash";
+import { ODDS_STEPS } from "./lessonOdds";
 import { COMMIT_STEPS, DONK_STEPS, LIMP_STEPS, MARGINAL_STEPS } from "./lessonBasics";
 
 /**
@@ -27,6 +28,8 @@ export interface LessonScene {
   bets?: { hero?: number; bally?: number };
   /** 6人卓の局面(額はすべて BB 単位)。あると pot / bets より優先する。席0が「あなた」。 */
   table?: LessonTable;
+  /** 卓の上に重ねて出すレンジ表(計算済みの表の場面名。例 "RFI_BTN"。70BB)。 */
+  range?: { scene: string };
   /** 光らせて目立たせる席(最初の1つ)。 */
   focus?: number[];
   /** 解説の箱に出す評価のバッジ(棋譜解析と同じ見た目)。 */
@@ -97,7 +100,7 @@ export const CURRICULUM: LessonSection[] = [
       { id: "marginal-bet", title: "マージナルベット", steps: MARGINAL_STEPS },
     ],
   },
-  { title: "3. オッズ", lessons: [{ id: "odds", title: "オッズと必要勝率、勝率計算", steps: [] }] },
+  { title: "3. オッズ", lessons: [{ id: "odds", title: "オッズと必要勝率、勝率計算", steps: ODDS_STEPS }] },
   {
     title: "4. プリフロップ基礎編",
     lessons: [

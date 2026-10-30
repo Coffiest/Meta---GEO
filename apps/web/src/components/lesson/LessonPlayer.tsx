@@ -18,6 +18,7 @@ import { PokerTable } from "@/components/PokerTable";
 import { ActionBar } from "@/components/ActionBar";
 import { BallyBubble } from "@/components/BallyBubble";
 import { FitBox } from "@/components/review/FitBox";
+import { GtowRangeTable } from "@/components/review/GtowRangeTable";
 import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
 
 /**
@@ -300,8 +301,20 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
       </div>
 
       {/* 真ん中: 卓(常に出す) */}
-      <main className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
+      <main className="relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
         <PokerTable {...view.table} />
+        {/* レンジ表は卓の上に重ねる(卓は付け替えない)。 */}
+        {view.range && (
+          <motion.div
+            key={view.range}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={SPRING_MOVE}
+            className="glass-panel absolute inset-x-3 top-1/2 max-h-full -translate-y-1/2 overflow-y-auto rounded-3xl p-3"
+          >
+            <GtowRangeTable scene={view.range} stack={70} />
+          </motion.div>
+        )}
       </main>
 
       {/* 下: 操作。高さはアクションバーと同じ 132px で一定。 */}
@@ -314,7 +327,7 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
 }
 
 type TableProps = ComponentProps<typeof PokerTable>;
-type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; badge?: "best" | "blunder"; bottom: ReactNode };
+type LessonView = { table: TableProps; text: string; tone?: "normal" | "hint"; badge?: "best" | "blunder"; range?: string; bottom: ReactNode };
 
 /** 「次へ」など、下の箱に置く大きなボタン(1画面に1つだけの強いアクセント)。 */
 function NextButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -401,17 +414,19 @@ function useQuizView(
     turnTimer: null,
   };
   if (phase.kind !== "quiz" || !q) return { table, text: "", bottom: null };
+  const range = q.scene?.range?.scene;
   const at = phase.step;
   const set = (status: "ask" | "wrong" | "right" | "shown") => setPhase({ kind: "quiz", step: at, status });
 
   if (phase.status === "right" || phase.status === "shown") {
     const text =
       phase.status === "right" ? `正解!\n${q.explain}` : `答えは「${q.choices[q.answer]}」だよ。\n${q.explain}`;
-    return { table, text, bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
+    return { table, text, range, bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
   }
   if (phase.status === "wrong") {
     return {
       table,
+      range,
       text: `ちがうよ。\n${q.hint}`,
       tone: "hint",
       bottom: (
@@ -436,6 +451,7 @@ function useQuizView(
   }
   return {
     table,
+    range,
     text: `問題: ${q.question}`,
     bottom: (
       <div className={`grid gap-2 ${q.choices.length > 2 ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -498,6 +514,7 @@ function useStaticScene(lesson: Lesson, phase: Phase, onNext: () => void, onBack
     },
     text,
     badge: scene?.badge,
+    range: scene?.range?.scene,
     bottom: (
       // 棋譜解析と同じく、左に「‹」(前へ)、右へ進む。
       <div className="flex items-center gap-2">
