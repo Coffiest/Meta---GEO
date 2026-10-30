@@ -45,28 +45,31 @@ function cards(list: string[] | undefined): Card[] {
 
 /** 場面(手札・ボード)を卓の状態にする。 */
 function sceneState(scene: LessonScene | undefined, withBally: boolean): PublicHandState {
-  const seat = (seatIndex: number, playerId: string) => ({
+  const seat = (seatIndex: number, playerId: string, bet = 0) => ({
     seatIndex,
     playerId,
-    stack: START_STACK,
+    stack: START_STACK - bet,
     status: "active" as const,
-    streetContribution: 0,
-    handContribution: 0,
+    streetContribution: bet,
+    handContribution: bet,
     hasActedThisStreet: false,
   });
+  const heroBet = scene?.bets?.hero ?? 0;
+  const ballyBet = scene?.bets?.bally ?? 0;
+  const pot = scene?.pot ?? 0;
   return {
     street: "river",
     board: cards(scene?.board),
-    potTotal: 0,
+    potTotal: pot + heroBet + ballyBet,
     currentBetToMatch: 0,
     lastFullRaiseSize: BB,
     actingSeatIndex: null,
     buttonFixedPos: HERO,
     smallBlindSeat: HERO,
     bigBlindSeat: BALLY,
-    collectedPot: 0,
+    collectedPot: pot,
     pots: [],
-    seats: withBally ? [seat(HERO, "you"), seat(BALLY, "bally")] : [seat(HERO, "you")],
+    seats: withBally ? [seat(HERO, "you", heroBet), seat(BALLY, "bally", ballyBet)] : [seat(HERO, "you", heroBet)],
     isComplete: false,
     bigBlind: BB,
   };
@@ -77,6 +80,8 @@ type Phase =
   | { kind: "flip"; step: number; revealed: boolean }
   | { kind: "guided"; step: number }
   | { kind: "practice"; step: number }
+  /** 選択肢の問題。ask = 答える前 / wrong = 間違えた(答えを見るか、もう一度解くか)/ right = 正解 / shown = 答えを見た */
+  | { kind: "quiz"; step: number; status: "ask" | "wrong" | "right" | "shown" }
   | { kind: "done" };
 
 export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson; accessToken: string; onClose: () => void }) {
@@ -101,9 +106,15 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
     if (prev) setPhase(prev);
   }, [prev]);
 
+  // 一発で正解できなかった問題(星の計算に使う)。
+  const missed = useRef(new Set<number>());
+  const quizCount = lesson.steps.filter((s) => s.kind === "quiz").length;
+
   useEffect(() => {
-    if (phase.kind === "done") void completeLesson(accessToken, lesson.id, 0);
-  }, [phase.kind, accessToken, lesson.id]);
+    if (phase.kind !== "done") return;
+    const stars = quizCount ? Math.round((3 * (quizCount - missed.current.size)) / quizCount) : 0;
+    void completeLesson(accessToken, lesson.id, stars);
+  }, [phase.kind, accessToken, lesson.id, quizCount]);
 
   const stepIndex = phase.kind === "done" ? lesson.steps.length : phase.step;
 
@@ -112,7 +123,9 @@ export function LessonPlayer({ lesson, accessToken, onClose }: { lesson: Lesson;
   const guided = useGuidedHand(phase.kind === "guided", next);
   const practiceStep = phase.kind === "practice" ? lesson.steps[phase.step] : undefined;
   const practice = usePracticeTable(phase.kind === "practice", practiceStep?.kind === "practice" ? practiceStep.hands : 6, next);
-  const view = phase.kind === "guided" ? guided : phase.kind === "practice" ? practice : stat;
+  const quiz = useQuizView(lesson, phase, setPhase, (step) => missed.current.add(step), next, prev ? back : null);
+  const view =
+    phase.kind === "guided" ? guided : phase.kind === "practice" ? practice : phase.kind === "quiz" ? quiz : stat;
   const bubbleKey = `${stepIndex}:${phase.kind === "talk" ? phase.page : ""}:${view.text}`;
 
   return createPortal(
@@ -206,6 +219,7 @@ function prevOf(lesson: Lesson, p: Phase): Phase | null {
   if (!before) return null;
   if (before.kind === "talk") return { kind: "talk", step: step - 1, page: before.pages.length - 1 };
   if (before.kind === "flip") return { kind: "flip", step: step - 1, revealed: true };
+  if (before.kind === "quiz") return { kind: "quiz", step: step - 1, status: "ask" };
   return null;
 }
 
@@ -215,7 +229,111 @@ function startOf(lesson: Lesson, step: number): Phase {
   if (s.kind === "talk") return { kind: "talk", step, page: 0 };
   if (s.kind === "flip") return { kind: "flip", step, revealed: false };
   if (s.kind === "guided") return { kind: "guided", step };
+  if (s.kind === "quiz") return { kind: "quiz", step, status: "ask" };
   return { kind: "practice", step };
+}
+
+/** 下の箱の「‹」+「次へ」(棋譜解析と同じく左で戻る)。 */
+function BackNext({ label, onNext, onBack }: { label: string; onNext: () => void; onBack: (() => void) | null }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onBack ?? undefined}
+        disabled={!onBack}
+        aria-label="前へ"
+        className="pressable flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-fg disabled:opacity-30"
+      >
+        <Icon name="chevron-left" className="h-5 w-5" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <NextButton label={label} onClick={onNext} />
+      </div>
+    </div>
+  );
+}
+
+/** 選択肢の問題。間違えたら「答えを見る」か「もう一度解く」を選ぶ(オーナー確定)。 */
+function useQuizView(
+  lesson: Lesson,
+  phase: Phase,
+  setPhase: (p: Phase) => void,
+  onMiss: (step: number) => void,
+  onNext: () => void,
+  onBack: (() => void) | null,
+): LessonView {
+  const step = phase.kind === "quiz" ? lesson.steps[phase.step] : undefined;
+  const q = step?.kind === "quiz" ? step : null;
+  const table: TableProps = {
+    state: sceneState(q?.scene, true),
+    yourSeatIndex: HERO,
+    yourCards: q?.scene?.hero ?? [],
+    seatCount: SEAT_COUNT,
+    revealedHoleCards: q?.scene?.bally ? { [BALLY]: q.scene.bally } : null,
+    players: { [HERO]: HERO_PLAYER, [BALLY]: BALLY_PLAYER },
+    bigBlind: BB,
+    lastActionBySeat: {},
+    lastHandDeltaBySeat: null,
+    turnTimer: null,
+  };
+  if (phase.kind !== "quiz" || !q) return { table, text: "", bottom: null };
+  const at = phase.step;
+  const set = (status: "ask" | "wrong" | "right" | "shown") => setPhase({ kind: "quiz", step: at, status });
+
+  if (phase.status === "right" || phase.status === "shown") {
+    const text =
+      phase.status === "right" ? `正解!\n${q.explain}` : `答えは「${q.choices[q.answer]}」だよ。\n${q.explain}`;
+    return { table, text, bottom: <BackNext label="次へ" onNext={onNext} onBack={onBack} /> };
+  }
+  if (phase.status === "wrong") {
+    return {
+      table,
+      text: `ちがうよ。\n${q.hint}`,
+      tone: "hint",
+      bottom: (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => set("shown")}
+            className="pressable-lg h-14 rounded-2xl bg-white/[0.06] text-[15px] font-black text-fg ring-1 ring-white/10"
+          >
+            答えを見る
+          </button>
+          <button
+            type="button"
+            onClick={() => set("ask")}
+            className="pressable-lg h-14 rounded-2xl bg-accent text-[15px] font-black text-on-accent shadow-glow"
+          >
+            もう一度解く
+          </button>
+        </div>
+      ),
+    };
+  }
+  return {
+    table,
+    text: `問題: ${q.question}`,
+    bottom: (
+      <div className={`grid gap-2 ${q.choices.length > 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {q.choices.map((c, i) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => {
+              if (i === q.answer) set("right");
+              else {
+                onMiss(at);
+                set("wrong");
+              }
+            }}
+            className="pressable-lg flex h-[60px] items-center justify-center rounded-2xl bg-surface-2 px-2 text-center text-[13px] font-bold leading-tight text-fg shadow-e1 ring-1 ring-accent/40"
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+    ),
+  };
 }
 
 /** talk / flip / done: 場面(手札・バリィの手・ボード)の卓と「次へ」。場面の無いページも、空の卓を出したままにする。 */
