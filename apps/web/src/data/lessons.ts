@@ -1,5 +1,6 @@
 import { RULES_STEPS } from "./lessonRules";
 import { TOURNEY_VS_CASH_STEPS } from "./lessonTourneyCash";
+import { COMMIT_STEPS, DONK_STEPS, LIMP_STEPS, MARGINAL_STEPS } from "./lessonBasics";
 
 /**
  * Lesson タブのカリキュラム(オーナー指定の項目と順番)。中身はオーナーと1項目ずつ決めて足していく。
@@ -24,6 +25,37 @@ export interface LessonScene {
   pot?: number;
   /** 席の前に出ているチップ(あなた = SB、バリィ = BB)。 */
   bets?: { hero?: number; bally?: number };
+  /** 6人卓の局面(額はすべて BB 単位)。あると pot / bets より優先する。席0が「あなた」。 */
+  table?: LessonTable;
+  /** 光らせて目立たせる席(最初の1つ)。 */
+  focus?: number[];
+  /** 解説の箱に出す評価のバッジ(棋譜解析と同じ見た目)。 */
+  badge?: "best" | "blunder";
+}
+
+export type LessonAct = "check" | "bet" | "call" | "raise" | "fold" | "allIn";
+
+/** 6人卓の1席。席0は「あなた」。名前が「バリィ」ならバリィの絵。額は BB 単位。 */
+export interface LessonSeat {
+  seat: number;
+  name?: string;
+  /** 残りのスタック(BB)。省略は 100。 */
+  stack?: number;
+  /** このストリートに出しているチップ(BB)。 */
+  bet?: number;
+  folded?: boolean;
+  /** 表で見せる手札。 */
+  cards?: string[];
+  /** 席に出すアクションの札。 */
+  act?: LessonAct;
+}
+
+export interface LessonTable {
+  /** ボタンの席(SB = +1、BB = +2)。 */
+  button: number;
+  seats: LessonSeat[];
+  /** 真ん中のポット(BB。前のストリートまでの分とアンティ)。 */
+  pot?: number;
 }
 
 export type LessonStep =
@@ -35,6 +67,8 @@ export type LessonStep =
   | { kind: "guided" }
   /** 練習相手と卓を1周(6ハンド)打つ。 */
   | { kind: "practice"; hands: number }
+  /** 卓の局面で、本物のアクションバーを押して答える問題。size は正解にするレイズ額の範囲(BB、そこまで上げる額)。 */
+  | { kind: "spot"; scene: LessonScene; prompt: string; expect: LessonAct; size?: [number, number]; hint: string; explain: string }
   /** 選択肢から1つ選ぶ問題。一発で正解した数で星が付く。 */
   | { kind: "quiz"; question: string; choices: string[]; answer: number; hint: string; explain: string; scene?: LessonScene };
 
@@ -57,10 +91,10 @@ export const CURRICULUM: LessonSection[] = [
   {
     title: "2. 基礎編: やってはいけないこと",
     lessons: [
-      { id: "donk-bet", title: "ドンクベット", steps: [] },
-      { id: "limp", title: "リンプ", steps: [] },
-      { id: "commit", title: "コミット", steps: [] },
-      { id: "marginal-bet", title: "マージナルベット", steps: [] },
+      { id: "donk-bet", title: "ドンクベット", steps: DONK_STEPS },
+      { id: "limp", title: "プリフロップで「コールする」", steps: LIMP_STEPS },
+      { id: "commit", title: "コミット", steps: COMMIT_STEPS },
+      { id: "marginal-bet", title: "マージナルベット", steps: MARGINAL_STEPS },
     ],
   },
   { title: "3. オッズ", lessons: [{ id: "odds", title: "オッズと必要勝率、勝率計算", steps: [] }] },
