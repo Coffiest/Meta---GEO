@@ -173,17 +173,12 @@ function SettingsPopover({
   onShowStructure,
   onShowHistory,
   onShowChatLog,
-  view3d,
-  onChangeView3d,
   onClose,
 }: {
   onShowStructure: () => void;
   onShowHistory: () => void;
   /** チャットの無い卓(参加費1,000の SNG・MTT)では渡さない。 */
   onShowChatLog?: () => void;
-  /** 卓を 3D で描くか。 */
-  view3d: boolean;
-  onChangeView3d: (next: boolean) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -220,26 +215,6 @@ function SettingsPopover({
             {t("settings.chatLog")}
           </button>
         )}
-        {/* 卓の表示(3D / 2D)。古い端末で 3D が重いとき 2D に戻せるように。 */}
-        <div className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm text-fg">
-          <span>{t("settings.tableView")}</span>
-          <div role="radiogroup" aria-label={t("settings.tableView")} className="flex rounded-full bg-surface-2 p-0.5">
-            {([true, false] as const).map((on) => (
-              <button
-                key={String(on)}
-                type="button"
-                role="radio"
-                aria-checked={view3d === on}
-                onClick={() => onChangeView3d(on)}
-                className={`pressable rounded-full px-2.5 py-1 text-[11px] font-black ${
-                  view3d === on ? "bg-accent/15 text-accent ring-1 ring-accent" : "text-fg-2"
-                }`}
-              >
-                {on ? "3D" : "2D"}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </>
   );
@@ -514,23 +489,6 @@ function GameScreen({
       }
       return next;
     });
-  }, []);
-  // 卓の表示(3D / 2D)。既定は 3D。選択は端末に保存する。
-  const [tableView3d, setTableView3d] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      return window.localStorage.getItem(TABLE_VIEW_KEY) !== "2d";
-    } catch {
-      return true;
-    }
-  });
-  const changeTableView3d = useCallback((next: boolean) => {
-    setTableView3d(next);
-    try {
-      window.localStorage.setItem(TABLE_VIEW_KEY, next ? "3d" : "2d");
-    } catch {
-      /* 保存できなくても切り替え自体は行う */
-    }
   }, []);
   // レジストレーションクローズの締切時刻(MTT・RC前のみ)。表示はCountdownTextに任せる。
   const regClosesAt =
@@ -852,8 +810,6 @@ function GameScreen({
             onShowStructure={() => setStructureOpen(true)}
             onShowHistory={() => setHistoryOpen(true)}
             onShowChatLog={chatEnabled ? () => setChatLogOpen(true) : undefined}
-            view3d={tableView3d}
-            onChangeView3d={changeTableView3d}
             onClose={() => setSettingsOpen(false)}
           />
         )}
@@ -900,7 +856,6 @@ function GameScreen({
             onToggleHeroShow={toggleHeroShow}
             displayMode={amountDisplayMode}
             onToggleDisplayMode={toggleAmountDisplayMode}
-            view3d={tableView3d}
             heroAside={privateLobby ? undefined : (
               <>
                 {timeBank && (
@@ -1402,8 +1357,6 @@ function ResumeErrorScreen({ onRetry, onHome }: { onRetry: () => void; onHome: (
  * 内容が前回表示したものと一致する場合は再表示しない、という形で確実に防ぐ。
  */
 const RESUME_RESULT_SEEN_KEY = "pokerart.resumeResult.lastSeen.v1";
-/** 卓の表示(3D / 2D)の保存先。 */
-const TABLE_VIEW_KEY = "pokerart.tableView.v1";
 
 function resumeResultSignature(r: { winnerPlayerId: string | null; yourFinishPosition: number | null; yourPayout: number }): string {
   return `${r.winnerPlayerId ?? ""}|${r.yourFinishPosition ?? ""}|${r.yourPayout}`;

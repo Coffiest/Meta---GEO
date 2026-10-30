@@ -20,19 +20,6 @@ import { designHeightFor, tableLayout, type TableLayout } from "./table3d/geomet
 // 3D の卓(three.js)は重いので、卓画面に来たときだけ読み込む。
 const TableScene3D = dynamic(() => import("./table3d/TableScene3D"), { ssr: false });
 
-/** WebGL が使えるか(使えなければ 2D の卓画像に戻す)。 */
-function supportsWebGL(): boolean {
-  try {
-    const c = document.createElement("canvas");
-    return Boolean(c.getContext("webgl2") ?? c.getContext("webgl"));
-  } catch {
-    return false;
-  }
-}
-
-// felt.png(スーパー楕円デザイン、幅:高さ = 1000:1500 = 2:3)の実ピクセルを解析し、
-// 外枠のコンテナがその比率と正確に一致するよう算出してある(18%/10%/18% → 幅64%:高さ72% → 2:3)。
-// 一致させることで、画像自体の形がそのままテーブルの形になり、余白や別枠のクロップが生じない。
 /* 卓の設計寸法。座席・ボード・ポットの位置は全てこの箱に対する%で書かれているので、
    この比率が崩れると卓画像と座席がズレる。
 
@@ -47,7 +34,6 @@ function supportsWebGL(): boolean {
    CSSだけでは「幅と高さの両方に収まる倍率」を書けない(zoom に
    min(100cqw/448, 100cqh/597) は渡せない)ため、実測して倍率を出す。 */
 const DESIGN_WIDTH = 448;
-const DESIGN_HEIGHT = 597; // 448 * 4 / 3
 
 /** 親(卓に使える領域)の大きさを測る。設計枠の高さと倍率はこの値から決める。 */
 function useAvailableSize(ref: React.RefObject<HTMLElement>): { width: number; height: number } {
@@ -76,86 +62,11 @@ function fitScaleOf(available: { width: number; height: number }, designHeight: 
   return Math.min(available.width / DESIGN_WIDTH, available.height / designHeight, 1);
 }
 
-/* 卓画像の箱。以前は x 18〜82% / y 10〜82% に収めていて、スマホでは卓が画面幅の6割ほどしか使えず
-   左右が大きく余っていた(オーナー指摘)。画像は 2:3 のまま(縦横比は変えない)、設計枠いっぱいまで
-   大きくし、席の名前プレートは卓の縁(レール)の上に載せる。object-contain なので、実際の卓は
-   この箱の高さで決まり、幅 x 約7〜93% に中央寄せで描かれる。 */
-const FELT_BOX = "inset-x-[2%] top-[1.5%] bottom-[1.5%]";
 
-// 画像内のロゴ帯(上部 約5-31%)・破線カードスロット帯(約44-56%)・ワードマーク/下部ロゴ帯
-// (約59-78%)を実測し、それに合わせた「表示スロット」配置。スロット0=常に自分(画面下)。
-const SEAT_LAYOUT: Record<number, string> = {
-  0: "bottom-0 left-1/2 -translate-x-1/2",
-  1: "top-[50%] left-0",
-  2: "top-[15%] left-0",
-  3: "top-0 left-1/2 -translate-x-1/2",
-  4: "top-[15%] right-0",
-  5: "top-[50%] right-0",
-};
+/** 自分の席(スロット0)は常に画面の下の中央。他の席は 3D と同じカメラで投影した位置に置く。 */
+const HERO_SEAT_CLASS = "bottom-0 left-1/2 -translate-x-1/2";
 
-/**
- * ディーラーボタンの置き場所は、固定の座標ではなく**描いたあとに実測して決める**。
- *
- * 以前は表示スロットごとの固定%(設計枠で実測した値)で置いていたが、名前プレートの幅は
- * 表示名の長さで変わり、実機では BTN の席の名前プレートや手札にボタンが重なっていた(オーナー指摘)。
- * 固定値では「絶対に被らない」は保証できないので、次の手順で毎回求める(`findDealerSpot`)。
- *
- * 1. BTN の席(席ブロック=手札+名前プレート+ベット表示)の中心から、卓の中心へ向かう直線をたどる
- * 2. ボタンの円(余白込み)が、どの席ブロック・自席の補助トグル・ポット・ボード・ベット表示とも
- *    重ならない最初の点に置く(邪魔なものは `data-table-obstacle` を付けた要素)
- * 3. 直線上に空きが無ければ、左右に少しずらした直線も試す
- *
- * 座標は設計枠(448×597)の px。卓全体は zoom で縮むので、実測値を倍率で割って設計枠に戻す。
- */
-const DEALER_BUTTON_GAP = 6;
-
-interface Box {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
-function overlaps(a: Box, b: Box): boolean {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-}
-
-/** ディーラーボタンの中心(設計枠の px)。置ける場所が見つからなければ null。純関数(テスト可能)。 */
-export function findDealerSpot(params: {
-  anchor: Box;
-  obstacles: readonly Box[];
-  center: { x: number; y: number };
-  radius: number;
-  bounds: { width: number; height: number };
-}): { x: number; y: number } | null {
-  const { anchor, obstacles, center, radius, bounds } = params;
-  const start = { x: (anchor.left + anchor.right) / 2, y: (anchor.top + anchor.bottom) / 2 };
-  const dx = center.x - start.x;
-  const dy = center.y - start.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const r = radius + DEALER_BUTTON_GAP;
-  // 正面の直線を最優先にし、だめなら少しずつ横へずらした直線を試す。
-  for (const side of [0, 18, -18, 36, -36, 54, -54]) {
-    const ox = -uy * side;
-    const oy = ux * side;
-    for (let t = 0; t <= len; t += 2) {
-      const x = start.x + ux * t + ox;
-      const y = start.y + uy * t + oy;
-      const box = { left: x - r, top: y - r, right: x + r, bottom: y + r };
-      if (box.left < 0 || box.top < 0 || box.right > bounds.width || box.bottom > bounds.height) continue;
-      if (obstacles.some((o) => overlaps(box, o))) continue;
-      return { x, y };
-    }
-  }
-  return null;
-}
-
-/** ディーラーボタンの画像。オーナー支給の原画(`public/table/dealer_button_source.png`)から
- *  `scripts/table-markers.py` で書き出した版(円の外の台紙を透過・縮小)。原画を差し替えたら再実行する。 */
 const DEALER_BUTTON_SRC = "/table/dealer_button_v1.png";
-/** 表示の直径(px)。刻印の「DEALER」が読める大きさ。 */
 const DEALER_BUTTON_SIZE = 28;
 
 /**
@@ -186,69 +97,6 @@ function DealerButton({ x, y, reduced }: { x: number; y: number; reduced: boolea
         style={{ width: DEALER_BUTTON_SIZE, height: DEALER_BUTTON_SIZE }}
       />
     </motion.div>
-  );
-}
-
-/* 卓画像。黒地に白い輪郭で描かれた、暗い背景に置く前提の絵(1024×1536 = 2:3)。
-   比率が table_v2.png と同じなので、座席・ボード・ポットの%配置は再調整不要。
-
-   読むのは支給された `table_v3.png` そのものではなく、そこから生成した版
-   (`scripts/table-alpha.py`)。支給ファイルは黒地が不透明なまま残してある。 */
-const TABLE_IMAGE_SRC = "/table/table_v3_filled.png";
-
-/**
- * 卓面。卓画像を卓の形そのものとして描画する。
- *
- * 画像は2段階の加工を焼き込んである(どちらも `scripts/table-alpha.py`)。
- *
- * 1. **黒地 → 透明。** 支給画像はアルファを持たない不透明な黒い台紙なので、そのまま
- *    重ねると背景の上に黒い長方形が乗る。以前は `mix-blend-mode: screen`(黒を透過として
- *    扱う)で消していたが、**実機の WebKit では効かなかった**。mix-blend-mode は同じ
- *    合成の文脈の中の背面としか混ざらないところ、卓を縮小している `zoom` の箱が WebKit では
- *    文脈を作ってしまい、合成の相手が背景ではなく「何も無い箱の中」になっていたため
- *    (Blink の標準化後の zoom は文脈を作らないので Chromium では消えており、見落とした)。
- *    合成に頼るのをやめ、同じ結果をアルファへ焼き込んである。**この img に
- *    `mix-blend-mode` を足し直さないこと。**
- * 2. **卓の内部を不透明な #3A3A3C(旧 `--n-4`。背景を暗くした後も卓の内部はこの灰色のまま)で塗りつぶし。** 内部が透明のままだと、
- *    背景のサーキット基板グリッド(`.table-bg-grid`)が卓を突き抜けて見えてしまう。
- *    CSSで裏に面を敷くのでは駄目で、卓はスーパー楕円(角を強く丸めた長方形)なので
- *    `border-radius` では同じ形にならず、縁からはみ出すか隙間が空く。画像から導けば
- *    形は定義上ぴったり一致する。
- */
-function TableFelt() {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const showFrame = failed || !loaded;
-
-  // ブラウザキャッシュ済みの画像は、Reactがonloadリスナーを付ける前にloadイベントが
-  // 発火してしまい、onLoadが一生呼ばれないことがある。マウント時にcompleteを直接確認する。
-  useEffect(() => {
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setLoaded(true);
-    }
-  }, []);
-
-  return (
-    <div
-      className={`absolute ${FELT_BOX} overflow-hidden transition-[border-radius,box-shadow] duration-300 ${
-        showFrame ? "rounded-[46%] bg-surface ring-[1.5px] ring-line-strong" : ""
-      }`}
-    >
-      {!failed && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          ref={imgRef}
-          src={TABLE_IMAGE_SRC}
-          alt=""
-          draggable={false}
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
-          style={{ opacity: loaded ? 1 : 0 }}
-        />
-      )}
-    </div>
   );
 }
 
@@ -312,15 +160,6 @@ function badgeForSeat(params: {
   return null;
 }
 
-/*
- * ボードのコミュニティカード欄: felt.png内の5つの破線カードスロットの実ピクセル位置を
- * 解析して合わせてある。
- *  - スロット群のbbox(画像内): x=14.7〜85.2%, y=43.9〜58.3%
- *  - コンテナ換算: 帯の幅 = 70.5% × 64%(felt幅) = 45.1%、1スロット幅 = 12.65% × 64% ≒ 8.1%
- *  - スロット間ギャップ = 1.8125% × 64% ≒ 1.16%
- *  - 縦中心 = 10% + 51.1% × 72%(felt高) ≒ 46.8% → カード上端 ≒ 42.5%
- */
-const BOARD_ROW_CLASS = "absolute inset-x-0 top-[40%] flex justify-center gap-[1.2%]";
 /** 3D の卓のボード。縦位置は投影で決めるので top は style で渡す。 */
 const BOARD_ROW_3D_CLASS = "absolute inset-x-0 flex justify-center gap-[1.2%] [transform-origin:50%_50%]";
 
@@ -362,7 +201,6 @@ export function PokerTable({
   displayMode = "bb",
   onToggleDisplayMode,
   heroAside,
-  view3d = true,
   muckedSeats = null,
   outSeats = null,
   waitingRoom = null,
@@ -405,8 +243,6 @@ export function PokerTable({
   onToggleDisplayMode?: () => void;
   /** 自席の席ピルの左外に積む補助操作(タイムバンク・離席)。 */
   heroAside?: ReactNode;
-  /** 卓を 3D で描くか(設定の「卓の表示」)。WebGL が使えない端末では 2D に戻す。 */
-  view3d?: boolean;
   /** ショーダウンで手を見せずにマックした席。 */
   muckedSeats?: ReadonlySet<number> | null;
   /** トーナメントから飛んだ席(「PLAYER OUT」を貼る)。 */
@@ -465,68 +301,20 @@ export function PokerTable({
   const fitRef = useRef<HTMLDivElement>(null);
   const available = useAvailableSize(fitRef);
 
-  // 3D の卓。WebGL が使えるかはマウント後にしか分からないので、分かるまでは 3D の配置で何も描かない
-  // (2D の卓画像を一瞬出してから切り替わる、というちらつきを避ける)。
-  const [webgl, setWebgl] = useState<boolean | null>(null);
-  useEffect(() => setWebgl(supportsWebGL()), []);
-  const use3d = view3d && webgl !== false;
-  // 3D の卓は、空いている領域の縦横比に合わせて設計枠を縦に伸ばす(上下に帯を余らせない)。
-  // 2D の卓画像は比率が固定なので 597 のまま。
-  const designHeight = use3d ? designHeightFor(available.width, available.height) : DESIGN_HEIGHT;
+  // 卓は常に 3D で描く(2D の卓はオーナー指示 2026-10-30 で廃止)。
+  // 空いている領域の縦横比に合わせて設計枠を縦に伸ばす(上下に帯を余らせない)。
+  const designHeight = designHeightFor(available.width, available.height);
   const fitScale = fitScaleOf(available, designHeight);
-  const layout3d = use3d ? tableLayout(designHeight) : null;
+  const layout3d = tableLayout(designHeight);
 
-  // ディーラーボタンの位置は描いたあとに実測して決める(findDealerSpot の説明を参照)。
-  const designRef = useRef<HTMLDivElement>(null);
-  const [measuredSpot, setMeasuredSpot] = useState<{ slot: number; x: number; y: number } | null>(null);
+  // ディーラーボタンはスロットごとの固定の点(geometry.ts の dealer)。実測しないので、ハンドの途中で一切動かない。
   const buttonSlot = state ? displaySlotOf(state.buttonFixedPos) : null;
-  // 3D の卓: スロットごとの固定の点(geometry.ts の dealer)。実測しないので、ハンドの途中で一切動かない。
-  // 2D の卓: ボタンの席が変わったときに1回だけ実測し、そのハンドの間は固定する。
-  // (以前は描画のたびに測り直していて、誰かが降りて「Fold」が出るとボタンが跳ねていた。オーナー指摘)
-  const dealerSpot =
-    buttonSlot === null
-      ? null
-      : layout3d
-        ? layout3d.dealer[buttonSlot] ?? null
-        : measuredSpot && measuredSpot.slot === buttonSlot
-          ? measuredSpot
-          : null;
-  useLayoutEffect(() => {
-    const root = designRef.current;
-    if (!root || buttonSlot === null || layout3d) return;
-    if (measuredSpot && measuredSpot.slot === buttonSlot) return;
-    const measure = () => {
-      const rootRect = root.getBoundingClientRect();
-      if (rootRect.width <= 0) return;
-      const k = rootRect.width / DESIGN_WIDTH;
-      const toDesign = (r: DOMRect): Box => ({
-        left: (r.left - rootRect.left) / k,
-        top: (r.top - rootRect.top) / k,
-        right: (r.right - rootRect.left) / k,
-        bottom: (r.bottom - rootRect.top) / k,
-      });
-      const anchorEl = root.querySelector<HTMLElement>(`[data-seat-slot="${buttonSlot}"]`);
-      if (!anchorEl) return;
-      const obstacles = [...root.querySelectorAll<HTMLElement>("[data-table-obstacle]")]
-        .map((el) => el.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.height > 0)
-        .map(toDesign);
-      const spot = findDealerSpot({
-        anchor: toDesign(anchorEl.getBoundingClientRect()),
-        obstacles,
-        center: { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT * 0.5 },
-        radius: DEALER_BUTTON_SIZE / 2,
-        bounds: { width: DESIGN_WIDTH, height: DESIGN_HEIGHT },
-      });
-      if (spot) setMeasuredSpot({ slot: buttonSlot, x: spot.x, y: spot.y });
-    };
-    measure();
-  });
+  const dealerSpot = buttonSlot === null ? null : layout3d.dealer[buttonSlot] ?? null;
 
   return (
     <div ref={fitRef} className="relative flex h-full w-full items-center justify-center">
       {/* 3D の卓は zoom の箱の外に、同じ実寸で敷く(zoom の中に置くと WebGL が測る寸法と描く寸法がずれる)。 */}
-      {use3d && webgl && (
+      {(
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -536,7 +324,6 @@ export function PokerTable({
         </div>
       )}
       <div
-        ref={designRef}
         className="no-image-actions relative"
         style={{
           width: DESIGN_WIDTH,
@@ -550,25 +337,23 @@ export function PokerTable({
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
-      {!use3d && <TableFelt />}
-
       {/* 大会の情報(アップルデザインの試作に合わせてポットの上に置く。オーナー指示 v1.25.0)。 */}
       {centerInfo && (
         <div
-          className={`pointer-events-none absolute inset-x-0 flex justify-center ${layout3d ? "" : "top-[22%]"}`}
-          style={layout3d ? { top: layout3d.pot.y, transform: "translateY(calc(-100% - 22px))" } : undefined}
+          className="pointer-events-none absolute inset-x-0 flex justify-center"
+          style={{ top: layout3d.pot.y, transform: "translateY(calc(-100% - 22px))" }}
         >
           {centerInfo}
         </div>
       )}
 
-      {/* ポット表示: felt.png内の水平破線(画像内 約32-35%)のあたりに合わせてある。
+      {/* ポット表示: 3D の卓の投影で決めた位置に置く。
           カード面で統一。ポットが増減するたびにキーが変わり、軽く跳ねて更新される。
           表示するのは「確定済み」のポット(collectedPot)のみ — 現在のストリートのベットは
           各席の前に置かれたまま、ストリートが締まった瞬間にここへ移動する(実卓と同じ挙動)。 */}
       <div
-        className={`absolute inset-x-0 flex flex-col items-center gap-1 ${layout3d ? "-translate-y-1/2" : "top-[31%]"}`}
-        style={layout3d ? { top: layout3d.pot.y } : undefined}
+        className="absolute inset-x-0 flex flex-col items-center gap-1 -translate-y-1/2"
+        style={{ top: layout3d.pot.y }}
       >
         {/* 実測の邪魔もの判定は中身(ポット表示)の大きさで行う(行全体の幅ではなく)。 */}
         <AnimatePresence mode="popLayout">
@@ -623,19 +408,14 @@ export function PokerTable({
         )}
       </div>
 
-      {/* コミュニティカード。空きスロットはfelt.png自体に描かれた破線枠が見えるので何も描かない */}
       {/* 3D の卓では、ボードを卓面に寝かせて見せる(カメラの見下ろし角の6割。全部寝かせると数字が読みにくい)。
           空きスロットの破線枠も同じ箱の中に描き、配られたカードと枠が必ず重なるようにする。 */}
       <div
-        className={layout3d ? BOARD_ROW_3D_CLASS : BOARD_ROW_CLASS}
-        style={
-          layout3d
-            ? {
-                top: layout3d.board.y,
-                transform: `translateY(-50%) perspective(720px) rotateX(${(layout3d.boardTiltDeg * 0.6).toFixed(1)}deg) scale(${layout3d.board.depthScale.toFixed(3)})`,
-              }
-            : undefined
-        }
+        className={BOARD_ROW_3D_CLASS}
+        style={{
+          top: layout3d.board.y,
+          transform: `translateY(-50%) perspective(720px) rotateX(${(layout3d.boardTiltDeg * 0.6).toFixed(1)}deg) scale(${layout3d.board.depthScale.toFixed(3)})`,
+        }}
       >
         {Array.from({ length: 5 }).map((_, i) => {
           const card = state?.board[i];
@@ -644,7 +424,7 @@ export function PokerTable({
               {card ? (
                 <PlayingCard card={cardToString(card)} size="board" dealDelay={i * 0.06} highlight={boardHighlight.has(cardToString(card))} />
               ) : (
-                layout3d && <div aria-hidden className="aspect-[744/1039] w-full rounded-[6px] border border-dashed border-white/[0.16]" />
+                <div aria-hidden className="aspect-[744/1039] w-full rounded-[6px] border border-dashed border-white/[0.16]" />
               )}
             </div>
           );
@@ -756,8 +536,8 @@ export function PokerTable({
             key={seatIndex}
             data-seat-slot={slot}
             data-table-obstacle
-            className={`absolute ${layout3d && slot !== 0 ? "" : SEAT_LAYOUT[slot]}`}
-            style={layout3d && slot !== 0 ? seatStyle3d(layout3d, slot) : undefined}
+            className={`absolute ${slot === 0 ? HERO_SEAT_CLASS : ""}`}
+            style={slot !== 0 ? seatStyle3d(layout3d, slot) : undefined}
           >
             {tappable && player ? (
               <button

@@ -161,7 +161,6 @@ export const ptBR: Record<string, string> = {
   "settings.handHistory": "Histórico de mãos deste jogo",
   "settings.blindStructure": "Ver estrutura de blinds",
   "settings.chatLog": "Histórico do chat",
-  "settings.tableView": "Visual da mesa",
   "settings.leave": "Descartar fichas e sair do jogo",
   "settings.leaveConfirm": "Você vai descartar suas fichas e sair. Isso não pode ser desfeito.",
   "settings.leaveDo": "Sair",
