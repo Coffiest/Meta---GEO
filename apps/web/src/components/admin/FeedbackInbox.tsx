@@ -14,6 +14,7 @@ interface FeedbackItem {
   appVersion: string | null;
   userAgent: string | null;
   readAt: string | null;
+  grantedAt?: string | null;
   user: { id: string; displayName: string; email: string | null };
   images: { id: string; mime: string; bytes: number }[];
 }
@@ -161,6 +162,8 @@ export function FeedbackInbox({ passcode, accessToken }: { passcode: string; acc
                   </span>
                   {f.kind === "shareX" && (
                     <GrantGoldButton
+                      feedbackId={f.id}
+                      granted={Boolean(f.grantedAt)}
                       userId={f.user.id}
                       passcode={passcode}
                       accessToken={accessToken}
@@ -189,17 +192,21 @@ export function FeedbackInbox({ passcode, accessToken }: { passcode: string; acc
  * 付与は管理者の無料付与(`/api/admin/grant`)と同じ。付与したら既読にする。
  */
 function GrantGoldButton({
+  feedbackId,
+  granted,
   userId,
   passcode,
   accessToken,
   onDone,
 }: {
+  feedbackId: string;
+  granted: boolean;
   userId: string;
   passcode: string;
   accessToken: string | null;
   onDone: () => void;
 }) {
-  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">(granted ? "done" : "idle");
   async function grant() {
     if (!window.confirm("この申請者にゴールドプラン1週間を付与しますか?")) return;
     setState("busy");
@@ -207,7 +214,7 @@ function GrantGoldButton({
       const r = await fetch(`${SERVER_URL}/api/admin/grant`, {
         method: "POST",
         headers: { "content-type": "application/json", ...adminHeaders(passcode, accessToken) },
-        body: JSON.stringify({ userId, unit: "week", amount: 1, plan: "gold" }),
+        body: JSON.stringify({ userId, feedbackId, unit: "week", amount: 1, plan: "gold" }),
       });
       setState(r.ok ? "done" : "error");
       if (r.ok) onDone();

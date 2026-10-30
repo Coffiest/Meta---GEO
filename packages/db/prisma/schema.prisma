@@ -687,6 +687,8 @@ model Feedback {
 
   /// 管理者が読んだ時刻。未読はnull。
   readAt DateTime?
+  /// 「Xでシェアしてゴールド GET」(kind = "shareX")で、管理者がゴールドを付与した時刻。未付与はnull。
+  grantedAt DateTime?
 
   images FeedbackImage[]
 

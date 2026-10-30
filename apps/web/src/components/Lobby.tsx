@@ -1283,14 +1283,16 @@ export function Lobby({
             </div>
             {/* フレンド対戦(6桁のコードで友達と遊ぶ卓)。Play / High Roller と同じ意匠(オーナー指示)。 */}
             {onFriend && <FriendMatchButton onEnter={onFriend} />}
-            {/* Xでシェアしてゴールド GET(オーナー指示)。Play・High Roller と同じ意匠のボタン。 */}
-            {accessToken && <ShareCampaignButton accessToken={accessToken} />}
 
             {/* ブラウザのタブで開いている間だけ出る「ホーム画面に追加」の案内
                 (追加しない限りアドレスバーは消せず、iOSではタブとアプリでログイン状態も別になる)。 */}
             <InstallAppCard />
 
             <PushOptInCard accessToken={accessToken} />
+
+            {/* Xでシェアしてゴールド GET(オーナー指示)。遊ぶ入口(Play・High Roller・Friend Match)の並びから外し、
+                案内のカードと同じ段に置く(主役のボタンが埋もれないように)。1人1回、付与済みなら出さない。 */}
+            {accessToken && <ShareCampaignButton accessToken={accessToken} />}
 
             <div data-tour="rating">
             <RRRatingCard
