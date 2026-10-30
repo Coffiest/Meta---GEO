@@ -8,14 +8,14 @@ const SAMPLES = 4000;
 
 /**
  * 手札が開いた席どうしの、いまのボードからの勝率(引き分けは山分け)。
- * 手札が2席以上そろわないとき・リバーまで開いたときは null(勝ち負けの表示に任せる)。
+ * 手札が2席以上そろわないときは null。リバーまで開いたら結果どおり 100% / 0%(チョップは山分け)。
  */
 export function useRunoutEquity(hands: Record<number, (string | null)[]> | null, board: readonly string[]): Record<number, number> | null {
   const key = hands ? JSON.stringify(hands) + "|" + board.join(",") : "";
   const [result, setResult] = useState<{ key: string; equity: Record<number, number> } | null>(null);
 
   useEffect(() => {
-    if (!hands || board.length >= 5) return;
+    if (!hands) return;
     const contenders: { id: string; holeCards: [Card, Card] }[] = [];
     for (const [seat, cards] of Object.entries(hands)) {
       const parsed = cards.map((c) => (c ? parseCard(c) : null));
@@ -35,7 +35,7 @@ export function useRunoutEquity(hands: Record<number, (string | null)[]> | null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  if (!hands || board.length >= 5) return null;
+  if (!hands) return null;
   return result?.key === key ? result.equity : null;
 }
 
