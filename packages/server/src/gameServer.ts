@@ -281,6 +281,29 @@ export async function ensureBotUsers(
   );
 }
 
+/**
+ * フレンド対戦の空席を埋める自動の席(オーナー指示 2026-11-05)。名前は「ボット1」〜で、通常の対戦の名前とは
+ * 絶対に重ならない(通常の名前の一覧に「ボット」で始まる名前は無い。メールも別の名前空間)。
+ * フレンド対戦だけは自動の席だと分かる名前にする、というオーナーの指示による例外。
+ */
+export const FRIEND_BOT_NAME_PREFIX = "ボット";
+export async function ensureFriendBotUsers(count: number): Promise<{ id: string; displayName: string; avatarKey: string | null }[]> {
+  return Promise.all(
+    Array.from({ length: count }, async (_, i) => {
+      const name = `${FRIEND_BOT_NAME_PREFIX}${i + 1}`;
+      const email = `friend-bot-${i + 1}@bots.meta-geo.local`;
+      const avatarKey = animalKeyFromSeed(email);
+      const u = await prisma.user.upsert({
+        where: { email },
+        update: { displayName: name, avatarKey },
+        create: { email, displayName: name, isBot: true, avatarKey },
+        select: { id: true, displayName: true },
+      });
+      return { id: u.id, displayName: u.displayName, avatarKey };
+    }),
+  );
+}
+
 export interface HumanPlayer {
   readonly userId: string;
   readonly displayName: string;
@@ -575,7 +598,7 @@ export class TableSession implements GameSession {
 
   private async startInternal(): Promise<void> {
     const botCount = this.botSeats.length;
-    const botUsers = botCount > 0 ? await ensureBotUsers(botCount) : [];
+    const botUsers = botCount > 0 ? await (this.privateOptions ? ensureFriendBotUsers(botCount) : ensureBotUsers(botCount)) : [];
     botUsers.forEach((u, i) => {
       // 人間の席をシャッフルで決めた残り(botSeats)へBOTを座らせる。人間が常にseat 0という
       // 固定パターンを作らないため。
