@@ -3,8 +3,10 @@ import { decideBotAction, type BotDecisionInput } from "../bot.js";
 import { buildBotContext, type BotContext } from "./context.js";
 import { decidePostflop } from "./postflop.js";
 import { decidePreflop } from "./preflop.js";
+import { applyPersona, type BotPersona } from "./persona.js";
 
 export { buildBotContext } from "./context.js";
+export { randomPersona, type BotPersona } from "./persona.js";
 
 /**
  * 自動の席の意思決定の入口。GTO の表(プリフロップ)とレンジに対する勝率(ポストフロップ)で決め、
@@ -17,6 +19,8 @@ export function decideStrongBotAction(params: {
   canRaise: boolean;
   legacy: BotDecisionInput;
   random?: () => number;
+  /** 打ち方の型と癖(大会ごとに引き直す)。無ければ土台(シャーク)のまま。 */
+  persona?: BotPersona | null;
 }): PlayerAction {
   const rand = params.random ?? Math.random;
   let ctx: BotContext | null = null;
@@ -35,6 +39,13 @@ export function decideStrongBotAction(params: {
     }
   }
   if (!action) action = decideBotAction({ ...params.legacy, random: rand });
+  if (ctx && params.persona) {
+    try {
+      action = applyPersona(ctx, action, params.persona, rand);
+    } catch (err) {
+      console.error("[bot] persona failed (ignored):", err);
+    }
+  }
   return ctx ? sanitize(action, ctx) : action;
 }
 

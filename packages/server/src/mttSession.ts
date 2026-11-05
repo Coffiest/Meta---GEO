@@ -21,7 +21,7 @@ import {
   type PayoutPlace,
 } from "@meta-geo/db";
 import { lastAggressorSeat } from "./bot.js";
-import { decideStrongBotAction } from "./botStrategy/index.js";
+import { decideStrongBotAction, randomPersona, type BotPersona } from "./botStrategy/index.js";
 import {
   ACTION_CLOCK_MS,
   TIME_BANK_EXTENSION_MS,
@@ -1081,6 +1081,17 @@ export class MttSession implements GameSession {
     }, durationMs);
   }
 
+  /** 自動の席の打ち方の型と癖。この大会の中では同じ人は同じ型(大会ごとに引き直す)。 */
+  private readonly botPersonas = new Map<string, BotPersona>();
+  private botPersonaOf(playerId: string): BotPersona {
+    let p = this.botPersonas.get(playerId);
+    if (!p) {
+      p = randomPersona();
+      this.botPersonas.set(playerId, p);
+    }
+    return p;
+  }
+
   private computeBotAction(rt: TableRuntime, seatIndex: number): PlayerAction {
     const hand = rt.hand!;
     const state = hand.getPublicState();
@@ -1095,6 +1106,7 @@ export class MttSession implements GameSession {
     try {
       // GTO の表(プリフロップ)と相手のレンジに対する勝率(ポストフロップ)で決める。表の無い局面は従来の判断。
       return decideStrongBotAction({
+        persona: this.botPersonaOf(seat.playerId),
         hand,
         seatIndex,
         seatCount: MTT_TABLE_SEAT_COUNT,

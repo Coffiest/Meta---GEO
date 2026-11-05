@@ -94,3 +94,18 @@ export function freqOf(range: Range169, handClass: string): number {
   const i = EV_IDX[handClass];
   return i === undefined ? 0 : range[i]!;
 }
+
+/** 強さの順位で「上位何割か」(0 = いちばん強い、1 = いちばん弱い。コンボ数で数える)。 */
+let topCache: number[] | null = null;
+export function topPercentOf(i: number): number {
+  if (!topCache) {
+    if (!orderCache) orderCache = EV_LABELS.map((_, k) => k).sort((a, b) => strengthOf(b) - strengthOf(a));
+    topCache = new Array<number>(EV_N).fill(1);
+    let acc = 0;
+    for (const k of orderCache) {
+      topCache[k] = acc;
+      acc += COMBOS[k]! / 1326;
+    }
+  }
+  return topCache[i] ?? 1;
+}
