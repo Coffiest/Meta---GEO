@@ -452,7 +452,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         displayName: target.displayName,
         avatarKey: target.avatarKey,
         frame: frames.get(target.id) ?? null,
-        stats: { ...stats, ...tendencies },
+        // 相手読み用の項目(vpipRate / foldToBetRate)は応答に出さない(擬似スタッツと同じ形に保つ)。
+        stats: { ...stats, ...omitModelOnly(tendencies) },
         rrRating: rr,
       });
       return true;
@@ -732,4 +733,10 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
     sendJson(res, 500, { error: "internal error" });
     return true;
   }
+}
+
+/** プロフィール応答に出さない、自動の席の相手読みだけに使う項目を落とす。 */
+function omitModelOnly<T extends { vpipRate: number; foldToBetRate: number }>(t: T): Omit<T, "vpipRate" | "foldToBetRate"> {
+  const { vpipRate: _v, foldToBetRate: _f, ...rest } = t;
+  return rest;
 }

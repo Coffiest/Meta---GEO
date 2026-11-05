@@ -12,6 +12,8 @@ import {
  */
 export interface BotSeat {
   seatIndex: number;
+  /** 席の持ち主(相手の傾向を引くのに使う。サーバーの内部だけ)。 */
+  playerId: string;
   stack: number;
   status: "active" | "folded" | "allIn";
   streetContribution: number;
@@ -90,6 +92,7 @@ export function buildBotContext(hand: HandEngine, seatIndex: number, seatCount: 
   if (hole.length !== 2) return null;
   const seats: BotSeat[] = state.seats.map((s) => ({
     seatIndex: s.seatIndex,
+    playerId: s.playerId,
     stack: s.stack,
     status: s.status,
     streetContribution: s.streetContribution,

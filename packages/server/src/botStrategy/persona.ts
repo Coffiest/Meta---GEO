@@ -2,6 +2,8 @@ import type { PlayerAction } from "@meta-geo/engine";
 import { handClassOf, type BotContext } from "./context.js";
 import { rangeEquity } from "./postflop.js";
 import { idxOf, topPercentOf } from "./ranges.js";
+import { tendenciesOf } from "./opponentModel.js";
+import type { PlayerTendencies } from "@meta-geo/db";
 
 /**
  * 自動の席の「打ち方の型」と「癖」(オーナー指示 2026-11-05)。
@@ -129,9 +131,68 @@ function betPot(ctx: BotContext, frac: number): PlayerAction {
 /**
  * いまの判断(土台)に、型と癖の上書きをかける。シャークで癖が無ければそのまま返す。
  */
-export function applyPersona(ctx: BotContext, base: PlayerAction, persona: BotPersona, rand: () => number): PlayerAction {
-  if (persona.style === "shark" && persona.traits.length === 0) return base;
-  return ctx.street === "preflop" ? applyPreflop(ctx, base, persona, rand) : applyPostflop(ctx, base, persona, rand);
+export function applyPersona(
+  ctx: BotContext,
+  base: PlayerAction,
+  persona: BotPersona,
+  rand: () => number,
+  read: (playerId: string) => PlayerTendencies | null = tendenciesOf,
+): PlayerAction {
+  let a = base;
+  if (!(persona.style === "shark" && persona.traits.length === 0)) {
+    a = ctx.street === "preflop" ? applyPreflop(ctx, a, persona, rand) : applyPostflop(ctx, a, persona, rand);
+  }
+  // シャークは、相手の傾向(通算+この大会で見た打ち方)が分かっていれば、そこを突く。
+  if (persona.style === "shark") a = exploit(ctx, a, rand, read);
+  return a;
+}
+
+/** 突く相手: ベットに直面していれば最後に攻めた人、そうでなければ相手が1人のときのその人。 */
+function targetOf(ctx: BotContext): string | null {
+  const agg = ctx.actions.filter((x) => x.street === ctx.street && AGG.has(x.kind) && x.seatIndex !== ctx.seatIndex);
+  if (ctx.toCall > 0 && agg.length > 0) {
+    const s = ctx.seats.find((x) => x.seatIndex === agg[agg.length - 1]!.seatIndex);
+    return s?.playerId ?? null;
+  }
+  return ctx.opponents.length === 1 ? ctx.opponents[0]!.playerId : null;
+}
+
+/**
+ * シャークの相手読み。相手の手札は使わず、相手の傾向の数字だけで判断を寄せる。
+ * - 降りすぎる相手には、打たない所で小さく打つ(ブラフを増やす)/ 3ベットを増やす。
+ * - 降りない相手(コーリングステーション)には、ブラフをやめる。
+ * - ルースな相手のベットには広く付いていく / タイトな相手のベットには弱いコールをやめる。
+ */
+function exploit(ctx: BotContext, base: PlayerAction, rand: () => number, read: (id: string) => PlayerTendencies | null): PlayerAction {
+  const id = targetOf(ctx);
+  if (!id) return base;
+  const t = read(id);
+  if (!t) return base;
+  const facing = ctx.toCall > 0;
+
+  if (ctx.street === "preflop") {
+    const h = idxOf(handClassOf(ctx.hole));
+    if (h === undefined) return base;
+    const top = topPercentOf(h);
+    const raises = ctx.actions.filter((x) => x.street === "preflop" && AGG.has(x.kind)).length;
+    if (raises !== 1 || !facing || ctx.toCall >= ctx.hero.stack) return base;
+    if (t.foldTo3BetRate > 0.65 && !isAgg(base) && top < 0.3 && rand() < 0.6) return raiseBy(ctx, 3.2);
+    if (t.vpipRate > 0.45 && base.kind === "fold" && top < 0.3) return { kind: "call" };
+    return base;
+  }
+
+  const eq = rangeEquity(ctx, rand, 120);
+  const potOdds = facing ? ctx.toCall / (ctx.pot + ctx.toCall) : 0;
+  if (!facing) {
+    if (base.kind === "check" && ctx.opponents.length === 1 && Math.max(t.foldToBetRate, t.foldToCbetRate) > 0.55 && rand() < 0.7) {
+      return betPot(ctx, 0.33);
+    }
+    if (isAgg(base) && eq < 0.45 && ctx.opponents.length === 1 && t.foldToBetRate < 0.35) return { kind: "check" };
+    return base;
+  }
+  if (base.kind === "fold" && t.vpipRate > 0.45 && eq > potOdds - 0.07) return { kind: "call" };
+  if (base.kind === "call" && t.vpipRate < 0.18 && eq < 0.5) return { kind: "fold" };
+  return base;
 }
 
 function has(p: BotPersona, t: BotTrait): boolean {
