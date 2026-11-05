@@ -8,6 +8,10 @@ import { RANKED_TOURNAMENT } from "./rankedGame.js";
 export interface PlayerTendencies {
   /** 集計したハンド数(直近 TENDENCY_HAND_LIMIT ハンドまで)。 */
   hands: number;
+  /** プリフロップで自分からチップを入れた割合(BB がただで見たハンドは数えない)。 */
+  vpipRate: number;
+  /** ポストフロップでベットに直面したとき降りた割合。 */
+  foldToBetRate: number;
   /** オープンしたあと 3ベットを受けて降りた割合。 */
   foldTo3BetRate: number;
   /** プリフロップの最後のレイザーが、フロップで最初にベットした割合。 */
@@ -42,7 +46,7 @@ export interface TendencyHand {
 
 /** DB に依存しない集計本体(テスト用に分けてある)。 */
 export function computeTendencies(hands: readonly TendencyHand[], titles: number): PlayerTendencies {
-  const c = { f3: 0, f3o: 0, cb: 0, cbo: 0, fcb: 0, fcbo: 0, st: 0, sto: 0, cr: 0, cro: 0, sd: 0, sdo: 0, wsd: 0 };
+  const c = { vp: 0, vpo: 0, fb: 0, fbo: 0, f3: 0, f3o: 0, cb: 0, cbo: 0, fcb: 0, fcbo: 0, st: 0, sto: 0, cr: 0, cro: 0, sd: 0, sdo: 0, wsd: 0 };
   for (const h of hands) {
     const me = h.seatIndex;
     const acts = h.actions.filter((a) => a.kind !== "postBlind" && a.kind !== "postAnte");
@@ -52,6 +56,23 @@ export function computeTendencies(hands: readonly TendencyHand[], titles: number
     // プリフロップの席順(最初に動いた順)。SB・BB はブラインドなので最後。
     const order: number[] = [];
     for (const a of pre) if (!order.includes(a.seatIndex)) order.push(a.seatIndex);
+
+    // VPIP: 自分の最初のプリフロップの手(BB がただでチェックしたハンドは数えない)
+    const myFirst = pre.find((a) => a.seatIndex === me);
+    if (myFirst && !(h.isBigBlind && myFirst.kind === "check")) {
+      c.vpo++;
+      if (myFirst.kind === "call" || AGGRESSIVE.has(myFirst.kind)) c.vp++;
+    }
+    // ベットに直面して降りた割合(ポストフロップ)
+    for (const street of ["flop", "turn", "river"]) {
+      const s = acts.filter((a) => a.street === street);
+      const bet = s.findIndex((a) => a.seatIndex !== me && AGGRESSIVE.has(a.kind));
+      if (bet < 0) continue;
+      const resp = s.find((a, i) => i > bet && a.seatIndex === me);
+      if (!resp) continue;
+      c.fbo++;
+      if (resp.kind === "fold") c.fb++;
+    }
 
     // スチール: 自分より前が全員フォールドで、自分が CO・BTN(BB/SB を除いた最後の2人)か SB。
     const myFirstIdx = pre.findIndex((a) => a.seatIndex === me);
@@ -132,6 +153,8 @@ export function computeTendencies(hands: readonly TendencyHand[], titles: number
   const r = (n: number, d: number) => (d > 0 ? n / d : 0);
   return {
     hands: hands.length,
+    vpipRate: r(c.vp, c.vpo),
+    foldToBetRate: r(c.fb, c.fbo),
     foldTo3BetRate: r(c.f3, c.f3o),
     cbetRate: r(c.cb, c.cbo),
     foldToCbetRate: r(c.fcb, c.fcbo),
@@ -143,12 +166,12 @@ export function computeTendencies(hands: readonly TendencyHand[], titles: number
   };
 }
 
-export async function getPlayerTendencies(userId: string): Promise<PlayerTendencies> {
+export async function getPlayerTendencies(userId: string, limit = TENDENCY_HAND_LIMIT): Promise<PlayerTendencies> {
   const [seats, titles] = await Promise.all([
     prisma.handSeat.findMany({
       where: { userId, hand: { tournament: RANKED_TOURNAMENT } },
       orderBy: { hand: { createdAt: "desc" } },
-      take: TENDENCY_HAND_LIMIT,
+      take: Math.min(limit, TENDENCY_HAND_LIMIT),
       select: {
         seatIndex: true,
         isSmallBlind: true,

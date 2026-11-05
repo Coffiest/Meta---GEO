@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HandEngine, createOrderedDeck, type Card } from "@meta-geo/engine";
 import { decideStrongBotAction, type BotPersona } from "../src/botStrategy/index.js";
 import { randomPersona } from "../src/botStrategy/persona.js";
+import type { PlayerTendencies } from "@meta-geo/db";
 
 /**
  * 打ち方の型と癖(オーナー指示 2026-11-05)。同じ型の6人で卓を回し、型ごとにプリフロップの参加率(VPIP)が
@@ -126,5 +127,36 @@ describe("自動の席の型と癖", () => {
     expect(counts.shark! / 5000).toBeGreaterThan(0.27);
     expect(counts.shark! / 5000).toBeLessThan(0.33);
     expect((counts.glassCannon ?? 0) / 5000).toBeLessThan(0.02);
+  });
+});
+
+describe("シャークの相手読み", () => {
+  it("3ベットに降りすぎる相手のオープンには、3ベットを増やす", async () => {
+    const { applyPersona } = await import("../src/botStrategy/persona.js");
+    const { buildBotContext } = await import("../src/botStrategy/context.js");
+    const base: PlayerTendencies = {
+      hands: 500, vpipRate: 0.25, foldToBetRate: 0.4, foldTo3BetRate: 0.3, cbetRate: 0.6, foldToCbetRate: 0.4,
+      stealRate: 0.3, checkRaiseRate: 0.08, wtsdRate: 0.28, wsdRate: 0.5, titles: 0,
+    };
+    const shark: BotPersona = { style: "shark", traits: [], intensity: 0.8, looseness: 0, aggression: 0 };
+    const count = (foldTo3Bet: number) => {
+      const rand = mulberry32(21);
+      let n = 0;
+      for (let i = 0; i < 300; i++) {
+        const hand = new HandEngine({
+          seats: [0, 1, 2, 3, 4, 5].map((s) => ({ seatIndex: s, playerId: `P${s}`, stack: 4000 })),
+          seatCount: 6, buttonFixedPos: 0, smallBlindSeat: 1, bigBlindSeat: 2, smallBlind: 50, bigBlind: 100, bbAnte: 100,
+          deck: shuffled(rand),
+        });
+        hand.applyAction(3, { kind: "fold" });
+        hand.applyAction(4, { kind: "fold" });
+        hand.applyAction(5, { kind: "raise", toAmount: 250 });
+        const ctx = buildBotContext(hand, 0, 6, true)!;
+        const a = applyPersona(ctx, { kind: "fold" }, shark, rand, () => ({ ...base, foldTo3BetRate: foldTo3Bet }));
+        if (a.kind === "raise") n++;
+      }
+      return n;
+    };
+    expect(count(0.8)).toBeGreaterThan(count(0.3) + 30);
   });
 });
