@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import type { PublicHandState } from "@meta-geo/engine/src/handEngine.js";
 import { Icon } from "@/components/Icon";
 import { PokerTable } from "@/components/PokerTable";
+import { ACTION_EN, ActionButton } from "@/components/ActionBar";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
 import { CLASSIFICATION_META, type Classification } from "@/lib/classification";
@@ -92,6 +93,9 @@ function seatAction(code: string, bet: number, allIn: boolean): SeatAction {
   if (code === "X") return { kind: "check", toAmount: 0 };
   return { kind: allIn ? "allIn" : "raise", toAmount: Math.round(bet * CHIP) };
 }
+
+const topBet = (h: TrainerHand) => Math.max(...h.seats.map((s) => s.bet));
+const fmtBb = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(v * 10 === Math.round(v * 10) ? 1 : 2));
 
 function pick<T>(list: readonly T[]): T {
   return list[Math.floor(Math.random() * list.length)]!;
@@ -215,51 +219,30 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
       animate={{ opacity: 1 }}
       transition={FADE}
     >
-      <header className="glass-header flex shrink-0 items-center gap-2.5 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)]">
+      {/* 上: 閉じる・スタック・成績を1行にまとめる(卓を広く取るため) */}
+      <header className="glass-header flex shrink-0 items-center gap-2 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+8px)]">
         <motion.button
           whileTap={{ scale: 0.9 }}
           type="button"
           onClick={onClose}
           aria-label="閉じる"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-fg"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-fg"
         >
           <Icon name="close" className="h-4 w-4" />
         </motion.button>
-        <p className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-tight text-fg">
-          特訓{hand ? ` ・ ${hand.stack}bb` : ""}
-        </p>
-        <p className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-fg-2">
-          {Math.min(handsPlayed + (finished ? 0 : 1), settings.hands)}/{settings.hands}
-        </p>
+        <p className="shrink-0 text-[14px] font-bold tracking-tight text-fg">{hand ? `${hand.stack}bb` : "特訓"}</p>
+        <div className="ml-auto flex min-w-0 items-center gap-3 text-[11px] tabular-nums text-fg-2">
+          <span>
+            GTOスコア <b className="text-[13px] text-fg">{score === null ? "--" : `${score.toFixed(1)}%`}</b>
+          </span>
+          <span>
+            EVロス <b className="text-[13px] text-fg">{evLoss.toFixed(2)}bb</b>
+          </span>
+          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 font-semibold">
+            {Math.min(handsPlayed + (finished ? 0 : 1), settings.hands)}/{settings.hands}
+          </span>
+        </div>
       </header>
-
-      {/* 得点と期待値の損 */}
-      <div className="grid shrink-0 grid-cols-3 gap-2 px-3 pt-2">
-        <Stat label="GTOスコア" value={score === null ? "--" : `${score.toFixed(1)}%`} />
-        <Stat label="EVロス" value={`${evLoss.toFixed(2)}bb`} />
-        <Stat label="判断の数" value={`${decisions.length}`} />
-      </div>
-
-      {/* 直前の判断 */}
-      <div className="h-[52px] shrink-0 px-3 pt-2">
-        {last && (
-          <motion.div
-            key={decisions.length}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={SPRING_MOVE}
-            className="flex h-full items-center gap-2 rounded-2xl bg-surface px-3"
-            style={{ border: `0.5px solid ${HAIRLINE}` }}
-          >
-            <ClassificationBadge classification={GRADE_TO_CLASS[last.grade]} size={20} />
-            <span className="text-[13px] font-black text-fg">{CLASSIFICATION_META[GRADE_TO_CLASS[last.grade]].label}</span>
-            <span className="truncate text-[12px] text-fg-2">
-              {handName(last.hand)} ・ {actionLabel(last.code, last.stack)}(頻度 {(last.freq * 100).toFixed(0)}%)
-            </span>
-            <span className="ml-auto shrink-0 text-[12px] font-bold tabular-nums text-fg-2">-{last.evLoss.toFixed(2)}bb</span>
-          </motion.div>
-        )}
-      </div>
 
       <main className="relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-2">
         {!data ? (
@@ -280,6 +263,23 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
             turnTimer={null}
           />
         ) : null}
+        {/* 直前の判断。卓の上に小さく重ねる(場所を取らない) */}
+        {last && !paused && (
+          <motion.div
+            key={decisions.length}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={SPRING_MOVE}
+            className="pointer-events-none absolute left-1/2 top-1.5 z-20 flex max-w-[94%] -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface/90 px-2.5 py-1"
+            style={{ border: `0.5px solid ${HAIRLINE}` }}
+          >
+            <ClassificationBadge classification={GRADE_TO_CLASS[last.grade]} size={16} />
+            <span className="shrink-0 text-[12px] font-black text-fg">{CLASSIFICATION_META[GRADE_TO_CLASS[last.grade]].label}</span>
+            <span className="truncate text-[11px] text-fg-2">
+              {handName(last.hand)} ・ {actionLabel(last.code, last.stack)}(頻度 {(last.freq * 100).toFixed(0)}%)・ -{last.evLoss.toFixed(2)}bb
+            </span>
+          </motion.div>
+        )}
         {paused && <PausePanel d={paused} onNext={() => setPaused(null)} />}
         {finished && (
           <div className="absolute inset-0 z-30 flex items-center px-4">
@@ -300,28 +300,35 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
         )}
       </main>
 
-      <div className="shrink-0 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+10px)] pt-1" style={{ borderColor: HAIRLINE }}>
-        <div className="flex h-[132px] flex-col justify-center gap-2">
+      {/* 下: いつものアクションバーと同じボタン。高さは一定(手番でなくても同じ)にして卓が跳ねないようにする。 */}
+      <div className="shrink-0 px-3 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-1">
+        <div className="relative mx-auto flex h-[72px] max-w-md flex-col justify-end gap-1">
           {heroTurn && heroNode && (
             <>
               {rng !== null && (
-                <p className="text-center text-[12px] font-bold tabular-nums text-fg-2">
-                  乱数 <span className="text-[15px] text-accent">{rng}</span>
+                <p className="text-center text-[11px] font-bold tabular-nums text-fg-3">
+                  乱数 <span className="text-[13px] text-accent">{rng}</span>
                 </p>
               )}
-              <div className={`grid gap-2 ${sortedActions.length > 3 ? "grid-cols-4" : sortedActions.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-                {sortedActions.map((x) => (
-                  <button
-                    key={x.c}
-                    type="button"
-                    onClick={() => act(x.c)}
-                    className={`pressable-lg flex h-14 items-center justify-center rounded-2xl px-1 text-center text-[13px] font-black leading-tight ${
-                      x.c === "F" ? "bg-white/[0.06] text-fg ring-1 ring-white/10" : "bg-accent/15 text-accent ring-1 ring-accent"
-                    }`}
-                  >
-                    {actionLabel(x.c, hand!.stack)}
-                  </button>
-                ))}
+              <div className="flex gap-2">
+                {sortedActions.map((x) => {
+                  const tone = x.c === "F" ? "fold" : x.c === "C" || x.c === "X" ? "call" : "raise";
+                  const amt = x.c === "RAI" ? hand!.stack : x.c.startsWith("R") ? Number(x.c.slice(1)) : x.c === "C" ? topBet(hand!) : 0;
+                  const name =
+                    x.c === "F" ? ACTION_EN.fold : x.c === "X" ? ACTION_EN.check : x.c === "C" ? ACTION_EN.call : x.c === "RAI" ? ACTION_EN.allIn : ACTION_EN.raise;
+                  return (
+                    <ActionButton key={x.c} tone={tone} ariaLabel={actionLabel(x.c, hand!.stack)} onClick={() => act(x.c)}>
+                      {amt > 0 ? (
+                        <>
+                          <span className="text-[9px] font-bold tracking-[0.16em] opacity-80">{name}</span>
+                          <span className="mt-0.5 text-[16px] font-black tabular-nums tracking-[-0.01em]">{fmtBb(amt)}bb</span>
+                        </>
+                      ) : (
+                        <span className="text-[15px] font-black tracking-[0.08em]">{name}</span>
+                      )}
+                    </ActionButton>
+                  );
+                })}
               </div>
             </>
           )}
@@ -329,15 +336,6 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
       </div>
     </motion.div>,
     document.body,
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-surface px-3 py-2 text-center" style={{ border: `0.5px solid ${HAIRLINE}` }}>
-      <p className="text-[10px] font-bold text-fg-3">{label}</p>
-      <p className="text-[16px] font-black tabular-nums text-fg">{value}</p>
-    </div>
   );
 }
 
