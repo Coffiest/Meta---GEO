@@ -324,7 +324,7 @@ export class GeoApiError extends Error {
  * この値がそのまま「エラーが画面に出るまでの最長時間」になる(呼び出し側は1回目の失敗で
  * 原因を表示し、以降の再試行はバックグラウンドで回すため)。
  */
-const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 25_000;
 
 /**
  * GEO の API に付けるログインのトークン。GEO は利用条件(インマネ回数)をサーバーで確かめるので、
