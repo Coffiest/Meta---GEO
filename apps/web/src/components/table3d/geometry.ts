@@ -212,6 +212,28 @@ const SLOT_THETA: Record<number, number> = {
  * ハンドの途中では位置が変わらない(実測をしない)。以前は描画のたびに実測していて、誰かが降りて
  * 「Fold」が出るとボタンが跳ね、避けた結果として卓の中央まで行って誰のボタンか分からなくなっていた。
  */
+/** 8人卓(特訓)の席の角度。自席(0)が手前、4が奥の真ん中。 */
+const SLOT_THETA_8: Record<number, number> = {
+  0: Math.PI / 2,
+  1: Math.PI * 0.82,
+  2: Math.PI * 1.06,
+  3: Math.PI * 1.29,
+  4: Math.PI * 1.5,
+  5: Math.PI * 1.71,
+  6: Math.PI * 1.94,
+  7: Math.PI * 0.18,
+};
+const DEALER_OFFSET_8: Record<number, { dTheta: number; inset: number }> = {
+  0: { dTheta: -0.42, inset: 0.3 },
+  1: { dTheta: -0.06, inset: 0.42 },
+  2: { dTheta: 0.06, inset: 0.4 },
+  3: { dTheta: 0.1, inset: 0.38 },
+  4: { dTheta: 0.14, inset: 0.38 },
+  5: { dTheta: -0.1, inset: 0.38 },
+  6: { dTheta: -0.06, inset: 0.4 },
+  7: { dTheta: 0.06, inset: 0.42 },
+};
+
 const DEALER_OFFSET: Record<number, { dTheta: number; inset: number }> = {
   0: { dTheta: -0.42, inset: 0.3 },
   1: { dTheta: -0.06, inset: 0.42 },
@@ -239,10 +261,12 @@ export interface TableLayout {
   boardTiltDeg: number;
 }
 
-const layoutCache = new Map<number, TableLayout>();
+const layoutCache = new Map<string, TableLayout>();
 
-export function tableLayout(height: number = DESIGN_HEIGHT): TableLayout {
-  const cached = layoutCache.get(height);
+/** seatCount は 6(通常)か 8(特訓)。 */
+export function tableLayout(height: number = DESIGN_HEIGHT, seatCount = 6): TableLayout {
+  const cacheKey = `${height}:${seatCount}`;
+  const cached = layoutCache.get(cacheKey);
   if (cached) return cached;
   const spec = tableSpec(height);
   const { halfWidth, halfDepth, exponent, railWidth, railHeight } = spec.shape;
@@ -255,10 +279,12 @@ export function tableLayout(height: number = DESIGN_HEIGHT): TableLayout {
 
   const seats: Record<number, ScreenPoint> = {};
   const dealer: Record<number, ScreenPoint> = {};
-  for (const [slot, theta] of Object.entries(SLOT_THETA)) {
+  const thetas = seatCount === 8 ? SLOT_THETA_8 : SLOT_THETA;
+  const offsets = seatCount === 8 ? DEALER_OFFSET_8 : DEALER_OFFSET;
+  for (const [slot, theta] of Object.entries(thetas)) {
     const r = superellipsePoint(theta, halfWidth - railWidth / 2, halfDepth - railWidth / 2, exponent);
     seats[Number(slot)] = at(r.x, railHeight, r.z);
-    const o = DEALER_OFFSET[Number(slot)]!;
+    const o = offsets[Number(slot)]!;
     const d = superellipsePoint(theta + o.dTheta, halfWidth - railWidth - o.inset, halfDepth - railWidth - o.inset, exponent);
     dealer[Number(slot)] = at(d.x, 0, d.z);
   }
@@ -282,6 +308,6 @@ export function tableLayout(height: number = DESIGN_HEIGHT): TableLayout {
     // 真上から見下ろす(90°)なら寝かせない。見下ろし角が浅いほど強く寝かせる。
     boardTiltDeg: 90 - (pitch * 180) / Math.PI,
   };
-  layoutCache.set(height, layout);
+  layoutCache.set(cacheKey, layout);
   return layout;
 }

@@ -305,7 +305,7 @@ export function PokerTable({
   // 空いている領域の縦横比に合わせて設計枠を縦に伸ばす(上下に帯を余らせない)。
   const designHeight = designHeightFor(available.width, available.height);
   const fitScale = fitScaleOf(available, designHeight);
-  const layout3d = tableLayout(designHeight);
+  const layout3d = tableLayout(designHeight, seatCount);
 
   // ディーラーボタンはスロットごとの固定の点(geometry.ts の dealer)。実測しないので、ハンドの途中で一切動かない。
   const buttonSlot = state ? displaySlotOf(state.buttonFixedPos) : null;
