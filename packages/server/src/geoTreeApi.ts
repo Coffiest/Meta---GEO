@@ -9,6 +9,7 @@ import {
   buildPreflopNashNode,
   buildPreflopNashCallNode,
   buildPreflopBandNode,
+  buildGtowDbNode,
   buildPreflopVsOpenNode,
   buildPreflopOpenerVs3betNode,
   prepareGtoPostflopSpot,
@@ -284,6 +285,15 @@ export async function handleGeoTreeApiRequest(req: IncomingMessage, res: ServerR
         if (line === null) {
           sendJson(res, 400, { error: "invalid line" });
           return true;
+        }
+        // GTO Wizard の解のデータがあるスタック・場面は、それを出す(無ければ下の自前の表)。
+        const gtowStack = body["gtowStack"];
+        if (typeof gtowStack === "number" && Number.isFinite(gtowStack)) {
+          const g = buildGtowDbNode(gtowStack, line);
+          if (g) {
+            sendJson(res, 200, toWireNode(g));
+            return true;
+          }
         }
         const heroPos = PREFLOP_ORDER[line.length] ?? "";
         const nonFold = line.filter((s) => s.bucket !== "fold");

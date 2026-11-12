@@ -362,7 +362,7 @@ function GeoDatabase({
     const makeRequest = () =>
       mode === "gto"
         ? street === "preflop"
-          ? geoTreeApi.gtoNode({ variant: "full", line: [...gtoFoldPrefix, ...preflopLine], stackBucket: gtoBucket, band: gtoBand })
+          ? geoTreeApi.gtoNode({ variant: "full", line: [...gtoFoldPrefix, ...preflopLine], stackBucket: gtoBucket, band: gtoBand, gtowStack: gtoStackBb })
           : geoTreeApi.gtoPostflopNode({
               stackBucket: gtoBucket,
               band: gtoBand,

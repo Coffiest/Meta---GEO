@@ -20,29 +20,38 @@ export const STACK_BUCKET_LABELS: Record<StackBucket, string> = {
  * (packages/db preflopEvModel.bandOfStack と整合)。push/fold/Nashノードはband非対応のため
  * 併せて近い範囲バケットも送る。
  */
-export const GTO_STACKS = [100, 30, 20, 15, 10, 5] as const;
+export const GTO_STACKS = [100, 60, 40, 30, 20, 15, 12, 10, 5] as const;
 export type GtoStack = (typeof GTO_STACKS)[number];
 export const GTO_STACK_LABELS: Record<GtoStack, string> = {
   100: "100BB",
+  60: "60BB",
+  40: "40BB",
   30: "30BB",
   20: "20BB",
   15: "15BB",
+  12: "12BB",
   10: "10BB",
   5: "5BB",
 };
 export const GTO_STACK_TO_BAND: Record<GtoStack, string> = {
   100: "100",
+  60: "100",
+  40: "30",
   30: "30",
   20: "20",
   15: "14",
+  12: "10",
   10: "10",
   5: "7",
 };
 export const GTO_STACK_TO_BUCKET: Record<GtoStack, StackBucket> = {
   100: "30+",
+  60: "30+",
+  40: "30+",
   30: "30+",
   20: "20-30",
   15: "15-20",
+  12: "10-15",
   10: "10-15",
   5: "5-10",
 };
@@ -490,7 +499,7 @@ export const geoTreeApi = {
   }) => postJson<NodeResult>("/api/geo-tree/postflop-node", params),
   /** GTOタブ用: 自社計算したGTO解のノード。RFI(プリフロップ)＋HUプッシュ/フォールドNash。
    * band を渡すとバンド系ノード(RFI/vsOpen/vs3bet)はそのバンドを直接使う(実スタック選択用)。 */
-  gtoNode: (params: { line?: LineStep[]; variant?: "pushfold" | "full"; stackBucket?: StackBucket; band?: string; side?: "jam" | "call" }) =>
+  gtoNode: (params: { line?: LineStep[]; variant?: "pushfold" | "full"; stackBucket?: StackBucket; band?: string; side?: "jam" | "call"; gtowStack?: number }) =>
     postJson<NodeResult>("/api/geo-tree/gto-node", params),
   gtoPostflopNode: (params: { stackBucket: StackBucket; band?: string; line: LineStep[]; board: string[]; postflopLine: LineStep[] }) =>
     postJson<NodeResult>("/api/geo-tree/gto-postflop-node", params),
