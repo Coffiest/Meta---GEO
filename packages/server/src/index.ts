@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { Lobby } from "./lobby.js";
-import { handleGeoTreeApiRequest } from "./geoTreeApi.js";
+import { handleGeoTreeApiRequest, warmGeoTree } from "./geoTreeApi.js";
 import { handleLobbyApiRequest } from "./lobbyApi.js";
 import { handleReviewApiRequest } from "./reviewApi.js";
 import { getStripeClient, handleSubscriptionApiRequest, RELEVANT_EVENT_TYPES } from "./subscriptionApi.js";
@@ -206,4 +206,6 @@ assignMissingAvatars()
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on :${PORT}`);
   warnIfDefaultAdminPasscode();
+  // Database の最初の画面のノードを先に計算しておく(起動直後の最初の人を待たせない)。
+  setTimeout(() => void warmGeoTree(), 5_000);
 });

@@ -44,31 +44,58 @@ const PREFLOP_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
  * 同じ重いクエリが並列に走るのを防ぐ。
  */
 const NODE_CACHE_TTL_MS = 45_000;
+/** この時間までの古い値は、待たせずに返して裏で作り直す。 */
+const NODE_CACHE_STALE_MS = 30 * 60_000;
 const NODE_CACHE_MAX = 120;
 const nodeCache = new Map<string, { at: number; value: unknown }>();
 const nodeInFlight = new Map<string, Promise<unknown>>();
 
 async function cachedNode<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = nodeCache.get(key);
-  if (hit && Date.now() - hit.at < NODE_CACHE_TTL_MS) return hit.value as T;
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (hit && age < NODE_CACHE_TTL_MS) return hit.value as T;
 
   const inFlight = nodeInFlight.get(key);
-  if (inFlight) return (await inFlight) as T;
-
-  const promise = load()
-    .then((value) => {
-      if (nodeCache.size >= NODE_CACHE_MAX) {
-        const oldest = nodeCache.keys().next().value;
-        if (oldest !== undefined) nodeCache.delete(oldest);
-      }
-      nodeCache.set(key, { at: Date.now(), value });
-      return value;
-    })
-    .finally(() => {
-      nodeInFlight.delete(key);
-    });
-  nodeInFlight.set(key, promise);
+  const promise =
+    inFlight ??
+    load()
+      .then((value) => {
+        nodeCache.delete(key);
+        if (nodeCache.size >= NODE_CACHE_MAX) {
+          const oldest = nodeCache.keys().next().value;
+          if (oldest !== undefined) nodeCache.delete(oldest);
+        }
+        nodeCache.set(key, { at: Date.now(), value });
+        return value;
+      })
+      .finally(() => {
+        nodeInFlight.delete(key);
+      });
+  if (!inFlight) nodeInFlight.set(key, promise);
+  // 古い値があれば待たせずにそれを返し、裏で作り直す(集計が重く、画面の待ち時間 10 秒を超えることがあった)。
+  if (hit && age < NODE_CACHE_STALE_MS) {
+    promise.catch(() => undefined);
+    return hit.value as T;
+  }
   return (await promise) as T;
+}
+
+/**
+ * サーバーの起動直後に、Database を開いたとき最初に読まれるノード(全体・全員フォールドの順)を先に計算しておく。
+ * デプロイでサーバーが入れ替わった直後は手元に何も無く、最初の人が 10 秒待って失敗していた。
+ */
+export async function warmGeoTree(): Promise<void> {
+  for (let n = 0; n < PREFLOP_ORDER.length - 1; n++) {
+    const line = parseLine(PREFLOP_ORDER.slice(0, n).map((position) => ({ position, bucket: "fold" })));
+    if (!line) continue;
+    const key = `pre:${JSON.stringify(["all", "normal", line, null, null])}`;
+    try {
+      await cachedNode(key, () => getPreflopNode({ stackBucket: "all", bubbleStage: "normal", line, ratingRange: undefined, playerCount: undefined }));
+    } catch (err) {
+      console.error("[geo-tree] warm failed:", err);
+      return;
+    }
+  }
 }
 
 /** スタックバケット → 転記レンジのバンド(GTOタブ)。 */
