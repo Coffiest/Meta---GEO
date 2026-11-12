@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtractHand } from "./reviewExtract.js";
 import type { GtoActionEV } from "./reviewClassify.js";
+import type { GtoNodeResult } from "./preflopBaseline.js";
 
 /**
  * GTO Wizard のプリフロップの解(オーナーが画面から数値化。`packages/engine/data/gtow/<スタック>/<場面>.json`。web の解説の表も同じファイルを読む)で
@@ -143,4 +144,94 @@ export function judgeGtow(params: {
         ? "mistake"
         : "blunder";
   return { scene: params.scene, stack, gtoActions, chosenFreq, classification };
+}
+
+// ---------- Database タブの GTO 表示(GTO Wizard の解) ----------
+
+const DB_ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"] as const;
+const FILE_POS = (p: string) => (p === "UTG" ? "LJ" : p);
+const RANKS = "AKQJT98765432";
+
+/**
+ * Database タブの GTO の手順(6人の席名と、fold/call/raise2-5/raise5+/allIn)から、GTO Wizard の場面名と手番の人を作る。
+ * 当てはまらなければ null(コールが入った多人数の場面など)。
+ */
+export function gtowSceneOfLine(line: readonly { position: string; bucket: string }[]): { scene: string; hero: string } | null {
+  if (line.some((s) => s.bucket === "call")) return null;
+  const raises = line.map((s, i) => ({ ...s, i })).filter((s) => s.bucket !== "fold");
+  const ai = (s: { bucket: string }) => s.bucket === "allIn";
+  const actedAfter = (pos: string, idx: number) => line.slice(idx + 1).some((s) => s.position === pos);
+  if (raises.length === 0) {
+    const hero = DB_ORDER[line.length];
+    if (!hero || hero === "BB") return null;
+    return { scene: `RFI_${FILE_POS(hero)}`, hero };
+  }
+  const [r1, r2, r3, r4] = raises;
+  if (raises.length === 1) {
+    if (ai(r1!)) return null;
+    const hero = DB_ORDER[line.length];
+    if (!hero) return null;
+    return { scene: `vsOpen_${FILE_POS(hero)}_vs_${FILE_POS(r1!.position)}`, hero };
+  }
+  if (raises.length === 2) {
+    if (ai(r2!) || actedAfter(r1!.position, r2!.i)) return null;
+    return { scene: `vs3bet_${FILE_POS(r1!.position)}_vs_${FILE_POS(r2!.position)}`, hero: r1!.position };
+  }
+  if (raises.length === 3) {
+    if (r3!.position !== r1!.position || actedAfter(r2!.position, r3!.i)) return null;
+    return { scene: `${ai(r3!) ? "vs4betAI" : "vs4bet"}_${FILE_POS(r2!.position)}_vs_${FILE_POS(r1!.position)}`, hero: r2!.position };
+  }
+  if (raises.length === 4) {
+    if (r3!.position !== r1!.position || r4!.position !== r2!.position || !ai(r4!) || actedAfter(r1!.position, r4!.i)) return null;
+    return { scene: `vs5bet_${FILE_POS(r1!.position)}_vs_${FILE_POS(r2!.position)}`, hero: r1!.position };
+  }
+  return null;
+}
+
+type FreqWithEv = Freq & { ev?: Partial<Record<"raise" | "call" | "fold" | "allIn", number>> };
+
+/**
+ * Database タブの GTO のノードを GTO Wizard の解から作る(データが無ければ null。そのときは従来の自前の表)。
+ * stack はデータのスタックそのもの(100/60/40/30/20/12 など。`packages/engine/data/gtow/<stack>/`)。
+ */
+export function buildGtowDbNode(stack: number, line: readonly { position: string; bucket: string }[]): GtoNodeResult | null {
+  const s = gtowSceneOfLine(line);
+  if (!s) return null;
+  const hands = loadScene(stack, s.scene) as Record<string, FreqWithEv> | null;
+  if (!hands) return null;
+  const raiseBucket = s.scene.startsWith("RFI_") ? "raise2-5" : "raise5+";
+  const sum: Record<string, number> = { fold: 0, call: 0, [raiseBucket]: 0, allIn: 0 };
+  let total = 0;
+  const cells = Array.from({ length: 13 }, (_, r) =>
+    Array.from({ length: 13 }, (_, c) => {
+      const label = r === c ? RANKS[r]! + RANKS[c]! : r < c ? `${RANKS[r]}${RANKS[c]}s` : `${RANKS[c]}${RANKS[r]}o`;
+      const combos = r === c ? 6 : r < c ? 4 : 12;
+      const f = hands[label];
+      const w = f ? Math.max(0, f.weight) * combos : 0;
+      const byBucket: Record<string, number> = {};
+      const evByBucket: Record<string, number> = {};
+      if (f && w > 0) {
+        const parts: [string, number, number | undefined][] = [
+          ["fold", f.fold, f.ev?.fold],
+          ["call", f.call, f.ev?.call],
+          [raiseBucket, f.raise, f.ev?.raise],
+          ["allIn", f.allIn, f.ev?.allIn],
+        ];
+        const t = parts.reduce((a, p) => a + p[1], 0) || 1;
+        for (const [b, v, ev] of parts) {
+          if (v > 0) {
+            byBucket[b] = v / t;
+            sum[b] = (sum[b] ?? 0) + (v / t) * w;
+          }
+          if (ev !== undefined) evByBucket[b] = ev;
+        }
+        total += w;
+      }
+      return { label, count: w, byBucket, evByBucket };
+    }),
+  );
+  const options = Object.entries(sum)
+    .map(([bucket, v]) => ({ bucket, frequency: total > 0 ? v / total : 0, geometricRatio: 0, evBb: 0 }))
+    .filter((o) => o.frequency > 0.001);
+  return { position: s.hero, options, matrix: { cells, totalSamples: total } };
 }

@@ -27,3 +27,28 @@ describe("GTO Wizard の解(70bb)で頻度の格付け", () => {
     expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 55, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(70);
   });
 });
+
+describe("Database タブの GTO(GTO Wizard の解)", () => {
+  it("手順から場面と手番の人を作る(アプリの UTG はデータの LJ)", async () => {
+    const { gtowSceneOfLine } = await import("../src/gtowPreflop.js");
+    expect(gtowSceneOfLine([])).toEqual({ scene: "RFI_LJ", hero: "UTG" });
+    expect(gtowSceneOfLine([{ position: "UTG", bucket: "fold" }, { position: "HJ", bucket: "raise2-5" }])).toEqual({ scene: "vsOpen_CO_vs_HJ", hero: "CO" });
+    expect(
+      gtowSceneOfLine([
+        { position: "UTG", bucket: "raise2-5" },
+        { position: "HJ", bucket: "raise5+" },
+      ]),
+    ).toEqual({ scene: "vs3bet_LJ_vs_HJ", hero: "UTG" });
+    expect(gtowSceneOfLine([{ position: "UTG", bucket: "raise2-5" }, { position: "HJ", bucket: "call" }])).toBeNull();
+  });
+
+  it("100bb の UTG のオープン表を作る(AA はレイズ、72o はフォールド)", async () => {
+    const { buildGtowDbNode } = await import("../src/gtowPreflop.js");
+    const n = buildGtowDbNode(100, [])!;
+    expect(n.position).toBe("UTG");
+    const cell = (l: string) => n.matrix.cells.flat().find((c) => c.label === l)!;
+    expect(cell("AA").byBucket["raise2-5"]).toBeGreaterThan(0.9);
+    expect(cell("72o").byBucket["fold"]).toBeGreaterThan(0.9);
+    expect(buildGtowDbNode(15, [])).toBeNull();
+  });
+});
