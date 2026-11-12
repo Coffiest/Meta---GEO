@@ -9,6 +9,7 @@ import { FADE, SPRING_MOVE } from "@/lib/motion";
 import { usePricingSheet } from "@/components/PricingSheet";
 import { Icon } from "@/components/Icon";
 import { LessonPlayer } from "./LessonPlayer";
+import { TrainerTab } from "./TrainerTab";
 
 /**
  * Lesson タブ(バリィ先生のレッスン。chess.com の Lessons を参考。オーナー確定)。
@@ -16,7 +17,34 @@ import { LessonPlayer } from "./LessonPlayer";
  * - 無料・シルバーは1日3レッスン(開始した時に数える。同じ日のやり直しは数えない)。ゴールド以上は無制限。
  * - 中身がまだ無いレッスンは「準備中」で押せない。ログインが必要。
  */
+/** レッスンタブ: 上のタブで「学ぶ」(レッスン)と「特訓」(プリフロップの練習モード)を切り替える。 */
 export function LessonTab({ accessToken }: { accessToken: string | undefined }) {
+  const [sub, setSub] = useState<"learn" | "train">("learn");
+  return (
+    <div>
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-white/[0.05] p-1">
+        {(
+          [
+            ["learn", "学ぶ"],
+            ["train", "特訓"],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setSub(k)}
+            className={`pressable h-10 rounded-xl text-[14px] font-black ${sub === k ? "bg-accent text-on-accent" : "text-fg-2"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {sub === "learn" ? <LessonLearn accessToken={accessToken} /> : <TrainerTab />}
+    </div>
+  );
+}
+
+function LessonLearn({ accessToken }: { accessToken: string | undefined }) {
   const [overview, setOverview] = useState<LessonOverview | null>(null);
   const [playing, setPlaying] = useState<Lesson | null>(null);
   const [limitOpen, setLimitOpen] = useState(false);

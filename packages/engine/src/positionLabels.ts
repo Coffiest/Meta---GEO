@@ -17,7 +17,7 @@ const MIDDLE_NAMES: Record<number, string[]> = {
   2: ["UTG", "CO"],
   3: ["UTG", "HJ", "CO"],
   4: ["UTG", "UTG1", "HJ", "CO"],
-  5: ["UTG", "UTG1", "UTG2", "HJ", "CO"],
+  5: ["UTG", "UTG1", "LJ", "HJ", "CO"],
   6: ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO"],
 };
 
