@@ -14,13 +14,16 @@ describe("GTO Wizard の解(70bb)で頻度の格付け", () => {
     expect(judgeGtow({ ...base, effStackBb: 41 })!.stack).toBe(40);
     expect(judgeGtow({ ...base, effStackBb: 20 })!.stack).toBe(20);
     expect(judgeGtow({ ...base, effStackBb: 80 })!.stack).toBe(70);
-    expect(judgeGtow({ ...base, effStackBb: 15 })).toBeNull();
+    expect(judgeGtow({ ...base, effStackBb: 15 })!.stack).toBe(12);
+    expect(judgeGtow({ ...base, effStackBb: 9 })).toBeNull();
+    expect(judgeGtow({ ...base, effStackBb: 100 })!.stack).toBe(100);
     expect(judgeGtow({ ...base, scene: "vsOpen_BB_vs_SB", effStackBb: 30 })!.stack).toBe(30);
   });
 
   it("小さいスタックのデータが無い場面・データの無い場面は使わない", () => {
     expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 30, chosenKind: "raise", chosenBucket: "raise2-5" })).toBeNull();
-    expect(judgeGtow({ scene: "vsOpen_BB_vs_SB", handClass: "AKs", effStackBb: 70, chosenKind: "raise", chosenBucket: "raise2-5" })).toBeNull();
+    // 70bb に無い場面は 100bb の解で代用する。
+    expect(judgeGtow({ scene: "vsOpen_BB_vs_SB", handClass: "AKs", effStackBb: 70, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(100);
     expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 55, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(70);
   });
 });
