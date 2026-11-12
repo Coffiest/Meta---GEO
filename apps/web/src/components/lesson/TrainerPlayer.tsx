@@ -8,7 +8,7 @@ import { Icon } from "@/components/Icon";
 import { PokerTable } from "@/components/PokerTable";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
 import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
-import type { Classification } from "@/lib/classification";
+import { CLASSIFICATION_META, type Classification } from "@/lib/classification";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
 import type { SeatAction, SeatPlayerInfo } from "@/lib/socket";
 import {
@@ -21,7 +21,6 @@ import {
   handIndex,
   handName,
   potOf,
-  rngAction,
   sampleAction,
   type DecisionResult,
   type TrainerData,
@@ -39,13 +38,6 @@ const GRADE_TO_CLASS: Record<TrainerGrade, Classification> = {
   inaccuracy: "inaccuracy",
   wrong: "mistake",
   blunder: "blunder",
-};
-const GRADE_LABEL: Record<TrainerGrade, string> = {
-  best: "ベスト",
-  correct: "正解",
-  inaccuracy: "不正確",
-  wrong: "間違い",
-  blunder: "大悪手",
 };
 const DELAY = { normal: { act: 700, end: 1400 }, fast: { act: 350, end: 800 }, turbo: { act: 120, end: 450 } };
 const NAMES = ["ミナト", "ソラ", "ハル", "リク", "ユイ", "カイ", "ナギ"];
@@ -214,7 +206,6 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
   }
 
   const sortedActions = heroNode ? [...heroNode.a].sort((a, b) => aggression(a.c) - aggression(b.c)) : [];
-  const rngPick = heroNode && rng !== null ? rngAction(heroNode, heroHand, settings.rng === "low" ? 101 - rng : rng) : null;
 
   return createPortal(
     <motion.div
@@ -261,7 +252,7 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
             style={{ border: `0.5px solid ${HAIRLINE}` }}
           >
             <ClassificationBadge classification={GRADE_TO_CLASS[last.grade]} size={20} />
-            <span className="text-[13px] font-black text-fg">{GRADE_LABEL[last.grade]}</span>
+            <span className="text-[13px] font-black text-fg">{CLASSIFICATION_META[GRADE_TO_CLASS[last.grade]].label}</span>
             <span className="truncate text-[12px] text-fg-2">
               {handName(last.hand)} ・ {actionLabel(last.code, last.stack)}(頻度 {(last.freq * 100).toFixed(0)}%)
             </span>
@@ -316,7 +307,6 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
               {rng !== null && (
                 <p className="text-center text-[12px] font-bold tabular-nums text-fg-2">
                   乱数 <span className="text-[15px] text-accent">{rng}</span>
-                  {rngPick && <span className="ml-2 text-fg-3">→ {actionLabel(rngPick, hand!.stack)}</span>}
                 </p>
               )}
               <div className={`grid gap-2 ${sortedActions.length > 3 ? "grid-cols-4" : sortedActions.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
@@ -326,7 +316,7 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
                     type="button"
                     onClick={() => act(x.c)}
                     className={`pressable-lg flex h-14 items-center justify-center rounded-2xl px-1 text-center text-[13px] font-black leading-tight ${
-                      x.c === "F" ? "bg-white/[0.06] text-fg ring-1 ring-white/10" : "bg-accent text-on-accent shadow-glow"
+                      x.c === "F" ? "bg-white/[0.06] text-fg ring-1 ring-white/10" : "bg-accent/15 text-accent ring-1 ring-accent"
                     }`}
                   >
                     {actionLabel(x.c, hand!.stack)}
