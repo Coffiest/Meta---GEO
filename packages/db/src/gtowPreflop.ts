@@ -9,23 +9,31 @@ import type { GtoActionEV } from "./reviewClassify.js";
  * プリフロップの決定を判定する(オーナー確定 2026-10-09)。
  *
  *  - データは MTT・ChipEV・8max の解を LJ 以降の6人として使う。アプリの「UTG」はデータの「LJ」。
- *  - スタックの段階(`GTOW_TIERS`)ごとにデータを持つ。有効スタックの入る段階のうち、その場面のデータがあるものを使う
- *    (70bb は全場面、50/40/30/25/20bb は BB のディフェンスだけ。50〜60bb で 50bb のデータが無ければ 70bb)。どれにも無ければ従来どおり。
+ *  - スタックの段階(`GTOW_TIERS`)ごとにデータを持つ。有効スタックの入る段階のうち、その場面のデータがあるものを使う。どれにも無ければ従来どおり。
  *  - データに EV は無いので、選んだアクションの GTO の頻度で格付けする(GTOW_BANDS)。
  *  - レイズはサイズを問わずレイズとして扱う。オールインは別のアクション。
  *  - DB には入れずリポジトリの JSON を読む(Supabase の転送量を使わない)。
  */
 
-export const GTOW_MIN_STACK_BB = 18;
-/** データのスタックと、それを使う有効スタックの範囲 [下限, 上限)。上から順に当てはめる。 */
+export const GTOW_MIN_STACK_BB = 10;
+/**
+ * データのスタックと、それを使う有効スタックの範囲 [下限, 上限)。上から順に当てはめ、その場面のデータがある最初のものを使う。
+ * 100/60/40/30/20/12bb は GTO Wizard の解の数値そのもの(特訓のデータから `scripts/trainer/to-gtow.mjs` で作る)。
+ * 70/50/25bb は以前に画面の色から読み取ったもの(40/30/20bb の同じ場面は解の数値で上書き済み)。
+ */
 export const GTOW_TIERS: readonly { stack: number; min: number; max: number }[] = [
-  { stack: 70, min: 60, max: Infinity },
-  { stack: 50, min: 45, max: 60 },
-  { stack: 70, min: 50, max: 60 },
+  { stack: 100, min: 85, max: Infinity },
+  { stack: 70, min: 62.5, max: Infinity },
+  { stack: 100, min: 62.5, max: Infinity },
+  { stack: 60, min: 52.5, max: 62.5 },
+  { stack: 50, min: 45, max: 52.5 },
+  { stack: 60, min: 45, max: 62.5 },
+  { stack: 70, min: 50, max: 62.5 },
   { stack: 40, min: 35, max: 45 },
   { stack: 30, min: 27.5, max: 35 },
   { stack: 25, min: 22.5, max: 27.5 },
-  { stack: 20, min: 18, max: 22.5 },
+  { stack: 20, min: 16, max: 22.5 },
+  { stack: 12, min: 10, max: 16 },
 ];
 /** 頻度による格付けの境目。これ以上(またはいちばん多いアクション)は定石手、未満は悪手、NEVER 未満は大悪手。 */
 export const GTOW_BANDS = { book: 0.2, never: 0.02 } as const;
