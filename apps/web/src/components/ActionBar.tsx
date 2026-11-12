@@ -20,7 +20,7 @@ interface Preset {
  * globals.css の `.action-fill-btn`)。色は意味に対応させる: フォールド=青(降りる) /
  * チェック・コール=緑(応答) / ベット・レイズ=赤(強い意思表示)。
  */
-function ActionButton({
+export function ActionButton({
   tone,
   onClick,
   disabled = false,
@@ -93,7 +93,7 @@ function WaitToggle({
 /* 卓上のアクション名は、意匠として全ロケール共通の英字にする(オーナー指示)。
    読み上げ用の aria-label は t() の各言語のまま残してあるので、
    日本語話者がスクリーンリーダーで使えなくなることはない。 */
-const ACTION_EN = {
+export const ACTION_EN = {
   fold: "FOLD",
   check: "CHECK",
   call: "CALL",

@@ -212,26 +212,26 @@ const SLOT_THETA: Record<number, number> = {
  * ハンドの途中では位置が変わらない(実測をしない)。以前は描画のたびに実測していて、誰かが降りて
  * 「Fold」が出るとボタンが跳ね、避けた結果として卓の中央まで行って誰のボタンか分からなくなっていた。
  */
-/** 8人卓(特訓)の席の角度。自席(0)が手前、4が奥の真ん中。 */
+/** 8人卓(特訓)の席の角度。自席(0)が手前、4が奥の真ん中。左右の長い辺に3人ずつ、間を空けて置く。 */
 const SLOT_THETA_8: Record<number, number> = {
   0: Math.PI / 2,
-  1: Math.PI * 0.82,
-  2: Math.PI * 1.06,
-  3: Math.PI * 1.29,
+  1: Math.PI * 0.79,
+  2: Math.PI * 1.0,
+  3: Math.PI * 1.21,
   4: Math.PI * 1.5,
-  5: Math.PI * 1.71,
-  6: Math.PI * 1.94,
-  7: Math.PI * 0.18,
+  5: Math.PI * 1.79,
+  6: 0,
+  7: Math.PI * 0.21,
 };
 const DEALER_OFFSET_8: Record<number, { dTheta: number; inset: number }> = {
   0: { dTheta: -0.42, inset: 0.3 },
-  1: { dTheta: -0.06, inset: 0.42 },
-  2: { dTheta: 0.06, inset: 0.4 },
-  3: { dTheta: 0.1, inset: 0.38 },
-  4: { dTheta: 0.14, inset: 0.38 },
-  5: { dTheta: -0.1, inset: 0.38 },
-  6: { dTheta: -0.06, inset: 0.4 },
-  7: { dTheta: 0.06, inset: 0.42 },
+  1: { dTheta: -0.08, inset: 0.42 },
+  2: { dTheta: 0.08, inset: 0.4 },
+  3: { dTheta: 0.12, inset: 0.38 },
+  4: { dTheta: 0.16, inset: 0.38 },
+  5: { dTheta: -0.12, inset: 0.38 },
+  6: { dTheta: -0.08, inset: 0.4 },
+  7: { dTheta: 0.08, inset: 0.42 },
 };
 
 const DEALER_OFFSET: Record<number, { dTheta: number; inset: number }> = {
