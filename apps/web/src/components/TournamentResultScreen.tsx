@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FADE, SPRING_MOVE, SPRING_SNAPPY } from "@/lib/motion";
 import type { TournamentOverInfo } from "@/lib/socket";
 import { useCountUp } from "@/lib/useCountUp";
+import { playSfx } from "@/lib/sfx";
 import { useI18n } from "@/lib/i18n";
 import { prewarmTournamentReview } from "@/lib/reviewApi";
 import { PROD_URL, buildMilestoneShareUrl, shareOrTweet } from "@/lib/share";
@@ -624,7 +625,9 @@ export function TournamentResultScreen({
 
 /** レートの増減(chess.com と同じ見せ方: 「1200 → 1215 +15」。数字が前の値から数え上がる)。 */
 function RatingChange({ before, after }: { before: number; after: number }) {
+  const { t } = useI18n();
   const value = useCountUp(before, after, 1400, 500);
+  useEffect(() => playSfx("end"), []);
   const diff = after - before;
   const tone = diff > 0 ? "text-accent" : diff < 0 ? "text-[#e5484d]" : "text-fg-2";
   return (
@@ -634,7 +637,7 @@ function RatingChange({ before, after }: { before: number; after: number }) {
       transition={SPRING_MOVE}
       className="mt-3 flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-3 shadow-e1"
     >
-      <span className="text-[12px] font-bold text-fg-2">レート</span>
+      <span className="text-[12px] font-bold text-fg-2">{t("result.rating")}</span>
       <span className="ml-auto text-[26px] font-black leading-none tabular-nums text-fg">{Math.round(value)}</span>
       <motion.span
         initial={{ opacity: 0, scale: 0.8 }}

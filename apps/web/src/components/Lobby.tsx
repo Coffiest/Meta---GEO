@@ -10,6 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { setSfxEnabled, sfxEnabled, playSfx } from "@/lib/sfx";
 import { AdminVersionFooter } from "./AdminVersionFooter";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
 import { Footer } from "./Footer";
@@ -945,6 +946,8 @@ function HamburgerMenu({
           >
             {t("menu.geoGuide")} <span className="text-n-9">›</span>
           </Link>
+          {/* 効果音のオン/オフ(端末ごと)。 */}
+          <SfxToggleRow />
           {/* 言語切替。ログイン後もいつでも変更できるようメニューに常設する。 */}
           <div className="flex items-center justify-between px-3 py-3.5 text-sm text-fg">
             <span>{t("common.language")}</span>
@@ -1832,5 +1835,30 @@ export function Lobby({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/** メニューの「効果音」のオン/オフ。 */
+function SfxToggleRow() {
+  const { t } = useI18n();
+  const [on, setOn] = useState(true);
+  useEffect(() => setOn(sfxEnabled()), []);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next = !on;
+        setSfxEnabled(next);
+        setOn(next);
+        if (next) playSfx("chip");
+      }}
+      className="pressable w-full flex items-center justify-between px-3 py-3.5 text-sm text-fg"
+      aria-pressed={on}
+    >
+      <span>{t("menu.sfx")}</span>
+      <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-black ${on ? "bg-accent text-on-accent" : "bg-white/[0.08] text-fg-3"}`}>
+        {on ? t("menu.sfxOn") : t("menu.sfxOff")}
+      </span>
+    </button>
   );
 }
