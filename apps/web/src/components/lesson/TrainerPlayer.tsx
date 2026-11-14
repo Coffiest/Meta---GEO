@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { PokerTable } from "@/components/PokerTable";
 import { ACTION_EN, ActionButton } from "@/components/ActionBar";
 import { ClassificationBadge } from "@/components/review/ClassificationBadge";
+import { bucketColor, bucketTextColor } from "@/components/geo/colors";
 import { HAIRLINE, SHEET_BG } from "@/components/review/ReviewReplayView";
 import { CLASSIFICATION_META, type Classification } from "@/lib/classification";
 import { FADE, SPRING_MOVE } from "@/lib/motion";
@@ -339,39 +340,85 @@ export function TrainerPlayer({ settings, onClose }: { settings: TrainerSettings
   );
 }
 
-/** ミスで止めたとき: その手の、行動ごとの頻度と期待値。 */
+/** 行動の色(GEO データベースの帯と同じ4色)。オールインは帯の中で見分けられるよう、とても大きいベットの濃い赤。 */
+function trainerActionColor(code: string): string {
+  if (code === "F") return bucketColor("fold");
+  if (code === "C" || code === "X") return bucketColor("call");
+  if (code === "RAI") return bucketColor("bet100+");
+  return bucketColor("raise2-5");
+}
+
+/**
+ * ミスで止めたとき: その手の、行動ごとの頻度と期待値。
+ * 一目で分かるよう、上に GEO と同じ色の頻度の帯(フォールド → コール → レイズ → オールイン)を出す。
+ * 面は不透明(オーナー指示: 半透明だと卓が透けて読みにくい)。
+ */
 function PausePanel({ d, onNext }: { d: Decision; onNext: () => void }) {
-  const rows = [...d.node.a].sort((a, b) => aggression(b.c) - aggression(a.c));
+  const rows = [...d.node.a].sort((a, b) => aggression(a.c) - aggression(b.c));
+  const freq = (c: string) => d.node.a.find((x) => x.c === c)?.s[d.hand] ?? 0;
   return (
-    <div className="absolute inset-0 z-30 flex items-center px-4">
+    <div className="absolute inset-0 z-30 flex items-center bg-canvas/60 px-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={SPRING_MOVE}
-        className="glass-panel w-full rounded-3xl p-4"
+        className="w-full rounded-3xl bg-surface p-4 shadow-e4"
+        style={{ border: `0.5px solid ${HAIRLINE}` }}
       >
         <div className="flex items-center gap-2">
           <ClassificationBadge classification={GRADE_TO_CLASS[d.grade]} size={22} showLabel />
-          <span className="ml-auto text-[13px] font-bold text-fg-2">{handName(d.hand)}</span>
+          <span className="ml-auto text-[15px] font-black text-fg">{handName(d.hand)}</span>
         </div>
-        <div className="mt-3 overflow-hidden rounded-2xl bg-white/[0.04]">
-          <div className="grid grid-cols-3 px-3 py-1.5 text-[11px] font-bold text-fg-3">
+
+        {/* 頻度の帯: 色の幅で一発で分かる。15% 以上の区間には数字も載せる。 */}
+        <div className="mt-3 flex h-11 overflow-hidden rounded-2xl bg-canvas">
+          {rows.map((x) => {
+            const f = freq(x.c);
+            if (f <= 0) return null;
+            const color = trainerActionColor(x.c);
+            return (
+              <motion.div
+                key={x.c}
+                initial={{ width: 0 }}
+                animate={{ width: `${f * 100}%` }}
+                transition={SPRING_MOVE}
+                className={`flex items-center justify-center overflow-hidden text-[12px] font-black tabular-nums ${
+                  x.c === d.code ? "ring-2 ring-inset ring-fg" : ""
+                }`}
+                style={{ background: color, color: bucketTextColor(color) }}
+              >
+                {f >= 0.15 ? `${Math.round(f * 100)}%` : ""}
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 overflow-hidden rounded-2xl bg-surface-2">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-3 py-1.5 text-[11px] font-bold text-fg-3">
             <span>行動</span>
-            <span className="text-right">頻度</span>
-            <span className="text-right">期待値</span>
+            <span className="w-14 text-right">頻度</span>
+            <span className="w-16 text-right">期待値</span>
           </div>
-          {rows.map((x) => (
-            <div
-              key={x.c}
-              className={`grid grid-cols-3 border-t border-white/[0.06] px-3 py-2 text-[13px] tabular-nums ${
-                x.c === d.code ? "font-black text-accent" : "text-fg"
-              }`}
-            >
-              <span>{actionLabel(x.c, d.stack)}</span>
-              <span className="text-right">{((x.s[d.hand] ?? 0) * 100).toFixed(1)}%</span>
-              <span className="text-right">{(x.e[d.hand] ?? 0).toFixed(2)}bb</span>
-            </div>
-          ))}
+          {rows.map((x) => {
+            const mine = x.c === d.code;
+            return (
+              <div
+                key={x.c}
+                className={`grid grid-cols-[1fr_auto_auto] items-center gap-x-4 border-t px-3 py-2 text-[13px] tabular-nums ${
+                  mine ? "bg-accent/15 font-black text-fg" : "text-fg"
+                }`}
+                style={{ borderColor: HAIRLINE }}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: trainerActionColor(x.c) }} />
+                  {actionLabel(x.c, d.stack)}
+                  {mine && <span className="rounded-full bg-accent/20 px-1.5 text-[10px] font-black text-accent">きみ</span>}
+                </span>
+                <span className="w-14 text-right">{(freq(x.c) * 100).toFixed(1)}%</span>
+                <span className="w-16 text-right">{(x.e[d.hand] ?? 0).toFixed(2)}bb</span>
+              </div>
+            );
+          })}
         </div>
         <button
           type="button"
