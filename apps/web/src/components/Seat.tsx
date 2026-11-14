@@ -136,6 +136,8 @@ export interface SeatViewProps {
   avatarKey: string | null;
   /** High Roller / Super High Roller の資格者のアイコン枠。 */
   frame?: "silver" | "gold" | null;
+  /** レート(chess.com と同じ単位)。名前の横に「(1215)」の形で出す。 */
+  rating?: number | null;
   position: string;
   stack: number;
   streetContribution: number;
@@ -195,6 +197,7 @@ export function Seat({
   name,
   avatarKey,
   frame,
+  rating,
   position,
   stack,
   streetContribution,
@@ -515,8 +518,10 @@ export function Seat({
               } ${isActingSeat ? "ring-1 ring-accent/60" : ""}`}
             >
               {/* 名前は小さく控えめに、スタックはいちばん大きく太く(卓で最も読む数字)。 */}
-              <div className={`${size === "lg" ? "text-[12px] max-w-[104px]" : "text-[10.5px] max-w-[84px]"} font-medium leading-tight truncate text-fg-2`}>
-                {name}
+              <div className={`${size === "lg" ? "text-[12px]" : "text-[10.5px]"} flex max-w-full items-baseline gap-1 font-medium leading-tight text-fg-2`}>
+                <span className={`${size === "lg" ? "max-w-[96px]" : "max-w-[72px]"} truncate`}>{name}</span>
+                {/* chess.com と同じく、名前の横にレートを括弧で出す。 */}
+                {rating != null && <span className="shrink-0 tabular-nums text-fg-3">({rating})</span>}
               </div>
               {(() => {
                 const label = compactStack(stack, bigBlind, displayMode);

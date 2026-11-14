@@ -70,6 +70,8 @@ export interface SeatPlayerInfo {
   away: boolean;
   /** High Roller / Super High Roller の資格者のアイコン枠。 */
   frame: "silver" | "gold" | null;
+  /** レート(chess.com と同じ単位)。まだ読めていなければ null。 */
+  rating?: number | null;
 }
 
 export interface TurnTimerInfo {
@@ -142,6 +144,9 @@ export interface TournamentOverInfo {
   canReEntry?: boolean;
   /** リエントリの参加費(チップ)。 */
   reEntryCost?: number;
+  /** このトーナメントの前後のレート(フレンド対戦では無い)。 */
+  ratingBefore?: number;
+  ratingAfter?: number;
 }
 
 export interface TimeBankInfo {

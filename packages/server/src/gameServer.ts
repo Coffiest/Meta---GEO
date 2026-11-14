@@ -14,7 +14,7 @@ import {
   type SngTier,
   type SngTierConfig,
 } from "@meta-geo/engine";
-import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries, animalKeyFromSeed } from "@meta-geo/db";
+import { prisma, recordHand, recordBuyIn, recordPayout, refundBuyIn, getEliteFrames, invalidateRankedEntries, getRatings, applyTournamentRating, animalKeyFromSeed } from "@meta-geo/db";
 import { lastAggressorSeat } from "./bot.js";
 import { decideStrongBotAction, randomPersona, type BotPersona } from "./botStrategy/index.js";
 import { computeRevealedSeats, SHOWDOWN_REVEAL_STEP_MS, showdownOrder } from "./showdown.js";
@@ -498,6 +498,8 @@ export class TableSession implements GameSession {
   private readonly payouts: { place: number; amount: number }[];
   /** アイコンの銀枠・金枠(資格者のみ)。卓の開始時に全員分を引いておき、全員同じ形で配る。 */
   private frames = new Map<string, EliteFrame | null>();
+  /** 席に出すレート(chess.com と同じ単位)。全員ぶん(自動の席も同じ扱い)。 */
+  private ratings = new Map<string, number>();
   private readonly seatCount: number;
   private readonly configHumans: HumanPlayer[];
   /** BOTを座らせる席番号(人間の席をシャッフルで決めた残り)。start()でBOTを埋める順に使う。 */
@@ -617,6 +619,11 @@ export class TableSession implements GameSession {
       this.frames = await getEliteFrames([...this.players.values()].map((p) => p.userId));
     } catch (err) {
       console.error("[sng] failed to load avatar frames:", err);
+    }
+    try {
+      this.ratings = await getRatings([...this.players.values()].map((p) => p.userId));
+    } catch (err) {
+      console.error("[sng] failed to load ratings:", err);
     }
 
     const dbTournament = await prisma.tournament.create({
@@ -1023,6 +1030,7 @@ export class TableSession implements GameSession {
     avatarKey: string | null;
     away: boolean;
     frame: EliteFrame | null;
+    rating: number | null;
   }[] {
     return [...this.players.values()].map((p) => ({
       seatIndex: p.seatIndex,
@@ -1031,6 +1039,7 @@ export class TableSession implements GameSession {
       avatarKey: p.avatarKey,
       away: this.humansBySeat.get(p.seatIndex)?.away ?? false,
       frame: this.frames.get(p.userId) ?? null,
+      rating: this.ratings.get(p.userId) ?? null,
     }));
   }
 
@@ -1618,11 +1627,20 @@ export class TableSession implements GameSession {
     } catch (err) {
       console.error("[sng] recordHumanFinish db write failed:", err);
     }
+    // レート(入賞 = 勝ち)。フレンド対戦は数えない。
+    const rating = this.privateOptions
+      ? null
+      : await applyTournamentRating(this.dbTournamentId, human.userId, payout > 0).catch((err) => {
+          console.error("[sng] rating update failed:", err);
+          return null;
+        });
+    if (rating) this.ratings.set(human.userId, rating.after);
 
     human.socket?.emit("tournamentOver", {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+      ...(rating ? { ratingBefore: rating.before, ratingAfter: rating.after } : {}),
       // フレンド対戦: まだリエントリーできるか(結果画面にボタンを出す)。
       ...(this.privateOptions ? { canReEntry: place !== 1 && this.canReenter(human.userId), reEntryCost: 0 } : {}),
     });
@@ -1666,14 +1684,21 @@ export class TableSession implements GameSession {
       seats.map(async (seat, index) => {
         if (this.humansBySeat.has(seat.seatIndex)) return; // 人間はrecordHumanFinishで確定済み
         const place = index + 1;
+        const payout = this.payouts.find((p) => p.place === place)?.amount ?? 0;
         await prisma.tournamentEntry.updateMany({
           where: { tournamentId: this.dbTournamentId!, seatIndex: seat.seatIndex },
           data: {
             finishPosition: place,
-            payout: this.payouts.find((p) => p.place === place)?.amount ?? 0,
+            payout,
             bustedAtHandNumber: seat.bustedAtHand,
           },
         });
+        // 人間と同じ計算でレートを動かす(種別で分岐しない)。
+        if (!this.privateOptions) {
+          await applyTournamentRating(this.dbTournamentId!, seat.playerId, payout > 0).catch((err) =>
+            console.error("[sng] rating update failed:", err),
+          );
+        }
       }),
     );
 

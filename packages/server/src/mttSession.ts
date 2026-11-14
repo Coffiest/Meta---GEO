@@ -18,6 +18,8 @@ import {
   computeMttPrizeStructure,
   invalidateRankedEntries,
   getEliteFrames,
+  getRatings,
+  applyTournamentRating,
   type PayoutPlace,
 } from "@meta-geo/db";
 import { lastAggressorSeat } from "./bot.js";
@@ -164,6 +166,9 @@ export class MttSession implements GameSession {
   private readonly humans = new Map<string, HumanEntry>();
   /** アイコンの銀枠・金枠(資格者のみ)。自動で卓を埋めるプレイヤーは集計の対象外なので常に無し。 */
   private readonly frames = new Map<string, EliteFrame | null>();
+  /** 席に出すレート(chess.com と同じ単位)。自動の席も同じ扱い。 */
+  private readonly ratings = new Map<string, number>();
+  private readonly ratingLoading = new Set<string>();
   private pendingRegistrants: HumanPlayer[] = [];
   private started = false;
   private registrationClosed = false;
@@ -1510,11 +1515,18 @@ export class MttSession implements GameSession {
     } catch (err) {
       console.error("[mtt] recordHumanFinish db write failed:", err);
     }
+    // レート(入賞 = 勝ち)。
+    const rating = await applyTournamentRating(this.dbTournamentId, human.userId, payout > 0).catch((err) => {
+      console.error("[mtt] rating update failed:", err);
+      return null;
+    });
+    if (rating) this.ratings.set(human.userId, rating.after);
 
     human.socket?.emit("tournamentOver", {
       winnerPlayerId: place === 1 ? human.userId : null,
       yourFinishPosition: place,
       yourPayout: payout,
+      ...(rating ? { ratingBefore: rating.before, ratingAfter: rating.after } : {}),
       // レジクローズ前かつ場が満員でなければリエントリ可能(クライアントがボタン表示に使う)。
       canReEntry: !this.registrationClosed && !this.finished && this.aliveCount() < MTT_FIELD_CAP,
       reEntryCost: this.buyIn,
@@ -1573,14 +1585,19 @@ export class MttSession implements GameSession {
         .filter((p) => !this.humans.has(p.userId))
         .map(async (p) => {
           const place = this.placeOf(p.userId);
+          const payout = payoutByPlace.get(place) ?? 0;
           await prisma.tournamentEntry.updateMany({
             where: { tournamentId: this.dbTournamentId!, userId: p.userId },
             data: {
               finishPosition: place,
-              payout: payoutByPlace.get(place) ?? 0,
+              payout,
               bustedAtHandNumber: this.bustHandByUser.get(p.userId) ?? null,
             },
           });
+          // 人間と同じ計算でレートを動かす(種別で分岐しない)。
+          await applyTournamentRating(this.dbTournamentId!, p.userId, payout > 0).catch((err) =>
+            console.error("[mtt] rating update failed:", err),
+          );
         }),
     );
 
@@ -1622,9 +1639,24 @@ export class MttSession implements GameSession {
         avatarKey: info?.avatarKey ?? null,
         away: this.humans.get(o.playerId)?.away ?? false,
         frame: this.frames.get(o.playerId) ?? null,
+        rating: this.ratings.get(o.playerId) ?? null,
       };
     });
     this.io.to(this.tableRoom(tableId)).emit("players", { players });
+    // まだ読んでいないレートがあれば読んで配り直す(自動の席も同じ扱い)。
+    const missing = players.map((p) => p.userId).filter((id) => !this.ratings.has(id) && !this.ratingLoading.has(id));
+    if (missing.length) {
+      for (const id of missing) this.ratingLoading.add(id);
+      void getRatings(missing)
+        .then((m) => {
+          for (const [id, r] of m) this.ratings.set(id, r);
+          this.emitPlayersForTable(tableId);
+        })
+        .catch((err) => console.error("[mtt] failed to load ratings:", err))
+        .finally(() => {
+          for (const id of missing) this.ratingLoading.delete(id);
+        });
+    }
   }
 
   /**

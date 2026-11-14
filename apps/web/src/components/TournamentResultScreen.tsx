@@ -572,6 +572,11 @@ export function TournamentResultScreen({
             </div>
           ) : null}
 
+          {/* レート(chess.com と同じ単位)。前の値から新しい値へ数字が動き、増減を色で出す。 */}
+          {info.ratingBefore != null && info.ratingAfter != null && (
+            <RatingChange before={info.ratingBefore} after={info.ratingAfter} />
+          )}
+
           {/* マイルストーン到達バナー。今回の結果で節目を超えたときだけ出す。 */}
           {milestone && (
             <motion.div
@@ -613,6 +618,32 @@ export function TournamentResultScreen({
           />
         )}
       </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/** レートの増減(chess.com と同じ見せ方: 「1200 → 1215 +15」。数字が前の値から数え上がる)。 */
+function RatingChange({ before, after }: { before: number; after: number }) {
+  const value = useCountUp(before, after, 1400, 500);
+  const diff = after - before;
+  const tone = diff > 0 ? "text-accent" : diff < 0 ? "text-[#e5484d]" : "text-fg-2";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={SPRING_MOVE}
+      className="mt-3 flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-3 shadow-e1"
+    >
+      <span className="text-[12px] font-bold text-fg-2">レート</span>
+      <span className="ml-auto text-[26px] font-black leading-none tabular-nums text-fg">{Math.round(value)}</span>
+      <motion.span
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ ...SPRING_SNAPPY, delay: 0.5 }}
+        className={`text-[15px] font-black tabular-nums ${tone}`}
+      >
+        {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : "±0"}
+      </motion.span>
     </motion.div>
   );
 }
