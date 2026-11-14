@@ -14,7 +14,19 @@ import type { PlayerTendencies } from "@meta-geo/db";
  * 型は大会ごとに引き直す(呼び出し側が席に入るたびに `randomPersona` を引く)。
  * ペイロードには何も足さない。人間かどうかでは分岐しない(相手が誰でも同じ判断)。
  */
-export type BotStyle = "shark" | "glassCannon" | "lag" | "tag" | "loosePassive" | "tightPassive";
+export type BotStyle =
+  | "shark"
+  | "glassCannon"
+  | "lag"
+  | "tag"
+  | "loosePassive"
+  | "tightPassive"
+  /** マニアック: とても広く参加し、とても攻める(ブラフ多め)。 */
+  | "maniac"
+  /** ニット: とても狭く参加し、強い手だけで攻める。 */
+  | "nit"
+  /** トラッパー: 強い手ほど静かに打ち(スロープレイ)、チェックレイズで仕留める。 */
+  | "trapper";
 
 export type BotTrait =
   | "limper"
@@ -31,7 +43,17 @@ export type BotTrait =
   | "under4bet"
   | "over4bet"
   | "under5bet"
-  | "over5bet";
+  | "over5bet"
+  /** 強い手でベット・レイズせずにチェック・コールで隠す。 */
+  | "slowplayer"
+  /** ブラフが多い(打たない所で打つ・降りる所でレイズ)。 */
+  | "overBluffer"
+  /** 強い手を、相手のベットを待ってチェックレイズする。 */
+  | "checkRaiser"
+  /** ベットが大きい(ポットより大きく打つ)。 */
+  | "bigSizer"
+  /** オープンが最小(2BB)。 */
+  | "minRaiser";
 
 export interface BotPersona {
   style: BotStyle;
@@ -45,22 +67,28 @@ export interface BotPersona {
 }
 
 const STYLE_WEIGHTS: [BotStyle, number][] = [
-  ["shark", 0.3],
+  ["shark", 0.27],
   ["glassCannon", 0.01],
-  ["lag", 0.1725],
-  ["tag", 0.1725],
-  ["loosePassive", 0.1725],
-  ["tightPassive", 0.1725],
+  ["lag", 0.14],
+  ["tag", 0.14],
+  ["loosePassive", 0.14],
+  ["tightPassive", 0.14],
+  ["maniac", 0.05],
+  ["nit", 0.06],
+  ["trapper", 0.05],
 ];
 
 /** 型ごとに付きやすい癖(重み)。 */
 const TRAIT_WEIGHTS: Record<BotStyle, Partial<Record<BotTrait, number>>> = {
-  shark: { underBluffer: 1, lowBetFreq: 1, marginalBettor: 1, over3bet: 1, under4bet: 1, overFolder: 0.5 },
+  shark: { underBluffer: 1, lowBetFreq: 1, marginalBettor: 1, over3bet: 1, under4bet: 1, overFolder: 0.5, minRaiser: 0.5, checkRaiser: 0.5 },
   glassCannon: {},
   lag: { over3bet: 3, over4bet: 2, over5bet: 1, marginalBettor: 2, coldCaller: 1, under4bet: 1, overFolder: 1 },
   tag: { under3bet: 2, under4bet: 2, valueOnlyBettor: 2, underBluffer: 2, overFolder: 2, over3bet: 1, lowBetFreq: 1 },
   loosePassive: { limper: 3, coldCaller: 3, callingStation: 3, underRaiser: 2, under3bet: 2, under4bet: 1, valueOnlyBettor: 1, lowBetFreq: 1 },
-  tightPassive: { underRaiser: 3, underBluffer: 3, lowBetFreq: 2, overFolder: 3, under3bet: 2, under4bet: 2, under5bet: 1, valueOnlyBettor: 2, limper: 1 },
+  tightPassive: { underRaiser: 3, underBluffer: 3, lowBetFreq: 2, overFolder: 3, under3bet: 2, under4bet: 2, under5bet: 1, valueOnlyBettor: 2, limper: 1, slowplayer: 1 },
+  maniac: { overBluffer: 3, over3bet: 3, over4bet: 2, over5bet: 2, bigSizer: 3, callingStation: 1, marginalBettor: 1 },
+  nit: { overFolder: 3, under3bet: 2, under4bet: 2, under5bet: 2, valueOnlyBettor: 3, underBluffer: 3, minRaiser: 1 },
+  trapper: { slowplayer: 3, checkRaiser: 3, underBluffer: 1, valueOnlyBettor: 1, under3bet: 1, minRaiser: 1 },
 };
 
 /** 同時に持てない組。 */
@@ -71,6 +99,9 @@ const EXCLUSIVE: [BotTrait, BotTrait][] = [
   ["overFolder", "callingStation"],
   ["valueOnlyBettor", "marginalBettor"],
   ["underBluffer", "marginalBettor"],
+  ["underBluffer", "overBluffer"],
+  ["valueOnlyBettor", "overBluffer"],
+  ["minRaiser", "bigSizer"],
 ];
 
 function pickWeighted<T>(items: [T, number][], rand: () => number): T {
@@ -108,6 +139,9 @@ export function randomPersona(rand: () => number = Math.random): BotPersona {
     tag: [-0.04, 0.02, 0.2, 0.6],
     loosePassive: [0.12, 0.3, -0.9, -0.4],
     tightPassive: [-0.1, -0.03, -0.9, -0.4],
+    maniac: [0.25, 0.4, 0.7, 1],
+    nit: [-0.14, -0.08, -0.2, 0.2],
+    trapper: [-0.04, 0.06, -0.5, 0],
   };
   const [l0, l1, a0, a1] = base[style];
   return { style, traits, intensity: between(0.5, 1), looseness: between(l0, l1), aggression: between(a0, a1) };
@@ -141,6 +175,7 @@ export function applyPersona(
   let a = base;
   if (!(persona.style === "shark" && persona.traits.length === 0)) {
     a = ctx.street === "preflop" ? applyPreflop(ctx, a, persona, rand) : applyPostflop(ctx, a, persona, rand);
+    a = applySizing(ctx, a, persona);
   }
   // シャークは、相手の傾向(通算+この大会で見た打ち方)が分かっていれば、そこを突く。
   if (persona.style === "shark") a = exploit(ctx, a, rand, read);
@@ -245,11 +280,28 @@ function applyPreflop(ctx: BotContext, base: PlayerAction, p: BotPersona, rand: 
   return base;
 }
 
+/** サイズの癖: 最小オープン(2BB)/ 大きいベット(ポットの 1.2 倍)。額はあとで sanitize がエンジンの受け付ける形に整える。 */
+function applySizing(ctx: BotContext, a: PlayerAction, p: BotPersona): PlayerAction {
+  const preflopOpen = ctx.street === "preflop" && !ctx.actions.some((x) => x.street === "preflop" && AGG.has(x.kind));
+  if (has(p, "minRaiser") && preflopOpen && a.kind === "raise") return raiseBy(ctx, 2);
+  if (has(p, "bigSizer") && ctx.street !== "preflop" && a.kind === "bet") return betPot(ctx, 1.2);
+  return a;
+}
+
 function applyPostflop(ctx: BotContext, base: PlayerAction, p: BotPersona, rand: () => number): PlayerAction {
   const k = p.intensity;
   const eq = rangeEquity(ctx, rand, 160);
   const facing = ctx.toCall > 0;
   const potOdds = facing ? ctx.toCall / (ctx.pot + ctx.toCall) : 0;
+
+  // 新しい癖(スロープレイ・チェックレイズ・ブラフ過多)。土台の判断より先に見る。
+  if (!facing && isAgg(base) && eq > 0.8 && (has(p, "slowplayer") || has(p, "checkRaiser")) && rand() < 0.6 * k) {
+    return { kind: "check" };
+  }
+  if (facing && base.kind === "call" && eq > 0.72 && has(p, "checkRaiser") && rand() < 0.6 * k) return raiseBy(ctx, 3);
+  if (facing && isAgg(base) && eq > 0.8 && has(p, "slowplayer") && rand() < 0.6 * k) return { kind: "call" };
+  if (!facing && base.kind === "check" && eq < 0.35 && has(p, "overBluffer") && rand() < 0.5 * k) return betPot(ctx, 0.66);
+  if (facing && base.kind === "fold" && has(p, "overBluffer") && rand() < 0.12 * k) return raiseBy(ctx, 2.6);
 
   if (p.style === "glassCannon") {
     if (eq < 0.22) return facing ? (eq > potOdds ? { kind: "call" } : { kind: "fold" }) : { kind: "check" };

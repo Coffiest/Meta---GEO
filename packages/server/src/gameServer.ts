@@ -70,6 +70,19 @@ const BOT_NAME_GROUPS: readonly (readonly string[])[] = [
     "Akira", "ChanYasu", "Kenji", "Hiro", "Yuto", "Sho", "Kaz", "Ryo", "Taku", "NaoK",
     "DaiG", "MasaP", "Shinji", "Tatsu", "koba", "yktk", "TKG", "aki_p", "Ken1", "Shun",
     "Ryu", "Mao", "GotoH", "nabe",
+    "Yamato", "Sota", "Haruki", "Kaito", "Riku", "Yuma", "Naoto", "Kouta", "Tomoya", "Shoma",
+  ],
+  // E. 下の名前・あだ名(ひらがな・カタカナ)
+  [
+    "ゆうき", "けんた", "しょう", "たくや", "みさき", "あやか", "ゆい", "はるか", "りょうた", "だいき",
+    "ケンジ", "ユウタ", "ショウタ", "マサキ", "カズ", "タケシ", "ナオ", "ヒロシ", "トモ", "サトシ",
+    "まっちゃん", "よっしー", "たっくん", "ゆーと", "こーへい", "けいすけ",
+  ],
+  // F. 英数字のハンドル(ゲーム・SNS 風)
+  [
+    "poker_kid", "nuts4ever", "riverrat", "allin_jp", "bluffmaster", "k_suke07", "tsubasa99", "hrk_23",
+    "ace_high", "lucky7", "fishy_jp", "yuuu_p", "mk2", "dont_fold", "tilt_mode", "gtoish",
+    "c_bet", "ninja_88", "sushi_p", "momo_0w0", "x_tak_x", "hk1997", "ponpoko", "shark_jr",
   ],
 ];
 

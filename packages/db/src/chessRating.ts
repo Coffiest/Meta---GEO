@@ -79,9 +79,12 @@ export async function applyTournamentRating(
     rd: Math.sqrt(others.reduce((s, o) => s + o.user.ratingRd ** 2, 0) / others.length),
   };
   const now = new Date();
-  const next = glickoUpdate({ rating: me.rating, rd: decayRd(me.ratingRd, me.ratingAt, now) }, opp, won ? 1 : 0);
+  const next: { rating: number; rd: number } = glickoUpdate({ rating: me.rating, rd: decayRd(me.ratingRd, me.ratingAt, now) }, opp, won ? 1 : 0);
   const before = Math.round(me.rating);
-  const after = Math.round(next.rating);
+  // インマネした人だけ上がる(オーナー指示)。丸めで向きが逆にならないよう、入賞は +1 以上、それ以外は ±0 以下に止める。
+  const rawAfter = Math.round(next.rating);
+  const after = won ? Math.max(before + 1, rawAfter) : Math.min(before, rawAfter);
+  if (after !== rawAfter) next.rating = after;
   await prisma.user.update({ where: { id: userId }, data: { rating: next.rating, ratingRd: next.rd, ratingAt: now }, select: { id: true } });
   await prisma.tournamentEntry.update({ where: { id: entry.id }, data: { ratingBefore: before, ratingAfter: after }, select: { id: true } });
   return { before, after };
