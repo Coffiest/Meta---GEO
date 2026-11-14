@@ -434,10 +434,12 @@ function GameScreen({
   const lobbySeating = useMemo(() => {
     if (!privateLobby || !privateRoom) return null;
     const players: Record<number, SeatPlayerInfo> = {};
-    privateRoom.members.forEach((m, i) => {
+    // 観戦だけの人は席に座らせない。
+    const seated = privateRoom.members.filter((m) => !m.spectator);
+    seated.forEach((m, i) => {
       players[i] = { userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, away: false, frame: null };
     });
-    const mine = privateRoom.members.findIndex((m) => m.userId === privateRoom.youUserId);
+    const mine = seated.findIndex((m) => m.userId === privateRoom.youUserId);
     const speed = BLIND_SPEEDS.find((b) => b.key === privateRoom.settings.blind)!;
     return { players, yourSeatIndex: mine >= 0 ? mine : null, startingStack: speed.bb * 200 };
   }, [privateLobby, privateRoom]);
@@ -1238,6 +1240,7 @@ function GameScreen({
         <div className="shrink-0">
           <PrivateWatchBar
             canSeeCards={spectatorCanSeeCards}
+            watchOnly={Boolean(privateRoom?.members.find((m) => m.userId === privateRoom.youUserId)?.spectator)}
             canReEntry={Boolean(tournamentOver?.canReEntry)}
             onReEntry={reEntry}
             onLeave={() => void privateActions.leave().then(onExit)}

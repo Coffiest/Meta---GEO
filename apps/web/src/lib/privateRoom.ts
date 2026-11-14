@@ -56,7 +56,8 @@ export interface PrivateRoomInfo {
   isHost: boolean;
   phase: PrivateRoomPhase;
   settings: PrivateRoomSettings;
-  members: { userId: string; displayName: string; avatarKey: string | null }[];
+  /** spectator = 観戦だけで入った人(席に着かない・人数に数えない)。 */
+  members: { userId: string; displayName: string; avatarKey: string | null; spectator?: boolean }[];
   standings: PrivateStanding[] | null;
 }
 
@@ -66,7 +67,7 @@ export type PrivateClosedReason = "KICKED" | "LEFT" | "DISBANDED" | "EXPIRED" | 
 /** 卓の画面を開くときの入り方。 */
 export type PrivateIntent =
   | { mode: "create"; settings: PrivateRoomSettings }
-  | { mode: "join"; code: string }
+  | { mode: "join"; code: string; spectate?: boolean }
   /** アプリの再読み込みなどで、入っているルームへ戻る。 */
   | { mode: "resume" };
 

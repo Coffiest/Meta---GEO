@@ -499,6 +499,8 @@ export class TableSession implements GameSession {
   private readonly pendingSeats: { player: HumanPlayer; socket: Socket | null }[] = [];
   /** フレンド対戦: 観戦している人(席の無い人)。userId → ソケット。 */
   private readonly spectators = new Map<string, Socket>();
+  /** 観戦だけで入った人。座らないが、ほかの人に伝えられないよう手札は最後まで見せない。 */
+  private readonly watchOnly = new Set<string>();
   /** フレンド対戦: リエントリーした回数。 */
   private readonly reentriesUsed = new Map<string, number>();
   /** フレンド対戦: 「リエントリーしない」を選んだ人。 */
@@ -879,11 +881,12 @@ export class TableSession implements GameSession {
   }
 
   /** 席の無い人として卓を見せる(観戦)。もう座る見込みの無い人には、全員の手札も見せる。 */
-  addSpectator(userId: string, socket: Socket): void {
+  addSpectator(userId: string, socket: Socket, watchOnly = false): void {
     if (!this.privateOptions) return;
+    if (watchOnly) this.watchOnly.add(userId);
     this.spectators.set(userId, socket);
     void socket.join(this.roomId);
-    socket.emit("spectating", { canSeeCards: !this.couldStillSit(userId) });
+    socket.emit("spectating", { canSeeCards: !this.watchOnly.has(userId) && !this.couldStillSit(userId), watchOnly: this.watchOnly.has(userId) });
     if (this.players.size > 0) socket.emit("players", { players: this.playersPayload() });
     if (this.tournament) socket.emit("levelUp", { level: this.currentLevel(), endsAt: this.levelEndsAt });
     this.broadcastTournamentInfo();
@@ -911,7 +914,7 @@ export class TableSession implements GameSession {
 
   /** 観戦している人(と、飛んだあと卓を見ている人)のうち、もう座る見込みの無い人へ全員の手札を送る。 */
   private sendSpectatorCards(userId: string, socket: Socket): void {
-    if (!this.hand || this.couldStillSit(userId)) return;
+    if (!this.hand || this.watchOnly.has(userId) || this.couldStillSit(userId)) return;
     // getAllHoleCards はハンドが終わってからしか使えないので、配られている席を1つずつ引く。
     const holeCards: Record<number, string[]> = {};
     for (const seat of this.hand.getPublicState().seats) {
