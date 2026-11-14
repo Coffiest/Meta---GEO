@@ -500,6 +500,7 @@ export function PokerTable({
             name={player?.displayName ?? (isHero ? "YOU" : `Seat ${seatIndex + 1}`)}
             avatarKey={player?.avatarKey ?? null}
             frame={player?.frame ?? null}
+            rating={player?.rating ?? null}
             markingColor={markingColor}
             chatBubble={seatBubbles?.[seatIndex]?.text ?? null}
             onChatClick={isHero ? onHeroChatClick : undefined}

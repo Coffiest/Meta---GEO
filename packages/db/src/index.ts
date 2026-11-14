@@ -44,3 +44,4 @@ export * from "./avatars.js";
 export * from "./rankedGame.js";
 export * from "./lessons.js";
 export { buildGtowDbNode, gtowSceneOfLine } from "./gtowPreflop.js";
+export * from "./chessRating.js";

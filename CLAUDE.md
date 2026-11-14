@@ -117,6 +117,12 @@ Ten Four Poker(トーナメント版)— TenFourPoker(tenfour-poker.com)を参�
 デプロイ先: Vercel(Web) + Fly.io(サーバー) + Supabase(Postgres/Auth)。
 本番URL: **https://meta-geo-poker.vercel.app**(常時固定)。
 
+## レート(chess.com と同じ単位。トナメ偏差値とは別。オーナー指示 2026-11-14)
+
+- `packages/db/src/chessRating.ts`。Glicko(chess.com と同じ方式)。全員 1200・RD 350 から。SNG・MTT・High Roller を1本で数え、フレンド対戦は数えない。
+- 1トーナメント = 1局。**入賞(賞金あり)= 勝ち、それ以外 = 負け**(オーナー確定)。相手は同じトーナメントのほかの参加者全員を1人にまとめたもの(レートは平均、RD は二乗平均)。
+- 自動の席も同じレートを持ち、同じ計算で動く(種別で分岐しない)。席の名前の横に「(1215)」の形で出す(`SeatPlayerInfo.rating`)。結果画面は「レート 1200 → 1215 +15」を数え上げで出す(`tournamentOver` の `ratingBefore` / `ratingAfter`、`TournamentEntry` にも保存)。
+
 ## GEO データベースの利用条件(オーナー確定)
 
 - データベースタブは、**トーナメントでインマネ(賞金が出て終えた)した回数で段階的に解放**する(オーナー確定)。**10回でプリフロップまで、20回でポストフロップ以降**。これにプランの上限をかける(オーナー確定): **無料・シルバーは使えない / ゴールド(¥1,380)は回数どおり / プラチナ(¥1,890)は条件なしで全部**。**データ研究はプラチナだけ**。管理者の個別設定(`geoAccessOverride`、「全部」ならデータ研究も)と管理者のアカウントはプランに関係なく上乗せする。プランが足りないとサーバーは 403 `GEO_PLAN_REQUIRED`(`plan` に必要なプラン)を返し、画面はプランの錠(料金ページへ案内)を出す。SNG(High Roller 等を含む)と MTT をすべて数える(フレンド対戦は数えない)(`packages/db/src/geoAccess.ts`。段階は `none` / `preflop` / `full`)。

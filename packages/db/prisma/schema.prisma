@@ -22,6 +22,11 @@ model User {
   /// 初回オンボーディング(名前+アバター設定)を完了したか。未完了ユーザーはホームに入れない。
   onboarded    Boolean   @default(false)
   isBot        Boolean   @default(false)
+  /// レート(chess.com と同じ Glicko・同じ単位。全員 1200 から。トーナメントの入賞を勝ちとして動く)。
+  rating       Float     @default(1200)
+  /// レートの信頼度(Glicko の RD)。少ないほど確か。最初は 350。
+  ratingRd     Float     @default(350)
+  ratingAt     DateTime?
   /// 友達招待用のコード(例 "K7QMX2AB")。ホームの招待カードを初めて開いたときに発行する。
   /// 未発行はnull(BOTには発行しない)。
   referralCode String?   @unique
@@ -298,6 +303,9 @@ model TournamentEntry {
   bustedAtHandNumber Int?
   /// 着順に応じてバンクロールへ払い出した額(0=賞金圏外)。
   payout             Int        @default(0)
+  /// このトーナメントの前後のレート(結果画面で「1200 → 1215」を出す)。
+  ratingBefore       Int?
+  ratingAfter        Int?
 
   @@unique([tournamentId, seatIndex])
   @@index([userId])
