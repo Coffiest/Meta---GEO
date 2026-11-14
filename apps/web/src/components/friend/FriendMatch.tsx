@@ -134,7 +134,7 @@ function FriendSheet({ onClose, onEnter }: { onClose: () => void; onEnter: (inte
       {step === "join" && (
         <>
           <SheetHeader title={t("friend.join")} onBack={() => setStep("choose")} onClose={onClose} />
-          <JoinForm onJoin={(code) => onEnter({ mode: "join", code })} />
+          <JoinForm onJoin={(code, spectate) => onEnter({ mode: "join", code, spectate })} />
         </>
       )}
     </Sheet>
@@ -161,7 +161,7 @@ function ChoiceRow({ icon, title, desc, onClick }: { icon: "plus" | "group"; tit
 }
 
 /** 6桁のコードの入力。数字以外は落とし、6桁そろったら入室できる。 */
-function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
+function JoinForm({ onJoin }: { onJoin: (code: string, spectate: boolean) => void }) {
   const { t } = useI18n();
   const [code, setCode] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -173,7 +173,7 @@ function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready) onJoin(code);
+        if (ready) onJoin(code, false);
       }}
     >
       <label className="block text-[12px] font-bold text-fg-2" htmlFor="friend-room-code">
@@ -199,6 +199,19 @@ function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
       >
         {t("friend.enter")}
       </button>
+      {/* 観戦だけで入る(席に着かない・手札は見えない)。 */}
+      <button
+        type="button"
+        disabled={!ready}
+        onClick={() => ready && onJoin(code, true)}
+        className={`pressable mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl text-[14px] font-bold ring-1 ring-inset transition-colors ${
+          ready ? "text-accent ring-accent/50" : "text-fg-3 ring-white/10"
+        }`}
+      >
+        <Icon name="eye" className="h-4 w-4" />
+        {t("friend.watchOnly")}
+      </button>
+      <p className="mt-2 text-center text-[11px] text-fg-3">{t("friend.watchOnly.desc")}</p>
     </form>
   );
 }

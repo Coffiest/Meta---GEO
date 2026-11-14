@@ -97,6 +97,8 @@ export type RoomPhase = "lobby" | "playing" | "finished";
 
 interface Member extends HumanPlayer {
   socket: Socket | null;
+  /** 観戦だけで入った人(席に着かない。人数にも数えない。手札は見せない)。 */
+  spectator: boolean;
   joinedAt: number;
   graceTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -120,7 +122,7 @@ export interface PrivateRoomPayload {
   isHost: boolean;
   phase: RoomPhase;
   settings: PrivateRoomSettings;
-  members: { userId: string; displayName: string; avatarKey: string | null }[];
+  members: { userId: string; displayName: string; avatarKey: string | null; spectator: boolean }[];
   standings: PrivateStanding[] | null;
 }
 
@@ -208,7 +210,7 @@ export class PrivateRoomManager {
           });
       };
     socket.on("privateCreate", wrap<{ settings?: unknown }>(this.onCreate));
-    socket.on("privateJoin", wrap<{ code?: unknown }>(this.onJoin));
+    socket.on("privateJoin", wrap<{ code?: unknown; spectate?: unknown }>(this.onJoin));
     socket.on("privateResume", wrap<Record<string, never>>(this.onResume));
     socket.on("privateLeave", wrap<Record<string, never>>(this.onLeave));
     socket.on("privateKick", wrap<{ userId?: unknown }>(this.onKick));
@@ -255,7 +257,7 @@ export class PrivateRoomManager {
     this.broadcast(room);
   }
 
-  private async onJoin(socket: Socket, payload: { code?: unknown }, ack: Ack): Promise<void> {
+  private async onJoin(socket: Socket, payload: { code?: unknown; spectate?: unknown }, ack: Ack): Promise<void> {
     const player = await this.identify(socket, ack);
     if (!player) return;
     if (this.tooManyFailures(player.userId)) return this.fail(ack, "TOO_MANY_TRIES");
@@ -273,6 +275,15 @@ export class PrivateRoomManager {
       return;
     }
     if (this.hooks.isBusyElsewhere(player.userId)) return this.fail(ack, "BUSY");
+    // 観戦だけで入る人(オーナー指示 2026-11-14)。人数の上限に数えず、始まっていればそのまま卓を見せる。
+    if (payload.spectate === true) {
+      this.leaveCurrentRoom(player.userId);
+      this.addMember(room, player, socket, true);
+      if (room.phase === "playing" && room.session) room.session.addSpectator(player.userId, socket, true);
+      ack({ ok: true, code });
+      this.broadcast(room);
+      return;
+    }
     // 始まった後に来た人: レイトインの受付中で席が空いていれば次のハンドから座り(TDA)、そうでなければ観戦。
     if (room.phase === "playing" && room.session) {
       this.leaveCurrentRoom(player.userId);
@@ -282,7 +293,7 @@ export class PrivateRoomManager {
       this.broadcast(room);
       return;
     }
-    if (room.members.size >= room.settings.maxPlayers) return this.fail(ack, "FULL");
+    if (this.playersOf(room).length >= room.settings.maxPlayers) return this.fail(ack, "FULL");
 
     this.leaveCurrentRoom(player.userId);
     this.addMember(room, player, socket);
@@ -335,7 +346,7 @@ export class PrivateRoomManager {
     if (!room) return;
     if (room.phase === "playing") return this.fail(ack, "STARTED");
     // 最大人数を超えて入っている(待合で人数を減らした)ときは、入った順に最大人数まで。
-    const seated = [...room.members.values()].sort((a, b) => a.joinedAt - b.joinedAt).slice(0, room.settings.maxPlayers);
+    const seated = this.playersOf(room).slice(0, room.settings.maxPlayers);
     if (seated.length < 2) return this.fail(ack, "NOT_ENOUGH");
 
     const preset = BLIND_PRESETS[room.settings.blind];
@@ -368,6 +379,7 @@ export class PrivateRoomManager {
     ack({ ok: true, code: room.code });
     this.broadcast(room);
     for (const m of seated) if (m.socket) session.attachHuman(m.socket, m.userId);
+    for (const m of room.members.values()) if (m.spectator && m.socket) session.addSpectator(m.userId, m.socket, true);
     try {
       await session.start();
     } catch (err) {
@@ -442,12 +454,18 @@ export class PrivateRoomManager {
     }, LOBBY_DISCONNECT_GRACE_MS);
   }
 
-  private addMember(room: Room, player: HumanPlayer, socket: Socket): void {
+  /** 席に着く人(観戦だけの人を除く)。入った順。 */
+  private playersOf(room: Room): Member[] {
+    return [...room.members.values()].filter((m) => !m.spectator).sort((a, b) => a.joinedAt - b.joinedAt);
+  }
+
+  private addMember(room: Room, player: HumanPlayer, socket: Socket, spectator = false): void {
     room.members.set(player.userId, {
       userId: player.userId,
       displayName: player.displayName,
       avatarKey: player.avatarKey,
       socket,
+      spectator,
       joinedAt: Date.now(),
       graceTimer: null,
     });
@@ -463,7 +481,10 @@ export class PrivateRoomManager {
       member.graceTimer = null;
     }
     // ゲーム中なら卓へ戻す(席があれば手札・手番の時計も送り直され、無ければ観戦に戻る)。
-    if (room.phase === "playing" && room.session) room.session.reattach(userId, socket);
+    if (room.phase === "playing" && room.session) {
+      if (member.spectator) room.session.addSpectator(userId, socket, true);
+      else room.session.reattach(userId, socket);
+    }
   }
 
   private removeMember(room: Room, userId: string): void {
@@ -481,7 +502,8 @@ export class PrivateRoomManager {
     }
     // ホストが抜けたら、残っている中で最初に入った人へ引き継ぐ(オーナー確定)。
     if (room.hostUserId === userId) {
-      const next = [...room.members.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0]!;
+      // ホストは席に着く人から引き継ぐ(観戦だけの人しか残っていなければ、その人)。
+      const next = this.playersOf(room)[0] ?? [...room.members.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0]!;
       room.hostUserId = next.userId;
     }
   }
@@ -552,7 +574,7 @@ export class PrivateRoomManager {
       settings: room.settings,
       members: [...room.members.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
-        .map((m) => ({ userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey })),
+        .map((m) => ({ userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, spectator: m.spectator })),
       standings: room.standings,
     };
   }

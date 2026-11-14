@@ -27,7 +27,9 @@ export function PrivateLobbyBar({
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canStart = room.members.length >= 2;
+  const players = room.members.filter((m) => !m.spectator);
+  const watchers = room.members.length - players.length;
+  const canStart = players.length >= 2;
   const speed = BLIND_SPEEDS.find((b) => b.key === room.settings.blind)!;
 
   return (
@@ -38,7 +40,8 @@ export function PrivateLobbyBar({
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[12px] font-bold tabular-nums text-fg">
-              {t("friend.members", { n: room.members.length, max: room.settings.maxPlayers })}
+              {t("friend.members", { n: players.length, max: room.settings.maxPlayers })}
+              {watchers > 0 && <span className="font-semibold text-fg-2"> · {t("friend.watchers", { n: watchers })}</span>}
               <span className="font-semibold text-fg-2"> · {t(`friend.blind.${room.settings.blind}`)}</span>
             </p>
             <p className="mt-0.5 truncate text-[11px] font-semibold text-fg-3" aria-live="polite">
@@ -263,11 +266,14 @@ export function PrivateClosedNotice({ reason, message, onHome }: { reason: Priva
  */
 export function PrivateWatchBar({
   canSeeCards,
+  watchOnly = false,
   canReEntry,
   onReEntry,
   onLeave,
 }: {
   canSeeCards: boolean;
+  /** 観戦だけで入った人(手札は最後まで見えない)。 */
+  watchOnly?: boolean;
   canReEntry: boolean;
   onReEntry: () => void;
   onLeave: () => void;
@@ -281,7 +287,7 @@ export function PrivateWatchBar({
             <Icon name="eye" className="h-4 w-4 text-fg-2" />
             {t("friend.watching")}
           </span>
-          <span className="mt-1 text-[11px] font-semibold text-fg-3">{canSeeCards ? t("friend.watchingCards") : t("friend.watchingWait")}</span>
+          <span className="mt-1 text-[11px] font-semibold text-fg-3">{watchOnly ? t("friend.watchOnly.desc") : canSeeCards ? t("friend.watchingCards") : t("friend.watchingWait")}</span>
         </div>
         <div className="flex gap-2">
           <button

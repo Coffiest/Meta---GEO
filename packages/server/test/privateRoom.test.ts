@@ -252,6 +252,21 @@ describe("ルームの出入り", () => {
     await host.call("privateCreate", { settings: { autoSeats: 2 } });
     const json = JSON.stringify(host.lastRoom());
     expect(json).not.toMatch(/bot/i);
-    expect(Object.keys(host.lastRoom()!.members[0]!).sort()).toEqual(["avatarKey", "displayName", "userId"]);
+    // spectator は本人が選んだ「観戦だけで入った」かどうか(自動の席とは関係ない)。
+    expect(Object.keys(host.lastRoom()!.members[0]!).sort()).toEqual(["avatarKey", "displayName", "spectator", "userId"]);
+  });
+
+  it("観戦だけで入った人は、人数に数えず、スタートの人数にも入らない", async () => {
+    const { connect } = setup();
+    const host = connect("h");
+    const res = await host.call("privateCreate", { settings: {} });
+    const code = (res as { code: string }).code;
+    const viewer = connect("v");
+    await viewer.call("privateJoin", { code, spectate: true });
+    const room = host.lastRoom()!;
+    expect(room.members.find((m) => m.userId === "v")?.spectator).toBe(true);
+    // 席に着く人はホストだけなので、スタートできない。
+    const start = await host.call("privateStart", {});
+    expect((start as { ok: boolean }).ok).toBe(false);
   });
 });

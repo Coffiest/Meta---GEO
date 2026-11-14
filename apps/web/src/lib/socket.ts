@@ -565,7 +565,7 @@ export function usePokerSocket({ displayName, avatarKey, gameKey, accessToken, u
           setData((d) => ({ ...d, joinError: res.message }));
         };
         if (intent.mode === "create") socket.emit("privateCreate", { settings: intent.settings }, onAck);
-        else if (intent.mode === "join") socket.emit("privateJoin", { code: intent.code }, onAck);
+        else if (intent.mode === "join") socket.emit("privateJoin", { code: intent.code, spectate: intent.spectate === true }, onAck);
         else socket.emit("privateResume", {}, onAck);
       } else if (!hasJoinedRef.current) {
         hasJoinedRef.current = true;
