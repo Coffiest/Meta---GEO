@@ -10,6 +10,7 @@ import type { PublicHandState } from "@meta-geo/engine";
 import { cardToString } from "@meta-geo/engine/src/types/card.js";
 import { bestFiveCards, describeMadeHand } from "@/lib/handRank";
 import { useI18n } from "@/lib/i18n";
+import { playSfx } from "@/lib/sfx";
 import { PlayingCard } from "./PlayingCard";
 import { Seat, type SeatBadge, type SeatHud } from "./Seat";
 import { positionLabelsForState } from "@/lib/position";
@@ -256,6 +257,27 @@ export function PokerTable({
   const { t } = useI18n();
   const reducedMotion = useReducedMotion() ?? false;
   const seatsByIndex = new Map((state?.seats ?? []).map((s) => [s.seatIndex, s]));
+
+  // 効果音(chess.com のような短い音)。席のアクション・ボードが開く・自分の番・ポットを取ったときに鳴らす。
+  const prevSfx = useRef<{ actions: Record<number, SeatAction>; board: number; acting: number | null; won: boolean } | null>(null);
+  useEffect(() => {
+    const board = state?.board.length ?? 0;
+    const acting = state?.actingSeatIndex ?? null;
+    const won = yourSeatIndex !== null && (lastHandDeltaBySeat?.[yourSeatIndex] ?? 0) > 0;
+    const prev = prevSfx.current;
+    prevSfx.current = { actions: lastActionBySeat, board, acting, won };
+    if (!prev) return;
+    if (won && !prev.won) playSfx("win");
+    else if (board > prev.board) playSfx("move");
+    else {
+      const changed = Object.entries(lastActionBySeat).find(([seat, a]) => {
+        const p = prev.actions[Number(seat)];
+        return !p || p.kind !== a.kind || p.toAmount !== a.toAmount;
+      });
+      if (changed) playSfx(changed[1].kind === "fold" ? "fold" : changed[1].kind === "check" ? "move" : "chip");
+    }
+    if (acting !== null && acting === yourSeatIndex && prev.acting !== acting) playSfx("turn");
+  }, [lastActionBySeat, state?.board.length, state?.actingSeatIndex, lastHandDeltaBySeat, yourSeatIndex]);
 
   // 自分の席が常に画面下(スロット0)に来るよう、実席番号→表示スロットへ回転させる。
   // MTTでは卓移動により自分の席番号が変わるため、この回転が必須になる。
