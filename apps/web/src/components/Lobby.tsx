@@ -72,6 +72,8 @@ interface BankrollGraphPoint {
 }
 
 interface LeaderboardUser {
+  /** レート(chess.com と同じ単位)。 */
+  rating?: number;
   userId: string;
   displayName: string;
   avatarKey: string | null;
@@ -1563,6 +1565,7 @@ export function Lobby({
                           <div className="flex-1 min-w-0">
                             <div className="text-sm text-fg truncate">
                               {row.displayName}
+                              {row.rating != null && <span className="ml-1 text-[11px] tabular-nums text-fg-3">({row.rating})</span>}
                               {isYou && <span className="text-accent text-[10px] ml-1">{t("lobby.you")}</span>}
                             </div>
                             <div className="text-[10px] text-n-9 tabular-nums">{t("lobby.nTournaments", { n: row.tournamentsPlayed })}</div>

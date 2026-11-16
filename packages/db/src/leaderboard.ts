@@ -1,3 +1,4 @@
+import { getRatings } from "./chessRating.js";
 import { prisma } from "./client.js";
 import { RR_RATING_SHRINKAGE_K } from "./rrRating.js";
 import { getRankedEntries } from "./rankedEntries.js";
@@ -26,6 +27,8 @@ export interface LeaderboardUser {
   rrRating: number;
   /** その期間の参加トーナメント数。 */
   tournamentsPlayed: number;
+  /** レート(chess.com と同じ単位。期間に関係なく今の値)。 */
+  rating?: number;
 }
 
 export interface Leaderboards {
@@ -125,5 +128,10 @@ export async function getLeaderboards(): Promise<Leaderboards> {
     })),
   );
 
-  return { weekly, allTime, last10, minTournaments: MIN_TOURNAMENTS };
+  // レートを名前の横に出す(表に載る人だけ・1回の問い合わせで id とレートだけ読む)。
+  const ids = [...new Set([...weekly, ...allTime, ...last10].map((u) => u.userId))];
+  const ratings = await getRatings(ids);
+  const withRating = (list: LeaderboardUser[]) => list.map((u) => ({ ...u, rating: ratings.get(u.userId) ?? 1200 }));
+
+  return { weekly: withRating(weekly), allTime: withRating(allTime), last10: withRating(last10), minTournaments: MIN_TOURNAMENTS };
 }
