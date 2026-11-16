@@ -27,6 +27,8 @@ export interface TournamentHistoryPoint {
   seatCount: number;
   rrRatingAfter: number;
   rrRatingDelta: number | null;
+  /** このトナメを終えたときのレート(chess.com と同じ単位)。古いトナメは null。 */
+  ratingAfter?: number | null;
 }
 
 export const GAME_TYPE_LABEL: Record<string, string> = { sng: "Sit & Go", mtt: "MTT" };
