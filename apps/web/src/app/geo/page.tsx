@@ -41,6 +41,7 @@ import { useAuth } from "@/lib/useAuth";
 import { checkAdminSession } from "@/lib/adminApi";
 import { useGeoAccess, type GeoLockInfo } from "@/lib/useGeoAccess";
 import { GeoLockCard, GeoLockScreen } from "@/components/geo/GeoLockScreen";
+import { GtowExplorer } from "@/components/geo/GtowExplorer";
 import { APP_VERSION } from "@/lib/version";
 import { Loader } from "@/components/ui/Loader";
 
@@ -203,6 +204,8 @@ function GeoDatabase({
   // データ源。GTOモードへの入口は廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。
   // 内部の分岐(GEO/GTOで別エンドポイントを叩く等)はそのまま残してあるが、常に"geo"側だけを通る。
   const [mode] = useState<"geo" | "gto">("geo");
+  /** 画面の切り替え: GEO(集計)/ GTO(GTO Wizard の解をそのまま見る `GtowExplorer`)。 */
+  const [view, setView] = useState<"geo" | "gto">("geo");
   const [stackBucket, setStackBucket] = useState<StackBucket>("all");
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
@@ -756,6 +759,30 @@ function GeoDatabase({
           モバイルは従来の1カラム + 下部フッターナビ。切り替えはCSSのブレークポイントだけで行う。 */}
       <div className="mx-auto flex w-full max-w-3xl lg:max-w-none lg:px-4">
         <main className="min-w-0 flex-1 px-4 pb-28 lg:px-0 lg:pb-12">
+        {/* GEO(実際のプレイの集計)と GTO(GTO Wizard の解そのもの)の切り替え */}
+        <div className="mx-auto mb-1 mt-3 grid max-w-xs grid-cols-2 gap-1 rounded-2xl bg-white/[0.05] p-1">
+          {(
+            [
+              ["geo", "GEO"],
+              ["gto", "GTO"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setView(k)}
+              className={`pressable h-9 rounded-xl text-[13px] font-black ${view === k ? "bg-accent text-on-accent" : "text-fg-2"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {view === "gto" ? (
+          <div className="pt-3">
+            <GtowExplorer />
+          </div>
+        ) : (
+        <>
         {/* GEO専用のツールバー(見出し+データ源トグル+設定+ポジションピル)。共通ヘッダーの
             `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
             欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
@@ -996,6 +1023,8 @@ function GeoDatabase({
           </button>
         </div>
         {adminNotice && <p className="mt-2 text-center text-[10px] text-fg-3">{adminNotice}</p>}
+        </>
+        )}
         </main>
       </div>
 
