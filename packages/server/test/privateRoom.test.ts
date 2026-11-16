@@ -253,7 +253,7 @@ describe("ルームの出入り", () => {
     const json = JSON.stringify(host.lastRoom());
     expect(json).not.toMatch(/bot/i);
     // spectator は本人が選んだ「観戦だけで入った」かどうか(自動の席とは関係ない)。
-    expect(Object.keys(host.lastRoom()!.members[0]!).sort()).toEqual(["avatarKey", "displayName", "spectator", "userId"]);
+    expect(Object.keys(host.lastRoom()!.members[0]!).sort()).toEqual(["avatarKey", "displayName", "rating", "spectator", "userId"]);
   });
 
   it("観戦だけで入った人は、人数に数えず、スタートの人数にも入らない", async () => {

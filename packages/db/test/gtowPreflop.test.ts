@@ -21,10 +21,11 @@ describe("GTO Wizard の解(70bb)で頻度の格付け", () => {
   });
 
   it("小さいスタックのデータが無い場面・データの無い場面は使わない", () => {
-    expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 30, chosenKind: "raise", chosenBucket: "raise2-5" })).toBeNull();
+    // 30bb の vs3bet_BTN_vs_SB は v1.37.2 で解が入った。
+    expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 30, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(30);
     // 70bb に無い場面は 100bb の解で代用する。
     expect(judgeGtow({ scene: "vsOpen_BB_vs_SB", handClass: "AKs", effStackBb: 70, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(100);
-    expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 55, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(70);
+    expect(judgeGtow({ scene: "vs3bet_BTN_vs_SB", handClass: "AKs", effStackBb: 55, chosenKind: "raise", chosenBucket: "raise2-5" })!.stack).toBe(60);
   });
 });
 

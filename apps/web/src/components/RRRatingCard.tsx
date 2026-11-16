@@ -13,6 +13,8 @@ export interface RRRatingData {
   tournamentsPlayed: number;
   nationalRank: number | null;
   totalRankedPlayers: number;
+  /** レート(chess.com と同じ単位)。古いサーバーの応答には無い。 */
+  rating?: number;
 }
 
 export interface TournamentHistoryPoint {
@@ -274,7 +276,11 @@ export function RRRatingCard({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <Avatar avatarKey={avatarKey} displayName={displayName} size={34} frame={frame ?? null} />
-            <p className="text-sm font-bold text-fg truncate min-w-0">{displayName}</p>
+            <p className="text-sm font-bold text-fg truncate min-w-0">
+              {displayName}
+              {/* chess.com と同じく、名前の横にレート。 */}
+              {data?.rating != null && <span className="ml-1.5 font-semibold tabular-nums text-fg-3">({data.rating})</span>}
+            </p>
           </div>
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -337,9 +343,10 @@ export function RRRatingCard({
           <StatCol label="コスト合計" value={totalBuyIns.toLocaleString()} />
           <StatCol label="リターン" value={totalPayouts.toLocaleString()} />
         </div>
-        <div className="grid grid-cols-2 divide-x divide-line pb-4">
+        <div className="grid grid-cols-3 divide-x divide-line pb-4">
           <StatCol label="インマネ率" value={`${(itmRate * 100).toFixed(0)}%`} />
           <StatCol label="ROI" value={`${((data?.roi ?? 0) * 100).toFixed(0)}%`} accent />
+          <StatCol label="レート" value={data?.rating != null ? String(data.rating) : "--"} accent />
         </div>
         <motion.button
           whileTap={{ scale: 0.97 }}
