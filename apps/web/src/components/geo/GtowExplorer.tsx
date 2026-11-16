@@ -16,6 +16,9 @@ const order = (code: string) => (code === "RAI" ? 0 : code.startsWith("R") ? 1 :
 const name = (code: string, stack: number) =>
   code === "F" ? "Fold" : code === "C" ? "Call" : code === "X" ? "Check" : code === "RAI" ? `Allin ${stack}` : `Raise ${code.slice(1)}`;
 
+const fmt = (v: number) => String(Math.round(v * 1000) / 1000);
+const fmtPct = (v: number) => `${+(v * 100).toFixed(1)}%`;
+
 const cache = new Map<number, Promise<TrainerData | null>>();
 function load(stack: number) {
   let p = cache.get(stack);
@@ -58,7 +61,7 @@ function replay(pa: string, stack: number) {
     }
     i = next;
   }
-  return { last, folded, next: i, bet };
+  return { last, folded, next: i, bet, stacks: bet.map((b) => Math.max(0, stack - b)) };
 }
 
 export function GtowExplorer() {
@@ -103,6 +106,15 @@ export function GtowExplorer() {
     return den > 0 ? num / den : 0;
   });
 
+  const comboTotals = actions.map((a) => {
+    let num = 0;
+    for (let h = 0; h < 169; h++) num += combos(h) * weight[h] * (a.s[h] ?? 0);
+    return num;
+  });
+  const ante = 0.125 * 8;
+  const pot = r.bet.reduce((x, y) => x + y, 0) + ante;
+  const toCall = actorIdx >= 0 ? Math.max(0, Math.max(...r.bet) - (r.bet[actorIdx] ?? 0)) : 0;
+
   const go = (code: string) => {
     setPa(pa ? `${pa}-${code}` : code);
     setHand(null);
@@ -137,14 +149,14 @@ export function GtowExplorer() {
         ))}
       </div>
 
-      {/* 席の並び(GTO Wizard と同じく左から UTG → BB)。行動済みの席は行動、手番の席は強調。 */}
-      <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      {/* 席の帯(GTO Wizard と同じ並び: 不透明の板に席名と残りスタック。手番は緑の文字。右にポットとポットオッズ) */}
+      <div className="mb-3 flex items-stretch gap-1 overflow-x-auto rounded-xl bg-[#1b1b1d] p-1">
         <button
           type="button"
           onClick={back}
           disabled={!pa}
           aria-label="1手もどる"
-          className="pressable flex w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-fg disabled:opacity-30"
+          className="pressable flex w-9 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2d] text-fg disabled:opacity-30"
         >
           <Icon name="chevron-left" className="h-4 w-4" />
         </button>
@@ -154,15 +166,26 @@ export function GtowExplorer() {
           return (
             <div
               key={p}
-              className={`min-w-[64px] shrink-0 rounded-xl px-2 py-1.5 ${isActor ? "bg-accent/15 ring-1 ring-accent" : "bg-surface"} ${
-                r.folded[i] ? "opacity-40" : ""
-              }`}
+              className={`flex min-w-[58px] shrink-0 flex-col items-center justify-center rounded-lg px-2 py-1 ${
+                isActor ? "bg-[#2f2f33]" : "bg-[#252528]"
+              } ${r.folded[i] ? "opacity-40" : ""}`}
             >
-              <p className={`text-[11px] font-black ${isActor ? "text-accent" : "text-fg-2"}`}>{p}</p>
-              <p className="truncate text-[11px] tabular-nums text-fg">{isActor ? "手番" : c ? name(c, stack) : "—"}</p>
+              <span className={`text-[13px] font-black leading-tight ${isActor ? "text-[#8fe388]" : "text-[#e6e6e6]"}`}>{p}</span>
+              <span className={`text-[13px] font-bold leading-tight tabular-nums ${isActor ? "text-[#8fe388]" : "text-[#cfcfcf]"}`}>
+                {fmt(r.stacks[i] ?? stack)}
+              </span>
+              {c && !isActor && <span className="text-[10px] leading-tight text-[#9a9a9a]">{name(c, stack)}</span>}
             </div>
           );
         })}
+        <div className="ml-auto flex shrink-0 flex-col justify-center px-2 tabular-nums">
+          <span className="text-[13px] font-black text-[#e6e6e6]">{fmt(pot)} BB</span>
+          {toCall > 0 && (
+            <span className="text-[11px] text-[#9a9a9a]">
+              ポットオッズ <b className="text-[#cfcfcf]">{((toCall / (pot + toCall)) * 100).toFixed(0)}%</b>
+            </span>
+          )}
+        </div>
       </div>
 
       {data === undefined ? (
@@ -173,22 +196,38 @@ export function GtowExplorer() {
         </p>
       ) : (
         <>
-          {/* 行動(押すとその手順へ進む)。全体の頻度つき。 */}
-          <div className="mb-3 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
-            {actions.map((a, i) => (
-              <button
-                key={a.c}
-                type="button"
-                onClick={() => go(a.c)}
-                className="pressable rounded-xl px-2 py-2 text-left"
-                style={{ background: `${colorOf(a.c)}33`, boxShadow: `inset 0 0 0 1px ${colorOf(a.c)}` }}
-              >
-                <p className="truncate text-[12px] font-bold text-fg">{name(a.c, stack)}</p>
-                <p className="text-[15px] font-black tabular-nums text-fg">{((totals[i] ?? 0) * 100).toFixed(1)}%</p>
-              </button>
-            ))}
+          {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。押すとその手順へ進む。 */}
+          <div className="rounded-xl bg-[#1b1b1d] p-1">
+            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
+              {actions.map((a, i) => (
+                <button
+                  key={a.c}
+                  type="button"
+                  onClick={() => go(a.c)}
+                  className="pressable flex h-[104px] flex-col justify-between rounded-lg p-2 text-left text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
+                  style={{ background: colorOf(a.c) }}
+                >
+                  <span className="truncate text-[17px] font-bold leading-tight">{name(a.c, stack)}</span>
+                  <span className="flex items-end justify-between gap-1">
+                    <span className="text-[22px] font-bold leading-none tabular-nums">{fmtPct(totals[i] ?? 0)}</span>
+                    <span className="text-right text-[10px] leading-tight tabular-nums opacity-90">
+                      {(comboTotals[i] ?? 0).toFixed(2)}
+                      <br />
+                      combos
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {/* 全体の割合の帯 */}
+            <div className="mt-1 flex h-4 overflow-hidden rounded-md">
+              {actions.map((a, i) => (
+                <span key={a.c} style={{ width: `${(totals[i] ?? 0) * 100}%`, background: colorOf(a.c) }} />
+              ))}
+            </div>
           </div>
 
+          <div className="h-3" />
           {/* 169 の手の表。マスの中を行動の頻度で塗り分ける。レンジに無い手は薄く。 */}
           <div className="grid gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
             {Array.from({ length: 169 }, (_, h) => {
