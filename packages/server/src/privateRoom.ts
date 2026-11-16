@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import type { Server, Socket } from "socket.io";
+import { getRatings } from "@meta-geo/db";
 import { TableSession, SNG_SEAT_COUNT, type GameSession, type HumanPlayer, type PrivateStanding } from "./gameServer.js";
 
 /**
@@ -99,6 +100,8 @@ interface Member extends HumanPlayer {
   socket: Socket | null;
   /** 観戦だけで入った人(席に着かない。人数にも数えない。手札は見せない)。 */
   spectator: boolean;
+  /** レート(入室時に読む。読み終わるまでは 1200)。 */
+  rating: number;
   joinedAt: number;
   graceTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -122,7 +125,7 @@ export interface PrivateRoomPayload {
   isHost: boolean;
   phase: RoomPhase;
   settings: PrivateRoomSettings;
-  members: { userId: string; displayName: string; avatarKey: string | null; spectator: boolean }[];
+  members: { userId: string; displayName: string; avatarKey: string | null; spectator: boolean; rating: number }[];
   standings: PrivateStanding[] | null;
 }
 
@@ -466,9 +469,20 @@ export class PrivateRoomManager {
       avatarKey: player.avatarKey,
       socket,
       spectator,
+      rating: 1200,
       joinedAt: Date.now(),
       graceTimer: null,
     });
+    void getRatings([player.userId])
+      .then((m) => {
+        const mem = room.members.get(player.userId);
+        const r = m.get(player.userId);
+        if (mem && r != null) {
+          mem.rating = r;
+          this.broadcast(room);
+        }
+      })
+      .catch(() => {});
     this.roomOfUser.set(player.userId, room.code);
   }
 
@@ -574,7 +588,7 @@ export class PrivateRoomManager {
       settings: room.settings,
       members: [...room.members.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
-        .map((m) => ({ userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, spectator: m.spectator })),
+        .map((m) => ({ userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, spectator: m.spectator, rating: m.rating })),
       standings: room.standings,
     };
   }

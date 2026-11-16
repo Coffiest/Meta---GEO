@@ -437,7 +437,7 @@ function GameScreen({
     // 観戦だけの人は席に座らせない。
     const seated = privateRoom.members.filter((m) => !m.spectator);
     seated.forEach((m, i) => {
-      players[i] = { userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, away: false, frame: null };
+      players[i] = { userId: m.userId, displayName: m.displayName, avatarKey: m.avatarKey, away: false, frame: null, ...(m.rating != null ? { rating: m.rating } : {}) };
     });
     const mine = seated.findIndex((m) => m.userId === privateRoom.youUserId);
     const speed = BLIND_SPEEDS.find((b) => b.key === privateRoom.settings.blind)!;

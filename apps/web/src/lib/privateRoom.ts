@@ -57,7 +57,7 @@ export interface PrivateRoomInfo {
   phase: PrivateRoomPhase;
   settings: PrivateRoomSettings;
   /** spectator = 観戦だけで入った人(席に着かない・人数に数えない)。 */
-  members: { userId: string; displayName: string; avatarKey: string | null; spectator?: boolean }[];
+  members: { userId: string; displayName: string; avatarKey: string | null; spectator?: boolean; rating?: number }[];
   standings: PrivateStanding[] | null;
 }
 

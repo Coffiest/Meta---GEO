@@ -326,7 +326,9 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       sendJson(
         res,
         200,
-        user ? await getRRRating(user.id) : { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: 0 },
+        user
+          ? { ...(await getRRRating(user.id)), rating: Math.round(user.rating) }
+          : { rrRating: 50, roi: 0, tournamentsPlayed: 0, nationalRank: null, totalRankedPlayers: 0, rating: 1200 },
       );
       return true;
     }

@@ -844,6 +844,7 @@ function providerLabel(provider: string, t: TFn): string {
 }
 
 function HamburgerMenu({
+  rating,
   displayName,
   avatarKey,
   frame,
@@ -858,6 +859,8 @@ function HamburgerMenu({
 }: {
   displayName: string;
   avatarKey: string | null;
+  /** 自分のレート(chess.com と同じ単位)。 */
+  rating?: number | null;
   frame?: "silver" | "gold" | null;
   email?: string | null;
   providers?: string[];
@@ -923,7 +926,10 @@ function HamburgerMenu({
         <div className="px-5 flex items-center gap-3 mb-2">
           <Avatar avatarKey={avatarKey} displayName={displayName} size={48} frame={frame ?? null} />
           <div className="min-w-0">
-            <div className="text-base font-semibold text-fg truncate">{displayName}</div>
+            <div className="text-base font-semibold text-fg truncate">
+              {displayName}
+              {rating != null && <span className="ml-1.5 text-[13px] font-semibold tabular-nums text-fg-3">({rating})</span>}
+            </div>
             {email ? (
               <div className="text-xs text-n-9 truncate">{email}</div>
             ) : (
@@ -1763,6 +1769,7 @@ export function Lobby({
             displayName={displayName}
             avatarKey={avatarKey}
             frame={elite?.frame ?? null}
+            rating={rrRating?.rating ?? null}
             email={email}
             providers={providers}
             isGuest={!accessToken}
