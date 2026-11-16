@@ -151,7 +151,11 @@ export function PlayerDetailModal({
         {/* ヘッダー: アバター+名前+閉じる */}
         <div className="flex items-center gap-3 px-4 pb-3 pt-4">
           <Avatar avatarKey={target.avatarKey} displayName={target.displayName} size={44} frame={profile?.frame ?? null} />
-          <h2 className="min-w-0 flex-1 truncate text-[17px] font-extrabold tracking-tight text-fg">{target.displayName}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-[17px] font-extrabold tracking-tight text-fg">
+            {target.displayName}
+            {/* chess.com と同じく、名前の横にレート。 */}
+            {profile?.rating != null && <span className="ml-1.5 text-[14px] font-bold tabular-nums text-fg-3">({profile.rating})</span>}
+          </h2>
           <button
             type="button"
             onClick={onClose}

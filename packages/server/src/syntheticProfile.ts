@@ -33,6 +33,8 @@ export interface SyntheticProfile {
   avatarKey: string | null;
   /** アイコンの銀枠・金枠。資格(生涯収支など)は実プレイヤーの集計からしか決まらないので、ここは常に無し。 */
   frame: null;
+  /** レート(chess.com と同じ単位)。呼び出し側が実際の値を入れる。 */
+  rating: number;
   stats: {
     tournamentsPlayed: number;
     itmCount: number;
@@ -105,6 +107,7 @@ export function syntheticPlayerProfile(userId: string, displayName: string, avat
     displayName,
     avatarKey,
     frame: null,
+    rating: 1200,
     stats: {
       tournamentsPlayed,
       itmCount,

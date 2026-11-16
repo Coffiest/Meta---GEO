@@ -423,7 +423,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
       }
       const target = await prisma.user.findUnique({
         where: { id: targetUserId },
-        select: { id: true, displayName: true, avatarKey: true, isBot: true },
+        select: { id: true, displayName: true, avatarKey: true, isBot: true, rating: true },
       });
       if (!target) {
         sendJson(res, 404, { error: "not found" });
@@ -438,6 +438,8 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         const synthetic = syntheticPlayerProfile(target.id, target.displayName, target.avatarKey);
         synthetic.stats.totalRankedPlayers = rankedPlayers;
         synthetic.rrRating.totalRankedPlayers = rankedPlayers;
+        // レートは自動の席も実際の値(同じ計算で動いている)。
+        synthetic.rating = Math.round(target.rating);
         sendJson(res, 200, synthetic);
         return true;
       }
@@ -455,6 +457,7 @@ export async function handleLobbyApiRequest(req: IncomingMessage, res: ServerRes
         // 相手読み用の項目(vpipRate / foldToBetRate)は応答に出さない(擬似スタッツと同じ形に保つ)。
         stats: { ...stats, ...omitModelOnly(tendencies) },
         rrRating: rr,
+        rating: Math.round(target.rating),
       });
       return true;
     }

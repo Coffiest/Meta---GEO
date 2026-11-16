@@ -66,6 +66,8 @@ export interface PublicPlayerProfile {
   frame?: "silver" | "gold" | null;
   stats: PlayerStatsSummary;
   rrRating: RRRatingSummary;
+  /** レート(chess.com と同じ単位)。古いサーバーの応答には無い。 */
+  rating?: number;
 }
 
 // --- 自動プレイヤー用の擬似スタッツ ---
