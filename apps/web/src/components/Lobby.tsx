@@ -10,6 +10,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useI18n } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { RatingHistoryCard } from "./RatingHistoryCard";
 import { setSfxEnabled, sfxEnabled, playSfx } from "@/lib/sfx";
 import { AdminVersionFooter } from "./AdminVersionFooter";
 import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "./Header";
@@ -1313,6 +1314,9 @@ export function Lobby({
               onViewHistory={() => setTab("tournaments")}
             />
             </div>
+
+            {/* レートの推移(chess.com と同じ考え方のグラフ)。 */}
+            <RatingHistoryCard history={tournamentHistory ?? []} />
 
             {accessToken && <FeedbackCard accessToken={accessToken} />}
 

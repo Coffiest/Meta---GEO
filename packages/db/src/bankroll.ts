@@ -313,6 +313,8 @@ export interface TournamentHistoryPoint {
   rrRatingAfter: number;
   /** 直前のトナメからのrrRatingAfterの変動(先頭の1件はnull)。 */
   rrRatingDelta: number | null;
+  /** このトナメを終えたときのレート(chess.com と同じ単位)。レートを入れる前のトナメは null。 */
+  ratingAfter: number | null;
 }
 
 /**
@@ -328,6 +330,7 @@ export async function getTournamentHistory(userId: string, limit = 20): Promise<
       select: {
         payout: true,
         finishPosition: true,
+        ratingAfter: true,
         tournament: { select: { id: true, gameType: true, buyIn: true, seatCount: true, finishedAt: true, createdAt: true } },
       },
     }),
@@ -359,6 +362,7 @@ export async function getTournamentHistory(userId: string, limit = 20): Promise<
       seatCount: e.tournament.seatCount,
       rrRatingAfter,
       rrRatingDelta,
+      ratingAfter: e.ratingAfter,
     };
   });
 }
