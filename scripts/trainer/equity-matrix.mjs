@@ -46,7 +46,7 @@ function score(cards) {
 }
 function popc(m) { let c = 0; while (m) { m &= m - 1; c++; } return c; }
 function topBits(m, n) { let v = 0, k = 0; for (let r = 12; r >= 0 && k < n; r--) if (m & (1 << r)) { v = v * 13 + r; k++; } return v; }
-let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const rnd = Math.random;
 const C = Array.from({ length: 169 }, (_, i) => combos(i));
 const M = Array.from({ length: 169 }, () => new Array(169).fill(500));
 for (let i = 0; i < 169; i++) {
