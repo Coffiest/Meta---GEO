@@ -1,126 +1,78 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { SPRING_MOVE } from "@/lib/motion";
 import { mergeOpenRaiseOptions, type TreeNode } from "@/lib/geoApi";
-import { bucketColor, bucketOrderIndex, bucketTintRgb } from "./colors";
+import { bucketColor, bucketOrderIndex } from "./colors";
 
 /**
- * 現在のノード(次に手番が来るポジション)を、色分けされた頻度ボックスとして表示する。
- * タップするとそのバケットがラインに追加される。頻度順ではなく固定のアグレッション順
- * (強→弱、左から右)で並べる。色は固定4色(Fold=青/Call=緑/Bet・Raise=赤/
- * とても大きいBet・Raise・Allin=茶)。
+ * 手番の人の行動の板(GTO タブ・GTO Wizard と同じ作り)。不透明の色の板に、左上に行動、左下に頻度、右下に件数。
+ * 下に全体の割合の帯。見るためのもので押せない(行動は上の席の帯で選ぶ)。
+ * 並びは強い行動が左(オールイン → レイズ → コール → フォールド)。
  */
 export function PositionActionRow({
   node,
   bucketLabels,
-  onSelect,
 }: {
   node: TreeNode;
   bucketLabels: Record<string, string>;
-  onSelect: (bucket: string) => void;
+  onSelect?: (bucket: string) => void;
 }) {
   if (node.position === null) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-tile rounded-2xl p-6 text-center"
-      >
-        <p className="text-sm text-n-9">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
-      </motion.div>
+      <div className="rounded-xl bg-[#1b1b1d] p-6 text-center">
+        <p className="text-sm text-[#cfcfcf]">このラインではハンドが終了しています(それ以上の意思決定なし)。</p>
+      </div>
     );
   }
-
   if (node.sampleSize === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-tile rounded-2xl p-6 text-center"
-      >
-        <p className="text-[11px] tracking-[0.06em] text-fg-2 uppercase mb-1 font-bold">{node.position}</p>
-        <p className="text-sm text-fg-3">サンプルなし</p>
-      </motion.div>
+      <div className="rounded-xl bg-[#1b1b1d] p-6 text-center">
+        <p className="mb-1 text-[12px] font-black text-[#cfcfcf]">{node.position}</p>
+        <p className="text-sm text-[#9a9a9a]">サンプルなし</p>
+      </div>
     );
   }
-
-  const sortedOptions = mergeOpenRaiseOptions(node.options).sort(
-    (a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket),
-  );
-
+  const opts = mergeOpenRaiseOptions(node.options).sort((a, b) => bucketOrderIndex(b.bucket) - bucketOrderIndex(a.bucket));
+  const many = opts.length > 3;
   return (
-    <motion.div
-      key={node.position}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={SPRING_MOVE}
-      className="glass-tile rounded-2xl p-3"
-    >
-      <div className="flex items-center justify-between mb-2.5 px-1">
-        <p className="text-[12px] tracking-[0.04em] text-n-10 uppercase font-black">{node.position}</p>
-        {node.isGto ? (
-          <p className="text-[10px] text-accent tabular-nums font-black tracking-[0.06em]">GTO</p>
-        ) : (
-          <p className="text-[10px] text-fg-3 tabular-nums">n={node.sampleSize}</p>
-        )}
-      </div>
-      {/* 横スクロール1行(グリッドの折り返しに頼らない): 強→弱の順で並べているため、
-          行が折り返されても崩れないよう、最も激しいアクションが常に一番左(スクロール起点)に
-          来ることを保証する。 */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-        <AnimatePresence mode="popLayout">
-          {sortedOptions.map((opt, i) => (
-            <motion.button
-              key={opt.bucket}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...SPRING_MOVE, delay: i * 0.03 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={() => onSelect(opt.representativeBucket ?? opt.bucket)}
-              className="glass-tile-tint pressable relative w-[104px] shrink-0 overflow-hidden rounded-xl py-2.5 pl-3 pr-2.5 text-left text-white"
-              style={{ ["--tile-tint" as string]: bucketTintRgb(opt.representativeBucket ?? opt.bucket) }}
-            >
-              {/* アクションの識別色は、透ける面ではなくこの不透明の帯が担う
-                  (半透明の前景に意味を担わせない)。 */}
-              <span aria-hidden className="tile-tint-bar absolute inset-y-0 left-0 w-[3px]" />
-              {/* 透ける面の上の文字は、字を一段太く・字間をわずかに開けて読みやすさを稼ぐ。 */}
-              <div className="text-[11px] font-black leading-tight tracking-[0.01em]">
-                {bucketLabels[opt.bucket] ?? opt.bucket}
-              </div>
-              <div className="mt-0.5 text-lg font-black leading-tight tabular-nums">
-                {Math.round(opt.frequency * 100)}%
-              </div>
-              {node.isGto ? (
-                opt.evBb !== undefined && opt.evBb !== 0 ? (
-                  <div className="text-[9px] font-semibold tabular-nums opacity-80">
-                    EV {opt.evBb >= 0 ? "+" : ""}
-                    {opt.evBb.toFixed(2)}bb
-                  </div>
+    <div className="rounded-xl bg-[#1b1b1d] p-1">
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0, 1fr))` }}>
+        {opts.map((o) => (
+          <div
+            key={o.bucket}
+            className="flex h-[104px] flex-col justify-between rounded-lg p-2 text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
+            style={{ background: bucketColor(o.representativeBucket ?? o.bucket) }}
+          >
+            <span className={`truncate font-bold leading-tight ${many ? "text-[14px] sm:text-[17px]" : "text-[17px]"}`}>
+              {bucketLabels[o.bucket] ?? o.bucket}
+            </span>
+            <span className="flex items-end justify-between gap-1">
+              <span className={`font-bold leading-none tabular-nums ${many ? "text-[17px] sm:text-[22px]" : "text-[22px]"}`}>
+                {+(o.frequency * 100).toFixed(1)}%
+              </span>
+              <span className={`text-right text-[10px] leading-tight tabular-nums opacity-90 ${many ? "hidden sm:inline" : ""}`}>
+                {node.isGto && o.evBb !== undefined ? (
+                  <>
+                    EV
+                    <br />
+                    {o.evBb.toFixed(2)}
+                  </>
                 ) : (
-                  <div className="text-[9px] tabular-nums opacity-40">&nbsp;</div>
-                )
-              ) : (
-                <div className="text-[9px] font-semibold tabular-nums opacity-80">{opt.count}件</div>
-              )}
-            </motion.button>
-          ))}
-        </AnimatePresence>
-      </div>
-      {/* 頻度の帯はデータそのものなので、面がガラスでも色は不透明のまま読ませる
-          (溝だけを暗く彫り込んで、帯が面から浮いて見えるようにする)。 */}
-      <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-black/35">
-        {sortedOptions.map((opt) => (
-          <motion.div
-            key={opt.bucket}
-            initial={{ width: 0 }}
-            animate={{ width: `${opt.frequency * 100}%` }}
-            transition={SPRING_MOVE}
-            style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
-          />
+                  <>
+                    {o.count.toLocaleString()}
+                    <br />
+                    件
+                  </>
+                )}
+              </span>
+            </span>
+          </div>
         ))}
       </div>
-    </motion.div>
+      <div className="mt-1 flex h-4 overflow-hidden rounded-md">
+        {opts.map((o) => (
+          <span key={o.bucket} style={{ width: `${o.frequency * 100}%`, background: bucketColor(o.representativeBucket ?? o.bucket) }} />
+        ))}
+      </div>
+    </div>
   );
 }
