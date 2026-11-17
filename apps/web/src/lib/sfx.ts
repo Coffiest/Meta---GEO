@@ -22,12 +22,17 @@ function audio(): AudioContext | null {
 }
 
 if (typeof window !== "undefined") {
+  // 音を出せる状態に戻す。1回だけでなく、触れるたびに確かめる(アプリを裏に回したり、
+  // iPhone で最初の pointerdown が音の許可として数えられなかったりすると、止まったまま二度と鳴らなかった)。
   const unlock = () => {
-    if (unlocked) return;
+    const c = audio();
+    if (c && c.state !== "running") void c.resume().catch(() => undefined);
     unlocked = true;
-    void audio()?.resume();
   };
-  window.addEventListener("pointerdown", unlock, { once: true, capture: true });
+  for (const ev of ["pointerdown", "touchend", "click", "keydown"]) window.addEventListener(ev, unlock, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && unlocked) unlock();
+  });
 }
 
 export function sfxEnabled(): boolean {
@@ -82,7 +87,19 @@ function knock(c: AudioContext, at: number, center: number, dur: number, gain: n
 export function playSfx(kind: SfxKind): void {
   if (!sfxEnabled()) return;
   const c = audio();
-  if (!c || c.state === "suspended") return;
+  if (!c) return;
+  if (c.state !== "running") {
+    // 止まっていたら戻してから鳴らす(戻せなければ鳴らさない)。
+    void c
+      .resume()
+      .then(() => c.state === "running" && render(c, kind))
+      .catch(() => undefined);
+    return;
+  }
+  render(c, kind);
+}
+
+function render(c: AudioContext, kind: SfxKind): void {
   const t = c.currentTime + 0.005;
   switch (kind) {
     case "move": // カードが開く・置かれる: 低めの「コトッ」
