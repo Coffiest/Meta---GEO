@@ -42,7 +42,7 @@ import { checkAdminSession } from "@/lib/adminApi";
 import { useGeoAccess, type GeoLockInfo } from "@/lib/useGeoAccess";
 import { GeoLockCard, GeoLockScreen } from "@/components/geo/GeoLockScreen";
 import { GtowExplorer } from "@/components/geo/GtowExplorer";
-import { GeoRangeGrid } from "@/components/geo/GeoRangeGrid";
+import { GeoSeatCards, GeoSolutionPanels } from "@/components/geo/GeoSolutionView";
 import { APP_VERSION } from "@/lib/version";
 import { Loader } from "@/components/ui/Loader";
 
@@ -841,14 +841,13 @@ function GeoDatabase({
                 {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
               </div>
             </motion.button>
-            <PositionPillBar
+            <GeoSeatCards
               items={items}
-              onTruncate={handleTruncate}
-              onJump={jumpTo}
-              activeOptions={node?.position ? node.options : undefined}
-              activeSampleSize={node?.position ? node.sampleSize : undefined}
+              node={node}
               bucketLabels={bucketLabels}
               onSelect={selectBucket}
+              onTruncate={handleTruncate}
+              onJump={jumpTo}
             />
           </div>
         </div>
@@ -888,24 +887,8 @@ function GeoDatabase({
 
         {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5 lg:hidden" />}
 
-        {/* PC(lg)は GTO Wizard と同じく 左(約63%): レンジ表 / 右(約35%): アクション表と手札の内訳。
-            レンジ表は画面の高さに収まる大きさにして、スクロールせずに全体を見渡せるようにする。 */}
-        <div className="lg:mt-3 lg:grid lg:grid-cols-[minmax(0,1.8fr)_minmax(360px,1fr)] lg:items-start lg:gap-4">
-        <div className="mt-1 lg:mt-0 lg:rounded-lg lg:bg-surface lg:p-3 lg:shadow-e1">
-          <div className="mb-2 hidden items-center gap-1 lg:flex">
-            <span className="rounded-md bg-surface-2 px-3 py-1.5 text-[12px] font-black text-fg">戦略</span>
-            <span className="ml-auto text-[11px] font-semibold text-fg-3">
-              {node?.position ? `${node.position} · ${street === "preflop" ? "プリフロップ" : street === "flop" ? "フロップ" : street === "turn" ? "ターン" : "リバー"}` : ""}
-            </span>
-          </div>
-          <div className="lg:mx-auto lg:max-w-[calc(100dvh-300px)]">
-            {matrix && (
-              <GeoRangeGrid matrix={matrix} bucketLabels={bucketLabels} mergeOpenRaise={street === "preflop"} />
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 lg:mt-0">
+        {/* GTO タブと同じ並び: 左に手の表、右に Overview / Actions / Hands など。読み込み中などは下の表示。 */}
+        <div className="mt-3">
           {loading || solving ? (
             <div className="glass-panel rounded-2xl p-8 text-center text-sm text-fg-2">
               <div className="flex flex-col items-center justify-center gap-2">
@@ -964,12 +947,15 @@ function GeoDatabase({
                 ボードを選択
               </motion.button>
             </motion.div>
-          ) : node ? (
-            <>
-              <PositionActionRow node={node} bucketLabels={bucketLabels} />
-            </>
+          ) : node && matrix ? (
+            <GeoSolutionPanels
+              node={node}
+              matrix={matrix}
+              bucketLabels={bucketLabels}
+              mergeOpenRaise={street === "preflop"}
+              positions={preflopOrder()}
+            />
           ) : null}
-        </div>
         </div>
 
         {/* その他: データベースの本体(レンジ)とは別の、プレイデータの研究への入口。 */}
