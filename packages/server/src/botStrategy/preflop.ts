@@ -11,6 +11,7 @@ import {
   type GtoActionEV,
 } from "@meta-geo/db";
 import { handClassOf, type BotAction, type BotContext } from "./context.js";
+import { gtowOpenFrequencies } from "@meta-geo/db";
 import { idxOf, jamRange, openRange, percentileRange, strengthOf, unionRange } from "./ranges.js";
 
 /**
@@ -94,6 +95,25 @@ function seatOf(ctx: BotContext, seatIndex: number) {
 function isAllInSeat(ctx: BotContext, seatIndex: number): boolean {
   const s = seatOf(ctx, seatIndex);
   return !!s && (s.status === "allIn" || s.stack === 0);
+}
+
+/**
+ * 誰も参加していない局面のオープンを、GTO Wizard の解の頻度どおりに選ぶ(シャーク型だけが使う)。
+ * データが無い・オープンの局面でないときは null(呼び出し側は従来の判断へ)。
+ */
+export function decideGtowOpen(ctx: BotContext, rand: () => number): PlayerAction | null {
+  if (ctx.street !== "preflop" || ctx.bb <= 0) return null;
+  const shape = shapeOf(ctx);
+  if (shape.raises.length > 0 || shape.limps.length > 0 || ctx.heroPos === "BB") return null;
+  const f = gtowOpenFrequencies({ heroPos: ctx.heroPos, handClass: handClassOf(ctx.hole), effStackBb: ctx.effStackBb });
+  if (!f) return null;
+  const total = f.raise + f.call + f.fold + f.allIn;
+  if (total <= 0) return null;
+  let r = rand() * total;
+  if ((r -= f.allIn) < 0) return allIn(ctx);
+  if ((r -= f.raise) < 0) return raiseTo(ctx, openSizeBb(ctx.heroPos, ctx.effStackBb) * ctx.bb);
+  if ((r -= f.call) < 0) return ctx.toCall > 0 ? { kind: "call" } : { kind: "check" };
+  return foldOrCheck(ctx);
 }
 
 export function decidePreflop(ctx: BotContext, rand: () => number): PlayerAction | null {

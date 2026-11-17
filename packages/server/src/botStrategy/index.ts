@@ -2,7 +2,7 @@ import type { HandEngine, PlayerAction } from "@meta-geo/engine";
 import { decideBotAction, type BotDecisionInput } from "../bot.js";
 import { buildBotContext, type BotContext } from "./context.js";
 import { decidePostflop } from "./postflop.js";
-import { decidePreflop } from "./preflop.js";
+import { decideGtowOpen, decidePreflop } from "./preflop.js";
 import { applyPersona, type BotPersona } from "./persona.js";
 
 export { buildBotContext } from "./context.js";
@@ -30,6 +30,15 @@ export function decideStrongBotAction(params: {
     ctx = null;
   }
   let action: PlayerAction | null = null;
+  // シャーク型: 誰も参加していない局面のオープンは GTO Wizard の解どおり。型や癖の上書きもかけない。
+  if (ctx && params.persona?.style === "shark") {
+    try {
+      const open = decideGtowOpen(ctx, rand);
+      if (open) return sanitize(open, ctx);
+    } catch (err) {
+      console.error("[bot] gtow open failed (fallback):", err);
+    }
+  }
   if (ctx) {
     try {
       action = ctx.street === "preflop" ? decidePreflop(ctx, rand) : decidePostflop(ctx, rand);
