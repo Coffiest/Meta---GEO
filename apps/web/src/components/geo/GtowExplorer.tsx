@@ -115,10 +115,43 @@ export function GtowExplorer() {
   const pot = r.bet.reduce((x, y) => x + y, 0) + ante;
   const toCall = actorIdx >= 0 ? Math.max(0, Math.max(...r.bet) - (r.bet[actorIdx] ?? 0)) : 0;
 
-  const go = (code: string) => {
-    setPa(pa ? `${pa}-${code}` : code);
+  // 席の帯(GTO Wizard と同じ): 行動済みの席・手番の席・この先の席を順に並べ、それぞれの選べる行動を出す。
+  type Card = { prefix: string; pos: string; stack: number; options: string[]; chosen: string | null; current: boolean };
+  const cards: Card[] = [];
+  if (data) {
+    const codes = pa ? pa.split("-") : [];
+    const cardAt = (prefix: string, chosen: string | null, current: boolean): Card | null => {
+      const rr = replay(prefix, stack);
+      const nd = data.nodes[prefix];
+      const idx = nd ? TRAINER_POSITIONS.indexOf(nd.actor) : rr.next;
+      if (idx < 0) return null;
+      const opts = nd ? [...nd.a].sort((a, b) => order(b.c) - order(a.c)).map((x) => x.c) : chosen ? [chosen] : [];
+      return { prefix, pos: TRAINER_POSITIONS[idx]!, stack: rr.stacks[idx] ?? stack, options: opts, chosen, current };
+    };
+    for (let k = 0; k < codes.length; k++) {
+      const c = cardAt(codes.slice(0, k).join("-"), codes[k]!, false);
+      if (c) cards.push(c);
+    }
+    const cur = cardAt(pa, null, true);
+    if (cur) {
+      cards.push(cur);
+      // この先: 手番の人より後ろの席を、前の人が降りた形で見せる(GTO Wizard と同じ)。
+      let q = pa;
+      const seen = new Set([cur.pos]);
+      for (let n = 0; n < 7; n++) {
+        q = q ? `${q}-F` : "F";
+        const c = cardAt(q, null, false);
+        if (!c || seen.has(c.pos)) break;
+        seen.add(c.pos);
+        cards.push(c);
+      }
+    }
+  }
+  const pick = (prefix: string, code: string) => {
+    setPa(prefix ? `${prefix}-${code}` : code);
     setHand(null);
   };
+
   const back = () => {
     const codes = pa ? pa.split("-") : [];
     codes.pop();
@@ -149,43 +182,48 @@ export function GtowExplorer() {
         ))}
       </div>
 
-      {/* 席の帯(GTO Wizard と同じ並び: 不透明の板に席名と残りスタック。手番は緑の文字。右にポットとポットオッズ) */}
+      {/* 席の帯。席ごとの板に、席名・残りスタックと選べる行動を並べ、押して手順を進める(GTO Wizard と同じ使い方)。
+          選んだ行動は白、手番の席は緑の枠。 */}
       <div className="mb-3 flex items-stretch gap-1 overflow-x-auto rounded-xl bg-[#1b1b1d] p-1">
-        <button
-          type="button"
-          onClick={back}
-          disabled={!pa}
-          aria-label="1手もどる"
-          className="pressable flex w-9 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2d] text-fg disabled:opacity-30"
-        >
-          <Icon name="chevron-left" className="h-4 w-4" />
-        </button>
-        {TRAINER_POSITIONS.map((p, i) => {
-          const isActor = i === actorIdx;
-          const c = r.last[i];
-          return (
-            <div
-              key={p}
-              className={`flex min-w-[58px] shrink-0 flex-col items-center justify-center rounded-lg px-2 py-1 ${
-                isActor ? "bg-[#2f2f33]" : "bg-[#252528]"
-              } ${r.folded[i] ? "opacity-40" : ""}`}
-            >
-              <span className={`text-[13px] font-black leading-tight ${isActor ? "text-[#8fe388]" : "text-[#e6e6e6]"}`}>{p}</span>
-              <span className={`text-[13px] font-bold leading-tight tabular-nums ${isActor ? "text-[#8fe388]" : "text-[#cfcfcf]"}`}>
-                {fmt(r.stacks[i] ?? stack)}
-              </span>
-              {c && !isActor && <span className="text-[10px] leading-tight text-[#9a9a9a]">{name(c, stack)}</span>}
-            </div>
-          );
-        })}
-        <div className="ml-auto flex shrink-0 flex-col justify-center px-2 tabular-nums">
-          <span className="text-[13px] font-black text-[#e6e6e6]">{fmt(pot)} BB</span>
-          {toCall > 0 && (
-            <span className="text-[11px] text-[#9a9a9a]">
-              ポットオッズ <b className="text-[#cfcfcf]">{((toCall / (pot + toCall)) * 100).toFixed(0)}%</b>
-            </span>
-          )}
+        <div className="flex shrink-0 flex-col justify-between rounded-lg bg-[#252528] px-2 py-1.5">
+          <span className="text-[12px] font-bold text-[#cfcfcf]">MTT {stack}bb</span>
+          <span className="text-[11px] text-[#9a9a9a]">ChipEV</span>
+          <span className="text-[11px] tabular-nums text-[#9a9a9a]">
+            ポット <b className="text-[#e6e6e6]">{fmt(pot)}</b>
+          </span>
+          <button
+            type="button"
+            onClick={back}
+            disabled={!pa}
+            aria-label="1手もどる"
+            className="pressable mt-1 flex h-7 items-center justify-center rounded-md bg-[#323236] text-fg disabled:opacity-30"
+          >
+            <Icon name="chevron-left" className="h-4 w-4" />
+          </button>
         </div>
+        {cards.map((c, i) => (
+          <div
+            key={`${c.prefix}|${i}`}
+            className={`flex min-w-[96px] shrink-0 flex-col rounded-lg px-2 py-1.5 ${c.current ? "bg-[#252528] ring-2 ring-[#8fe388]" : "bg-[#252528]"}`}
+          >
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className={`text-[13px] font-black ${c.current ? "text-[#8fe388]" : "text-[#cfcfcf]"}`}>{c.pos}</span>
+              <span className={`text-[12px] font-bold tabular-nums ${c.current ? "text-[#8fe388]" : "text-[#9a9a9a]"}`}>{fmt(c.stack)}</span>
+            </div>
+            {c.options.map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => pick(c.prefix, o)}
+                className={`pressable rounded px-0.5 text-left text-[13px] leading-[1.45] tabular-nums ${
+                  c.chosen === o ? "font-bold text-white" : c.current ? "text-[#e6e6e6]" : "text-[#8a8a8a]"
+                }`}
+              >
+                {name(o, stack)}
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
 
       {data === undefined ? (
@@ -196,27 +234,25 @@ export function GtowExplorer() {
         </p>
       ) : (
         <>
-          {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。押すとその手順へ進む。 */}
+          {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
           <div className="rounded-xl bg-[#1b1b1d] p-1">
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
               {actions.map((a, i) => (
-                <button
+                <div
                   key={a.c}
-                  type="button"
-                  onClick={() => go(a.c)}
-                  className="pressable flex h-[104px] flex-col justify-between rounded-lg p-2 text-left text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
+                  className="flex h-[104px] flex-col justify-between rounded-lg p-2 text-left text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
                   style={{ background: colorOf(a.c) }}
                 >
-                  <span className="truncate text-[17px] font-bold leading-tight">{name(a.c, stack)}</span>
+                  <span className={`truncate font-bold leading-tight ${actions.length > 3 ? "text-[14px] sm:text-[17px]" : "text-[17px]"}`}>{name(a.c, stack)}</span>
                   <span className="flex items-end justify-between gap-1">
-                    <span className="text-[22px] font-bold leading-none tabular-nums">{fmtPct(totals[i] ?? 0)}</span>
-                    <span className="text-right text-[10px] leading-tight tabular-nums opacity-90">
+                    <span className={`font-bold leading-none tabular-nums ${actions.length > 3 ? "text-[17px] sm:text-[22px]" : "text-[22px]"}`}>{fmtPct(totals[i] ?? 0)}</span>
+                    <span className={`text-right text-[10px] leading-tight tabular-nums opacity-90 ${actions.length > 3 ? "hidden sm:inline" : ""}`}>
                       {(comboTotals[i] ?? 0).toFixed(2)}
                       <br />
                       combos
                     </span>
                   </span>
-                </button>
+                </div>
               ))}
             </div>
             {/* 全体の割合の帯 */}
