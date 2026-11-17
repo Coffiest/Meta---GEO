@@ -71,6 +71,7 @@ export function GtowExplorer() {
   const [pa, setPa] = useState("");
   const [hand, setHand] = useState<number | null>(null);
   const [topTab, setTopTab] = useState("Overview");
+  const [stackOpen, setStackOpen] = useState(false);
   const [filter, setFilter] = useState<HandFilter>("all");
   const [eq, setEq] = useState<number[][] | null>(null);
   useEffect(() => {
@@ -195,25 +196,36 @@ export function GtowExplorer() {
 
   return (
     <div>
-      {/* スタック */}
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-bold text-fg-3">MTT・8人卓・ChipEV</span>
-        {TRAINER_STACKS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => {
-              setStack(s);
-              setPa("");
-              setHand(null);
-            }}
-            className={`pressable rounded-full px-3 py-1.5 text-[12px] font-bold tabular-nums ${
-              stack === s ? "bg-accent text-on-accent" : "bg-white/[0.05] text-fg-2"
-            }`}
-          >
-            {s}bb
-          </button>
-        ))}
+      {/* スタック。選んだ1つだけを出し、押すと他の深さが開く(表を上に広く見せるため。オーナー指示)。 */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setStackOpen((o) => !o)}
+          aria-expanded={stackOpen}
+          className="pressable flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[12px] font-bold tabular-nums text-on-accent"
+        >
+          {stack}bb
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={stackOpen ? "rotate-180" : ""}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        {stackOpen &&
+          TRAINER_STACKS.filter((s) => s !== stack).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setStack(s);
+                setPa("");
+                setHand(null);
+                setStackOpen(false);
+              }}
+              className="pressable rounded-full bg-white/[0.05] px-3 py-1 text-[12px] font-bold tabular-nums text-fg-2"
+            >
+              {s}bb
+            </button>
+          ))}
+        {!stackOpen && <span className="text-[11px] font-bold text-fg-3">MTT・8人卓・ChipEV</span>}
       </div>
 
       {/* 席の帯。席ごとの板に、席名・残りスタックと選べる行動を並べ、押して手順を進める(GTO Wizard と同じ使い方)。
@@ -267,8 +279,8 @@ export function GtowExplorer() {
           {r.next < 0 ? "このハンドはここで終わり。" : "この局面のデータはまだ取得中。"}
         </p>
       ) : (
-        // スマホ: 行動の板 → 表 → 内訳 の縦並び。PC: GTO Wizard と同じく左に表、右に行動の板と内訳。表は画面の高さに収める。
-        <div className="grid gap-3 [grid-template-areas:'t'_'m'_'d'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
+        // スマホ: 表 → 内訳 → 行動の板 の縦並び(開いてすぐ表が見えるように。オーナー指示)。PC: GTO Wizard と同じく左に表、右に行動の板と内訳。表は画面の高さに収める。
+        <div className="grid gap-3 [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
           {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
           <div style={{ gridArea: "t" }}>
           <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active={topTab} onPick={setTopTab} />

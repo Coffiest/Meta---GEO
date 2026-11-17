@@ -156,7 +156,7 @@ export function GeoSolutionPanels({
   const topPart = selParts.reduce<Part | null>((b, p) => (!b || p.frac > b.frac ? p : b), null);
 
   return (
-    <div className="grid gap-3 [grid-template-areas:'t'_'m'_'d'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
+    <div className="grid gap-3 [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
       {/* 右上: Overview / Table / Equity chart と Actions */}
       <div style={{ gridArea: "t" }}>
         <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active={topTab} onPick={setTopTab} />
