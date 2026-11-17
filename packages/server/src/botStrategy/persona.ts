@@ -67,14 +67,15 @@ export interface BotPersona {
 }
 
 const STYLE_WEIGHTS: [BotStyle, number][] = [
-  ["shark", 0.27],
+  // シャークは誰も参加していない局面のオープンを GTO Wizard の解どおりに打つ(オーナー指示 2026-11-17: 全体の 30% 以上)。
+  ["shark", 0.31],
   ["glassCannon", 0.01],
-  ["lag", 0.14],
+  ["lag", 0.13],
   ["tag", 0.14],
-  ["loosePassive", 0.14],
-  ["tightPassive", 0.14],
+  ["loosePassive", 0.13],
+  ["tightPassive", 0.13],
   ["maniac", 0.05],
-  ["nit", 0.06],
+  ["nit", 0.05],
   ["trapper", 0.05],
 ];
 

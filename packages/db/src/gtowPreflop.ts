@@ -235,3 +235,21 @@ export function buildGtowDbNode(stack: number, line: readonly { position: string
     .filter((o) => o.frequency > 0.001);
   return { position: s.hero, options, matrix: { cells, totalSamples: total } };
 }
+
+/**
+ * 誰も参加していない局面のオープンの頻度(GTO Wizard の解)。自動の席の「シャーク」型が使う。
+ * heroPos は 6 人の席名(UTG/HJ/CO/BTN/SB)。スタックは判定と同じ段階で選ぶ。データが無ければ null。
+ */
+export function gtowOpenFrequencies(params: { heroPos: string; handClass: string; effStackBb: number }):
+  | { raise: number; call: number; fold: number; allIn: number; stack: number }
+  | null {
+  if (params.effStackBb < GTOW_MIN_STACK_BB || params.heroPos === "BB") return null;
+  const scene = `RFI_${POS(params.heroPos)}`;
+  for (const t of GTOW_TIERS) {
+    if (params.effStackBb < t.min || params.effStackBb >= t.max) continue;
+    const hands = loadScene(t.stack, scene);
+    const f = hands?.[params.handClass];
+    if (f) return { raise: f.raise, call: f.call, fold: f.fold, allIn: f.allIn, stack: t.stack };
+  }
+  return null;
+}
