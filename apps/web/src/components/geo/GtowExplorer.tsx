@@ -378,7 +378,7 @@ export function GtowExplorer() {
   );
 }
 
-function PanelTabs({ tabs, active, onPick }: { tabs: string[]; active: string; onPick?: (t: string) => void }) {
+export function PanelTabs({ tabs, active, onPick }: { tabs: string[]; active: string; onPick?: (t: string) => void }) {
   return (
     <div className="flex">
       {tabs.map((t) => (
@@ -399,7 +399,7 @@ function PanelTabs({ tabs, active, onPick }: { tabs: string[]; active: string; o
 const SUITS = ["s", "h", "d", "c"] as const;
 
 /** 手の名前(AA / AKs / AKo)から、スートの組み合わせを全部作る。 */
-function combosOf(label: string): [string, string][] {
+export function combosOf(label: string): [string, string][] {
   const a = label[0]!;
   const b = label[1]!;
   const out: [string, string][] = [];
@@ -413,7 +413,7 @@ function combosOf(label: string): [string, string][] {
   return out;
 }
 
-function CardChip({ c }: { c: string }) {
+export function CardChip({ c }: { c: string }) {
   // アプリのトランプの絵(PlayingCard)をそのまま使う。
   return <PlayingCard card={c} size="xs" />;
 }
@@ -502,7 +502,7 @@ function HandsPanel({
 }
 
 // ---------- Filters ----------
-type HandFilter = "all" | "pairs" | "suited" | "offsuit" | "broadway" | "ax" | "connectors";
+export type HandFilter = "all" | "pairs" | "suited" | "offsuit" | "broadway" | "ax" | "connectors";
 const FILTERS: { k: HandFilter; label: string }[] = [
   { k: "all", label: "すべて" },
   { k: "pairs", label: "ペア" },
@@ -512,7 +512,7 @@ const FILTERS: { k: HandFilter; label: string }[] = [
   { k: "ax", label: "Ax" },
   { k: "connectors", label: "コネクター" },
 ];
-function matchFilter(h: number, f: HandFilter): boolean {
+export function matchFilter(h: number, f: HandFilter): boolean {
   const r = Math.floor(h / 13);
   const c = h % 13;
   const hi = Math.min(r, c);
@@ -534,7 +534,7 @@ function matchFilter(h: number, f: HandFilter): boolean {
       return lo - hi === 1;
   }
 }
-function FiltersView({ filter, setFilter }: { filter: HandFilter; setFilter: (f: HandFilter) => void }) {
+export function FiltersView({ filter, setFilter }: { filter: HandFilter; setFilter: (f: HandFilter) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5 p-2">
       {FILTERS.map((f) => (
@@ -596,19 +596,19 @@ function TableView({ r, actorIdx, stack, pot }: { r: ReturnType<typeof replay>; 
 
 // ---------- Equity chart ----------
 let eqPromise: Promise<number[][] | null> | null = null;
-function loadEquity() {
+export function loadEquity() {
   eqPromise ??= fetch("/trainer/equity169.json")
     .then((r) => (r.ok ? (r.json() as Promise<number[][]>) : null))
     .catch(() => null);
   return eqPromise;
 }
-const combosN = (h: number) => (Math.floor(h / 13) === h % 13 ? 6 : Math.floor(h / 13) < h % 13 ? 4 : 12);
+export const combosN = (h: number) => (Math.floor(h / 13) === h % 13 ? 6 : Math.floor(h / 13) < h % 13 ? 4 : 12);
 /** レンジ a の各手の、レンジ b に対する勝率(0〜1)。カードの重なりは無視する近似。 */
-function rangeEquity(eq: number[][], a: number[], b: number[]) {
+export function rangeEquity(eq: number[][], a: number[], b: number[]) {
   const den = b.reduce((s, w, j) => s + w * combosN(j), 0);
   return a.map((_, i) => (den > 0 ? b.reduce((s, w, j) => s + (eq[i]![j]! / 1000) * w * combosN(j), 0) / den : 0.5));
 }
-function curve(eqs: number[], w: number[]) {
+export function curve(eqs: number[], w: number[]) {
   const items = eqs.map((e, i) => ({ e, c: (w[i] ?? 0) * combosN(i) })).filter((x) => x.c > 1e-6);
   items.sort((x, y) => y.e - x.e);
   const tot = items.reduce((s, x) => s + x.c, 0);
