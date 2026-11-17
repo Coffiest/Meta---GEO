@@ -233,9 +233,10 @@ export function GtowExplorer() {
           {r.next < 0 ? "このハンドはここで終わり。" : "この局面のデータはまだ取得中。"}
         </p>
       ) : (
-        <>
+        // スマホ: 行動の板 → 表 → 内訳 の縦並び。PC: GTO Wizard と同じく左に表、右に行動の板と内訳。表は画面の高さに収める。
+        <div className="grid gap-3 [grid-template-areas:'t'_'m'_'d'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
           {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
-          <div className="rounded-xl bg-[#1b1b1d] p-1">
+          <div className="rounded-xl bg-[#1b1b1d] p-1" style={{ gridArea: "t" }}>
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
               {actions.map((a, i) => (
                 <div
@@ -263,9 +264,9 @@ export function GtowExplorer() {
             </div>
           </div>
 
-          <div className="h-3" />
           {/* 169 の手の表。マスの中を行動の頻度で塗り分ける。レンジに無い手は薄く。 */}
-          <div className="grid gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+          <div style={{ gridArea: "m" }} className="lg:rounded-xl lg:bg-[#1b1b1d] lg:p-2">
+          <div className="mx-auto grid w-full gap-[2px] lg:max-w-[calc(100dvh-300px)]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
             {Array.from({ length: 169 }, (_, h) => {
               const w = weight[h] ?? 0;
               return (
@@ -281,16 +282,17 @@ export function GtowExplorer() {
                       <span key={a.c} style={{ width: `${(a.s[h] ?? 0) * 100}%`, background: colorOf(a.c) }} />
                     ))}
                   </span>
-                  <span className="relative text-[clamp(7px,2.2vw,11px)] font-bold text-fg [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+                  <span className="relative text-[clamp(7px,2.2vw,11px)] font-bold text-fg lg:text-[clamp(8px,0.75vw,12px)] [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
                     {handName(h)}
                   </span>
                 </button>
               );
             })}
           </div>
+          </div>
 
           {/* 選んだ手の内訳 */}
-          <div className="mt-3 rounded-2xl bg-surface p-3">
+          <div className="rounded-xl bg-[#1b1b1d] p-3" style={{ gridArea: "d" }}>
             {hand === null ? (
               <p className="text-[12px] text-fg-3">表の手を押すと、行動ごとの頻度と EV(bb)が出る。</p>
             ) : (
@@ -312,7 +314,7 @@ export function GtowExplorer() {
               </>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
