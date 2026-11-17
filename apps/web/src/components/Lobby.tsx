@@ -22,6 +22,7 @@ import { SwipeFavoriteRow } from "./SwipeFavoriteRow";
 import { Icon } from "./Icon";
 import { PlayingCard } from "./PlayingCard";
 import { PasscodeModal } from "./PasscodeModal";
+import { loadTrainerSession } from "./lesson/trainerSession";
 import { GAME_TYPE_LABEL, RRRatingCard, RuleLabel, displayRating, type RRRatingData, type TournamentHistoryPoint } from "./RRRatingCard";
 import { AppShareCard } from "./AppShareCard";
 import { FeedbackCard } from "./FeedbackCard";
@@ -1055,6 +1056,12 @@ export function Lobby({
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromQuery(searchParams.get("tab")) ?? "home");
+  // 途中の特訓が残っていれば Lesson を開いて続きから(iOS で裏に回して戻ると画面が作り直されることがある)。
+  useEffect(() => {
+    if (!searchParams.get("tab") && loadTrainerSession()) setTab("lesson");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 直前のタブとの並びの差で、切り替えの向きを決める(右へ移る = 1 / 左へ移る = -1)。
   // 向きはタブが変わったときだけ決め直す(抜けていく途中の再描画で向きが反転しないように)。
   const prevTabRef = useRef<Tab>(tab);
