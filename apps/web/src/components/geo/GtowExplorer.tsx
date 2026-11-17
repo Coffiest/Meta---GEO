@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { PlayingCard } from "@/components/PlayingCard";
 import { TRAINER_POSITIONS, TRAINER_STACKS, handName, type TrainerData, type TrainerNode } from "@/lib/trainer";
 
 /**
@@ -396,8 +397,6 @@ function PanelTabs({ tabs, active, onPick }: { tabs: string[]; active: string; o
 }
 
 const SUITS = ["s", "h", "d", "c"] as const;
-const SUIT_SYM: Record<string, string> = { s: "\u2660", h: "\u2665", d: "\u2666", c: "\u2663" };
-const SUIT_COLOR: Record<string, string> = { s: "#1b1b1d", h: "#d33", d: "#2563eb", c: "#16a34a" };
 
 /** 手の名前(AA / AKs / AKo)から、スートの組み合わせを全部作る。 */
 function combosOf(label: string): [string, string][] {
@@ -415,12 +414,8 @@ function combosOf(label: string): [string, string][] {
 }
 
 function CardChip({ c }: { c: string }) {
-  return (
-    <span className="inline-flex items-center rounded-[3px] bg-white px-1 text-[13px] font-bold leading-tight" style={{ color: SUIT_COLOR[c[1]!] }}>
-      {c[0]}
-      {SUIT_SYM[c[1]!]}
-    </span>
-  );
+  // アプリのトランプの絵(PlayingCard)をそのまま使う。
+  return <PlayingCard card={c} size="xs" />;
 }
 
 function HandsPanel({
@@ -461,7 +456,7 @@ function HandsPanel({
             {combosOf(label).map(([c1, c2]) => (
               <div key={c1 + c2} className="flex min-h-[96px] flex-col justify-between p-1.5" style={{ background: colorOf(top.c), opacity: weight < 0.005 ? 0.35 : 1 }}>
                 <div className="flex items-start justify-between">
-                  <span className="flex gap-px">
+                  <span className="flex gap-0.5">
                     <CardChip c={c1} />
                     <CardChip c={c2} />
                   </span>
