@@ -822,25 +822,24 @@ function GeoDatabase({
               <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
             </p>
           </motion.div>
-          {/* 上端で揃える。以前は items-stretch で、手番の席のカード(Fold/Call/Raise を縦に並べる)が背が高いと
-              設定ボタンも他の席のカードも同じ高さまで間延びし、大きな空の箱が並んでいた(オーナー指摘)。 */}
-          <div className="flex items-start gap-1">
-            {/* 現在の設定(スタック帯・ステージ)を表示し、押すと詳細設定を変更できるボタン。
-                高さはUTG等のアクションタブに合わせて伸縮し、内容は縦中央寄せにする。 */}
-            <motion.button
+          {/* 設定は GTO タブのスタック選択と同じ丸いボタン1つに畳む(表を上に広く見せるため。オーナー指示)。押すと詳細設定。 */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
               onClick={() => setSettingsOpen(true)}
-              whileTap={{ scale: 0.94 }}
-              className="pressable shrink-0 flex flex-col justify-center self-stretch rounded-xl bg-[#1b1b1d] px-3 py-1.5 text-left"
               aria-label="詳細設定を変更"
+              className="pressable flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[12px] font-bold tabular-nums text-on-accent"
             >
-              <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
-                <Icon name="settings" className="h-3 w-3" />
-                設定
-              </div>
-              <div className="text-[11px] font-bold text-fg whitespace-nowrap">
-                {`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
-              </div>
-            </motion.button>
+              {STACK_BUCKET_LABELS[stackBucket]}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <span className="text-[11px] font-bold text-fg-3">
+              {`${BUBBLE_STAGE_LABELS[bubbleStage]}・${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? `・偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
+            </span>
+          </div>
+          <div className="flex items-start gap-1">
             <GeoSeatCards
               items={items}
               node={node}
