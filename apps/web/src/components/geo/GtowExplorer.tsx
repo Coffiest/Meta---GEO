@@ -69,6 +69,12 @@ export function GtowExplorer() {
   const [data, setData] = useState<TrainerData | null | undefined>(undefined);
   const [pa, setPa] = useState("");
   const [hand, setHand] = useState<number | null>(null);
+  const [topTab, setTopTab] = useState("Overview");
+  const [filter, setFilter] = useState<HandFilter>("all");
+  const [eq, setEq] = useState<number[][] | null>(null);
+  useEffect(() => {
+    void loadEquity().then(setEq);
+  }, []);
 
   useEffect(() => {
     setData(undefined);
@@ -92,6 +98,33 @@ export function GtowExplorer() {
     }
     return w;
   }, [data, pa, actorIdx]);
+
+  // 相手: 手番の人より前に最後にレイズした人(いなければ BB)。その人のこの局面までのレンジ。
+  const villainIdx = useMemo(() => {
+    const codes = pa ? pa.split("-") : [];
+    let v = -1;
+    for (let k = 0; k < codes.length; k++) {
+      const c = codes[k]!;
+      if (c.startsWith("R")) {
+        const prev = data?.nodes[codes.slice(0, k).join("-")];
+        const idx = prev ? TRAINER_POSITIONS.indexOf(prev.actor) : replay(codes.slice(0, k).join("-"), stack).next;
+        if (idx !== actorIdx) v = idx;
+      }
+    }
+    return v >= 0 ? v : actorIdx === 7 ? 6 : 7;
+  }, [data, pa, actorIdx, stack]);
+  const villainWeight = useMemo(() => {
+    const w = Array(169).fill(1);
+    if (!data) return w;
+    const codes = pa ? pa.split("-") : [];
+    for (let k = 0; k < codes.length; k++) {
+      const prev = data.nodes[codes.slice(0, k).join("-")];
+      if (!prev || TRAINER_POSITIONS.indexOf(prev.actor) !== villainIdx) continue;
+      const a = prev.a.find((x) => x.c === codes[k]);
+      if (a) for (let h = 0; h < 169; h++) w[h] *= a.s[h] ?? 0;
+    }
+    return w;
+  }, [data, pa, villainIdx]);
 
   const actions = node ? [...node.a].sort((a, b) => order(a.c) - order(b.c)) : [];
   const combos = (h: number) => (Math.floor(h / 13) === h % 13 ? 6 : Math.floor(h / 13) < h % 13 ? 4 : 12);
@@ -237,7 +270,18 @@ export function GtowExplorer() {
         <div className="grid gap-3 [grid-template-areas:'t'_'m'_'d'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
           {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
           <div style={{ gridArea: "t" }}>
-          <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active="Overview" />
+          <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active={topTab} onPick={setTopTab} />
+          {topTab === "Table" ? (
+            <TableView r={r} actorIdx={actorIdx} stack={stack} pot={pot} />
+          ) : topTab === "Equity chart" ? (
+            <EquityChart
+              eq={eq}
+              hero={weight}
+              villain={villainWeight}
+              heroName={TRAINER_POSITIONS[actorIdx] ?? ""}
+              villainName={TRAINER_POSITIONS[villainIdx] ?? ""}
+            />
+          ) : (
           <div className="mb-2 flex gap-1 overflow-x-auto rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
             {TRAINER_POSITIONS.map((p, i) => (
               <div
@@ -255,6 +299,7 @@ export function GtowExplorer() {
               <span className="text-[#9a9a9a]">Pot{toCall > 0 ? ` ${((toCall / (pot + toCall)) * 100).toFixed(0)}%` : ""}</span>
             </div>
           </div>
+          )}
           <PanelTabs tabs={["Actions"]} active="Actions" />
           <div className="rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
@@ -296,7 +341,7 @@ export function GtowExplorer() {
                   type="button"
                   onClick={() => setHand(h)}
                   className={`relative aspect-square overflow-hidden rounded-[2px] bg-[#2a2a2d] ${hand === h ? "ring-2 ring-white" : ""}`}
-                  style={{ opacity: w < 0.005 ? 0.25 : 1 }}
+                  style={{ opacity: w < 0.005 || !matchFilter(h, filter) ? 0.25 : 1 }}
                 >
                   <span className="absolute inset-0 flex">
                     {actions.map((a) => (
@@ -314,7 +359,17 @@ export function GtowExplorer() {
 
           {/* 手札ごとの内訳(GTO Wizard の Hands / Summary)。表の手を押して選ぶ。 */}
           <div style={{ gridArea: "d" }}>
-            <HandsPanel hand={hand ?? 0} actions={actions} stack={stack} weight={weight[hand ?? 0] ?? 0} />
+            <HandsPanel
+              hand={hand ?? 0}
+              actions={actions}
+              stack={stack}
+              weight={weight[hand ?? 0] ?? 0}
+              filter={filter}
+              setFilter={setFilter}
+              villainWeight={villainWeight}
+              villainName={TRAINER_POSITIONS[villainIdx] ?? ""}
+              villainNode={villainNodeOf(data, pa, villainIdx)}
+            />
           </div>
         </div>
       )}
@@ -368,16 +423,40 @@ function CardChip({ c }: { c: string }) {
   );
 }
 
-function HandsPanel({ hand, actions, stack, weight }: { hand: number; actions: { c: string; s: number[]; e: number[] }[]; stack: number; weight: number }) {
+function HandsPanel({
+  hand,
+  actions,
+  stack,
+  weight,
+  filter,
+  setFilter,
+  villainWeight,
+  villainName,
+  villainNode,
+}: {
+  hand: number;
+  actions: { c: string; s: number[]; e: number[] }[];
+  stack: number;
+  weight: number;
+  filter: HandFilter;
+  setFilter: (f: HandFilter) => void;
+  villainWeight: number[];
+  villainName: string;
+  villainNode: TrainerNode | null;
+}) {
   const [tab, setTab] = useState("Hands");
   const label = handName(hand);
   // いちばん多い行動の色でマスを塗る(GTO Wizard と同じ)。
   const top = actions.reduce((b, a) => ((a.s[hand] ?? 0) > (b.s[hand] ?? 0) ? a : b), actions[0]!);
   return (
     <div>
-      <PanelTabs tabs={["Hands", "Summary", "Filters", "Blockers"]} active={tab} onPick={(t) => (t === "Hands" || t === "Summary") && setTab(t)} />
+      <PanelTabs tabs={["Hands", "Summary", "Filters", "Blockers"]} active={tab} onPick={setTab} />
       <div className="rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
-        {tab === "Hands" ? (
+        {tab === "Filters" ? (
+          <FiltersView filter={filter} setFilter={setFilter} />
+        ) : tab === "Blockers" ? (
+          <BlockersView hand={hand} villainWeight={villainWeight} villainName={villainName} villainNode={villainNode} stack={stack} />
+        ) : tab === "Hands" ? (
           <div className="grid grid-cols-2 gap-[2px] sm:grid-cols-3">
             {combosOf(label).map(([c1, c2]) => (
               <div key={c1 + c2} className="flex min-h-[96px] flex-col justify-between p-1.5" style={{ background: colorOf(top.c), opacity: weight < 0.005 ? 0.35 : 1 }}>
@@ -423,6 +502,230 @@ function HandsPanel({ hand, actions, stack, weight }: { hand: number; actions: {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- Filters ----------
+type HandFilter = "all" | "pairs" | "suited" | "offsuit" | "broadway" | "ax" | "connectors";
+const FILTERS: { k: HandFilter; label: string }[] = [
+  { k: "all", label: "すべて" },
+  { k: "pairs", label: "ペア" },
+  { k: "suited", label: "スーテッド" },
+  { k: "offsuit", label: "オフスート" },
+  { k: "broadway", label: "ブロードウェイ" },
+  { k: "ax", label: "Ax" },
+  { k: "connectors", label: "コネクター" },
+];
+function matchFilter(h: number, f: HandFilter): boolean {
+  const r = Math.floor(h / 13);
+  const c = h % 13;
+  const hi = Math.min(r, c);
+  const lo = Math.max(r, c);
+  switch (f) {
+    case "all":
+      return true;
+    case "pairs":
+      return r === c;
+    case "suited":
+      return r < c;
+    case "offsuit":
+      return r > c;
+    case "broadway":
+      return lo <= 4;
+    case "ax":
+      return hi === 0 && r !== c;
+    case "connectors":
+      return lo - hi === 1;
+  }
+}
+function FiltersView({ filter, setFilter }: { filter: HandFilter; setFilter: (f: HandFilter) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 p-2">
+      {FILTERS.map((f) => (
+        <button
+          key={f.k}
+          type="button"
+          onClick={() => setFilter(f.k)}
+          className={`pressable rounded-md px-3 py-1.5 text-[13px] font-bold ${filter === f.k ? "bg-white text-[#1b1b1d]" : "bg-[#2a2a2d] text-[#cfcfcf]"}`}
+        >
+          {f.label}
+        </button>
+      ))}
+      <p className="w-full pt-1 text-[11px] text-[#9a9a9a]">当てはまらない手は表で薄く出す。</p>
+    </div>
+  );
+}
+
+// ---------- Table ----------
+function TableView({ r, actorIdx, stack, pot }: { r: ReturnType<typeof replay>; actorIdx: number; stack: number; pot: number }) {
+  // 楕円の卓に 8 席(下が BB の左、時計回りに UTG…)
+  const W = 360;
+  const H = 200;
+  return (
+    <div className="mb-2 rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-2">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+        <ellipse cx={W / 2} cy={H / 2} rx={W / 2 - 40} ry={H / 2 - 30} fill="#1f3b33" stroke="#3a3a3d" strokeWidth={6} />
+        <text x={W / 2} y={H / 2 + 4} textAnchor="middle" fill="#e6e6e6" fontSize={13} fontWeight={700}>
+          Pot {fmt(pot)} BB
+        </text>
+        {TRAINER_POSITIONS.map((p, i) => {
+          const ang = Math.PI / 2 + ((i + 1) / 8) * Math.PI * 2;
+          const x = W / 2 + Math.cos(ang) * (W / 2 - 34);
+          const y = H / 2 + Math.sin(ang) * (H / 2 - 22);
+          const bx = W / 2 + Math.cos(ang) * (W / 2 - 92);
+          const by = H / 2 + Math.sin(ang) * (H / 2 - 62);
+          const bet = r.bet[i] ?? 0;
+          const active = i === actorIdx;
+          return (
+            <g key={p} opacity={r.folded[i] ? 0.35 : 1}>
+              <rect x={x - 30} y={y - 15} width={60} height={30} rx={6} fill="#252528" stroke={active ? "#8fe388" : "none"} strokeWidth={2} />
+              <text x={x} y={y - 2} textAnchor="middle" fontSize={11} fontWeight={800} fill={active ? "#8fe388" : "#e6e6e6"}>
+                {p}
+              </text>
+              <text x={x} y={y + 11} textAnchor="middle" fontSize={10} fill="#cfcfcf">
+                {fmt(r.stacks[i] ?? stack)}
+              </text>
+              {bet > 0 && (
+                <text x={bx} y={by + 4} textAnchor="middle" fontSize={10} fontWeight={700} fill="#f5d36b">
+                  {fmt(bet)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ---------- Equity chart ----------
+let eqPromise: Promise<number[][] | null> | null = null;
+function loadEquity() {
+  eqPromise ??= fetch("/trainer/equity169.json")
+    .then((r) => (r.ok ? (r.json() as Promise<number[][]>) : null))
+    .catch(() => null);
+  return eqPromise;
+}
+const combosN = (h: number) => (Math.floor(h / 13) === h % 13 ? 6 : Math.floor(h / 13) < h % 13 ? 4 : 12);
+/** レンジ a の各手の、レンジ b に対する勝率(0〜1)。カードの重なりは無視する近似。 */
+function rangeEquity(eq: number[][], a: number[], b: number[]) {
+  const den = b.reduce((s, w, j) => s + w * combosN(j), 0);
+  return a.map((_, i) => (den > 0 ? b.reduce((s, w, j) => s + (eq[i]![j]! / 1000) * w * combosN(j), 0) / den : 0.5));
+}
+function curve(eqs: number[], w: number[]) {
+  const items = eqs.map((e, i) => ({ e, c: (w[i] ?? 0) * combosN(i) })).filter((x) => x.c > 1e-6);
+  items.sort((x, y) => y.e - x.e);
+  const tot = items.reduce((s, x) => s + x.c, 0);
+  let acc = 0;
+  const pts: [number, number][] = [];
+  let avg = 0;
+  for (const it of items) {
+    pts.push([acc / tot, it.e]);
+    acc += it.c;
+    pts.push([acc / tot, it.e]);
+    avg += it.e * it.c;
+  }
+  return { pts, avg: tot > 0 ? avg / tot : 0, combos: tot };
+}
+function EquityChart({ eq, hero, villain, heroName, villainName }: { eq: number[][] | null; hero: number[]; villain: number[]; heroName: string; villainName: string }) {
+  if (!eq) return <div className="mb-2 h-[200px] rounded-b-xl rounded-tr-xl bg-[#1b1b1d]" />;
+  const h = curve(rangeEquity(eq, hero, villain), hero);
+  const v = curve(rangeEquity(eq, villain, hero), villain);
+  const W = 360;
+  const H = 180;
+  const path = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? "L" : "M"}${(x * W).toFixed(1)},${((1 - y) * H).toFixed(1)}`).join(" ");
+  return (
+    <div className="mb-2 rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-2">
+      <div className="mb-1 flex gap-4 text-[12px] tabular-nums">
+        <span className="text-[#8fe388]">
+          {heroName} 平均 {(h.avg * 100).toFixed(1)}%
+        </span>
+        <span className="text-[#e6a23c]">
+          {villainName} 平均 {(v.avg * 100).toFixed(1)}%
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+        {[0.25, 0.5, 0.75].map((y) => (
+          <line key={y} x1={0} x2={W} y1={(1 - y) * H} y2={(1 - y) * H} stroke="#2f2f33" strokeWidth={1} />
+        ))}
+        <path d={path(v.pts)} fill="none" stroke="#e6a23c" strokeWidth={2} />
+        <path d={path(h.pts)} fill="none" stroke="#8fe388" strokeWidth={2} />
+      </svg>
+      <p className="mt-1 text-[10px] text-[#9a9a9a]">縦: 勝率 / 横: レンジの中の位置(強い順)。プリフロップのオールイン勝率で、カードの重なりは無視した近似。</p>
+    </div>
+  );
+}
+
+// ---------- Blockers ----------
+function villainNodeOf(data: TrainerData | null | undefined, pa: string, villainIdx: number): TrainerNode | null {
+  if (!data) return null;
+  const codes = pa ? pa.split("-") : [];
+  let found: TrainerNode | null = null;
+  for (let k = 0; k < codes.length; k++) {
+    const n = data.nodes[codes.slice(0, k).join("-")];
+    if (n && TRAINER_POSITIONS.indexOf(n.actor) === villainIdx) found = n;
+  }
+  return found;
+}
+function cardsOfClass(i: number): number[][] {
+  const r = Math.floor(i / 13);
+  const c = i % 13;
+  const out: number[][] = [];
+  if (r === c) for (let s = 0; s < 4; s++) for (let t = s + 1; t < 4; t++) out.push([r * 4 + s, r * 4 + t]);
+  else if (r < c) for (let s = 0; s < 4; s++) out.push([r * 4 + s, c * 4 + s]);
+  else for (let s = 0; s < 4; s++) for (let t = 0; t < 4; t++) if (s !== t) out.push([c * 4 + s, r * 4 + t]);
+  return out;
+}
+function BlockersView({ hand, villainWeight, villainName, villainNode, stack }: { hand: number; villainWeight: number[]; villainName: string; villainNode: TrainerNode | null; stack: number }) {
+  const mine = cardsOfClass(hand);
+  // 自分の手(スートの組み合わせの平均)で、相手の各手のコンボがどれだけ残るか。
+  const remain = Array.from({ length: 169 }, (_, j) => {
+    const theirs = cardsOfClass(j);
+    let left = 0;
+    for (const m of mine) left += theirs.filter((t) => !t.some((x) => m.includes(x))).length;
+    return left / mine.length;
+  });
+  let before = 0;
+  let after = 0;
+  for (let j = 0; j < 169; j++) {
+    before += (villainWeight[j] ?? 0) * combosN(j);
+    after += (villainWeight[j] ?? 0) * remain[j]!;
+  }
+  // 相手が行動した局面での、行動の割合(全部の手で数える。自分の手のカードを抜くと割合がどう変わるか)。
+  const rows = (villainNode?.a ?? []).map((a) => {
+    let b = 0;
+    let bd = 0;
+    let af = 0;
+    let ad = 0;
+    for (let j = 0; j < 169; j++) {
+      b += combosN(j) * (a.s[j] ?? 0);
+      bd += combosN(j);
+      af += remain[j]! * (a.s[j] ?? 0);
+      ad += remain[j]!;
+    }
+    return { c: a.c, before: bd > 0 ? b / bd : 0, after: ad > 0 ? af / ad : 0 };
+  });
+  return (
+    <div className="p-2 text-[13px] tabular-nums text-[#cfcfcf]">
+      <p className="mb-2 text-white">
+        <b>{handName(hand)}</b> を持つと、{villainName} のレンジのコンボは {before.toFixed(1)} → {after.toFixed(1)}(
+        {before > 0 ? (((before - after) / before) * 100).toFixed(1) : "0"}% 減る)
+      </p>
+      {rows.length > 0 && (
+        <>
+          <p className="mb-1 text-[11px] text-[#9a9a9a]">{villainName} の行動の割合(この手を持っていない場合 → 持っている場合)</p>
+          {rows.map((x) => (
+            <div key={x.c} className="flex items-center gap-2 py-0.5">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(x.c) }} />
+              <span className="flex-1">{name(x.c, stack)}</span>
+              <span className="w-16 text-right">{(x.before * 100).toFixed(1)}%</span>
+              <span className="w-4 text-center text-[#6a6a6a]">→</span>
+              <span className="w-16 text-right text-white">{(x.after * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
