@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { TRAINER_POSITIONS, TRAINER_STACKS, type TrainerPosition, type TrainerStack } from "@/lib/trainer";
 import { TrainerPlayer } from "./TrainerPlayer";
+import { loadTrainerSession } from "./trainerSession";
 
 /**
  * 特訓(プリフロップの練習モード)。レッスンタブの中の「特訓」。
@@ -121,7 +122,14 @@ function Chips<T extends string | number>({
 export function TrainerTab() {
   const [s, setS] = useState<TrainerSettings>(DEFAULT_TRAINER_SETTINGS);
   const [playing, setPlaying] = useState(false);
-  useEffect(() => setS(loadSettings()), []);
+  useEffect(() => {
+    // 途中の特訓が残っていれば、その設定で続きから。
+    const saved = loadTrainerSession();
+    if (saved) {
+      setS(saved.settings);
+      setPlaying(true);
+    } else setS(loadSettings());
+  }, []);
   const update = (p: Partial<TrainerSettings>) => {
     const next = { ...s, ...p };
     setS(next);
@@ -134,6 +142,16 @@ export function TrainerTab() {
 
   return (
     <div>
+      {/* はじめるボタンは一番上(スクロールせずに押せるように。オーナー指示)。 */}
+      <button
+        type="button"
+        onClick={() => setPlaying(true)}
+        className="pressable-lg mb-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent text-[16px] font-black text-on-accent shadow-glow"
+      >
+        <Icon name="play" className="h-5 w-5" />
+        特訓をはじめる
+      </button>
+
       <div className="glass-panel mb-4 rounded-3xl px-4 py-3.5">
         <p className="text-[16px] font-black tracking-tight text-fg">プリフロップ特訓</p>
         <p className="mt-1 text-[12px] leading-relaxed text-fg-2">
@@ -198,15 +216,6 @@ export function TrainerTab() {
         <Chips label="スタック(bb)" all={TRAINER_STACKS} value={s.stacks} onChange={(v) => update({ stacks: v })} fmt={(v) => `${v}`} />
         <Chips label="自分のポジション" all={TRAINER_POSITIONS} value={s.positions} onChange={(v) => update({ positions: v })} fmt={(v) => v} />
       </div>
-
-      <button
-        type="button"
-        onClick={() => setPlaying(true)}
-        className="pressable-lg flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent text-[16px] font-black text-on-accent shadow-glow"
-      >
-        <Icon name="play" className="h-5 w-5" />
-        特訓をはじめる
-      </button>
 
       {playing && <TrainerPlayer settings={s} onClose={() => setPlaying(false)} />}
     </div>

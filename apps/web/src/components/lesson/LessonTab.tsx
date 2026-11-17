@@ -10,6 +10,7 @@ import { usePricingSheet } from "@/components/PricingSheet";
 import { Icon } from "@/components/Icon";
 import { LessonPlayer } from "./LessonPlayer";
 import { TrainerTab } from "./TrainerTab";
+import { loadTrainerSession } from "./trainerSession";
 
 /**
  * Lesson タブ(バリィ先生のレッスン。chess.com の Lessons を参考。オーナー確定)。
@@ -20,6 +21,10 @@ import { TrainerTab } from "./TrainerTab";
 /** レッスンタブ: 上のタブで「学ぶ」(レッスン)と「特訓」(プリフロップの練習モード)を切り替える。 */
 export function LessonTab({ accessToken }: { accessToken: string | undefined }) {
   const [sub, setSub] = useState<"learn" | "train">("learn");
+  // 途中の特訓が残っていれば「特訓」を開いて続きから(アプリを裏に回して戻ったとき)。
+  useEffect(() => {
+    if (loadTrainerSession()) setSub("train");
+  }, []);
   return (
     <div>
       <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-white/[0.05] p-1">
