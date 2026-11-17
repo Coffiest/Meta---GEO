@@ -1,6 +1,6 @@
 {
   "name": "@meta-geo/web",
-  "version": "1.37.11",
+  "version": "1.37.12",
   "private": true,
   "scripts": {
     "dev": "next dev",

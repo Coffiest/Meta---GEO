@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { TRAINER_POSITIONS, TRAINER_STACKS, handName, type TrainerData, type TrainerNode } from "@/lib/trainer";
 
@@ -236,7 +236,27 @@ export function GtowExplorer() {
         // スマホ: 行動の板 → 表 → 内訳 の縦並び。PC: GTO Wizard と同じく左に表、右に行動の板と内訳。表は画面の高さに収める。
         <div className="grid gap-3 [grid-template-areas:'t'_'m'_'d'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
           {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
-          <div className="rounded-xl bg-[#1b1b1d] p-1" style={{ gridArea: "t" }}>
+          <div style={{ gridArea: "t" }}>
+          <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active="Overview" />
+          <div className="mb-2 flex gap-1 overflow-x-auto rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
+            {TRAINER_POSITIONS.map((p, i) => (
+              <div
+                key={p}
+                className={`flex min-w-[44px] flex-1 flex-col items-center rounded-md bg-[#252528] px-1 py-1 text-[12px] font-bold leading-tight tabular-nums ${
+                  i === actorIdx ? "text-[#8fe388]" : r.folded[i] ? "text-[#6a6a6a]" : "text-[#e6e6e6]"
+                }`}
+              >
+                <span>{p}</span>
+                <span>{fmt(r.stacks[i] ?? stack)}</span>
+              </div>
+            ))}
+            <div className="flex shrink-0 flex-col justify-center px-1.5 text-[11px] leading-tight tabular-nums">
+              <span className="font-bold text-[#e6e6e6]">{fmt(pot)} BB</span>
+              <span className="text-[#9a9a9a]">Pot{toCall > 0 ? ` ${((toCall / (pot + toCall)) * 100).toFixed(0)}%` : ""}</span>
+            </div>
+          </div>
+          <PanelTabs tabs={["Actions"]} active="Actions" />
+          <div className="rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
               {actions.map((a, i) => (
                 <div
@@ -263,6 +283,7 @@ export function GtowExplorer() {
               ))}
             </div>
           </div>
+          </div>
 
           {/* 169 の手の表。マスの中を行動の頻度で塗り分ける。レンジに無い手は薄く。 */}
           <div style={{ gridArea: "m" }} className="lg:rounded-xl lg:bg-[#1b1b1d] lg:p-2">
@@ -274,7 +295,7 @@ export function GtowExplorer() {
                   key={h}
                   type="button"
                   onClick={() => setHand(h)}
-                  className={`relative aspect-square overflow-hidden rounded-[3px] bg-white/[0.04] ${hand === h ? "ring-2 ring-fg" : ""}`}
+                  className={`relative aspect-square overflow-hidden rounded-[2px] bg-[#2a2a2d] ${hand === h ? "ring-2 ring-white" : ""}`}
                   style={{ opacity: w < 0.005 ? 0.25 : 1 }}
                 >
                   <span className="absolute inset-0 flex">
@@ -282,7 +303,7 @@ export function GtowExplorer() {
                       <span key={a.c} style={{ width: `${(a.s[h] ?? 0) * 100}%`, background: colorOf(a.c) }} />
                     ))}
                   </span>
-                  <span className="relative text-[clamp(7px,2.2vw,11px)] font-bold text-fg lg:text-[clamp(8px,0.75vw,12px)] [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+                  <span className="absolute left-[6%] top-[4%] text-[clamp(7px,2.2vw,11px)] font-medium text-white lg:text-[clamp(9px,0.9vw,15px)] [text-shadow:0_1px_1px_rgba(0,0,0,0.4)]">
                     {handName(h)}
                   </span>
                 </button>
@@ -291,31 +312,117 @@ export function GtowExplorer() {
           </div>
           </div>
 
-          {/* 選んだ手の内訳 */}
-          <div className="rounded-xl bg-[#1b1b1d] p-3" style={{ gridArea: "d" }}>
-            {hand === null ? (
-              <p className="text-[12px] text-fg-3">表の手を押すと、行動ごとの頻度と EV(bb)が出る。</p>
-            ) : (
-              <>
-                <p className="mb-1.5 text-[14px] font-black text-fg">
-                  {handName(hand)}
-                  {(weight[hand] ?? 0) < 0.999 && (
-                    <span className="ml-2 text-[11px] font-bold text-fg-3">レンジ {((weight[hand] ?? 0) * 100).toFixed(0)}%</span>
-                  )}
-                </p>
-                {actions.map((a) => (
-                  <div key={a.c} className="flex items-center gap-2 py-0.5 text-[13px] tabular-nums">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colorOf(a.c) }} />
-                    <span className="flex-1 text-fg-2">{name(a.c, stack)}</span>
-                    <span className="w-16 text-right text-fg">{((a.s[hand] ?? 0) * 100).toFixed(1)}%</span>
-                    <span className="w-20 text-right text-fg">{(a.e[hand] ?? 0).toFixed(2)}bb</span>
-                  </div>
-                ))}
-              </>
-            )}
+          {/* 手札ごとの内訳(GTO Wizard の Hands / Summary)。表の手を押して選ぶ。 */}
+          <div style={{ gridArea: "d" }}>
+            <HandsPanel hand={hand ?? 0} actions={actions} stack={stack} weight={weight[hand ?? 0] ?? 0} />
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PanelTabs({ tabs, active, onPick }: { tabs: string[]; active: string; onPick?: (t: string) => void }) {
+  return (
+    <div className="flex">
+      {tabs.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onPick?.(t)}
+          disabled={!onPick && t !== active}
+          className={`rounded-t-xl px-4 py-1.5 text-[14px] ${t === active ? "bg-[#1b1b1d] font-bold text-white" : "text-[#9a9a9a] disabled:cursor-default"}`}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const SUITS = ["s", "h", "d", "c"] as const;
+const SUIT_SYM: Record<string, string> = { s: "\u2660", h: "\u2665", d: "\u2666", c: "\u2663" };
+const SUIT_COLOR: Record<string, string> = { s: "#1b1b1d", h: "#d33", d: "#2563eb", c: "#16a34a" };
+
+/** 手の名前(AA / AKs / AKo)から、スートの組み合わせを全部作る。 */
+function combosOf(label: string): [string, string][] {
+  const a = label[0]!;
+  const b = label[1]!;
+  const out: [string, string][] = [];
+  if (label.length === 2) {
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) out.push([a + SUITS[i], b + SUITS[j]]);
+  } else if (label[2] === "s") {
+    for (const s of SUITS) out.push([a + s, b + s]);
+  } else {
+    for (const s1 of SUITS) for (const s2 of SUITS) if (s1 !== s2) out.push([a + s1, b + s2]);
+  }
+  return out;
+}
+
+function CardChip({ c }: { c: string }) {
+  return (
+    <span className="inline-flex items-center rounded-[3px] bg-white px-1 text-[13px] font-bold leading-tight" style={{ color: SUIT_COLOR[c[1]!] }}>
+      {c[0]}
+      {SUIT_SYM[c[1]!]}
+    </span>
+  );
+}
+
+function HandsPanel({ hand, actions, stack, weight }: { hand: number; actions: { c: string; s: number[]; e: number[] }[]; stack: number; weight: number }) {
+  const [tab, setTab] = useState("Hands");
+  const label = handName(hand);
+  // いちばん多い行動の色でマスを塗る(GTO Wizard と同じ)。
+  const top = actions.reduce((b, a) => ((a.s[hand] ?? 0) > (b.s[hand] ?? 0) ? a : b), actions[0]!);
+  return (
+    <div>
+      <PanelTabs tabs={["Hands", "Summary", "Filters", "Blockers"]} active={tab} onPick={(t) => (t === "Hands" || t === "Summary") && setTab(t)} />
+      <div className="rounded-b-xl rounded-tr-xl bg-[#1b1b1d] p-1">
+        {tab === "Hands" ? (
+          <div className="grid grid-cols-2 gap-[2px] sm:grid-cols-3">
+            {combosOf(label).map(([c1, c2]) => (
+              <div key={c1 + c2} className="flex min-h-[96px] flex-col justify-between p-1.5" style={{ background: colorOf(top.c), opacity: weight < 0.005 ? 0.35 : 1 }}>
+                <div className="flex items-start justify-between">
+                  <span className="flex gap-px">
+                    <CardChip c={c1} />
+                    <CardChip c={c2} />
+                  </span>
+                  <span className="text-[12px] text-white">%</span>
+                </div>
+                <div className="text-[12px] leading-tight text-white tabular-nums">
+                  {actions.map((a) => (
+                    <div key={a.c} className="flex justify-between gap-1">
+                      <span className="truncate">{name(a.c, stack)}</span>
+                      <span>{+((a.s[hand] ?? 0) * 100).toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-2">
+            <p className="mb-1.5 text-[14px] font-black text-white">
+              {label}
+              <span className="ml-2 text-[11px] font-bold text-[#9a9a9a]">レンジ {(weight * 100).toFixed(0)}%</span>
+            </p>
+            <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 text-[13px] tabular-nums">
+              <span className="text-[11px] text-[#9a9a9a]">行動</span>
+              <span className="text-right text-[11px] text-[#9a9a9a]">頻度</span>
+              <span className="text-right text-[11px] text-[#9a9a9a]">EV</span>
+              {actions.map((a) => (
+                <Fragment key={a.c}>
+                  <span className="flex items-center gap-2 text-[#cfcfcf]">
+                    <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(a.c) }} />
+                    {name(a.c, stack)}
+                  </span>
+                  <span className="text-right text-white">{((a.s[hand] ?? 0) * 100).toFixed(1)}%</span>
+                  <span className="text-right text-white">{(a.e[hand] ?? 0).toFixed(2)}</span>
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
