@@ -42,6 +42,7 @@ import { checkAdminSession } from "@/lib/adminApi";
 import { useGeoAccess, type GeoLockInfo } from "@/lib/useGeoAccess";
 import { GeoLockCard, GeoLockScreen } from "@/components/geo/GeoLockScreen";
 import { GtowExplorer } from "@/components/geo/GtowExplorer";
+import { GeoRangeGrid } from "@/components/geo/GeoRangeGrid";
 import { APP_VERSION } from "@/lib/version";
 import { Loader } from "@/components/ui/Loader";
 
@@ -787,7 +788,7 @@ function GeoDatabase({
             `left`をこれが占有していたため他画面には必ずあるPoker ARTブランディングが
             欠けていたので、共通ヘッダーは他画面と同じ構成(ロゴ+ホームへ戻る)に戻し、
             この一式は他画面のTabHeaderと同じくスクロールする本文側へ移した。 */}
-        <div className="hidden pt-3 lg:block">
+        <div className="hidden">
           <DesktopSpotBar
             items={items}
             settingsSummary={`${STACK_BUCKET_LABELS[stackBucket]} · ${BUBBLE_STAGE_LABELS[bubbleStage]} · ${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? ` · 偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
@@ -803,7 +804,7 @@ function GeoDatabase({
           />
         </div>
 
-        <div className="pt-4 lg:hidden">
+        <div className="pt-4">
           {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
               ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
               演出をこのページにも適用)。 */}
@@ -829,7 +830,7 @@ function GeoDatabase({
             <motion.button
               onClick={() => setSettingsOpen(true)}
               whileTap={{ scale: 0.94 }}
-              className="glass-tile pressable shrink-0 flex flex-col justify-center rounded-xl px-3 py-1.5 text-left"
+              className="pressable shrink-0 flex flex-col justify-center self-stretch rounded-xl bg-[#1b1b1d] px-3 py-1.5 text-left"
               aria-label="詳細設定を変更"
             >
               <div className="flex items-center gap-1 text-[9px] font-black tracking-wide text-fg-2">
@@ -899,12 +900,7 @@ function GeoDatabase({
           </div>
           <div className="lg:mx-auto lg:max-w-[calc(100dvh-300px)]">
             {matrix && (
-              <HandClassMatrix
-                matrix={matrix}
-                bucketLabels={bucketLabels}
-                mergeOpenRaise={street === "preflop"}
-                onHoverCell={setHoveredCell}
-              />
+              <GeoRangeGrid matrix={matrix} bucketLabels={bucketLabels} mergeOpenRaise={street === "preflop"} />
             )}
           </div>
         </div>
@@ -970,18 +966,7 @@ function GeoDatabase({
             </motion.div>
           ) : node ? (
             <>
-              <div className="lg:hidden">
-                <PositionActionRow node={node} bucketLabels={bucketLabels} onSelect={selectBucket} />
-              </div>
-              <div className="hidden lg:block">
-                <DesktopStudyPanel
-                  node={node}
-                  mergeOpenRaise={street === "preflop"}
-                  bucketLabels={bucketLabels}
-                  hoveredCell={hoveredCell}
-                  onSelect={selectBucket}
-                />
-              </div>
+              <PositionActionRow node={node} bucketLabels={bucketLabels} />
             </>
           ) : null}
         </div>

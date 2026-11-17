@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { SPRING_SNAPPY } from "@/lib/motion";
-import { bucketColor, bucketOrderIndex } from "./colors";
+import { bucketOrderIndex } from "./colors";
 import { mergeOpenRaiseOptions, type ActionOption } from "@/lib/geoApi";
 import { Icon } from "../Icon";
 
@@ -77,11 +77,7 @@ export function PositionPillBar({
     // 横にスクロールするカードの列。端は固い線で切らず、左 8px・右 12px かけて消す(左は内側に 8px 空けて、先頭のカードは消さない)(スクロールの端の効果)。
     // 以前は左端でカードが途中でぶつ切りになり(「old」「N Raise」のように見える)、壊れて見えた。
     <div
-      className="flex min-w-0 items-start gap-1.5 overflow-x-auto no-scrollbar pl-2 pr-3"
-      style={{
-        maskImage: "linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)",
-        WebkitMaskImage: "linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)",
-      }}
+      className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto no-scrollbar rounded-xl bg-[#1b1b1d] p-1"
     >
       {items.map((item, i) =>
         item.kind === "street" ? (
@@ -91,7 +87,7 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.9, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             transition={SPRING_SNAPPY}
-            className="glass-tile shrink-0 flex items-center gap-1.5 rounded-xl px-2.5 py-1.5"
+            className="shrink-0 flex items-center gap-1.5 rounded-lg bg-[#252528] px-2.5 py-1.5"
           >
             <span className="text-[9px] font-black tracking-widest text-accent">{STREET_LABEL[item.street]}</span>
             <div className="flex gap-0.5">
@@ -117,9 +113,9 @@ export function PositionPillBar({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={SPRING_SNAPPY}
-            className="glass-tile shrink-0 overflow-hidden rounded-xl ring-1 ring-accent min-w-[90px]"
+            className="shrink-0 overflow-hidden rounded-lg bg-[#252528] ring-2 ring-[#8fe388] min-w-[96px]"
           >
-            <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-black tracking-wide text-accent">{item.position}</div>
+            <div className="px-2 pt-1.5 pb-1 text-[13px] font-black text-[#8fe388]">{item.position}</div>
             {sortedActiveOptions.length === 0 ? (
               <div className="px-2.5 pb-1.5 text-[11px] font-medium text-fg-3">
                 {activeSampleSize === 0 ? "サンプルなし" : "…"}
@@ -130,12 +126,8 @@ export function PositionPillBar({
                   <button
                     key={opt.bucket}
                     onClick={() => onSelect?.(opt.representativeBucket ?? opt.bucket)}
-                    className="pressable flex items-center gap-1.5 px-2.5 py-1 text-left text-[12px] font-bold text-fg truncate hover:bg-surface active:bg-surface-2"
+                    className="pressable px-2 py-0.5 text-left text-[13px] leading-[1.45] text-[#e6e6e6] truncate hover:text-white"
                   >
-                    <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ background: bucketColor(opt.representativeBucket ?? opt.bucket) }}
-                    />
                     {bucketLabels?.[opt.bucket] ?? opt.bucket}
                   </button>
                 ))}
@@ -156,27 +148,21 @@ export function PositionPillBar({
               else if (item.jumpable) onJump?.(item.position);
             }}
             aria-label={item.jumpable ? `${item.position}まで進める(手前の席はフォールド)` : undefined}
-            className={`glass-tile shrink-0 rounded-xl px-2.5 py-1.5 text-left min-w-[64px] ${
-              item.state === "decided" ? "" : item.jumpable ? "opacity-70" : "opacity-40"
+            className={`shrink-0 rounded-lg bg-[#252528] px-2 py-1.5 text-left min-w-[80px] ${
+              item.state === "decided" ? "" : item.jumpable ? "" : "opacity-40"
             }`}
           >
-            <div className="text-[9px] font-black tracking-wide text-fg-2">{item.position}</div>
+            <div className="mb-1 text-[13px] font-black text-[#cfcfcf]">{item.position}</div>
             {item.state === "decided" ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-fg truncate max-w-[90px]">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: bucketColor(item.bucket ?? "") }}
-                />
-                {item.actionLabel}
-              </div>
+              <div className="max-w-[110px] truncate text-[13px] font-bold text-white">{item.actionLabel}</div>
             ) : item.jumpable ? (
               // 押せることが分かるように、手前を飛ばしてここへ進めることを短く書く。
-              <div className="flex items-center gap-0.5 text-[11px] font-bold text-fg-2">
+              <div className="flex items-center gap-0.5 text-[13px] text-[#8a8a8a]">
                 ここへ
                 <Icon name="chevron-right" className="h-3 w-3" />
               </div>
             ) : (
-              <div className="text-[11px] font-medium text-fg-faint">—</div>
+              <div className="text-[13px] text-[#8a8a8a]">—</div>
             )}
           </motion.button>
         ),
