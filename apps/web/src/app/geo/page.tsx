@@ -822,25 +822,29 @@ function GeoDatabase({
               <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
             </p>
           </motion.div>
-          {/* 設定は GTO タブのスタック選択と同じ丸いボタン1つに畳む(表を上に広く見せるため。オーナー指示)。押すと詳細設定。 */}
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="詳細設定を変更"
-              className="pressable flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[12px] font-bold tabular-nums text-on-accent"
-            >
-              {STACK_BUCKET_LABELS[stackBucket]}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            <span className="text-[11px] font-bold text-fg-3">
-              {`${BUBBLE_STAGE_LABELS[bubbleStage]}・${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? `・偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
-            </span>
-          </div>
           <div className="flex items-start gap-1">
             <GeoSeatCards
+              lead={
+                // GTO タブと同じ先頭の板。押すと詳細設定(スタック・段階・人数など)。上の設定の列は廃止(オーナー指示)。
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="詳細設定を変更"
+                  className="pressable flex shrink-0 flex-col justify-between rounded-lg bg-[#252528] px-2 py-1.5 text-left"
+                >
+                  <span className="flex items-center gap-1 text-[12px] font-bold text-[#cfcfcf]">
+                    MTT {STACK_BUCKET_LABELS[stackBucket]}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                  <span className="text-[11px] text-[#9a9a9a]">{BUBBLE_STAGE_LABELS[bubbleStage]}</span>
+                  <span className="text-[11px] text-[#9a9a9a]">
+                    {playerCount ? `${playerCount}人` : "全人数"}
+                    {ratingActive ? `・偏差${ratingRange.min}-${ratingRange.max}` : ""}
+                  </span>
+                </button>
+              }
               items={items}
               node={node}
               bucketLabels={bucketLabels}

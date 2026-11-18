@@ -196,47 +196,50 @@ export function GtowExplorer() {
 
   return (
     <div>
-      {/* スタック。選んだ1つだけを出し、押すと他の深さが開く(表を上に広く見せるため。オーナー指示)。 */}
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setStackOpen((o) => !o)}
-          aria-expanded={stackOpen}
-          className="pressable flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[12px] font-bold tabular-nums text-on-accent"
-        >
-          {stack}bb
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={stackOpen ? "rotate-180" : ""}>
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-        {stackOpen &&
-          TRAINER_STACKS.filter((s) => s !== stack).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => {
-                setStack(s);
-                setPa("");
-                setHand(null);
-                setStackOpen(false);
-              }}
-              className="pressable rounded-full bg-white/[0.05] px-3 py-1 text-[12px] font-bold tabular-nums text-fg-2"
-            >
-              {s}bb
-            </button>
-          ))}
-        {!stackOpen && <span className="text-[11px] font-bold text-fg-3">MTT・8人卓・ChipEV</span>}
-      </div>
-
+      {stackOpen && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 p-3 sm:items-center" onClick={() => setStackOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-[#1b1b1d] p-3 shadow-e4" onClick={(e) => e.stopPropagation()}>
+            <p className="mb-1 px-1 text-[14px] font-black text-[#e6e6e6]">エフェクティブスタック</p>
+            <p className="mb-3 px-1 text-[11px] text-[#9a9a9a]">MTT・8人卓・ChipEV</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TRAINER_STACKS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setStack(s);
+                    setPa("");
+                    setHand(null);
+                    setStackOpen(false);
+                  }}
+                  className={`pressable h-11 rounded-xl text-[14px] font-black tabular-nums ${
+                    stack === s ? "bg-accent text-on-accent" : "bg-[#252528] text-[#e6e6e6]"
+                  }`}
+                >
+                  {s}bb
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* 席の帯。席ごとの板に、席名・残りスタックと選べる行動を並べ、押して手順を進める(GTO Wizard と同じ使い方)。
           選んだ行動は白、手番の席は緑の枠。 */}
       <div className="mb-3 flex items-stretch gap-1 overflow-x-auto rounded-xl bg-[#1b1b1d] p-1">
         <div className="flex shrink-0 flex-col justify-between rounded-lg bg-[#252528] px-2 py-1.5">
-          <span className="text-[12px] font-bold text-[#cfcfcf]">MTT {stack}bb</span>
-          <span className="text-[11px] text-[#9a9a9a]">ChipEV</span>
-          <span className="text-[11px] tabular-nums text-[#9a9a9a]">
-            ポット <b className="text-[#e6e6e6]">{fmt(pot)}</b>
-          </span>
+          {/* 押すとスタックを選ぶモーダル(上のスタックの列は廃止。オーナー指示)。 */}
+          <button type="button" onClick={() => setStackOpen(true)} aria-label="スタックを変える" className="pressable flex flex-col rounded text-left">
+            <span className="flex items-center gap-1 text-[12px] font-bold text-[#cfcfcf]">
+              MTT {stack}bb
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+            <span className="text-[11px] text-[#9a9a9a]">ChipEV</span>
+            <span className="text-[11px] tabular-nums text-[#9a9a9a]">
+              ポット <b className="text-[#e6e6e6]">{fmt(pot)}</b>
+            </span>
+          </button>
           <button
             type="button"
             onClick={back}
@@ -280,7 +283,7 @@ export function GtowExplorer() {
         </p>
       ) : (
         // スマホ: 表 → 内訳 → 行動の板 の縦並び(開いてすぐ表が見えるように。オーナー指示)。PC: GTO Wizard と同じく左に表、右に行動の板と内訳。表は画面の高さに収める。
-        <div className="grid gap-3 [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
+        <div className="grid gap-3 grid-cols-[minmax(0,1fr)] [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
           {/* 行動の板(不透明の色の板。左上に行動、左下に頻度、右下にコンボ数)。見るためのもので押せない。行動は上の席の帯で選ぶ。 */}
           <div style={{ gridArea: "t" }}>
           <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active={topTab} onPick={setTopTab} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { mergeOpenRaiseByBucket, mergeOpenRaiseOptions, OPEN_RAISE_BUCKET, type HandClassMatrixResult, type TreeNode } from "@/lib/geoApi";
 import { handName } from "@/lib/trainer";
 import { bucketColor, bucketOrderIndex } from "./colors";
@@ -32,7 +32,10 @@ export function GeoSeatCards({
   onSelect,
   onTruncate,
   onJump,
+  lead,
 }: {
+  /** 帯の先頭に置く、設定の板(GTO タブの「MTT 100bb / ChipEV / ポット」と同じ位置)。 */
+  lead?: ReactNode;
   items: PillBarItem[];
   node: TreeNode | null;
   bucketLabels: Record<string, string>;
@@ -46,6 +49,7 @@ export function GeoSeatCards({
   const label = (b: string) => bucketLabels[b] ?? b;
   return (
     <div className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto no-scrollbar rounded-xl bg-[#1b1b1d] p-1">
+      {lead}
       {items.map((item, i) =>
         item.kind === "street" ? (
           <div key={`s${i}`} className="flex shrink-0 items-center gap-1 rounded-lg bg-[#252528] px-2 py-1.5">
@@ -156,7 +160,7 @@ export function GeoSolutionPanels({
   const topPart = selParts.reduce<Part | null>((b, p) => (!b || p.frac > b.frac ? p : b), null);
 
   return (
-    <div className="grid gap-3 [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
+    <div className="grid gap-3 grid-cols-[minmax(0,1fr)] [grid-template-areas:'m'_'d'_'t'] lg:items-start lg:gap-4 lg:[grid-template-areas:'m_t'_'m_d'] lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:grid-rows-[auto_1fr]">
       {/* 右上: Overview / Table / Equity chart と Actions */}
       <div style={{ gridArea: "t" }}>
         <PanelTabs tabs={["Overview", "Table", "Equity chart"]} active={topTab} onPick={setTopTab} />
