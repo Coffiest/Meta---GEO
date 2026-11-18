@@ -32,7 +32,7 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "@/components/Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
@@ -805,23 +805,6 @@ function GeoDatabase({
         </div>
 
         <div className="pt-4">
-          {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
-              ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
-              演出をこのページにも適用)。 */}
-          <TermPrompt command="geo --query" className="mb-1.5" />
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
-            className="mb-2 flex items-center gap-2"
-          >
-            {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。GTOモードへの入口は
-                廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。 */}
-            <p className="text-[15px] font-black tracking-tight text-fg leading-none">
-              GEO<span className="text-accent"> Database</span>
-              <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
-            </p>
-          </motion.div>
           <div className="flex items-start gap-1">
             <GeoSeatCards
               lead={
@@ -888,7 +871,6 @@ function GeoDatabase({
           </div>
         )}
 
-        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5 lg:hidden" />}
 
         {/* GTO タブと同じ並び: 左に手の表、右に Overview / Actions / Hands など。読み込み中などは下の表示。 */}
         <div className="mt-3">

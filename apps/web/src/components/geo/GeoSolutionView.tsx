@@ -65,7 +65,6 @@ export function GeoSeatCards({
           >
             <div className="mb-1 flex items-baseline justify-between gap-2">
               <span className={`text-[13px] font-black ${item.state === "active" ? "text-[#8fe388]" : "text-[#cfcfcf]"}`}>{item.position}</span>
-              <span className={`text-[12px] font-bold ${item.state === "active" ? "text-[#8fe388]" : "text-[#9a9a9a]"}`}>—</span>
             </div>
             {item.state === "active" ? (
               opts.length === 0 ? (
