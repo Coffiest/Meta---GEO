@@ -1,9 +1,22 @@
 # PokerART 引き継ぎ
 
 ## 更新日時
-2026-11-12(日本時間)
+2026-11-18(日本時間)
 
 ## 現在地
+- **GTO Wizard の取得(2026-11-12〜17)**: MTT・ChipEV・8max・100/60/40/30/20/12bb。2人の局面(オープン・対応・3/4/5ベット・SBリンプ)873場面は完了し、特訓(レッスン→特訓、8人卓)・棋譜解析(`packages/engine/data/gtow/`、`scripts/trainer/to-gtow.mjs`)・Database の GTO タブ(`components/geo/GtowExplorer.tsx`)に反映済み。GEO タブも GTO タブと同じ作り(`components/geo/GeoSolutionView.tsx`)。
+- **3人以上の局面を取得中**: 543場面は出荷済み(#452。誤ってバージョン未更新・題名「(v)」)。未出荷 308場面が Mac の ~/Downloads/pokerart-trainer-g*.json。残り約1,200(取るたびに増える)。取得の状態は Chrome の app.gtowizard.com の localStorage `__pokerart_gcrawl`。保存できた分だけ done にする方式。エラーの局面は飛ばさず retry に回す(オーナー指示)。
+- GTO Wizard の 169 の並びは手の名前の文字コード順(22, 32o, 32s…)。`build-data.mjs` が表の並びへ並べ替える。
+- 自動の席: シャーク型31%がオープンを GTO Wizard の解どおり(v1.37.16)。効果音の止まりっぱなしを修正(v1.37.18、実機未確認)。
+- 毎日の自動取得(予定のタスク pokerart-trainer-daily-scrape)は停止中。
+
+## 次にやること(GTO)
+1. `scripts/trainer/to-gtow.mjs` が `public/trainer/equity169.json`(nodes が無い)で落ちる。nodes の無いファイルを飛ばす。
+2. 未出荷の ~/Downloads/pokerart-trainer-g*.json を build-data → to-gtow → バージョンを上げて出荷(~/Documents/PokerART/ship-trainer-batch.sh は1ファイル用)。
+3. データが1スタック約1MB→数MBになるので、局面ごとに分けて読む形へ(特訓は全場面を同期で読むので注意)。
+4. 取得の再開: GTO Wizard の解の画面でクローラーを入れ直し、`__pokerart_gcrawl` から続ける(受け取った答えの preflop_actions・depth・手番の人を確かめる版)。
+
+## 以前の現在地
 - **Lesson タブは全カリキュラム完成・本番反映済み(v1.29.0、2026-10-30 デプロイ success)。** 0〜9章の全項目に中身あり(`apps/web/src/data/lesson*.ts`、画面 `components/lesson/LessonPlayer.tsx`)。6人卓の局面・評価バッジ・色付き太字・卓で押して答える問題(spot)・色分けの表(chart)・レンジ表(range)。オーナーの修正案待ち。実機は未確認。
 - シンバリューのサイズを全体でそろえた(v1.29.0): OOP 20〜33%、IP 75%以上なら何でもよい(棋譜解析の判定・解説・レッスン)。
 - **GTO Wizard の取得(下の「次にやること」1)は、2026-11-12 にクラウドのセッションから再開しようとしたが、コンピューター操作も Chrome の拡張も Mac のフォルダもつながっておらず、始められなかった。** 必ず Mac の Claude デスクトップアプリで新しいチャットを始めて「PokerARTの続き」と言ってもらうこと(クラウドのセッションでは取れない)。
