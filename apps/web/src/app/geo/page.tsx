@@ -32,7 +32,7 @@ import { PositionActionRow } from "@/components/geo/PositionActionRow";
 import { HandClassMatrix } from "@/components/geo/HandClassMatrix";
 import { BoardCardPicker } from "@/components/geo/BoardCardPicker";
 import { Icon } from "@/components/Lobby";
-import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton, TermPrompt, termTypeMs } from "@/components/Header";
+import { HamburgerIcon, Header, HeaderIconButton, HeaderLogo, PremiumHeaderButton } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SIDE_NAV_ITEMS, TopNav } from "@/components/SideNav";
 import { GeoGuide, hasGeoGuideBeenSeen } from "@/components/geo/GeoGuide";
@@ -805,42 +805,29 @@ function GeoDatabase({
         </div>
 
         <div className="pt-4">
-          {/* "$ geo --query"をタイプし終えると、GEO Databaseワードマークがコンソール出力の
-              ように現れる(出典: uiverse.io by Jarol20cb / kamehame-haのハッカー/コンソール
-              演出をこのページにも適用)。 */}
-          <TermPrompt command="geo --query" className="mb-1.5" />
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: termTypeMs("geo --query") / 1000 + 0.12 }}
-            className="mb-2 flex items-center gap-2"
-          >
-            {/* GEO Database ワードマーク(GTO Wizard風のプロ仕様ヘッダー)。GTOモードへの入口は
-                廃止し、実測プレイヤーDB(GEO)専用にした(オーナー指示)。 */}
-            <p className="text-[15px] font-black tracking-tight text-fg leading-none">
-              GEO<span className="text-accent"> Database</span>
-              <span className="term-cursor ml-0.5 bg-accent" style={{ width: 4, height: 13, verticalAlign: "-2px" }} aria-hidden="true" />
-            </p>
-          </motion.div>
-          {/* 設定は GTO タブのスタック選択と同じ丸いボタン1つに畳む(表を上に広く見せるため。オーナー指示)。押すと詳細設定。 */}
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="詳細設定を変更"
-              className="pressable flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[12px] font-bold tabular-nums text-on-accent"
-            >
-              {STACK_BUCKET_LABELS[stackBucket]}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            <span className="text-[11px] font-bold text-fg-3">
-              {`${BUBBLE_STAGE_LABELS[bubbleStage]}・${playerCount ? `${playerCount}人` : "全人数"}${ratingActive ? `・偏差${ratingRange.min}-${ratingRange.max}` : ""}`}
-            </span>
-          </div>
           <div className="flex items-start gap-1">
             <GeoSeatCards
+              lead={
+                // GTO タブと同じ先頭の板。押すと詳細設定(スタック・段階・人数など)。上の設定の列は廃止(オーナー指示)。
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="詳細設定を変更"
+                  className="pressable flex shrink-0 flex-col justify-between rounded-lg bg-[#252528] px-2 py-1.5 text-left"
+                >
+                  <span className="flex items-center gap-1 text-[12px] font-bold text-[#cfcfcf]">
+                    MTT {STACK_BUCKET_LABELS[stackBucket]}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                  <span className="text-[11px] text-[#9a9a9a]">{BUBBLE_STAGE_LABELS[bubbleStage]}</span>
+                  <span className="text-[11px] text-[#9a9a9a]">
+                    {playerCount ? `${playerCount}人` : "全人数"}
+                    {ratingActive ? `・偏差${ratingRange.min}-${ratingRange.max}` : ""}
+                  </span>
+                </button>
+              }
               items={items}
               node={node}
               bucketLabels={bucketLabels}
@@ -884,7 +871,6 @@ function GeoDatabase({
           </div>
         )}
 
-        {matrix && <TermPrompt command="solve --range" className="mt-4 mb-1.5 lg:hidden" />}
 
         {/* GTO タブと同じ並び: 左に手の表、右に Overview / Actions / Hands など。読み込み中などは下の表示。 */}
         <div className="mt-3">
