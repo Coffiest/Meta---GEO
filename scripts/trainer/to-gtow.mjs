@@ -68,6 +68,7 @@ for (const f of fs.readdirSync(IN).filter((x) => x.endsWith(".json"))) {
   const data = JSON.parse(fs.readFileSync(path.join(IN, f), "utf8"));
   const stack = data.stack;
   const nodes = data.nodes;
+  if (!nodes || typeof stack !== "number") continue; // equity169.json など場面の無いファイルは飛ばす
   const seen = new Set();
   for (const [pa, node] of Object.entries(nodes)) {
     const { steps, actor } = replay(pa, stack);
