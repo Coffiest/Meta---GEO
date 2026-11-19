@@ -8,6 +8,8 @@ import { TRAINER_POSITIONS, TRAINER_STACKS, handName, type TrainerData, type Tra
 /**
  * Database の「GTO」タブ。取得した GTO Wizard の解(MTT・ChipEV・8人卓・アンティあり)を、そのまま見る。
  * データは特訓と同じ `public/trainer/<スタック>.json`(端末だけで読む。サーバーと DB は使わない)。
+ * キャッシュゲーム(8人卓・100BB・ライブレーキ10%)は `public/trainer-cash/100.json` に別に置き、このタブで見るだけに使う
+ * (トーナメントのデータと混ぜない。棋譜解析・解説の生成元 to-gtow.mjs は public/trainer しか読まない)。
  * 席を順に選んで手順を進め、手番の人の 169 の手ごとの行動の頻度と EV を表で見る。
  */
 
@@ -20,14 +22,17 @@ const name = (code: string, stack: number) =>
 const fmt = (v: number) => String(Math.round(v * 1000) / 1000);
 const fmtPct = (v: number) => `${+(v * 100).toFixed(1)}%`;
 
-const cache = new Map<number, Promise<TrainerData | null>>();
-function load(stack: number) {
-  let p = cache.get(stack);
+type Mode = "mtt" | "cash";
+const CASH_STACKS = [100] as const;
+const cache = new Map<string, Promise<TrainerData | null>>();
+function load(mode: Mode, stack: number) {
+  const key = `${mode}/${stack}`;
+  let p = cache.get(key);
   if (!p) {
-    p = fetch(`/trainer/${stack}.json`)
+    p = fetch(mode === "cash" ? `/trainer-cash/${stack}.json` : `/trainer/${stack}.json`)
       .then((r) => (r.ok ? (r.json() as Promise<TrainerData>) : null))
       .catch(() => null);
-    cache.set(stack, p);
+    cache.set(key, p);
   }
   return p;
 }
@@ -66,6 +71,7 @@ function replay(pa: string, stack: number) {
 }
 
 export function GtowExplorer() {
+  const [mode, setMode] = useState<Mode>("mtt");
   const [stack, setStack] = useState<number>(100);
   const [data, setData] = useState<TrainerData | null | undefined>(undefined);
   const [pa, setPa] = useState("");
@@ -80,8 +86,8 @@ export function GtowExplorer() {
 
   useEffect(() => {
     setData(undefined);
-    void load(stack).then(setData);
-  }, [stack]);
+    void load(mode, stack).then(setData);
+  }, [mode, stack]);
 
   const node: TrainerNode | null = data?.nodes[pa] ?? null;
   const r = useMemo(() => replay(pa, stack), [pa, stack]);
@@ -146,7 +152,7 @@ export function GtowExplorer() {
     for (let h = 0; h < 169; h++) num += combos(h) * weight[h] * (a.s[h] ?? 0);
     return num;
   });
-  const ante = 0.125 * 8;
+  const ante = mode === "cash" ? 0 : 0.125 * 8;
   const pot = r.bet.reduce((x, y) => x + y, 0) + ante;
   const toCall = actorIdx >= 0 ? Math.max(0, Math.max(...r.bet) - (r.bet[actorIdx] ?? 0)) : 0;
 
@@ -199,10 +205,28 @@ export function GtowExplorer() {
       {stackOpen && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 p-3 sm:items-center" onClick={() => setStackOpen(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-[#1b1b1d] p-3 shadow-e4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-[#252528] p-1">
+              {(["mtt", "cash"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    if (m === mode) return;
+                    setMode(m);
+                    setStack(100);
+                    setPa("");
+                    setHand(null);
+                  }}
+                  className={`pressable h-9 rounded-lg text-[13px] font-black ${mode === m ? "bg-[#3a3a3d] text-[#e6e6e6]" : "text-[#9a9a9a]"}`}
+                >
+                  {m === "mtt" ? "トーナメント" : "キャッシュゲーム"}
+                </button>
+              ))}
+            </div>
             <p className="mb-1 px-1 text-[14px] font-black text-[#e6e6e6]">エフェクティブスタック</p>
-            <p className="mb-3 px-1 text-[11px] text-[#9a9a9a]">MTT・8人卓・ChipEV</p>
+            <p className="mb-3 px-1 text-[11px] text-[#9a9a9a]">{mode === "cash" ? "キャッシュゲーム・8人卓・100BB・ライブレーキ10%" : "MTT・8人卓・ChipEV"}</p>
             <div className="grid grid-cols-3 gap-1.5">
-              {TRAINER_STACKS.map((s) => (
+              {(mode === "cash" ? CASH_STACKS : TRAINER_STACKS).map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -230,12 +254,12 @@ export function GtowExplorer() {
           {/* 押すとスタックを選ぶモーダル(上のスタックの列は廃止。オーナー指示)。 */}
           <button type="button" onClick={() => setStackOpen(true)} aria-label="スタックを変える" className="pressable flex flex-col rounded text-left">
             <span className="flex items-center gap-1 text-[12px] font-bold text-[#cfcfcf]">
-              MTT {stack}bb
+              {mode === "cash" ? "Cash" : "MTT"} {stack}bb
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </span>
-            <span className="text-[11px] text-[#9a9a9a]">ChipEV</span>
+            <span className="text-[11px] text-[#9a9a9a]">{mode === "cash" ? "レーキ10%" : "ChipEV"}</span>
             <span className="text-[11px] tabular-nums text-[#9a9a9a]">
               ポット <b className="text-[#e6e6e6]">{fmt(pot)}</b>
             </span>
