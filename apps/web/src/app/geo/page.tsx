@@ -207,6 +207,20 @@ function GeoDatabase({
   const [mode] = useState<"geo" | "gto">("geo");
   /** 画面の切り替え: GEO(集計)/ GTO(GTO Wizard の解をそのまま見る `GtowExplorer`)。 */
   const [view, setView] = useState<"geo" | "gto">("geo");
+  // ウィジェット・ショートカットから場面を指定して開く: /geo?tab=gto&stack=20&pa=F-F-F-F-F
+  // (pa は手番までのアクション。オープンなら前の席の人数ぶんの F)。
+  const [gtoLink, setGtoLink] = useState<{ stack?: number; pa?: string } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("tab") !== "gto") return;
+    const stack = Number(q.get("stack"));
+    const pa = q.get("pa") ?? "";
+    setGtoLink({
+      ...(Number.isFinite(stack) && stack > 0 ? { stack } : {}),
+      ...(/^[A-Z0-9-]*$/.test(pa) ? { pa } : {}),
+    });
+    setView("gto");
+  }, []);
   const [stackBucket, setStackBucket] = useState<StackBucket>("all");
   // GTOタブ専用のエフェクティブスタック(実スタック深度)。GEOタブの範囲バケットとは独立。
   const [gtoStackBb, setGtoStackBb] = useState<GtoStack>(100);
@@ -780,7 +794,7 @@ function GeoDatabase({
         </div>
         {view === "gto" ? (
           <div className="pt-3">
-            <GtowExplorer />
+            <GtowExplorer key={gtoLink ? `${gtoLink.stack}|${gtoLink.pa}` : "default"} initialStack={gtoLink?.stack} initialPa={gtoLink?.pa} />
           </div>
         ) : (
         <>
