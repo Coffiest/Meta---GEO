@@ -1,10 +1,12 @@
 // 特訓のデータを作る。取得した生のファイル(場面の配列の JSON。複数可)を読み、
 // スタックごとに apps/web/public/trainer/<スタック>.json へまとめる(既存の場面に足す)。
 // 使い方: node scripts/trainer/build-data.mjs <生のファイル>...
+// キャッシュゲーム: node scripts/trainer/build-data.mjs --cash <生のファイル>... → apps/web/public/trainer-cash/(トーナメントと混ぜない)
 import fs from "node:fs";
 import path from "node:path";
 
-const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), "../../apps/web/public/trainer");
+const CASH = process.argv.includes("--cash");
+const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), CASH ? "../../apps/web/public/trainer-cash" : "../../apps/web/public/trainer");
 fs.mkdirSync(OUT, { recursive: true });
 const POS = { "UTG+1": "UTG1" };
 // GTO Wizard の 169 の並びは手の名前の文字コード順(22, 32o, 32s, 33, ...)。アプリは表の並び(AA, AKs, ... 行=1枚目)。
@@ -22,7 +24,7 @@ const load = (stack) => {
   }
   return byStack.get(stack);
 };
-for (const file of process.argv.slice(2)) {
+for (const file of process.argv.slice(2).filter((a) => a !== "--cash")) {
   for (const n of JSON.parse(fs.readFileSync(file, "utf8"))) {
     const stack = Math.round(Number(n.d));
     load(stack).nodes[n.pa] = {
