@@ -63,6 +63,43 @@ struct RangeConfigIntent: WidgetConfigurationIntent {
     @Parameter(title: "ポジション", default: .BTN) var position: PositionOption
 }
 
+// MARK: - ウィジェットの上で切り替える(iOS 17 の押せるウィジェット。大サイズに出すボタン)
+
+/// ウィジェットの上で選んだ値。ボタンの処理はウィジェットの中で動くので、ウィジェット自身の保存先に置けば足りる。
+enum PickedSelection {
+    static let defaults = UserDefaults.standard
+    static var stack: Int? {
+        get { defaults.object(forKey: "pickedStack") as? Int }
+        set { defaults.set(newValue, forKey: "pickedStack") }
+    }
+    static var position: String? {
+        get { defaults.string(forKey: "pickedPosition") }
+        set { defaults.set(newValue, forKey: "pickedPosition") }
+    }
+}
+
+struct PickPositionIntent: AppIntent {
+    static var title: LocalizedStringResource = "ポジションを選ぶ"
+    @Parameter(title: "ポジション") var position: String
+    init() {}
+    init(_ position: String) { self.position = position }
+    func perform() async throws -> some IntentResult {
+        PickedSelection.position = position
+        return .result()
+    }
+}
+
+struct PickStackIntent: AppIntent {
+    static var title: LocalizedStringResource = "スタックを選ぶ"
+    @Parameter(title: "スタック") var stack: Int
+    init() {}
+    init(_ stack: Int) { self.stack = stack }
+    func perform() async throws -> some IntentResult {
+        PickedSelection.stack = stack
+        return .result()
+    }
+}
+
 // MARK: - タイムライン(中身は変わらないので1件だけ)
 
 struct RangeEntry: TimelineEntry {
@@ -75,8 +112,11 @@ struct RangeEntry: TimelineEntry {
 
 struct RangeProvider: AppIntentTimelineProvider {
     func entry(for c: RangeConfigIntent) -> RangeEntry {
-        let stack = c.stack.rawValue, pos = c.position.rawValue
-        let pa = Array(repeating: "F", count: c.position.foldsBefore).joined(separator: "-")
+        // ウィジェットの上で選んだ値があればそれを、無ければ「ウィジェットを編集」の設定を使う。
+        let stack = PickedSelection.stack ?? c.stack.rawValue
+        let pos = PickedSelection.position ?? c.position.rawValue
+        let folds = PositionOption(rawValue: pos)?.foldsBefore ?? 0
+        let pa = Array(repeating: "F", count: folds).joined(separator: "-")
         return RangeEntry(
             date: .now, stack: stack, position: pos,
             data: RangeFile.shared?.ranges[String(stack)]?[pos],
@@ -97,6 +137,7 @@ let allInColor = Color(red: 0x72 / 255, green: 0x27 / 255, blue: 0x22 / 255)
 let foldColor = Color(red: 0x4D / 255, green: 0x7A / 255, blue: 0xB3 / 255)
 let inkBlack = Color(red: 0x03 / 255, green: 0x12 / 255, blue: 0x11 / 255)
 let ivory = Color(red: 0xE8 / 255, green: 0xE4 / 255, blue: 0xD3 / 255)
+let accent = Color(red: 0x00 / 255, green: 0xAE / 255, blue: 0xBB / 255)
 
 struct RangeGrid: View {
     let data: RangeEntryData
@@ -137,6 +178,31 @@ struct RangeGrid: View {
     }
 }
 
+/// 押して選ぶ小さなボタンの列(選んでいるものはアクセント色)。
+struct PickRow<Item: Hashable, I: AppIntent>: View {
+    let items: [Item]
+    let selected: Item
+    let label: (Item) -> String
+    let intent: (Item) -> I
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(items, id: \.self) { item in
+                Button(intent: intent(item)) {
+                    Text(label(item))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, minHeight: 20)
+                        .foregroundStyle(item == selected ? inkBlack : ivory)
+                        .background(item == selected ? accent : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
 struct RangeWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: RangeEntry
@@ -152,6 +218,11 @@ struct RangeWidgetView: View {
                 }
             }
             .foregroundStyle(ivory)
+            if family == .systemLarge {
+                // ウィジェットの上でどこのオープンか・スタックを切り替える(アプリは開かない)。
+                PickRow(items: ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB"], selected: entry.position, label: { $0 }) { PickPositionIntent($0) }
+                PickRow(items: [100, 60, 40, 30, 20, 12], selected: entry.stack, label: { "\($0)" }) { PickStackIntent($0) }
+            }
             if let d = entry.data {
                 RangeGrid(data: d, showLabels: family == .systemLarge)
             } else {
