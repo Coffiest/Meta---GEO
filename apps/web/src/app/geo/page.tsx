@@ -209,13 +209,15 @@ function GeoDatabase({
   const [view, setView] = useState<"geo" | "gto">("geo");
   // ウィジェット・ショートカットから場面を指定して開く: /geo?tab=gto&stack=20&pa=F-F-F-F-F
   // (pa は手番までのアクション。オープンなら前の席の人数ぶんの F)。
-  const [gtoLink, setGtoLink] = useState<{ stack?: number; pa?: string } | null>(null);
+  const [gtoLink, setGtoLink] = useState<{ stack?: number; pa?: string; mode?: "mtt" | "cash" } | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("tab") !== "gto") return;
     const stack = Number(q.get("stack"));
     const pa = q.get("pa") ?? "";
+    const mode = q.get("mode");
     setGtoLink({
+      ...(mode === "cash" || mode === "mtt" ? { mode } : {}),
       ...(Number.isFinite(stack) && stack > 0 ? { stack } : {}),
       ...(/^[A-Z0-9-]*$/.test(pa) ? { pa } : {}),
     });
@@ -794,7 +796,7 @@ function GeoDatabase({
         </div>
         {view === "gto" ? (
           <div className="pt-3">
-            <GtowExplorer key={gtoLink ? `${gtoLink.stack}|${gtoLink.pa}` : "default"} initialStack={gtoLink?.stack} initialPa={gtoLink?.pa} />
+            <GtowExplorer key={gtoLink ? `${gtoLink.mode}|${gtoLink.stack}|${gtoLink.pa}` : "default"} initialMode={gtoLink?.mode} initialStack={gtoLink?.stack} initialPa={gtoLink?.pa} />
           </div>
         ) : (
         <>
