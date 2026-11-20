@@ -70,8 +70,12 @@ function replay(pa: string, stack: number) {
   return { last, folded, next: i, bet, stacks: bet.map((b) => Math.max(0, stack - b)) };
 }
 
-export function GtowExplorer({ initialStack, initialPa }: { initialStack?: number | undefined; initialPa?: string | undefined } = {}) {
-  const [mode, setMode] = useState<Mode>("mtt");
+export function GtowExplorer({
+  initialMode,
+  initialStack,
+  initialPa,
+}: { initialMode?: Mode | undefined; initialStack?: number | undefined; initialPa?: string | undefined } = {}) {
+  const [mode, setMode] = useState<Mode>(initialMode ?? "mtt");
   const [stack, setStack] = useState<number>(
     initialStack && (TRAINER_STACKS as readonly number[]).includes(initialStack) ? initialStack : 100,
   );
