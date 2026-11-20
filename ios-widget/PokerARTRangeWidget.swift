@@ -50,18 +50,36 @@ struct RangeConfigIntent: WidgetConfigurationIntent {
     @Parameter(title: "自分の席", default: .BTN) var hero: HeroOption
 }
 
-// MARK: - ウィジェットの上のボタン(大・特大)
+// MARK: - ウィジェットの上で押して進める(大。GTO タブの席の帯と同じ使い方)
 
-/// ボタンで選んだ値。ボタンの処理はウィジェットの中で動くので、ウィジェット自身の保存先に置く。
-/// 一度でもボタンで選んだら、「ウィジェットを編集」の設定よりこちらを優先する。
+/// 押して選んだ値。ボタンの処理はウィジェットの中で動くので、ウィジェット自身の保存先に置く。
+/// 一度でも押して選んだら、「ウィジェットを編集」の設定よりこちらを優先する。
 enum Picked {
     static let d = UserDefaults.standard
     static func get(_ k: String) -> String? { d.string(forKey: "picked.\(k)") }
     static func set(_ k: String, _ v: String) { d.set(v, forKey: "picked.\(k)") }
 }
 
-struct PickIntent: AppIntent {
+/// 場面を丸ごと決める(席の帯の行動を押したとき)。
+struct SetLineIntent: AppIntent {
     static var title: LocalizedStringResource = "レンジの場面を選ぶ"
+    @Parameter(title: "オープンした席") var opener: String
+    @Parameter(title: "自分の席") var hero: String
+    init() {}
+    init(opener: String, hero: String) {
+        self.opener = opener
+        self.hero = hero
+    }
+    func perform() async throws -> some IntentResult {
+        Picked.set("opener", opener)
+        Picked.set("hero", hero)
+        return .result()
+    }
+}
+
+/// 先頭の板: スタックを順に切り替える / MTT とキャッシュを切り替える。
+struct SetSettingIntent: AppIntent {
+    static var title: LocalizedStringResource = "スタック・種類を変える"
     @Parameter(title: "項目") var field: String
     @Parameter(title: "値") var value: String
     init() {}
@@ -71,7 +89,6 @@ struct PickIntent: AppIntent {
     }
     func perform() async throws -> some IntentResult {
         Picked.set(field, value)
-        // 自分の席を後ろへずらす必要があるとき(オープンした席より前にいる等)は、表示側で直す。
         return .result()
     }
 }
@@ -109,53 +126,154 @@ struct RangeProvider: AppIntentTimelineProvider {
 
 // MARK: - 見た目
 
-struct Chip: View {
-    let label: String
-    let on: Bool
-    let dim: Bool
-    let intent: PickIntent
+// GTO タブと同じ色(席の帯)。
+let stripBg = hex(0x1B1B1D)
+let cardBg = hex(0x252528)
+let activeGreen = hex(0x8FE388)
+
+func optionLabel(_ c: String, stack: Int) -> String {
+    if c == "F" { return "Fold" }
+    if c == "C" { return "Call" }
+    if c == "X" { return "Check" }
+    if c == "RAI" { return "Allin \(stack)" }
+    return "Raise \(c.dropFirst())"
+}
+
+/// 席の帯の1枚(席名と、選べる行動。選んだ行動は白、手番の席は緑の枠)。
+struct SeatCard: View {
+    let pos: String
+    let options: [String]
+    let chosen: String?
+    let current: Bool
+    let future: Bool
+    let stack: Int
+    let action: (String) -> SetLineIntent?
+
     var body: some View {
-        Button(intent: intent) {
-            Text(label)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity, minHeight: 19)
-                .foregroundStyle(on ? inkBlack : ivory.opacity(dim ? 0.35 : 1))
-                .background(on ? accent : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+        VStack(alignment: .leading, spacing: 1) {
+            Text(pos)
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundStyle(current ? activeGreen : hex(0xCFCFCF))
+            ForEach(options, id: \.self) { o in
+                let label = Text(optionLabel(o, stack: stack))
+                    .font(.system(size: 8.5, weight: chosen == o ? .bold : .regular, design: .monospaced))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(chosen == o ? Color.white : current ? hex(0xE6E6E6) : hex(0x8A8A8A))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let intent = action(o) {
+                    Button(intent: intent) { label }.buttonStyle(.plain)
+                } else {
+                    label
+                }
+            }
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(cardBg, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(current ? activeGreen : .clear, lineWidth: 1.5))
+        .opacity(future ? 0.9 : 1)
     }
 }
 
-struct Pickers: View {
+/// GTO タブの上の「席の帯」と同じもの。先頭の板(MTT 100bb / ChipEV)と、8席の板を2段に並べる。
+/// 押した行動で場面が進む: 前の席の Raise → その席のオープンに対する次の席 / 手番の Fold → 次の席 / この先の席 → その席まで進める。
+/// 手番が Call・3ベットを選んだ先の場面はデータに無いので押せない。
+struct SeatStrip: View {
     let sel: RangeSelection
+
     var body: some View {
-        let stacks = RangeFile.shared?.modes[sel.mode]?.stacks ?? [100]
+        let file = RangeFile.shared
+        let spots = file?.modes[sel.mode]?.spots[String(sel.stack)] ?? [:]
+        let stacks = file?.modes[sel.mode]?.stacks ?? [100]
         let oi = allPositions.firstIndex(of: sel.opener) ?? -1
-        VStack(spacing: 3) {
-            HStack(spacing: 3) {
-                Chip(label: "MTT", on: sel.mode == "mtt", dim: false, intent: PickIntent("mode", "mtt"))
-                Chip(label: "Cash", on: sel.mode == "cash", dim: false, intent: PickIntent("mode", "cash"))
-                ForEach(stacks, id: \.self) { st in
-                    Chip(label: "\(st)", on: sel.stack == st, dim: false, intent: PickIntent("stack", String(st)))
+        let hi = allPositions.firstIndex(of: sel.hero) ?? 5
+        let nextStack = stacks[((stacks.firstIndex(of: sel.stack) ?? 0) + 1) % stacks.count]
+
+        func opts(_ key: String) -> [String] {
+            (spots[key]?.actions.map(\.c) ?? ["F"]).sorted { actionOrder($0) > actionOrder($1) }
+        }
+        func card(_ i: Int) -> some View {
+            let p = allPositions[i]
+            if sel.opener.isEmpty {
+                // オープンの場面: 前の席は Fold、手番は自分、後ろはこの先。
+                if i < hi {
+                    return SeatCard(pos: p, options: opts("|\(p)"), chosen: "F", current: false, future: false, stack: sel.stack) { o in
+                        o.hasPrefix("R") && o != "RAI" && i < 7 ? SetLineIntent(opener: p, hero: allPositions[i + 1]) : nil
+                    }
+                } else if i == hi {
+                    return SeatCard(pos: p, options: opts("|\(p)"), chosen: nil, current: true, future: false, stack: sel.stack) { o in
+                        if o == "F" { return i + 1 < 7 ? SetLineIntent(opener: "", hero: allPositions[i + 1]) : nil }
+                        if o.hasPrefix("R") && o != "RAI" { return SetLineIntent(opener: p, hero: allPositions[i + 1]) }
+                        return nil
+                    }
+                } else {
+                    let o2 = i < 7 ? opts("|\(p)") : []
+                    return SeatCard(pos: p, options: o2, chosen: nil, current: false, future: true, stack: sel.stack) { _ in
+                        i < 7 ? SetLineIntent(opener: "", hero: p) : nil
+                    }
                 }
-            }
-            HStack(spacing: 3) {
-                Text("vs").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(ivory.opacity(0.6)).frame(width: 16)
-                Chip(label: "Open", on: sel.opener.isEmpty, dim: false, intent: PickIntent("opener", ""))
-                ForEach(allPositions.dropLast(), id: \.self) { p in
-                    Chip(label: p, on: sel.opener == p, dim: false, intent: PickIntent("opener", p))
-                }
-            }
-            HStack(spacing: 3) {
-                Text("me").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(ivory.opacity(0.6)).frame(width: 16)
-                ForEach(Array(allPositions.enumerated()), id: \.element) { i, p in
-                    let ok = sel.opener.isEmpty ? i < 7 : i > oi
-                    Chip(label: p, on: sel.hero == p, dim: !ok, intent: PickIntent("hero", p))
+            } else {
+                // 相手のオープンへの対応の場面。
+                if i < oi {
+                    return SeatCard(pos: p, options: opts("|\(p)"), chosen: "F", current: false, future: false, stack: sel.stack) { o in
+                        o.hasPrefix("R") && o != "RAI" ? SetLineIntent(opener: p, hero: allPositions[i + 1]) : nil
+                    }
+                } else if i == oi {
+                    let o = opts("|\(p)")
+                    let raise = o.first { $0.hasPrefix("R") && $0 != "RAI" }
+                    return SeatCard(pos: p, options: o, chosen: raise, current: false, future: false, stack: sel.stack) { x in
+                        x == "F" ? SetLineIntent(opener: "", hero: allPositions[i + 1]) : nil
+                    }
+                } else if i < hi {
+                    return SeatCard(pos: p, options: opts("\(sel.opener)|\(p)"), chosen: "F", current: false, future: false, stack: sel.stack) { _ in nil }
+                } else if i == hi {
+                    return SeatCard(pos: p, options: opts("\(sel.opener)|\(p)"), chosen: nil, current: true, future: false, stack: sel.stack) { o in
+                        o == "F" && i < 7 ? SetLineIntent(opener: sel.opener, hero: allPositions[i + 1]) : nil
+                    }
+                } else {
+                    return SeatCard(pos: p, options: opts("\(sel.opener)|\(p)"), chosen: nil, current: false, future: true, stack: sel.stack) { _ in
+                        SetLineIntent(opener: sel.opener, hero: p)
+                    }
                 }
             }
         }
+
+        return VStack(spacing: 3) {
+            HStack(spacing: 3) {
+                // 先頭の板: 上を押すとスタックが順に変わる、下を押すと MTT / キャッシュが変わる。
+                VStack(alignment: .leading, spacing: 2) {
+                    Button(intent: SetSettingIntent("stack", String(nextStack))) {
+                        Text("\(sel.modeLabel) \(sel.stack)bb")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(hex(0xCFCFCF))
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }.buttonStyle(.plain)
+                    Button(intent: SetSettingIntent("mode", sel.mode == "mtt" ? "cash" : "mtt")) {
+                        Text(sel.mode == "mtt" ? "→ Cash" : "→ MTT")
+                            .font(.system(size: 8.5, design: .monospaced))
+                            .foregroundStyle(hex(0x9A9A9A))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }.buttonStyle(.plain)
+                    Text("ChipEV").font(.system(size: 8.5, design: .monospaced)).foregroundStyle(hex(0x9A9A9A))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 4).padding(.vertical, 3)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(cardBg, in: RoundedRectangle(cornerRadius: 6))
+                ForEach(0..<4, id: \.self) { card($0) }
+            }
+            HStack(spacing: 3) {
+                ForEach(4..<8, id: \.self) { card($0) }
+                Color.clear.frame(maxWidth: .infinity)
+            }
+        }
+        .padding(3)
+        .frame(height: 118)
+        .background(stripBg, in: RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -202,8 +320,7 @@ struct RangeWidgetView: View {
                 }
             default: // 大・特大(特大は iPad だけ)
                 VStack(alignment: .leading, spacing: 4) {
-                    Header(sel: entry.sel)
-                    Pickers(sel: entry.sel)
+                    SeatStrip(sel: entry.sel)
                     RangeGrid(spot: spot, showLabels: true)
                     FrequencyBar(spot: spot)
                 }
@@ -211,7 +328,7 @@ struct RangeWidgetView: View {
         } else {
             VStack(alignment: .leading, spacing: 4) {
                 Header(sel: entry.sel)
-                if family == .systemLarge || family == .systemExtraLarge { Pickers(sel: entry.sel) }
+                if family == .systemLarge || family == .systemExtraLarge { SeatStrip(sel: entry.sel) }
                 Spacer()
                 Text("この場面のデータはありません").font(.caption).foregroundStyle(ivory)
                 Spacer()
